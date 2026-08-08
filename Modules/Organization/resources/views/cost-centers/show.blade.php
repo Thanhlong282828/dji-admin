@@ -1,0 +1,1 @@
+@extends('layouts.admin') @section('title',$item['name']) @section('content')<section class="panel detail-card"><h2>{{ $item['code'] }} — {{ $item['name'] }}</h2><p>Ngân sách năm: <strong>{{ number_format((float)$item['annual_budget']) }} {{ $item['currency'] }}</strong></p></section>@endsection

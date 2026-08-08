@@ -1,0 +1,12 @@
+{
+    "name": "Notification",
+    "alias": "notification",
+    "description": "",
+    "keywords": [],
+    "priority": 0,
+    "requires": ["Core", "Company", "Organization", "Workflow"],
+    "providers": [
+        "Modules\\Notification\\Providers\\NotificationServiceProvider"
+    ],
+    "files": []
+}

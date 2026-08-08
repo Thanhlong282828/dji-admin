@@ -1,0 +1,12 @@
+{
+    "name": "Iam",
+    "alias": "iam",
+    "description": "Enterprise Identity and Access Governance",
+    "keywords": ["iam", "governance"],
+    "priority": 0,
+    "requires": ["Core", "Company", "Workflow", "Notification"],
+    "providers": [
+        "Modules\\Iam\\Providers\\IamServiceProvider"
+    ],
+    "files": []
+}

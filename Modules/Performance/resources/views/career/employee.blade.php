@@ -1,0 +1,8 @@
+@extends('layouts.admin')
+@section('title','Employee Career 360 · SCHEMA')
+@section('content')
+<div class="hero"><p class="eyebrow">CAREER 360 · READONLY EMPLOYMENT SNAPSHOT</p><h1>{{$data['employee']['full_name']}}</h1><p>{{$data['employee']['employee_code']}} · {{$data['employee']['work_email']??'—'}}</p></div>
+<div class="stats-grid"><article><span>Current position</span><strong>{{$data['position']['title']??'Chưa phân công'}}</strong></article><article><span>Career plans</span><strong>{{count($data['plans'])}}</strong></article><article><span>Competencies</span><strong>{{count($data['competency_gap'])}}</strong></article><article><span>History events</span><strong>{{count($data['history'])}}</strong></article></div>
+<div class="dashboard-grid"><section class="panel"><h2>Career Path & Progress</h2>@forelse($data['plans'] as $p)<article class="timeline"><strong>{{$p['path_name']}}</strong><p>Step {{$p['current_step']}} / {{$p['target_step']}}</p><span class="status-pill">{{strtoupper($p['status'])}}</span></article>@empty<p class="empty-state">Chưa có career plan.</p>@endforelse</section><section class="panel"><h2>Competency Gap</h2>@forelse($data['competency_gap'] as $c)<p><strong>{{$c['code']}} · {{$c['name']}}</strong><br>Current level {{$c['level']}}</p>@empty<p class="empty-state">Chưa có competency evidence.</p>@endforelse</section></div>
+<section class="panel"><h2>Append-only Career Timeline</h2>@forelse($data['history'] as $h)<article class="timeline"><strong>{{$h['event_type']}}</strong><p>{{$h['created_at']}}</p></article>@empty<p class="empty-state">Chưa có lịch sử nghề nghiệp.</p>@endforelse</section>
+@endsection

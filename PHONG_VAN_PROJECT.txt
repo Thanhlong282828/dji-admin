@@ -1,0 +1,296 @@
+SCHEMA ENTERPRISE HRM — TÀI LIỆU TRÌNH BÀY PROJECT KHI PHỎNG VẤN
+================================================================
+
+1. ELEVATOR PITCH — GIỚI THIỆU TRONG 60 GIÂY
+------------------------------------------------
+“Schema Enterprise HRM là hệ thống quản trị nhân sự và nội dung doanh nghiệp xây bằng Laravel theo Modular Monolith, MVC kết hợp CQRS. Hệ thống quản lý company, organization, employee, recruitment, onboarding, attendance, leave, overtime và payroll end-to-end. Payroll dùng immutable input snapshot, calculation version, maker-checker, insurance, personal income tax, Payslip PDF private và Bank Payment Batch. Tôi tập trung vào tenant isolation, authorization, idempotency, concurrency, auditability và không dùng float cho dữ liệu tiền. Controller không truy cập database trực tiếp; write đi qua Command Bus, read đi qua Query Bus. Project chạy MySQL, Redis, queue, Reverb, Docker, PHPStan level 10, PHPUnit và Vite.”
+
+2. BÀI TOÁN PROJECT GIẢI QUYẾT
+------------------------------
+- Quản lý nhiều công ty và giới hạn dữ liệu theo company.
+- Quản lý cơ cấu tổ chức, cost center, vị trí và định biên.
+- Quản lý hồ sơ nhân viên, assignment và lịch sử biến động.
+- Tuyển dụng ATS, candidate pipeline, offer và onboarding.
+- Chấm công, nghỉ phép, overtime với workflow phê duyệt.
+- Payroll từ dữ liệu đầu vào bất biến đến finalized Payroll Run.
+- Tính insurance và personal income tax theo policy version.
+- Sinh Payslip PDF private có checksum.
+- Tạo Bank Payment Batch theo maker-checker; chỉ phát hành file chỉ thị thanh toán, không tuyên bố đã chuyển tiền.
+- CMS cho admin viết bài và website khách hiển thị nội dung.
+
+3. KIẾN TRÚC TỔNG THỂ
+---------------------
+Kiểu kiến trúc: Modular Monolith, Laravel MVC + CQRS.
+
+Luồng ghi:
+Route
+→ FormRequest
+→ Controller
+→ CommandBus
+→ Typed Command
+→ Command Handler
+→ Domain Service/Write Repository
+→ MySQL transaction + Model
+→ Event
+→ Listener/Queue/Notification/Cache invalidation
+→ Redirect hoặc JSON Response
+
+Luồng đọc:
+Route
+→ Controller
+→ QueryBus
+→ Typed Query
+→ Query Handler
+→ Read Repository
+→ DTO/ViewModel
+→ Blade/API Resource
+
+Nguyên tắc:
+- Controller chỉ nhận request, authorize, dispatch Bus và trả response.
+- Business rule nằm trong Domain Service.
+- Query tối ưu nằm trong Read Repository.
+- DTO/ViewModel tạo contract rõ giữa application và presentation.
+- Không query database trong Blade.
+- Event realtime chỉ chứa identifier/status, không chứa dữ liệu nhạy cảm.
+
+4. CÁC MODULE CHÍNH
+-------------------
+- Company: công ty, trạng thái, tenant context.
+- Organization: cost center, organization tree, job position, headcount.
+- Employee: hồ sơ, assignment, manager, credential, contract, document.
+- Recruitment: requisition, candidate, application pipeline, interview, offer.
+- Onboarding: onboarding case, checklist và phối hợp bộ phận.
+- Attendance: attendance records, ca/lịch, approval và lock.
+- Leave: policy, balance, request và approval.
+- Overtime: request, approval và classification.
+- Payroll: period, immutable input, run, calculation, insurance, tax, Payslip, Payment Batch.
+- CMS/Article: nội dung website doanh nghiệp.
+- Core: Command Bus, Query Bus, shared security và notification foundation.
+
+5. DATABASE VÀ TENANT ISOLATION
+-------------------------------
+- Database: MySQL, production schema_admin; test schema_admin_testing.
+- Dữ liệu nghiệp vụ có company_id và repository luôn scope theo company.
+- Mỗi action kiểm tra auth + verified + permission + workforce.company Gate.
+- Foreign record bị chặn ở repository/service; không chỉ ẩn nút UI.
+- Foreign ID không được dùng để đọc hoặc mutate record Company khác.
+- Migration chỉ additive; không dùng migrate:fresh trên production.
+
+6. PAYROLL END-TO-END
+---------------------
+Payroll Period
+→ Capture Payroll Input Snapshot
+→ Validate Snapshot
+→ Create Payroll Run
+→ Calculate exact version
+→ Submit
+→ Checker Approve
+→ Finalize
+→ Generate Payslip
+→ Create Payment Batch
+→ Validate
+→ Review
+→ Checker Approve
+→ Release private payment file
+→ Secure Download
+
+Điểm quan trọng:
+- Calculate đọc immutable Payroll Input Snapshot, không đọc lại dữ liệu live.
+- Payroll Item lưu component breakdown và calculation_version.
+- Tất cả amount dùng integer minor units, không dùng float.
+- Finalized Run bất biến.
+- Payslip và Payment Batch dùng persisted Payroll Item chính xác theo version.
+
+7. INSURANCE VÀ PERSONAL INCOME TAX
+-----------------------------------
+- Policy có version và effective date.
+- Employee profile chọn policy phù hợp tại kỳ lương.
+- Rate dùng basis points thay vì float.
+- Kết quả được snapshot vào Payroll Item và breakdown rows.
+- Thay policy live sau calculation không làm thay đổi kết quả cũ.
+- net_after_personal_income_tax_minor là nguồn tiền authoritative cho Payment Batch.
+
+8. PAYSLIP FOUNDATION
+---------------------
+- Chỉ tạo Official Payslip từ finalized Run.
+- Snapshot gồm employee identity cần thiết, period, run, calculation version, amounts và components.
+- PDF A4 thật bằng Dompdf, remote resources disabled.
+- Lưu storage/app/private, đường dẫn UUID opaque.
+- Lưu MIME, file size, SHA-256 checksum và template version.
+- Download kiểm tra integrity và ghi access log.
+- Published/revoked document không bị overwrite âm thầm.
+
+9. BANK PAYMENT BATCH FOUNDATION
+--------------------------------
+Employee Payment Account:
+- Account number mã hóa bằng Laravel Crypt.
+- UI chỉ hiển thị last4, không decrypt trong list/detail/form.
+- Account phải active, verified, effective tại payment date và đúng currency.
+- Primary account không được overlap cùng employee/method/currency.
+
+Eligibility:
+- Run finalized.
+- Payroll Item đúng Run và calculation_version.
+- Amount lấy duy nhất từ net_after_personal_income_tax_minor.
+- Amount > 0, account bank_transfer verified/effective/currency match.
+- Zero amount excluded; negative amount blocking.
+
+Instruction snapshot:
+- Beneficiary, bank/branch, encrypted account snapshot, last4, amount, currency, payment reference, Payroll Item ID và calculation version.
+- Live account/name thay đổi sau đó không thay đổi batch.
+- Export decrypt account snapshot chỉ trong memory tại controlled export boundary.
+
+Duplicate prevention:
+- Request idempotency unique theo company.
+- Một active Batch cho Run được trả lại khi retry với key mới.
+- active_intent_key nullable có unique DB constraint theo Payroll Item + version.
+- Rejected batch giải phóng active_intent_key theo explicit rule.
+- Transaction và lockForUpdate bảo vệ race condition.
+
+Lifecycle:
+draft → validated → reviewed → approved → released
+draft/validated/reviewed → rejected
+
+Maker-checker:
+- created_by không được bằng approved_by.
+- Rule enforce trong Domain Service, không chỉ trên Blade.
+- Approved/released instruction không được rebuild.
+
+Release semantics:
+- Release chỉ nghĩa là đã tạo và khóa file chỉ thị thanh toán private.
+- Không có nghĩa Submitted to Bank hoặc Paid.
+- Direct Bank API hiện NOT_CONNECTED.
+
+Generic CSV:
+- generic_csv_v1_minor_units.
+- Column order deterministic.
+- Amount là integer minor unit string, không dùng float.
+- Text fields chống formula injection (=, +, -, @, tab, CR).
+- Account number không bị thêm prefix làm thay đổi identifier; chỉ CSV escaping.
+- Private storage + checksum + MIME + size.
+
+10. SECURITY
+------------
+- Spatie Permission, Policy/Gate và company data scope.
+- Account number encrypted at rest.
+- Full account number không xuất hiện trong HTML, log, notification, event hoặc exception.
+- Salary/payment amount không broadcast realtime.
+- Secure download dùng no-store, nosniff, private storage và integrity verification.
+- Activity log lưu actor/action/subject/safe metadata.
+- Maker-checker chống tự phê duyệt.
+- Idempotency và unique constraint chống duplicate financial intent.
+- FormRequest whitelist input; không dùng request->all().
+- CSV injection protection.
+
+11. REALTIME, QUEUE VÀ NOTIFICATION
+-----------------------------------
+- Laravel Reverb/Echo, private company channel.
+- Payload chỉ có company_id, entity_id, status, version và refresh scopes.
+- Queue xử lý công việc nặng/retryable như PDF và notification.
+- Durable delivery marker chống notification trùng khi retry.
+- UI reload fragment phù hợp, không cần full page reload.
+- Live two-browser chỉ được gọi VERIFIED sau kiểm tra bằng hai session thực.
+
+12. CACHE VÀ PERFORMANCE
+-----------------------
+- Redis cache theo prefix company/entity/filter hash.
+- Không dùng Cache::flush().
+- Event write tăng version/xóa đúng cache read model.
+- Export dùng cursor/stream, không Model::all().
+- Query list/detail tránh N+1 bằng join/eager aggregate.
+- Benchmark Payroll hiện có: 1.000 employees, 1.000 items, 5.000 breakdown rows.
+
+13. TEST STRATEGY
+----------------
+- Unit: domain calculation, hierarchy, validator, handler.
+- Feature: HTTP, validation, permission, tenant, CQRS, private file.
+- Concurrency: MySQL row lock cho calculate/approve/finalize và duplicate intent.
+- Security: guest, missing permission, no-company access, foreign record.
+- Snapshot immutability: thay live source nhưng persisted result không đổi.
+- Aggregate consistency: run/item/component và batch/item totals phải khớp.
+- Real file integration: PDF/CSV bytes, checksum, MIME, size, private storage.
+- PHPStan level 10 và Pint là quality gate.
+
+14. DEVOPS
+----------
+- Docker Compose: nginx, php-fpm, MySQL, Redis, queue, scheduler, Horizon, Reverb, Mailpit.
+- Multi-stage Docker build và healthcheck.
+- Vite frontend build.
+- CI/CD định hướng: Composer validate/install/audit, npm ci/build, Pint, PHPStan, PHPUnit, security scan, Docker validation/build, staging/production deploy.
+
+15. KỊCH BẢN DEMO 10 PHÚT
+-------------------------
+1. Đăng nhập Admin và chỉ ra permission-aware sidebar.
+2. Company → Organization Tree → Job Position/Headcount.
+3. Employee → Assignment và tenant boundary.
+4. Recruitment pipeline → Offer → Onboarding.
+5. Attendance/Leave/Overtime approval.
+6. Payroll Period → Input Snapshot → Run detail.
+7. Calculate → Submit → checker Approve → Finalize.
+8. Payslip detail: exact calculation version, private PDF metadata.
+9. Payment Account: masked account và verification.
+10. Payment Batch: exact net-after-tax, maker-checker, release file; nhấn mạnh Released != Paid.
+
+16. CÂU HỎI PHỎNG VẤN VÀ CÁCH TRẢ LỜI
+--------------------------------------
+Q: Vì sao dùng CQRS trong Modular Monolith?
+A: Write và read có nhu cầu khác nhau. Write cần transaction/business rule/event; read cần join/aggregate/pagination tối ưu. CQRS giúp Controller mỏng, test Handler độc lập và không cần trả chi phí vận hành của microservice quá sớm.
+
+Q: Vì sao không dùng microservice ngay?
+A: Payroll cần consistency mạnh giữa Run, Item, snapshot và state transition. Modular Monolith giữ transaction boundary đơn giản. Module boundary, Bus, DTO và event tạo đường tách service sau này nếu scale/team ownership thực sự yêu cầu.
+
+Q: Vì sao tiền dùng integer minor units?
+A: Float có sai số nhị phân và gây lệch aggregate/reconciliation. Integer minor units + basis points cho kết quả deterministic và so sánh chính xác.
+
+Q: Làm sao bảo đảm Payroll không đổi khi dữ liệu chấm công live thay đổi?
+A: Run trỏ exact payroll_input_snapshot_id. Calculation chỉ đọc persisted snapshot; Payroll Item/components được version hóa. Test sửa live source sau snapshot và chứng minh kết quả không đổi.
+
+Q: Chống trả lương hai lần như thế nào?
+A: Ba lớp: transaction/lock, idempotency key, unique active_intent_key theo item+calculation version. UI không phải lớp bảo vệ. Rejected intent mới được giải phóng theo rule rõ ràng.
+
+Q: Bảo vệ số tài khoản thế nào?
+A: Encrypt at rest bằng Laravel Crypt, chỉ lưu last4 riêng để hiển thị. Không decrypt ở read repository/UI/log/event. Chỉ decrypt instruction snapshot trong memory khi tạo private CSV.
+
+Q: Maker-checker thực hiện ở đâu?
+A: Domain Service lock batch, kiểm tra state và created_by != approved_by. Route permission và Blade button chỉ là lớp ngoài; gọi URL trực tiếp vẫn không bypass được.
+
+Q: Release file có nghĩa đã trả tiền chưa?
+A: Không. Released chỉ là file instruction được approve và tạo private. Không dùng paid/submitted_to_bank nếu chưa có bank confirmation/reconciliation đáng tin cậy.
+
+Q: Tenant isolation chống IDOR thế nào?
+A: Middleware permission + workforce.company Gate + mọi repository/service query có company_id. Foreign record không được resolve trong tenant scope.
+
+Q: Event realtime có leak dữ liệu lương không?
+A: Không. Payload chỉ identifier, status, version, count và refresh scopes. Browser nhận event rồi gọi endpoint fragment đã authorize.
+
+Q: Khi nào sẽ tách Payroll thành microservice?
+A: Khi có independent deploy/scale/team ownership, integration bank/accounting phức tạp hoặc transaction volume đủ lớn. Trước đó module boundaries và outbox/event contract phải được chuẩn hóa.
+
+17. TRADE-OFF VÀ HẠN CHẾ CẦN NÓI THẬT
+--------------------------------------
+- Full Payroll Platform vẫn PARTIAL.
+- Direct Bank Integration: NOT_CONNECTED.
+- Accounting Posting: NOT_CONNECTED.
+- Government Filing: NOT_CONNECTED.
+- Annual Tax Reconciliation: NOT_STARTED.
+- Retroactive/Off-cycle Adjustment: NOT_STARTED.
+- Payment CSV là generic foundation, không tự nhận là format chính thức mọi ngân hàng.
+- Manual reconciliation chỉ là foundation, không phải bank-confirmed payment.
+- Live two-browser realtime cần test thực trước khi gọi VERIFIED.
+
+18. URL DEMO CHÍNH
+------------------
+- Dashboard: http://127.0.0.1:8001/dashboard
+- Companies: /admin/companies
+- Organization Tree: /admin/organization/tree?company_id=1
+- Employees: /admin/employees?company_id=1
+- Recruitment: /admin/recruitment/dashboard?company_id=1
+- Payroll Runs: /admin/payroll/runs?company_id=1
+- Payslips: /admin/payroll/payslips?company_id=1
+- Payment Accounts: /admin/payroll/payment-accounts?company_id=1
+- Payment Batches: /admin/payroll/payment-batches?company_id=1
+
+19. CÂU KẾT THÚC KHI PHỎNG VẤN
+------------------------------
+“Điểm tôi muốn thể hiện qua project không chỉ là số lượng module, mà là cách bảo vệ tính đúng đắn của nghiệp vụ nhạy cảm: immutable snapshot, versioning, integer money, maker-checker, tenant isolation, idempotency, database constraint, private file integrity và automated quality gate. Tôi cũng phân biệt rõ foundation với integration thật, ví dụ Released không đồng nghĩa Paid.”
+

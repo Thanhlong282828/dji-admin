@@ -1,0 +1,1 @@
+@extends('layouts.admin') @section('title','Thêm trung tâm chi phí') @section('content')<form method="POST" action="{{ route('admin.cost-centers.store') }}">@include('organization::cost-centers.partials.form')</form>@endsection

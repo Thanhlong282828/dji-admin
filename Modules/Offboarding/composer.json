@@ -1,0 +1,30 @@
+{
+    "name": "nwidart/offboarding",
+    "description": "",
+    "authors": [
+        {
+            "name": "Nicolas Widart",
+            "email": "n.widart@gmail.com"
+        }
+    ],
+    "extra": {
+        "laravel": {
+            "providers": [],
+            "aliases": {
+
+            }
+        }
+    },
+    "autoload": {
+        "psr-4": {
+            "Modules\\Offboarding\\": "app/",
+            "Modules\\Offboarding\\Database\\Factories\\": "database/factories/",
+            "Modules\\Offboarding\\Database\\Seeders\\": "database/seeders/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Modules\\Offboarding\\Tests\\": "tests/"
+        }
+    }
+}

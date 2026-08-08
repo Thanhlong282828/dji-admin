@@ -1,0 +1,413 @@
+FOUNDATION FEATURE MAP
+
+MySQL configuration: .env, .env.example, config/database.php
+Module runtime: config/modules.php, Modules/*/module.json, composer.json merge-plugin config
+CQRS buses: Modules/Core/app/Application/Buses/*
+Company CQRS controller: Modules/Company/app/Presentation/Http/Controllers/CompanyController.php
+Company validation/resource: Modules/Company/app/Presentation/Http/Requests/StoreCompanyRequest.php; Resources/CompanyResource.php
+Company command/handler: Modules/Company/app/Application/Commands/CreateCompany/*
+Company query/handler: Modules/Company/app/Application/Queries/ListCompanies/*
+Company repositories/model: Modules/Company/app/Domain/Repositories/*; Infrastructure/Persistence/Repositories/EloquentCompanyRepository.php; Domain/Models/Company.php
+Company bindings/routes/tests: Modules/Company/app/Providers/CompanyServiceProvider.php; routes/api.php; tests/Feature/CompanyApiTest.php
+
+COMPANY MODULE — COMPLETE CQRS CRUD
+Migration bổ sung: database/migrations/2026_07_23_120000_expand_companies_for_enterprise_admin.php
+Enum/model/factory: Modules/Company/app/Domain/Enums/CompanyStatus.php; Domain/Models/Company.php; database/factories/CompanyFactory.php
+Commands: Application/Commands/{CreateCompany,UpdateCompany,ChangeCompanyStatus,DeleteCompany,RestoreCompany}/*
+Queries: Application/Queries/{GetCompanyList,GetCompanyDetail,GetCompanyEdit,GetCompanyDashboardStats}/*
+DTO: Application/DTOs/CompanyViewModel.php; CompanyListViewModel.php
+Repositories: Domain/Repositories/CompanyReadRepositoryInterface.php; CompanyWriteRepositoryInterface.php
+Implementations: Infrastructure/Persistence/Repositories/EloquentCompanyReadRepository.php; EloquentCompanyWriteRepository.php
+Policy: app/Policies/CompanyPolicy.php
+Events: Domain/Events/Company{Created,Updated,StatusChanged,Deleted,Restored}.php
+Listeners: Application/Listeners/ClearCompanyCache.php; WriteCompanyActivityLog.php
+Requests: Presentation/Http/Requests/{StoreCompanyRequest,UpdateCompanyRequest,ChangeCompanyStatusRequest,CompanyRules}.php
+Controller/routes: Presentation/Http/Controllers/CompanyController.php; routes/web.php; routes/api.php
+Blade: resources/views/companies/{index,create,edit,show}.blade.php; partials/form.blade.php
+Seeder: database/seeders/CompanySeeder.php; permission mapping in database/seeders/RolePermissionSeeder.php
+Tests: Modules/Company/tests/Feature/{CompanyApiTest,CompanyManagementTest}.php; tests/Unit/Company/*
+Menu/Dashboard integration: resources/views/layouts/admin.blade.php; resources/views/admin/dashboard/index.blade.php; Modules/Dashboard/app/Presentation/Http/Controllers/DashboardController.php
+Authentication: routes/auth.php, app/Http/Controllers/Auth/*, resources/views/auth/*
+Authorization: app/Models/User.php, database/seeders/RolePermissionSeeder.php, AdminUserSeeder.php
+HRM schema: database/migrations/2026_07_23_000200_create_hrm_core_schema.php
+Realtime: config/broadcasting.php, config/reverb.php, routes/channels.php
+CMS legacy implementation pending migration into Article/Product/Media CQRS modules: app/Http/Controllers, app/Models, resources/views/admin
+
+PHASE 1B — ORGANIZATION CORE
+Combined bounded context: Modules/Organization
+Models: Domain/Models/{CostCenter,OrganizationUnit,JobPosition,EmployeeAssignment}.php
+Services: Domain/Services/{TenantAccessService,OrganizationTreeService,OrganizationCycleDetector,OrganizationHierarchyValidator}.php
+CQRS: Application/Commands/* and Application/Queries/*
+Repositories: Domain/Repositories/*; Infrastructure/Persistence/Repositories/*
+Policies: app/Policies/{CostCenterPolicy,OrganizationUnitPolicy,JobPositionPolicy}.php
+HTTP: Presentation/Http/Controllers/*; Presentation/Http/Requests/*; routes/{web,api}.php
+Views: resources/views/{cost-centers,organization-units,job-positions,headcount}
+Realtime: Domain/Events/*; Application/Listeners/OrganizationChangeListener.php; resources/ts/schema.ts
+Tests: tests/Feature/OrganizationCoreTest.php; tests/Unit/Organization/*
+
+PHASE 2 — EMPLOYEE CORE (PARTIAL)
+Module: Modules/Employee
+Domain: app/Domain/{Enums,Models,Events,Repositories,Services}
+CQRS: app/Application/{Commands,Queries,Listeners}
+Infrastructure: app/Infrastructure/{Casts,Persistence}
+HTTP: app/Presentation/Http/{Controllers,Requests}; routes/web.php
+Views: resources/views/employees
+Tests: tests/Feature/EmployeeCoreTest.php; tests/Unit/Employee/EmployeeIdentityServiceTest.php
+
+PHASE 3 — RECRUITMENT/ONBOARDING (PARTIAL)
+Recruitment domain/CQRS/repositories/HTTP/views: Modules/Recruitment
+Onboarding read model/dashboard/list: Modules/Onboarding
+Tests: tests/Feature/RecruitmentCoreTest.php; tests/Unit/Recruitment/StateMachineTest.php
+
+PHASE 2.5A — ORGANIZATION QUALITY GATE
+Export DTO/query/handler: Modules/Organization/app/Application/{DTOs,Queries/GetOrganizationExport}
+Export enum/service/controller: Domain/Enums/OrganizationExportType.php;
+Domain/Services/SpreadsheetFormulaSanitizer.php; Presentation/Http/Controllers/OrganizationExportController.php
+Export tests: tests/Feature/OrganizationExportTest.php
+PHASE 2.5B EMPLOYEE CORE
+- Application/DTOs: EmployeeAssignmentData, EmployeeCredentialData, EmploymentContractData, DataConsentData, EmployeeExportData.
+- Application/Commands: assignment create/update/end/transfer; credential create/update/archive; contract create/transition; consent grant/withdraw; avatar upload/remove; user link/unlink/invite.
+- Application/Queries: GetEmployeeAssignments, GetEmployeeExport.
+- Domain/Services: EmployeeAssignmentService, EmployeeCredentialService, EmploymentContractService/StateMachine, DataConsentService, EmployeeDocumentService, EmployeeAvatarService, EmployeeUserLinkService.
+- Policies: EmployeeAssignment, EmployeeCredential, EmploymentContract, DataConsent, EmployeeDocument, EmployeeUserLink.
+- Infrastructure: Eloquent employee repositories, private malware scanners.
+- Presentation: Employee, Assignment, Export, Credential, Contract, Consent, Document, Avatar, UserLink controllers and requests.
+- Tests: tests/Feature/Employee/EmployeeCompletionTest.php.
+- Docs: employee-completion-before/after, employee-phpstan-fixes, employee-audit-after, scheduler.
+PHASE 2.5C-2D FILE MAP
+- Panel summary: Modules/Recruitment/app/Application/Queries/GetInterviewPanelSummary, Application/DTOs/Interview*Summary.php, Presentation/Http/Controllers/InterviewController.php, resources/views/interviews/panel-summary.blade.php.
+- Notifications: Application/Notifications/RecruitmentWorkflowNotification.php, RecruitmentNotificationRecipientResolver.php, Application/Listeners/SendRecruitmentWorkflowNotifications.php.
+- Reminder: Application/Jobs/SendInterviewRemindersJob.php and RecruitmentServiceProvider schedule.
+- Realtime: Domain/Events/RecruitmentWorkflowChanged.php, routes/channels.php, resources/ts/realtime/echo.ts, resources/ts/realtime/recruitment.ts, resources/js/app.js.
+- Tests: tests/Feature/RecruitmentRealtimePanelTest.php.
+
+PHASE 2.5C-3 HIRE CANDIDATE
+- Modules/Recruitment/app/Application/Commands/HireCandidate/*
+- Modules/Recruitment/app/Application/Queries/GetHireCandidatePreview/*
+- Modules/Recruitment/app/Application/DTOs/HireCandidateData.php, HireCandidateResult.php, HireCandidatePreview.php
+- Modules/Recruitment/app/Domain/Services/HireCandidateService.php, HireCandidateEligibilityValidator.php
+- Modules/Recruitment/app/Domain/Events/CandidateHireCompleted.php
+- Modules/Recruitment/app/Application/Listeners/HandleCandidateHireCompleted.php
+- Modules/Recruitment/app/Presentation/Http/Requests/HireCandidateRequest.php
+- Modules/Recruitment/resources/views/offers/hire.blade.php
+- Modules/Onboarding/app/Domain/Services/OnboardingCaseCreationService.php, OnboardingCaseStateMachine.php
+- tests/Feature/HireCandidateTransactionTest.php
+
+PHASE 3A WORKFORCE OPERATIONS (COMPLETED by Phase 3A-7)
+- Modules/Attendance: calendar/work profile/shift/event models, capture CQRS, calculator/pairing/rounding, schedules, safe realtime.
+- Modules/Leave: policy/request models, duration/state machine, create/transition CQRS, reservation ledger.
+- Modules/Payroll: period/snapshot models, generate/lock CQRS, readiness validation.
+- database/migrations/2026_07_26_000004_create_workforce_operations_foundation.php
+- tests/Unit/WorkforceOperationsDomainTest.php
+- tests/Feature/WorkforceOperationsFoundationTest.php
+PHASE 3A-2 ATTENDANCE WORKFLOW (2026-07-26)
+- Modules/Attendance/app/Http/Controllers/AttendanceWorkflowController.php
+- Modules/Attendance/app/Presentation/Http/Requests/AttendanceWorkflowRequest.php
+- Modules/Attendance/app/Application/Commands/ProcessAttendanceWorkflowCommand.php
+- Modules/Attendance/app/Application/Commands/ProcessAttendanceWorkflowHandler.php
+- Modules/Attendance/app/Application/Queries/GetAttendanceRecordDetailQuery.php
+- Modules/Attendance/app/Application/Queries/GetAttendancePeriodReadinessQuery.php
+- Modules/Attendance/app/Application/DTOs/AttendanceRecordDetail.php
+- Modules/Attendance/app/Application/DTOs/AttendancePeriodReadiness.php
+- Modules/Attendance/app/Domain/Services/AttendanceWorkflowService.php
+- Modules/Attendance/app/Domain/Repositories/AttendanceWorkflowRepositoryInterface.php
+- Modules/Attendance/app/Infrastructure/Persistence/EloquentAttendanceWorkflowRepository.php
+- Modules/Attendance/resources/views/show.blade.php
+- Modules/Attendance/resources/views/readiness.blade.php
+- tests/Feature/Attendance/AttendanceApprovalWorkflowTest.php
+PHASE 3A-3 LEAVE MANAGEMENT (2026-07-26)
+- Modules/Leave/app/Application/Commands/ManageLeaveCommand.php and Handler
+- Modules/Leave/app/Application/Queries/GetLeaveManagementQuery.php and Handler
+- Modules/Leave/app/Application/DTOs/LeaveManagementViewModel.php
+- Modules/Leave/app/Domain/Services/LeaveManagementService.php
+- Modules/Leave/app/Domain/Repositories/LeaveReadRepositoryInterface.php
+- Modules/Leave/app/Infrastructure/Persistence/EloquentLeaveReadRepository.php
+- Modules/Leave/app/Http/Controllers/LeaveManagementController.php
+- Modules/Leave/app/Presentation/Http/Requests/ManageLeaveRequest.php
+- Modules/Leave/resources/views/management.blade.php
+- tests/Feature/Leave/LeaveManagementWorkflowTest.php
+
+PHASE 3A-4 OVERTIME (2026-07-26)
+- Migration: database/migrations/2026_07_26_000007_complete_overtime_management_workflow.php
+- CQRS: Modules/Attendance/app/Application/Commands/ManageOvertimeCommand.php, ManageOvertimeHandler.php, Application/Queries/GetOvertimeManagementQuery.php, GetOvertimeManagementHandler.php
+- Read model: Modules/Attendance/app/Application/DTOs/OvertimeManagementViewModel.php, Domain/Repositories/OvertimeReadRepositoryInterface.php, Infrastructure/Persistence/EloquentOvertimeReadRepository.php
+- Domain: Modules/Attendance/app/Domain/Services/OvertimeManagementService.php, Domain/Events/WorkforceOvertimeChanged.php
+- HTTP/UI: Modules/Attendance/app/Http/Controllers/OvertimeController.php, Presentation/Http/Requests/ManageOvertimeRequest.php, routes/web.php, resources/views/overtime.blade.php
+- Test: tests/Feature/Attendance/OvertimeManagementWorkflowTest.php
+
+PHASE 3A-5 SHARED GAP CLOSURE (2026-07-26)
+- Schedule rules: ManageScheduleRulesCommand/Handler, ScheduleRuleManagementService, GetScheduleRuleEditorQuery/Handler, ScheduleRuleEditorViewModel, EloquentScheduleRuleReadRepository, ScheduleRuleController, schedule-rules.blade.php.
+- Attachments: ManageLeaveAttachmentCommand/Handler, DownloadLeaveAttachmentQuery/Handler, LeaveAttachmentService, LeaveAttachmentController, MalwareScannerInterface/Result/Status and UnavailableMalwareScanner.
+- Scheduler: AutomatedLeaveLedgerService and Accrue/CarryForward/Expire jobs.
+- Export: CsvCellSanitizer, StreamingCsvResponseFactory, GetWorkforceCsvExportQuery/Handler, WorkforceExportController.
+- Notification/realtime: WorkforceNotification, recipient resolver, durable delivery service, three workflow listeners, resources/ts/realtime/workforce.ts.
+- Test: tests/Feature/Attendance/WorkforceSharedGapClosureTest.php.
+
+PHASE 3A-6 FINAL GATE (2026-07-26)
+- Authorization: app/Policies/Workforce/WorkforceAuthorizationPolicy.php, AppServiceProvider Gate registration, Gate calls in all workforce controllers.
+- Cache: app/Services/WorkforceCacheRegistry.php and app/Listeners/InvalidateWorkforceReadModels.php.
+- Export: WorkforceExportRequest plus filter-aware GetWorkforceCsvExportQuery/Handler.
+- Realtime: Leave refresh scopes and replacement-safe resources/ts/realtime/workforce.ts.
+- Concurrency: tests/Support/workforce_concurrency_worker.php and tests/Concurrency/Workforce/ShiftAssignmentProcessConcurrencyTest.php.
+- Tests: tests/Feature/Workforce/WorkforceFinalGateTest.php.
+PHASE 3A-7 — COMPLETED (2026-07-26)
+- Dedicated policies: app/Policies/Workforce/*Policy.php; registration: WorkforcePolicyGateRegistrar.php.
+- Cache: WorkforceCacheRegistry plus Attendance/Leave/Overtime/Workforce read repositories and dashboard handler.
+- Concurrency: tests/Support/MysqlProcessRaceRunner.php, workforce_concurrency_worker.php, tests/Concurrency/Workforce/CriticalWorkflowProcessConcurrencyTest.php.
+- Verification: PolicyMatrix, workforce-cache, mysql-concurrency, WorkforceFinalGate and full regression suites.
+PHASE 3B-1 PAYROLL ENGINE FOUNDATION (PARTIAL, 2026-07-26)
+- Batch 22: salary component/assignment, run/item minor-unit extensions, component lines, validation issues and run history.
+- Core: Money, fixed/percentage/quantity-rate calculators, PayrollRunService lifecycle and safe PayrollRunChanged event.
+- Tests: tests/Unit/Payroll, tests/Feature/Payroll and tests/Concurrency/Payroll. Payroll Run HTTP/read UI, CSV export, fragments, durable notifications and process concurrency are implemented; Payroll Input operations are documented in Phase 3B-2A below.
+PHASE 3B-1B PROGRESS (PARTIAL)
+- Added PayrollConfigurationService, SalaryComponentValidator, component/assignment Commands and Handlers, SalaryComponentPolicy, EmployeeSalaryComponentAssignmentPolicy and PayrollConfigurationChanged.
+- Remaining closure: read-side/HTTP/UI/export/durable notifications/Payroll process concurrency/performance benchmark.
+PHASE 3B-1G PAYROLL DELIVERY/REALTIME/PERFORMANCE
+- Modules/Payroll/app/Http/Controllers/PayrollFragmentController.php
+- Modules/Payroll/resources/views/partials/run-summary.blade.php
+- Modules/Payroll/resources/views/partials/run-readiness.blade.php
+- Modules/Payroll/resources/views/partials/run-items.blade.php
+- Modules/Payroll/resources/views/partials/run-validation.blade.php
+- Modules/Payroll/resources/views/partials/run-history.blade.php
+- Modules/Payroll/resources/views/partials/run-actions.blade.php
+- tests/Feature/Payroll/PayrollNotificationRetryTest.php
+- tests/Feature/Payroll/PayrollExportHttpTest.php
+- tests/Feature/Payroll/PayrollFragmentSecurityTest.php
+- tests/Feature/Payroll/PayrollPerformanceTest.php
+PHASE 3B-2A PAYROLL INPUT OPERATIONS
+- database/migrations/2026_07_28_000011_complete_payroll_input_operations.php
+- Modules/Payroll/app/Application/DTOs/PayrollInputOperationsViewModel.php
+- Modules/Payroll/app/Application/Commands/{CapturePayrollInputSnapshot,ValidatePayrollInputSnapshot,CreatePayrollInputSnapshotVersion,CreatePayrollRunFromInputSnapshot}
+- Modules/Payroll/app/Application/Queries/{GetPayrollInputList,GetPayrollInputCreateOptions,GetPayrollInputDetail}
+- Modules/Payroll/app/Domain/Services/PayrollInputOperationsService.php
+- Modules/Payroll/app/Domain/Repositories/PayrollInputOperationsReadRepositoryInterface.php
+- Modules/Payroll/app/Infrastructure/Persistence/EloquentPayrollInputOperationsReadRepository.php
+- Modules/Payroll/app/Presentation/Http/Requests/PayrollInputOperationRequest.php
+- Modules/Payroll/resources/views/inputs/{index,create,show}.blade.php
+- tests/Feature/Payroll/PayrollInputOperationsTest.php
+
+PHASE 3B-2B PAYROLL PERIOD OPERATIONS
+- database/migrations/2026_07_28_000012_complete_payroll_period_operations.php
+- Modules/Payroll/app/Application/DTOs/PayrollPeriodViewModel.php
+- Modules/Payroll/app/Application/Commands/{CreatePayrollPeriod,UpdatePayrollPeriod,OpenPayrollPeriod,LockOperationalPayrollPeriod,ClosePayrollPeriod,DeletePayrollPeriod}
+- Modules/Payroll/app/Application/Queries/{GetPayrollPeriodList,GetPayrollPeriodCreateOptions,GetPayrollPeriodDetail}
+- Modules/Payroll/app/Domain/Repositories/PayrollPeriodReadRepositoryInterface.php
+- Modules/Payroll/app/Infrastructure/Persistence/EloquentPayrollPeriodReadRepository.php
+- Modules/Payroll/app/Domain/Services/PayrollPeriodOperationsService.php
+- Modules/Payroll/app/Domain/Events/PayrollPeriodChanged.php
+- Modules/Payroll/app/Http/Controllers/PayrollPeriodController.php
+- Modules/Payroll/app/Presentation/Http/Requests/PayrollPeriodRequest.php
+- Modules/Payroll/resources/views/periods/{index,create,edit,show,partials-form}.blade.php
+- tests/Feature/Payroll/PayrollPeriodOperationsTest.php
+- Phase status: 3B-2B COMPLETED; full Payroll Engine remains PARTIAL.
+
+PHASE 3B-3 PAYROLL OPERATIONAL FLOW
+- database/migrations/2026_07_28_000013_add_payroll_run_finalized_actor.php
+- Modules/Payroll/app/Application/DTOs/PayrollRunListViewModel.php
+- Modules/Payroll/app/Application/DTOs/PayrollRunDetailViewModel.php
+- Modules/Payroll/app/Application/DTOs/PayrollItemDetailViewModel.php
+- Modules/Payroll/app/Application/Queries/GetPayrollRunList/{GetPayrollRunListQuery,GetPayrollRunListHandler}.php
+- Modules/Payroll/app/Application/Queries/GetPayrollItemDetail/{GetPayrollItemDetailQuery,GetPayrollItemDetailHandler}.php
+- Modules/Payroll/app/Infrastructure/Persistence/EloquentPayrollDeliveryReadRepository.php
+- Modules/Payroll/app/Http/Controllers/{PayrollDeliveryController,PayrollRunController}.php
+- Modules/Payroll/resources/views/runs/index.blade.php
+- Modules/Payroll/resources/views/items/show.blade.php
+- Modules/Payroll/resources/views/run-detail.blade.php and partials/run-*.blade.php
+- tests/Feature/Payroll/PayrollEndToEndOperationalFlowTest.php
+- tests/Support/Payroll/PayrollBrowserFixtureSeeder.php (testing database only)
+- docs/payroll-end-to-end-flow.md
+- Verification: E2E 3/48; Payroll Feature 21/285; concurrency 7/46; Unit 25/61; Feature 116/1013; full 155/1252.
+- Phase status: 3B-3 COMPLETED; Full Payroll Engine PARTIAL.
+PHASE 3B-4 — PAYROLL INPUT SOURCE ACCURACY
+- Domain: PayrollOvertimeClassificationService, PayrollOvertimeClassification DTO.
+- Read CQRS: GetPayrollInputEmployeeList/Detail Query + Handler; PayrollInputOperationsReadRepository employeeList/employeeDetail; PayrollInputEmployeeViewModel.
+- HTTP/UI: PayrollController employee actions; employee list/detail routes and Blade views; snapshot link.
+- Persistence: additive migration 000014 and immutable payroll_input_source_records.
+- Tests/docs: PayrollInputOperationsTest and docs/payroll-input-source-accuracy.md.
+PHASE 3C-1 — STATUTORY INSURANCE FOUNDATION
+- Domain calculation: InsuranceContributionBaseResolver, InsuranceRoundingService, StatutoryInsuranceCalculationService, PayrollInsuranceIntegrator.
+- CQRS administration: SaveInsurancePolicy/Profile commands; Insurance policy/profile list/detail queries; company-scoped repository and ViewModel.
+- HTTP/UI: InsuranceAdministrationController, Request, 10 routes, Policy/Profile Blade pages and permission-aware sidebar.
+- Persistence/test/docs: batch-27 migration, InsurancePolicyOperationsTest, StatutoryInsuranceCalculationServiceTest, PayrollRunLifecycle insurance integration.
+PHASE 3C-2 TAX FOUNDATION
+- Migration: database/migrations/2026_07_28_000016_create_personal_income_tax_foundation.php
+- Controller/Request: Modules/Payroll/app/Http/Controllers/TaxAdministrationController.php; Modules/Payroll/app/Presentation/Http/Requests/TaxAdministrationRequest.php
+- Commands: SaveTaxPolicy, SaveEmployeeTaxProfile under Modules/Payroll/app/Application/Commands
+- Queries: GetTaxPolicyList/Detail and GetEmployeeTaxProfileList/Detail under Modules/Payroll/app/Application/Queries
+- Read repository: TaxAdministrationReadRepositoryInterface -> EloquentTaxAdministrationReadRepository
+- Domain: TaxManagementService, TaxBracketValidator, PayrollTaxIntegrator, PersonalIncomeTaxCalculationService, TaxRoundingService
+- DTO: TaxAdministrationViewModel, TaxPayrollContext, TaxCalculationResult, TaxBracketLine, TaxableIncome
+- Views: Modules/Payroll/resources/views/tax/policies/* and tax/employees/*
+- Integration: PayrollRunService persists exact-version tax snapshots and totals; Payroll Item detail renders Tax calculation data.
+
+PHASE 3D-1 — PAYSLIP GENERATION AND SECURE DELIVERY
+- Migration: database/migrations/2026_07_28_000017_create_payroll_payslip_foundation.php
+- Controller/Request: Modules/Payroll/app/Http/Controllers/PayslipController.php; Modules/Payroll/app/Presentation/Http/Requests/PayslipActionRequest.php
+- Commands: GeneratePayrollItemPayslip, GeneratePayrollRunPayslips, PublishPayslip, RegeneratePayslip, RevokePayslip.
+- Queries: GetPayslipList, GetPayslipDetail, DownloadPayslip.
+- Domain: PayslipSnapshotBuilder, PayslipPdfRenderer, PayslipIntegrityService, PayslipGenerationService.
+- Queue/realtime/notification: GeneratePayslipPdfJob, PayslipChanged, SendPayslipPublishedNotification.
+- Persistence: PayslipReadRepositoryInterface -> EloquentPayslipReadRepository.
+- Views: payslips/index.blade.php, payslips/show.blade.php, pdf/payslip.blade.php plus Run/Item actions.
+- Tests/docs: tests/Feature/Payroll/PayslipGenerationTest.php; docs/payroll-payslip-foundation.md.
+
+PHASE 3D-2 — BANK PAYMENT BATCH FOUNDATION
+- Additive migration batch 30: database/migrations/2026_07_29_000018_create_bank_payment_batch_foundation.php.
+- CQRS: typed Payment Account/Payment Batch Commands and Queries through shared buses.
+- Domain: EmployeePaymentAccountService, PayrollPaymentBatchService, PaymentFileIntegrityService, PaymentBatchChanged.
+- HTTP/UI: PaymentAccountController, PaymentBatchController, Requests, 15 protected routes and permission-aware Blade pages.
+- Security: Laravel Crypt, masked last4, company Gate, maker-checker, private CSV, SHA-256 and access audit.
+- Tests: tests/Feature/Payroll/PayrollPaymentBatchFoundationTest.php.
+- Interview presentation: PHONG_VAN_PROJECT.txt.
+PHASE 3D-3 PAYROLL ACCOUNTING POSTING FOUNDATION
+- Migration: database/migrations/2026_07_29_000019_create_payroll_accounting_posting_foundation.php
+- CQRS DTO/Commands/Queries: Modules/Payroll/app/Application/{DTOs,Commands,Queries}
+- Domain: AccountingAdministrationService, PayrollAccountingJournalService, AccountingJournalChanged, AccountingReadRepositoryInterface
+- Infrastructure: EloquentAccountingReadRepository
+- HTTP: AccountingAccountController, AccountingPolicyController, AccountingMappingController, AccountingJournalController and typed Requests
+- UI: Modules/Payroll/resources/views/accounting/{accounts,policies,mappings,journals}
+- Tests: PayrollAccountingPostingFoundationTest + Accounting cases in PayrollProcessConcurrencyTest
+- Documentation: docs/payroll-accounting-posting-foundation.md and updated CQRS/database/security/realtime/test docs
+PHASE 3E-1: Retroactive Adjustment lives in Modules/Payroll app: Domain/Enums/PayrollAdjustment*, Domain/Events/PayrollAdjustmentChanged.php, Domain/Repositories/PayrollAdjustmentReadRepositoryInterface.php, Domain/Services/PayrollAdjustmentManagementService.php, Application/DTOs/PayrollAdjustment*, Application/Commands/CreatePayrollAdjustment, Application/Commands/ProcessPayrollAdjustment, Application/Queries/GetPayrollAdjustment, Infrastructure/Persistence/EloquentPayrollAdjustmentReadRepository.php, Http/Controllers/PayrollAdjustmentController.php, Presentation/Http/Requests/PayrollAdjustmentRequest.php, resources/views/adjustments/*.blade.php. Migration: database/migrations/2026_07_29_000020_create_payroll_adjustment_foundation.php. Tests: tests/Feature/Payroll/PayrollAdjustmentLifecycleTest.php.
+PHASE 3E-1C1: Downstream schema compatibility files: database/migrations/2026_07_29_000021_complete_payroll_adjustment_downstream_schema.php; Domain/Enums/{PayrollDownstreamSourceType,PayrollAdjustmentDownstreamType,PayrollAdjustmentDownstreamStatus}.php; Domain/Services/PayrollDownstreamSourceInvariant.php; Application/DTOs/{AdjustmentPaymentSourceData,AdjustmentAccountingSourceData,AdjustmentStatementArtifactData,AdjustmentDownstreamIntentData}.php; tests/Feature/Payroll/PayrollAdjustmentDownstreamSchemaTest.php. Schema only; no downstream business executor or artifact generator was added.
+PHASE 3E-1C2: Real downstream integration files: Application/DTOs/{AdjustmentPaymentResult,AdjustmentAccountingResult,AdjustmentStatementResult}.php; Application/Commands/{CreateAdjustmentPaymentInstruction,CreateAdjustmentAccountingJournal,GenerateAdjustmentStatement,RetryAdjustmentDownstream}; Application/Queries/DownloadAdjustmentStatement; Domain/Services/{PayrollAdjustmentDownstreamService,PayrollAdjustmentPaymentService,PayrollAdjustmentAccountingService,PayrollAdjustmentStatementService,PayrollAdjustmentIntegrityService,AdjustmentStatementPdfRenderer}.php; resources/views/pdf/adjustment-statement.blade.php. PayrollAdjustmentController and adjustment detail UI expose permission/state-aware execution, retry and secure download. Tests: PayrollAdjustmentPaymentIntegrationTest, PayrollAdjustmentAccountingIntegrationTest, PayrollAdjustmentStatementTest, PayrollAdjustmentDownstreamRetryTest and Support/Payroll adjustment fixture builders.
+PHASE 3E-1C3: PayrollAdjustmentDownstreamService processing-lease hardening; PayrollAdjustmentBrowserFixtureCommand + PayrollAdjustmentBrowserFixtureService guarded local/testing fixture; PayrollProcessConcurrencyTest + workforce_concurrency_worker Adjustment process scenarios; PayrollAdjustmentBrowserFixtureCommandTest; responsive admin/Adjustment CSS. No migration. Browser fixtures are cleanup-scoped to BROWSER-ADJUSTMENT-POSITIVE/NEGATIVE.
+PHASE 3E-2A (DESIGN ONLY): docs/payroll-annual-tax-reconciliation-audit.md and docs/payroll-annual-tax-reconciliation-design.md audit existing monthly PIT/Payroll/Payslip/Adjustment sources and design annual aggregate, schema, lifecycle, CQRS, DTOs, permissions and tests. No PHP annual implementation, migration, route, permission seed, annual data or document was added.
+PHASE 3E-2A QUALITY: Payroll Feature 53/689; Unit 30/75; PHPStan Payroll level 10 zero; Pint/Blade/Vite/Docker Compose pass; production audited counts unchanged at zero; annual tables/files absent.
+PHASE 3E-2B: migrations batch 34–35 create the 8-table Annual PIT foundation, explicit Adjustment tax attribution and corrected source-type-scoped Item uniqueness. Typed files live under Payroll Application/DTOs, Application/Commands/{CreateAnnualTaxReconciliation,CollectAnnualTaxSources}, Domain/Enums/PayrollAnnualTax*, Domain/Models/PayrollAnnualTaxReconciliation.php, Domain/Repositories/AnnualTaxReconciliationRepositoryInterface.php, Domain/Services/{AnnualTaxSourceCollector,PayrollAnnualTaxAttributionResolver,AnnualTaxChecksumService,PayrollAnnualTaxReconciliationService}.php and Infrastructure/Persistence/EloquentAnnualTaxReconciliationRepository.php. Tests: PayrollAnnualTaxSchemaTest, PayrollAnnualTaxDraftTest, PayrollAnnualTaxSourceCollectorTest and AnnualTaxChecksumServiceTest. No Annual calculator/lifecycle/UI/document/downstream implementation was added.
+PHASE 3E-2C: AnnualTaxAggregate/Calculation/Validation/Lifecycle/Supersede DTOs; PayrollAnnualTaxCalculator, Validator, OperationsService and LifecycleService; ProcessAnnualTaxReconciliation Command/Handler; GetAnnualTaxReconciliation Query/Handler; AnnualTaxReconciliationRequest; PayrollAnnualTaxReconciliationController; five secured routes; black-gold annual-tax list/create/detail Blade pages; Annual PIT permission set and sidebar. Finalize creates eligibility metadata only—no PDF, Payment, Recovery or Journal execution.
+PHASE 3E-2C2 — Annual PIT operational gate: dedicated action Commands/Handlers under `Modules/Payroll/app/Application/Commands/*AnnualTaxReconciliation`, typed action/stage enums, expanded persisted-state validator, dedicated controller actions/routes/FormRequests, bounded independent detail pagination, maker-checker-aware Blade actions, security/pagination/validation tests.
+
+PHASE 3E-2C STATUS 2026-08-01: COMPLETED. Added payable/refund/balanced/blocked fixtures; complete validation and invalid-transition matrices; maker-checker/company isolation; typed List/Detail/Source/History Queries/ViewModels; guarded browser fixture command; desktop/mobile browser verification; and MySQL process races for create/calculate/finalize. No migration or production mutation. Phase 3E-2D NOT_STARTED.
+PHASE 3E-2C FINAL GATE: Annual focused 11 tests/148 assertions; Annual process concurrency 1/9; Payroll Feature 69/901; Payroll Unit 11/37; Full PHPUnit 227/2,010; PHPStan level 10 0 errors; Pint/Blade/Vite/Docker config passed; batches 34–36 Ran.
+PHASE 3E-2D: Annual Tax Execution & Delivery. Private immutable-snapshot Dompdf statement, SHA-256/MIME/size/PDF-signature secure Query download, access logs, payable eligibility, refund obligation, balanced/no-op rule, separate balanced settlement journal, retry/idempotency, process races, guarded delivery fixture and responsive browser proof. Batch 37 only; batches 1–36 unchanged.
+PHASE 3E-2D FINAL GATE: Annual focused 11/214; process concurrency 1/16; Payroll Feature 69/958; Payroll Unit 11/37; Full PHPUnit 227/2,074; PHPStan level 10 0 errors; Pint/Blade/Vite/Docker passed; desktop/mobile browser passed; production business rows/files unchanged at 0.
+PHASE 3E-3 ERP INTEGRATION FOUNDATION
+- database/migrations/2026_08_01_000027_complete_erp_security_and_delivery.php
+- Modules/Payroll/app/Domain/Services/ErpAdministrationService.php
+- Modules/Payroll/app/Domain/Services/ErpIntegrationBrowserFixtureService.php
+- Modules/Payroll/app/Console/Commands/ErpIntegrationBrowserFixtureCommand.php
+- Modules/Payroll/app/Application/Commands/ManageErpAdministration/*
+- Modules/Payroll/app/Application/Queries/GetErpAdministration/*
+- Modules/Payroll/app/Application/Queries/DownloadErpArtifact/*
+- Modules/Payroll/resources/views/erp/connections/*
+- Modules/Payroll/resources/views/erp/mappings/*
+- tests/Feature/Payroll/ErpIntegrationCompletionTest.php
+- tests/Concurrency/Payroll/ErpIntegrationProcessConcurrencyTest.php
+- docs/payroll-erp-integration-audit.md
+- docs/payroll-erp-integration-foundation.md
+- database/migrations/2026_08_01_000026_create_erp_integration_foundation.php
+- Modules/Payroll/app/Domain/Adapters/ErpAccountingAdapter.php
+- Modules/Payroll/app/Infrastructure/Adapters/GenericCsvErpAdapter.php
+- Modules/Payroll/app/Domain/Services/ErpExportService.php
+- Modules/Payroll/app/Domain/Repositories/ErpExportReadRepositoryInterface.php
+- Modules/Payroll/app/Infrastructure/Persistence/EloquentErpExportReadRepository.php
+- Modules/Payroll/app/Application/Commands/{Create,Validate,Execute,Retry,Reverse}ErpExport
+- Modules/Payroll/app/Application/Queries/GetErpExport{List,Detail,Logs,CreateOptions}
+- Modules/Payroll/app/Application/DTOs/Erp*.php
+- Modules/Payroll/app/Http/Controllers/ErpExportController.php
+- Modules/Payroll/app/Presentation/Http/Requests/ErpExportRequest.php
+- Modules/Payroll/resources/views/erp/exports/{index,create,show}.blade.php
+- tests/Unit/Payroll/GenericCsvErpAdapterTest.php
+- tests/Feature/Payroll/ErpIntegrationSecurityTest.php
+
+PHASE 3E-4 GOVERNMENT FILING FOUNDATION
+- database/migrations/2026_08_01_000028_create_government_tax_filing_foundation.php
+- Modules/Payroll/app/Domain/Services/GovernmentTaxFilingService.php
+- Modules/Payroll/app/Domain/Adapters/GovernmentDeclarationGeneratorInterface.php
+- Modules/Payroll/app/Infrastructure/Adapters/GenericXmlDeclarationGenerator.php
+- Modules/Payroll/app/Domain/Repositories/GovernmentFilingReadRepositoryInterface.php
+- Modules/Payroll/app/Infrastructure/Persistence/EloquentGovernmentFilingReadRepository.php
+- Modules/Payroll/app/Application/Commands/{Create,Generate,Validate,Approve,Submit,Retry,Reject}GovernmentFiling
+- Modules/Payroll/app/Application/Queries/GetGovernmentFiling{List,Detail,CreateOptions},GetSubmissionHistory,DownloadGovernmentDocument
+- Modules/Payroll/app/Application/DTOs/GovernmentFiling*.php
+- Modules/Payroll/app/Http/Controllers/GovernmentFilingController.php
+- Modules/Payroll/app/Presentation/Http/Requests/GovernmentFilingRequest.php
+- Modules/Payroll/resources/views/government-filing/{index,create,show}.blade.php
+- tests/Feature/Payroll/GovernmentFilingFoundationTest.php
+- tests/Unit/Payroll/GenericXmlDeclarationGeneratorTest.php
+- tests/Concurrency/Payroll/GovernmentFilingProcessConcurrencyTest.php
+- docs/payroll-government-filing-{audit,design}.md
+- docs/phpstan-phase3e4-audit.md
+- Phase 3E-4G hardening: seven-permission HTTP matrix, lifecycle-negative matrix, deterministic/source-sensitive XML tests, tampered-download blocked access log, validate/approve MySQL process races, exact responsive browser evidence.
+
+PHASE 3E-5A HR ENTERPRISE AUDIT & DOMAIN DESIGN — DOCUMENTATION ONLY
+- docs/hr-enterprise-audit.md
+- docs/hr-enterprise-design.md
+- Audited Organization, Employee, Recruitment, Onboarding boundary, Attendance and Payroll ownership.
+- Proposed Employee Lifecycle state machine, aggregate, events, CQRS, immutable history schema and testing strategy.
+- No migration, PHP implementation, route, permission, seed or production write.
+PHASE 3E-5B EMPLOYEE LIFECYCLE PLATFORM
+- Migration: database/migrations/2026_08_01_000029_create_employee_lifecycle_foundation.php
+- Domain: Modules/Employee/app/Domain/{Enums/EmployeeLifecycleState.php,Services/EmployeeLifecycleStateMachine.php,Services/EmployeeLifecycleService.php,Models/*Lifecycle* and *History.php,Events/Employee*.php}
+- Application: Modules/Employee/app/Application/{DTOs,Commands,Queries} lifecycle classes
+- Infrastructure: Modules/Employee/app/Infrastructure/Persistence/Repositories/EloquentEmployeeLifecycleReadRepository.php
+- Presentation: Modules/Employee/app/Presentation/Http/{Controllers/EmployeeLifecycleController.php,Requests/EmployeeLifecycleActionRequest.php}; Resources views lifecycle/index and lifecycle/show
+- Security: EmployeeLifecyclePolicy, `hr.lifecycle.*` permissions and route middleware
+- Tests: tests/Feature/EmployeeLifecyclePlatformTest.php; tests/Unit/Employee/EmployeeLifecycleStateMachineTest.php; tests/Concurrency/Employee/EmployeeLifecycleProcessConcurrencyTest.php
+- Documentation: docs/hr-employee-lifecycle-foundation.md
+
+PHASE 3E-5C TALENT & PERFORMANCE MANAGEMENT
+- Migration: database/migrations/2026_08_02_000030_create_talent_performance_foundation.php (batch 42)
+- Domain: Modules/Performance/app/Domain/{Enums/PerformanceStatus.php,Services/PerformanceStateMachine.php,Services/PerformanceCycleService.php,Services/GoalManagementService.php,Services/PerformanceReviewService.php,Services/CompetencyService.php,Events/*.php}
+- Application: Modules/Performance/app/Application/{DTOs,Commands,Queries}
+- Infrastructure: Modules/Performance/app/Infrastructure/Persistence/EloquentPerformanceReadRepository.php
+- Presentation: Modules/Performance/app/Presentation/Http/{Controllers/PerformanceController.php,Requests/PerformanceActionRequest.php}; Resources/views/{dashboard,employee}.blade.php
+- Security: PerformancePolicy and seven `talent.*` permissions; company-scoped 403/404 behavior and maker-checker.
+- Tests: tests/Feature/TalentPerformanceManagementTest.php; tests/Unit/Performance/PerformanceStateMachineTest.php; tests/Concurrency/Performance/TalentPerformanceProcessConcurrencyTest.php
+- Documentation: docs/hr-talent-performance-foundation.md
+
+PHASE 3E-5D CAREER & SUCCESSION PLANNING
+- Migration batch 43: database/migrations/2026_08_02_000031_create_career_succession_foundation.php
+- Domain: CareerPathService, SuccessionPlanningService, ReadinessAssessmentService, CareerStateMachine, CareerSupport and typed enums.
+- CQRS: seven Commands/Handlers and four Queries/Handlers under Modules/Performance/app/Application.
+- UI: career/dashboard.blade.php and career/employee.blade.php; sidebar route admin.career.*.
+- Tests: CareerSuccessionFoundationTest and CareerSuccessionProcessConcurrencyTest.
+- Documentation: docs/hr-career-succession-foundation.md
+
+PHASE 3E-5E WORKFORCE ANALYTICS — COMPLETED
+- Migration batch 44 and three Analytics tables.
+- WorkforceAnalyticsService, WorkforceDashboard Query/Handler and GenerateWorkforceSnapshot Command/Handler.
+- Responsive Workforce dashboard and analytics permissions.
+- Completion hardening: calculator split, immutable versioning, Refresh/Rebuild CQRS, metric/security tests and MySQL process concurrency.
+PHASE 3E-5F HR DATA GOVERNANCE
+- Modules/Employee/app/Domain/Governance: five quality rules and registry.
+- Modules/Employee/app/Application/Commands: run, review/resolve, approve correction, archive document.
+- Modules/Employee/app/Application/Queries: dashboard, ownership, consent audit, document governance.
+- Modules/Employee/app/Infrastructure/Persistence/Repositories/EloquentHRGovernanceReadRepository.php.
+- Modules/Employee/app/Presentation/Http/Controllers/HRGovernanceController.php and governance Blade views.
+- database/migrations/2026_08_03_000036_complete_hr_data_governance_schema.php (additive batch 48).
+- tests/Feature/HRDataGovernanceTest.php.
+- tests/Concurrency/Employee/HRDataGovernanceProcessConcurrencyTest.php and guarded browser fixture command.
+- Completion hardening includes EmployeeDocumentGovernanceService, checksum verification, consent/document views, access audit and full permission matrix.
+
+PHASE 3F-1 WORKFLOW ENGINE
+- Modules/Workflow/app/Application: eight Command/Handler flows, five Query/Handler flows, immutable DTO/ViewModel.
+- Modules/Workflow/app/Domain: actor/completion contracts, typed models, definition/execution/task/routing/SLA/history services.
+- Modules/Workflow/app/Infrastructure: tenant-aware actor resolver, read repository, transactional outbox completion adapter.
+- Modules/Workflow/app/Presentation: authorized controller/request and black-gold dashboard, definitions, task inbox, instance timeline views.
+- Modules/Workflow/routes/web.php: 12 authenticated, verified and permission-protected Admin routes, including the dedicated audit trail.
+- tests/Feature/Workflow, tests/Unit/Workflow and tests/Concurrency/Workflow: operational, routing/actor/SLA, security and MySQL process-race verification.
+- Guarded browser tooling: WorkflowBrowserFixtureCommand.php + WorkflowBrowserFixtureService.php; testing-only data is cleaned after use.
+- Completion hardening files: WorkflowTaskService.php (instance→task lock order), DatabaseWorkflowActorResolver.php (manager user mapping and tenant intersection), OutboxWorkflowCompletionHandler.php (one completion envelope), workflow::audit and responsive overflow-safe views.
+- Current completion status: COMPLETED; exact desktop 1280×800 and mobile 390×844 browser evidence captured, console clean, production Workflow rows remain zero.
+
+PHASE 3F-2 ENTERPRISE NOTIFICATION CENTER
+- Additive migration batch 50: database/migrations/2026_08_08_000038_create_enterprise_notification_center.php.
+- Modules/Notification/app/Application: immutable QueueNotificationData/ViewModel, seven Commands/Handlers and five Queries/Handlers.
+- Domain: NotificationDeliveryService, TemplateService, ReadStateService, PayloadGuard and recipient/sender contracts.
+- Infrastructure: database/broadcast/email senders, five tenant-safe recipient resolvers and NotificationReadRepository.
+- Presentation: NotificationCenterController/Request/Policy and black-gold inbox, detail, templates and delivery audit views.
+- Workflow integration: WorkflowNotificationOutboxService plus scheduled ConsumeWorkflowNotificationOutboxCommand.
+- Testing: EnterpriseNotificationCenterTest and EnterpriseNotificationProcessConcurrencyTest; guarded notification:browser-fixture.
+- Status: completion gates implemented; see docs/enterprise-notification-center.md.
+PHASE 3F-3 IAM: Modules/Iam contains CQRS commands/queries, IAM governance services, Spatie provisioning adapter, tenant-safe Controller/Request, black-gold Blade UI and guarded browser fixture. Schema: database/migrations/2026_08_08_000039_create_enterprise_iam_governance.php. Tests: tests/Feature/Iam and tests/Unit/Iam.
+PHASE 3F-3 hardening: AccessReviewService plus Create/Start/Decide/Complete commands; immutable certification; full SoD matrix; privileged three-actor approval and expiry; Workflow, Employee and Notification consumers; readonly Access360; split route permissions; batch 52; MySQL race suite.
+PHASE 3F-3 consumer race evidence: tests/Concurrency/Iam/EnterpriseIamProcessConcurrencyTest.php now covers Workflow callback, Employee termination, Employee transfer, Notification outbox and privileged approval/provision. Full PHPUnit 340 tests/2,654 assertions PASS. Exact post-hardening browser viewport evidence remains blocked by the available fixed 1280×720 runtime.
+PHASE 3F-3 initial browser audit: Chrome 151 existed without an automation driver. This historical blocker was resolved by adding dev-only playwright-core without downloading a browser binary.
+PHASE 3F-3 exact viewport completion: dev-only playwright-core plus tests/Browser/iam-responsive-check.mjs drives the existing Google Chrome binary. Eight pages pass at exact 1280×800 and exact 390×844 with zero document overflow and zero console/page errors. Fixture cleanup and Vite build pass. Phase 3F-3H and Phase 3F-3 Overall are COMPLETED.
+PHASE 3F-4 ENTERPRISE INTEGRATION HUB: existing Modules/Integration scaffold enabled and completed with Domain/Contracts, Domain/Services/IntegrationHubService, Infrastructure adapters/security/read repository, CQRS commands/query, Presentation controller/request, routes, black-gold view, guarded fixture command, migration batch 53 and focused tests. See docs/enterprise-integration-hub*.md.
+PHASE 3F-4 HARDENING: persisted ERP/Government bridges, five process-level MySQL races, complete HMAC/dedupe and credential-mask tests, Playwright Chrome exact responsive evidence, no additional migration.
+PHASE 3F-4 FINAL STATUS: COMPLETED. Full PHPUnit 352 tests/2,695 assertions PASS; Integration PHPStan app/tests level 10 zero; exact Chrome 1280x800 and 390x844 PASS; production Integration/ERP/Government/Payroll/IAM business counts unchanged.
+PHASE 3F-5 ENTERPRISE AUDIT PLATFORM: COMPLETED. Modules/Audit contains typed CQRS, six concrete source consumers, DB-backed checkpoint idempotency, immutable recorder/snapshots, SHA-256 diff/redaction, streaming CSV/incremental PDF, secure download, immutable JSONL range archive, tenant-safe UI and process-race coverage. Additive batches 54-55; existing migrations unchanged. See docs/enterprise-audit-platform*.md.
+PHASE 3F-5 FINAL EVIDENCE: Audit focused/concurrency 14 tests/146 assertions; shared regressions 129/1,248; Full PHPUnit 366/2,841 exit 0; PHPStan level 10 zero; Pint/Blade/Vite/Docker PASS; exact Chrome 1280x800 and 390x844 PASS; production Audit business counts remain zero.

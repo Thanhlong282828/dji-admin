@@ -1,0 +1,1 @@
+@extends('layouts.admin') @section('title','Sửa vị trí') @section('content')<form method="POST" action="{{ route('admin.job-positions.update',[$item['id'],'company_id'=>$companyId]) }}">@include('organization::job-positions.partials.form')</form>@endsection

@@ -1,0 +1,30 @@
+{
+    "name": "nwidart/benefit",
+    "description": "",
+    "authors": [
+        {
+            "name": "Nicolas Widart",
+            "email": "n.widart@gmail.com"
+        }
+    ],
+    "extra": {
+        "laravel": {
+            "providers": [],
+            "aliases": {
+
+            }
+        }
+    },
+    "autoload": {
+        "psr-4": {
+            "Modules\\Benefit\\": "app/",
+            "Modules\\Benefit\\Database\\Factories\\": "database/factories/",
+            "Modules\\Benefit\\Database\\Seeders\\": "database/seeders/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Modules\\Benefit\\Tests\\": "tests/"
+        }
+    }
+}

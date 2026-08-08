@@ -1,0 +1,11 @@
+{
+    "name": "Offboarding",
+    "alias": "offboarding",
+    "description": "",
+    "keywords": [],
+    "priority": 0,
+    "providers": [
+        "Modules\\Offboarding\\Providers\\OffboardingServiceProvider"
+    ],
+    "files": []
+}

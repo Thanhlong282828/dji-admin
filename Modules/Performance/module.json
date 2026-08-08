@@ -1,0 +1,12 @@
+{
+    "name": "Performance",
+    "alias": "performance",
+    "description": "",
+    "keywords": [],
+    "priority": 0,
+    "requires": ["Core", "Company", "Organization", "Employee"],
+    "providers": [
+        "Modules\\Performance\\Providers\\PerformanceServiceProvider"
+    ],
+    "files": []
+}

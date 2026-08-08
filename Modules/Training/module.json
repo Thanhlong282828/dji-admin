@@ -1,0 +1,11 @@
+{
+    "name": "Training",
+    "alias": "training",
+    "description": "",
+    "keywords": [],
+    "priority": 0,
+    "providers": [
+        "Modules\\Training\\Providers\\TrainingServiceProvider"
+    ],
+    "files": []
+}

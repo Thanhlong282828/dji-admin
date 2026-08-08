@@ -1,0 +1,11 @@
+{
+    "name": "LaborRelation",
+    "alias": "laborrelation",
+    "description": "",
+    "keywords": [],
+    "priority": 0,
+    "providers": [
+        "Modules\\LaborRelation\\Providers\\LaborRelationServiceProvider"
+    ],
+    "files": []
+}

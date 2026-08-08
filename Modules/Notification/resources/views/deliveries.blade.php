@@ -1,0 +1,6 @@
+@extends('layouts.admin')
+@section('title','Notification Delivery Audit')
+@section('content')
+@include('notification::partials.styles')
+<div class="nc-shell"><section class="nc-hero"><div><span class="nc-kicker">Channel-level resilience</span><h1>Delivery Audit</h1><p>Database, broadcast and email attempts fail and retry independently.</p></div><a class="nc-button nc-button--ghost" href="{{ route('admin.notifications.index',['company_id'=>$companyId]) }}">Inbox</a></section><section class="nc-panel nc-table-wrap"><table class="nc-table"><thead><tr><th>Message</th><th>Recipient</th><th>Channel</th><th>Status</th><th>Attempts</th><th></th></tr></thead><tbody>@forelse($vm->items as $item)<tr><td>{{ $item['title'] }}</td><td>{{ $item['recipient'] }}</td><td>{{ $item['channel'] }}</td><td>{{ $item['status'] }}</td><td>{{ $item['attempts'] }}</td><td>@if($item['status']==='failed')@can('notification.retry')<form method="POST" action="{{ route('admin.notifications.deliveries.retry',['delivery'=>$item['id']]) }}">@csrf<input type="hidden" name="company_id" value="{{ $companyId }}"><button class="nc-button">Retry</button></form>@endcan @endif</td></tr>@empty<tr><td colspan="6">No delivery records.</td></tr>@endforelse</tbody></table></section></div>
+@endsection

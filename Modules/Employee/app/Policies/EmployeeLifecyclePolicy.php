@@ -1,0 +1,16 @@
+<?php
+
+namespace Modules\Employee\Policies;
+
+use App\Models\User;
+use Modules\Organization\Domain\Services\TenantAccessService;
+
+final readonly class EmployeeLifecyclePolicy
+{
+    public function __construct(private TenantAccessService $tenant) {}
+
+    public function allows(User $user, int $companyId, string $permission): bool
+    {
+        return $user->can($permission) && $this->tenant->canAccess($user, $companyId);
+    }
+}

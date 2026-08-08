@@ -1,0 +1,12 @@
+{
+    "name": "Attendance",
+    "alias": "attendance",
+    "description": "",
+    "keywords": [],
+    "priority": 0,
+    "requires": ["Core", "Company", "Employee", "Organization"],
+    "providers": [
+        "Modules\\Attendance\\Providers\\AttendanceServiceProvider"
+    ],
+    "files": []
+}

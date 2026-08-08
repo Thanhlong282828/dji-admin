@@ -1,0 +1,12 @@
+{
+    "name": "Onboarding",
+    "alias": "onboarding",
+    "description": "",
+    "keywords": [],
+    "priority": 0,
+    "requires": ["Core", "Employee", "Organization"],
+    "providers": [
+        "Modules\\Onboarding\\Providers\\OnboardingServiceProvider"
+    ],
+    "files": []
+}

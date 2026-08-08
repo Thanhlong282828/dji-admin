@@ -1,0 +1,7 @@
+services:
+  app:
+    volumes:
+      - .:/var/www/html
+  nginx:
+    ports:
+      - "8001:80"

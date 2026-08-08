@@ -1,0 +1,11 @@
+{
+    "name": "Succession",
+    "alias": "succession",
+    "description": "",
+    "keywords": [],
+    "priority": 0,
+    "providers": [
+        "Modules\\Succession\\Providers\\SuccessionServiceProvider"
+    ],
+    "files": []
+}

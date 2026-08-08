@@ -1,0 +1,12 @@
+{
+    "name": "Integration",
+    "alias": "integration",
+    "description": "Enterprise Integration Hub",
+    "keywords": ["integration", "webhook", "delivery"],
+    "priority": 0,
+    "requires": ["Core", "Company"],
+    "providers": [
+        "Modules\\Integration\\Providers\\IntegrationServiceProvider"
+    ],
+    "files": []
+}

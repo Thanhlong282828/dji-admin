@@ -1,0 +1,2312 @@
+Tiếp tục trực tiếp project Laravel hiện tại:
+
+```text
+~/Desktop/laraveldji/admin
+```
+
+Database:
+
+```text
+MySQL
+schema_admin
+```
+
+Các phần đã hoàn thành trước đó:
+
+```text
+Company
+Cost Center
+Organization Unit
+Job Position
+Organization Tree
+Headcount Dashboard
+```
+
+Trong lần này chỉ thực hiện:
+
+```text
+PHASE 2 — EMPLOYEE CORE
+```
+
+Bao gồm:
+
+```text
+employees
+employee_assignments
+employee_histories
+employee_credentials
+employment_contracts
+data_consents
+employee_documents
+```
+
+Không triển khai Recruitment, Attendance, Leave, Payroll, Performance hoặc Learning trong lần này.
+
+Không tạo lại project.
+
+Không chạy:
+
+```bash
+php artisan migrate:fresh
+php artisan db:wipe
+```
+
+Không sửa migration đã chạy.
+
+Mọi bổ sung database phải dùng migration mới.
+
+Không tạo skeleton rỗng.
+
+Không báo hoàn thành nếu route, menu, CQRS, authorization, view hoặc test chưa chạy thật.
+
+---
+
+# 1. AUDIT TRƯỚC KHI SỬA
+
+Đầu tiên phải audit code và schema hiện tại.
+
+Chạy:
+
+```bash
+cd ~/Desktop/laraveldji/admin
+
+php artisan about
+php artisan module:list
+php artisan route:list
+php artisan migrate:status
+```
+
+Kiểm tra kết nối database:
+
+```bash
+php artisan tinker --execute="
+dump(config('database.default'));
+dump(DB::connection()->getDatabaseName());
+dump(Schema::hasTable('employees'));
+dump(Schema::hasTable('employee_assignments'));
+dump(Schema::hasTable('employee_histories'));
+dump(Schema::hasTable('employee_credentials'));
+dump(Schema::hasTable('employment_contracts'));
+dump(Schema::hasTable('data_consents'));
+dump(Schema::hasTable('employee_documents'));
+"
+```
+
+Kết quả bắt buộc:
+
+```text
+mysql
+schema_admin
+true
+true
+true
+true
+true
+true
+true
+```
+
+Tìm toàn bộ code liên quan Employee:
+
+```bash
+find app Modules routes resources database tests \
+-type f 2>/dev/null | \
+grep -Ei "employee|assignment|credential|contract|consent|document|history" | \
+sort
+```
+
+Mở và kiểm tra nội dung thật của:
+
+* Module Employee.
+* Model.
+* Relations.
+* Routes.
+* Controllers.
+* Form Requests.
+* Commands.
+* Queries.
+* Handlers.
+* Repositories.
+* Policies.
+* Permissions.
+* DTOs.
+* ViewModels.
+* Blade.
+* JavaScript.
+* Events.
+* Listeners.
+* Jobs.
+* Notifications.
+* Tests.
+
+Không kết luận hoàn chỉnh chỉ vì file tồn tại.
+
+Tạo hoặc cập nhật:
+
+```text
+docs/employee-audit-before.md
+```
+
+Phân loại từng phần:
+
+```text
+NOT_STARTED
+SKELETON
+PARTIAL
+FUNCTIONAL
+TESTED
+PRODUCTION_READY
+```
+
+---
+
+# 2. GIỮ ĐÚNG KIẾN TRÚC CQRS
+
+Phải tái sử dụng Command Bus và Query Bus hiện tại.
+
+Không tạo Bus mới nếu project đã có.
+
+Luồng ghi:
+
+```text
+Route
+→ FormRequest
+→ Controller
+→ CommandBus
+→ Command
+→ CommandHandler
+→ Domain Service nếu cần
+→ WriteRepository
+→ Model
+→ Domain Event
+→ Listener
+→ Cache invalidation
+→ Activity log
+→ Response
+```
+
+Luồng đọc:
+
+```text
+Route
+→ Controller
+→ QueryBus
+→ Query
+→ QueryHandler
+→ ReadRepository
+→ DTO/ViewModel
+→ Blade hoặc API Resource
+```
+
+Controller bị cấm gọi trực tiếp:
+
+```php
+Employee::query();
+Employee::create();
+Employee::find();
+DB::table();
+DB::transaction();
+RepositoryInterface;
+```
+
+Controller chỉ được:
+
+* Nhận request.
+* Authorize.
+* Tạo Command hoặc Query.
+* Dispatch Bus.
+* Trả response.
+
+Không đặt business logic trong Controller, Blade hoặc JavaScript.
+
+---
+
+# 3. SCHEMA EMPLOYEE HIỆN TẠI
+
+Bảng:
+
+```text
+employees
+```
+
+Các cột hiện có:
+
+```text
+id
+uuid
+user_id nullable
+company_id
+manager_id nullable
+employee_code
+full_name
+date_of_birth nullable
+gender nullable
+personal_email nullable
+work_email nullable
+phone nullable
+avatar_url nullable
+nationality
+identity_number nullable
+identity_number_hash nullable
+identity_expires_at nullable
+addresses nullable
+emergency_contacts nullable
+dependants nullable
+join_date
+official_date nullable
+employment_status
+employment_type
+termination_date nullable
+created_at
+updated_at
+deleted_at
+```
+
+Quan hệ:
+
+```text
+Employee belongsTo User nullable
+Employee belongsTo Company
+Employee belongsTo Manager Employee nullable
+Employee hasMany Direct Reports
+Employee hasMany Assignments
+Employee hasMany Histories
+Employee hasMany Credentials
+Employee hasMany Contracts
+Employee hasMany Consents
+Employee hasMany Documents
+```
+
+Không nhồi logic xác thực vào Employee.
+
+`users` là tài khoản đăng nhập.
+
+`employees` là hồ sơ nhân sự.
+
+Một Employee có thể chưa có User.
+
+Một User có thể không phải Employee.
+
+---
+
+# 4. ENUM VÀ VALUE OBJECT
+
+Tạo hoặc hoàn thiện enum:
+
+```text
+EmploymentStatus
+EmploymentType
+Gender
+EmployeeHistoryEventType
+AssignmentType
+CredentialType
+ContractType
+ContractStatus
+ConsentDecision
+```
+
+Employment status:
+
+```text
+preboarding
+probation
+active
+suspended
+leave
+terminated
+alumni
+```
+
+Assignment type:
+
+```text
+primary
+concurrent
+temporary
+```
+
+Credential type:
+
+```text
+education
+certificate
+language
+skill
+license
+passport
+work_permit
+award
+```
+
+Contract type:
+
+```text
+probation
+fixed_term
+indefinite
+contractor
+```
+
+Contract status:
+
+```text
+draft
+approval
+active
+expired
+terminated
+```
+
+Không dùng chuỗi trạng thái rải rác trong Controller.
+
+Tạo Value Object hoặc Domain Service cho dữ liệu phức tạp nếu phù hợp:
+
+```text
+EmployeeIdentity
+AllocationPercentage
+EffectiveDateRange
+EmployeeCode
+```
+
+---
+
+# 5. EMPLOYEE MANAGEMENT
+
+Triển khai đầy đủ:
+
+* Danh sách nhân viên.
+* Tìm kiếm.
+* Filter.
+* Sort.
+* Pagination.
+* Xem hồ sơ.
+* Tạo nhân viên.
+* Sửa hồ sơ.
+* Soft delete.
+* Restore.
+* Change status.
+* Upload avatar.
+* Xóa avatar.
+* Link User.
+* Unlink User.
+* Gán manager.
+* Thay đổi manager.
+* Timeline lịch sử.
+* Activity log.
+* Export.
+* Import nếu kiến trúc hiện tại hỗ trợ.
+* Tenant isolation.
+
+## Search
+
+Cho phép tìm theo:
+
+```text
+employee_code
+full_name
+personal_email
+work_email
+phone
+identity_number_hash
+```
+
+Không tìm trực tiếp bằng plaintext identity number nếu dữ liệu đã mã hóa.
+
+## Filters
+
+```text
+company
+organization unit
+job position
+manager
+employment status
+employment type
+join date
+termination date
+has user account
+has active contract
+```
+
+## Sort whitelist
+
+Chỉ cho sort các cột hợp lệ:
+
+```text
+employee_code
+full_name
+join_date
+official_date
+employment_status
+created_at
+```
+
+Không truyền trực tiếp tên cột tùy ý từ client vào `orderBy`.
+
+---
+
+# 6. BUSINESS RULES EMPLOYEE
+
+Bắt buộc xử lý:
+
+* Employee code unique.
+* UUID unique.
+* Company phải tồn tại.
+* Không tin `company_id` từ client.
+* Company lấy từ authorized context.
+* Manager phải thuộc cùng Company.
+* Employee không được làm manager của chính mình.
+* Không tạo vòng lặp manager hierarchy.
+* Work email phải unique nếu business rule yêu cầu.
+* User liên kết phải tồn tại.
+* Một User không được liên kết nhiều Employee.
+* Không liên kết User thuộc Company khác nếu có company context.
+* `official_date` không nhỏ hơn `join_date`.
+* `termination_date` chỉ hợp lệ với trạng thái terminated hoặc alumni.
+* Employee terminated không được có assignment active sau termination date.
+* Không hard delete hồ sơ Employee có lịch sử nghiệp vụ.
+* Employee bị soft delete vẫn phải giữ audit và quan hệ tài chính.
+* Không tự động xóa User khi xóa Employee.
+* Không tự động xóa Employee khi khóa User.
+* Dữ liệu Company A không được truy cập bởi Company B.
+
+---
+
+# 7. DỮ LIỆU NHẠY CẢM VÀ MÃ HÓA
+
+`identity_number` hiện là varchar thường.
+
+Phải triển khai application-level encryption.
+
+Ưu tiên Laravel encrypted cast hoặc custom cast:
+
+```text
+EncryptedIdentityNumberCast
+```
+
+Không log plaintext identity number.
+
+Không đưa plaintext identity number vào:
+
+* Activity log.
+* Broadcast payload.
+* Queue payload không cần thiết.
+* API response không có quyền.
+* Error logs.
+* Search index.
+* Cache key.
+
+Sử dụng:
+
+```text
+identity_number_hash
+```
+
+để phát hiện trùng và tìm kiếm chính xác.
+
+Hash phải được chuẩn hóa trước:
+
+* Bỏ khoảng trắng.
+* Chuẩn hóa chữ hoa/thường nếu có.
+* Không dùng hash không có secret nếu có nguy cơ dò ngược.
+* Ưu tiên HMAC với application key hoặc secret riêng.
+
+Tạo service:
+
+```text
+EmployeeIdentityService
+```
+
+Chức năng:
+
+```text
+normalize
+encrypt
+decrypt
+hash
+mask
+checkDuplicate
+```
+
+API hoặc Blade mặc định chỉ hiển thị dạng mask:
+
+```text
+********1234
+```
+
+Chỉ permission đặc biệt mới được xem đầy đủ:
+
+```text
+employee.view-sensitive
+```
+
+---
+
+# 8. AVATAR
+
+Triển khai upload avatar thật.
+
+Tái sử dụng MediaStorage abstraction nếu đã có từ User hoặc Company.
+
+Nếu chưa có, tạo:
+
+```text
+MediaStorageInterface
+LocalMediaStorage
+CloudflareR2MediaStorage
+```
+
+Không tạo abstraction trùng nếu project đã có.
+
+Avatar phải:
+
+* Validate MIME thật.
+* Không tin extension.
+* Giới hạn dung lượng.
+* Resize.
+* Tạo thumbnail.
+* Dùng tên file ngẫu nhiên hoặc UUID.
+* Xóa file cũ khi thay.
+* Không lưu base64.
+* Không để executable upload.
+* Có fallback avatar.
+* Có authorization.
+* Có test upload.
+* Có signed URL nếu bucket private.
+
+Commands:
+
+```text
+UploadEmployeeAvatarCommand
+DeleteEmployeeAvatarCommand
+```
+
+---
+
+# 9. COMMANDS EMPLOYEE
+
+Tạo hoặc hoàn thiện:
+
+```text
+CreateEmployeeCommand
+UpdateEmployeeCommand
+DeleteEmployeeCommand
+RestoreEmployeeCommand
+ChangeEmployeeStatusCommand
+AssignEmployeeManagerCommand
+RemoveEmployeeManagerCommand
+LinkEmployeeUserCommand
+UnlinkEmployeeUserCommand
+UploadEmployeeAvatarCommand
+DeleteEmployeeAvatarCommand
+```
+
+Mỗi Command:
+
+* Immutable nếu convention cho phép.
+* Chỉ chứa dữ liệu cần thiết.
+* Không chứa Request object.
+* Không chứa Eloquent Model không cần thiết.
+* Có Handler riêng.
+* Handler dùng transaction khi thay đổi nhiều bảng.
+* Handler dispatch event sau khi transaction thành công.
+
+---
+
+# 10. QUERIES EMPLOYEE
+
+Tạo hoặc hoàn thiện:
+
+```text
+GetEmployeeListQuery
+GetEmployeeDetailQuery
+GetEmployeeEditQuery
+GetEmployeeTimelineQuery
+GetEmployeeOrganizationQuery
+GetEmployeeDirectReportsQuery
+GetEmployeeProfileSummaryQuery
+GetEmployeeSensitiveIdentityQuery
+```
+
+Query list phải hỗ trợ:
+
+* Search.
+* Filters.
+* Sort whitelist.
+* Pagination.
+* Eager loading.
+* Không N+1.
+
+Tạo DTO/ViewModel:
+
+```text
+EmployeeListItemDTO
+EmployeeDetailDTO
+EmployeeEditViewModel
+EmployeeTimelineItemDTO
+EmployeeProfileSummaryDTO
+```
+
+Không trả Eloquent Model trực tiếp sang Blade nếu project đang áp dụng DTO/ViewModel.
+
+---
+
+# 11. REPOSITORY EMPLOYEE
+
+Tách rõ:
+
+```text
+EmployeeReadRepositoryInterface
+EmployeeWriteRepositoryInterface
+```
+
+Read Repository:
+
+* List.
+* Detail.
+* Find authorized record.
+* Timeline.
+* Direct reports.
+* Duplicate detection.
+* Organization summary.
+
+Write Repository:
+
+* Create.
+* Update.
+* Soft delete.
+* Restore.
+* Link User.
+* Unlink User.
+* Update manager.
+* Update status.
+
+Không đặt business rule phức tạp trong Repository.
+
+Business rule phải ở Handler hoặc Domain Service.
+
+---
+
+# 12. EMPLOYEE ASSIGNMENTS
+
+Bảng:
+
+```text
+employee_assignments
+```
+
+Cột:
+
+```text
+id
+employee_id
+organization_unit_id
+job_position_id
+manager_id nullable
+assignment_type
+allocation_percent
+work_location nullable
+effective_from
+effective_to nullable
+created_at
+updated_at
+```
+
+Triển khai:
+
+* Danh sách assignment của Employee.
+* Assignment chính.
+* Kiêm nhiệm.
+* Tạm thời.
+* Create.
+* Edit.
+* End assignment.
+* View history.
+* Filter active/expired/future.
+* Transfer.
+* Promotion.
+* Change position.
+* Change unit.
+* Change manager.
+* Allocation report.
+
+## Business rules Assignment
+
+* Employee phải tồn tại.
+* Unit phải thuộc cùng Company với Employee.
+* Position phải thuộc cùng Company.
+* Position phải thuộc Organization Unit đã chọn, trừ khi business rule cho phép.
+* Manager phải cùng Company.
+* Manager không được là chính Employee.
+* `allocation_percent` từ 0 đến 100.
+* Tổng allocation active không vượt 100%, trừ permission hoặc rule đặc biệt.
+* Chỉ có một primary assignment active tại một thời điểm.
+* Effective date không overlap bất hợp lệ.
+* `effective_to` không nhỏ hơn `effective_from`.
+* Không chỉnh assignment đã hết hiệu lực theo cách phá lịch sử.
+* Transfer phải kết thúc assignment cũ và tạo assignment mới trong transaction.
+* Promotion phải ghi employee history.
+* Không xóa cứng assignment đã có hiệu lực.
+
+## Commands Assignment
+
+```text
+CreateEmployeeAssignmentCommand
+UpdateEmployeeAssignmentCommand
+EndEmployeeAssignmentCommand
+TransferEmployeeCommand
+PromoteEmployeeCommand
+ChangeEmployeePositionCommand
+ChangeEmployeeManagerCommand
+```
+
+## Queries Assignment
+
+```text
+GetEmployeeAssignmentsQuery
+GetActiveEmployeeAssignmentQuery
+GetEmployeeAssignmentHistoryQuery
+GetEmployeeAllocationQuery
+```
+
+## Domain Services
+
+```text
+EmployeeAssignmentService
+AssignmentOverlapValidator
+AllocationValidator
+ManagerHierarchyValidator
+```
+
+---
+
+# 13. EMPLOYEE HISTORIES
+
+Bảng:
+
+```text
+employee_histories
+```
+
+Cột:
+
+```text
+id
+employee_id
+event_type
+before nullable
+after
+reason nullable
+approved_by nullable
+effective_at
+created_at
+updated_at
+```
+
+Event types:
+
+```text
+transfer
+promotion
+salary_change
+discipline
+award
+status_change
+```
+
+Triển khai:
+
+* Timeline.
+* Filter event type.
+* Detail before/after.
+* Reason.
+* Approver.
+* Effective time.
+* Permission-based visibility.
+* Export.
+
+Không cho người dùng tùy tiện sửa lịch sử hệ thống.
+
+History được tạo tự động từ Command nghiệp vụ:
+
+* TransferEmployeeCommand.
+* PromoteEmployeeCommand.
+* ChangeEmployeeStatusCommand.
+* Salary change trong phase Payroll.
+* Discipline/Award trong phase phù hợp.
+
+Có thể cho thêm lịch sử thủ công chỉ với permission cao:
+
+```text
+employee-history.create-manual
+```
+
+Không lưu plaintext dữ liệu nhạy cảm trong before/after.
+
+---
+
+# 14. EMPLOYEE CREDENTIALS
+
+Bảng:
+
+```text
+employee_credentials
+```
+
+Triển khai:
+
+* Education.
+* Certificate.
+* Language.
+* Skill.
+* License.
+* Passport.
+* Work permit.
+* Award.
+* Create.
+* Edit.
+* Delete có kiểm soát.
+* Upload document.
+* Expiry tracking.
+* Expiring soon filter.
+* Expired filter.
+* Notification.
+* Export.
+
+## Rules
+
+* Employee phải thuộc authorized Company.
+* `expires_at` không nhỏ hơn `issued_at`.
+* Document upload phải có authorization.
+* Passport và work permit là dữ liệu nhạy cảm.
+* Không broadcast thông tin nhạy cảm.
+* Không log document URL private nếu không cần.
+* Signed URL cho tài liệu private.
+
+## Commands
+
+```text
+CreateEmployeeCredentialCommand
+UpdateEmployeeCredentialCommand
+DeleteEmployeeCredentialCommand
+UploadCredentialDocumentCommand
+DeleteCredentialDocumentCommand
+```
+
+## Queries
+
+```text
+GetEmployeeCredentialsQuery
+GetCredentialDetailQuery
+GetExpiringCredentialsQuery
+GetExpiredCredentialsQuery
+```
+
+---
+
+# 15. EMPLOYMENT CONTRACTS
+
+Bảng:
+
+```text
+employment_contracts
+```
+
+Cột:
+
+```text
+id
+employee_id
+contract_number
+type
+starts_at
+ends_at nullable
+base_salary
+currency
+terms
+signed_document_url nullable
+signed_at nullable
+status
+created_at
+updated_at
+```
+
+Triển khai:
+
+* Danh sách hợp đồng.
+* Create draft.
+* Edit draft.
+* Show.
+* Submit approval.
+* Approve.
+* Reject hoặc return nếu workflow hỗ trợ.
+* Activate.
+* Expire.
+* Terminate.
+* Upload signed document.
+* Download signed document.
+* Contract expiry alerts.
+* History.
+* Activity log.
+* Permission.
+* Workflow integration.
+
+## State transitions
+
+Cho phép tối thiểu:
+
+```text
+draft
+→ approval
+→ active
+→ expired
+```
+
+Hoặc:
+
+```text
+draft
+→ approval
+→ terminated
+```
+
+Không cho chuyển trạng thái tùy ý.
+
+Tạo:
+
+```text
+EmploymentContractStateMachine
+```
+
+hoặc enum transition validator phù hợp convention.
+
+## Business rules
+
+* Contract number unique.
+* Employee phải tồn tại.
+* `ends_at` không nhỏ hơn `starts_at`.
+* Probation và fixed-term thường phải có ends_at.
+* Indefinite có thể ends_at null.
+* `base_salary` không âm.
+* Dùng decimal, không dùng float.
+* Contract active không được sửa trường tài chính trực tiếp.
+* Muốn thay đổi phải tạo amendment hoặc contract mới nếu business rule yêu cầu.
+* Chỉ một contract active chính tại cùng thời điểm nếu chính sách yêu cầu.
+* Không cho overlap contract active bất hợp lệ.
+* Document private phải authorize.
+* Người không có permission payroll/salary không được xem base salary.
+
+Permissions nhạy cảm:
+
+```text
+employment-contract.view
+employment-contract.view-salary
+employment-contract.create
+employment-contract.update
+employment-contract.submit
+employment-contract.approve
+employment-contract.activate
+employment-contract.terminate
+employment-contract.download
+employment-contract.audit
+```
+
+## Commands
+
+```text
+CreateEmploymentContractCommand
+UpdateEmploymentContractCommand
+SubmitEmploymentContractCommand
+ApproveEmploymentContractCommand
+RejectEmploymentContractCommand
+ActivateEmploymentContractCommand
+TerminateEmploymentContractCommand
+ExpireEmploymentContractCommand
+UploadSignedContractCommand
+```
+
+## Queries
+
+```text
+GetEmploymentContractListQuery
+GetEmploymentContractDetailQuery
+GetEmployeeContractsQuery
+GetExpiringContractsQuery
+GetActiveEmployeeContractQuery
+```
+
+---
+
+# 16. DATA CONSENTS
+
+Bảng:
+
+```text
+data_consents
+```
+
+Cột:
+
+```text
+id
+employee_id
+purpose
+policy_version
+granted
+decided_at
+expires_at nullable
+evidence_url nullable
+created_at
+updated_at
+```
+
+Triển khai:
+
+* Danh sách consent theo Employee.
+* Grant.
+* Withdraw.
+* Renew.
+* Expiry tracking.
+* Evidence upload.
+* Policy version.
+* Audit.
+* Export.
+* Permission.
+
+## Rules
+
+* Không update đè lịch sử consent quan trọng.
+* Mỗi quyết định nên tạo record mới hoặc giữ audit đầy đủ.
+* Withdraw không xóa record cũ.
+* Evidence private.
+* Expired consent không được xem là active.
+* Purpose và policy version bắt buộc.
+* `expires_at` không nhỏ hơn `decided_at`.
+* Không hiển thị consent Company khác.
+
+Commands:
+
+```text
+GrantDataConsentCommand
+WithdrawDataConsentCommand
+RenewDataConsentCommand
+UploadConsentEvidenceCommand
+```
+
+Queries:
+
+```text
+GetEmployeeConsentsQuery
+GetActiveEmployeeConsentsQuery
+GetExpiringConsentsQuery
+```
+
+---
+
+# 17. EMPLOYEE DOCUMENTS
+
+Bảng:
+
+```text
+employee_documents
+```
+
+Cột:
+
+```text
+id
+employee_id nullable
+type
+name
+version
+storage_key
+checksum
+expires_at nullable
+access_policy
+signed_at nullable
+created_at
+updated_at
+```
+
+Triển khai:
+
+* Upload.
+* Download.
+* Preview nếu loại file hỗ trợ.
+* Versioning.
+* Replace bằng version mới.
+* Expiry.
+* Access policy.
+* Checksum.
+* Signed state.
+* Employee-specific document.
+* Company/general document nếu employee_id null và business rule cho phép.
+* Audit.
+* Search/filter.
+* Permission.
+
+## Rules
+
+* Không lưu public URL cho tài liệu nhạy cảm nếu bucket private.
+* Dùng `storage_key`.
+* Tạo signed URL khi download.
+* Xác minh checksum.
+* Validate MIME.
+* Validate file size.
+* Không cho upload executable.
+* Không overwrite file cũ.
+* Version phải tăng đúng.
+* Không hard delete file đã ký hoặc dùng trong audit.
+* Access policy phải được parse qua DTO, không render JSON thô.
+* Download phải authorize mỗi lần.
+* Không leak URL signed vào log.
+
+Tạo abstraction:
+
+```text
+EmployeeDocumentStorageInterface
+DocumentAccessPolicyEvaluator
+DocumentChecksumService
+```
+
+Commands:
+
+```text
+UploadEmployeeDocumentCommand
+CreateEmployeeDocumentVersionCommand
+DeleteEmployeeDocumentCommand
+SignEmployeeDocumentCommand
+```
+
+Queries:
+
+```text
+GetEmployeeDocumentsQuery
+GetEmployeeDocumentDetailQuery
+GetEmployeeDocumentDownloadQuery
+GetExpiringEmployeeDocumentsQuery
+```
+
+---
+
+# 18. USER–EMPLOYEE LINKING
+
+Triển khai trong trang Employee và User Management.
+
+Tính năng:
+
+* Xem Employee đã có User chưa.
+* Link User hiện có.
+* Tạo User mới từ Employee nếu có permission.
+* Unlink User.
+* Không xóa User khi unlink.
+* Không tạo trùng email.
+* Gán role mặc định nếu cấu hình cho phép.
+* Gửi email kích hoạt hoặc reset password qua Queue.
+* Audit người thực hiện.
+
+## Rules
+
+* Một User chỉ link tối đa một Employee.
+* Employee không được link nhiều User.
+* Không tin user_id từ client nếu chưa authorize.
+* Không tự động gán role quyền cao.
+* Role mặc định phải cấu hình.
+* Không gửi password plaintext qua email.
+* Dùng password reset hoặc invitation token.
+
+Commands:
+
+```text
+LinkEmployeeUserCommand
+UnlinkEmployeeUserCommand
+CreateUserFromEmployeeCommand
+SendEmployeeUserInvitationCommand
+```
+
+---
+
+# 19. PERMISSIONS
+
+Tạo hoặc kiểm tra các permission:
+
+```text
+employee.view
+employee.view-sensitive
+employee.create
+employee.update
+employee.delete
+employee.restore
+employee.change-status
+employee.assign-manager
+employee.link-user
+employee.unlink-user
+employee.upload-avatar
+employee.export
+employee.import
+employee.audit
+
+employee-assignment.view
+employee-assignment.create
+employee-assignment.update
+employee-assignment.end
+employee-assignment.transfer
+employee-assignment.promote
+
+employee-history.view
+employee-history.create-manual
+employee-history.export
+
+employee-credential.view
+employee-credential.create
+employee-credential.update
+employee-credential.delete
+employee-credential.download
+employee-credential.export
+
+employment-contract.view
+employment-contract.view-salary
+employment-contract.create
+employment-contract.update
+employment-contract.submit
+employment-contract.approve
+employment-contract.activate
+employment-contract.terminate
+employment-contract.download
+employment-contract.audit
+
+data-consent.view
+data-consent.grant
+data-consent.withdraw
+data-consent.renew
+data-consent.download-evidence
+
+employee-document.view
+employee-document.upload
+employee-document.download
+employee-document.version
+employee-document.sign
+employee-document.delete
+employee-document.audit
+```
+
+Không tạo permission trùng nếu đã có.
+
+Seeder permission phải idempotent.
+
+Không hard-code role.
+
+---
+
+# 20. POLICIES
+
+Tạo hoặc hoàn thiện:
+
+```text
+EmployeePolicy
+EmployeeAssignmentPolicy
+EmployeeHistoryPolicy
+EmployeeCredentialPolicy
+EmploymentContractPolicy
+DataConsentPolicy
+EmployeeDocumentPolicy
+```
+
+Policy phải kiểm tra:
+
+* User có permission.
+* Record thuộc Company nào.
+* Current Company context.
+* Dữ liệu nhạy cảm.
+* Salary visibility.
+* Download authorization.
+* Cross-company isolation.
+* Self-service nếu sau này hỗ trợ.
+
+Mọi route theo ID phải chống IDOR.
+
+Company A không được truy cập Employee Company B bằng cách đổi ID trong URL.
+
+---
+
+# 21. ROUTES
+
+Tạo route thật, tên nhất quán.
+
+Ví dụ:
+
+```text
+admin.employees.index
+admin.employees.create
+admin.employees.store
+admin.employees.show
+admin.employees.edit
+admin.employees.update
+admin.employees.destroy
+admin.employees.restore
+admin.employees.change-status
+admin.employees.assign-manager
+admin.employees.link-user
+admin.employees.unlink-user
+admin.employees.avatar.store
+admin.employees.avatar.destroy
+admin.employees.export
+
+admin.employees.assignments.index
+admin.employees.assignments.store
+admin.employee-assignments.update
+admin.employee-assignments.end
+admin.employee-assignments.transfer
+admin.employee-assignments.promote
+
+admin.employees.histories.index
+admin.employees.credentials.index
+admin.employees.credentials.store
+admin.employee-credentials.update
+admin.employee-credentials.destroy
+admin.employee-credentials.download
+
+admin.employees.contracts.index
+admin.employees.contracts.store
+admin.employment-contracts.show
+admin.employment-contracts.update
+admin.employment-contracts.submit
+admin.employment-contracts.approve
+admin.employment-contracts.reject
+admin.employment-contracts.activate
+admin.employment-contracts.terminate
+admin.employment-contracts.download
+
+admin.employees.consents.index
+admin.employees.consents.grant
+admin.employee-consents.withdraw
+admin.employee-consents.renew
+
+admin.employees.documents.index
+admin.employees.documents.store
+admin.employee-documents.show
+admin.employee-documents.download
+admin.employee-documents.version
+admin.employee-documents.sign
+admin.employee-documents.destroy
+```
+
+Không bắt buộc dùng đúng URL trên nếu convention project khác, nhưng route name phải rõ ràng và nhất quán.
+
+Mọi route phải có:
+
+```text
+auth
+permission hoặc Policy
+```
+
+Không xem `@can` trong Blade là bảo vệ route.
+
+---
+
+# 22. FORM REQUESTS
+
+Tạo Form Request riêng cho từng action ghi.
+
+Tối thiểu:
+
+```text
+StoreEmployeeRequest
+UpdateEmployeeRequest
+ChangeEmployeeStatusRequest
+AssignEmployeeManagerRequest
+LinkEmployeeUserRequest
+
+StoreEmployeeAssignmentRequest
+UpdateEmployeeAssignmentRequest
+TransferEmployeeRequest
+PromoteEmployeeRequest
+
+StoreEmployeeCredentialRequest
+UpdateEmployeeCredentialRequest
+
+StoreEmploymentContractRequest
+UpdateEmploymentContractRequest
+SubmitEmploymentContractRequest
+ApproveEmploymentContractRequest
+TerminateEmploymentContractRequest
+
+GrantDataConsentRequest
+WithdrawDataConsentRequest
+
+UploadEmployeeDocumentRequest
+UploadEmployeeAvatarRequest
+```
+
+Không dùng:
+
+```php
+$request->all()
+```
+
+Dùng:
+
+```php
+$request->validated()
+```
+
+Validation phải kết hợp authorization và custom rules nghiệp vụ khi cần.
+
+---
+
+# 23. VIEWS
+
+Trang Employee list:
+
+```text
+/admin/employees
+```
+
+Phải có:
+
+* Search.
+* Company filter nếu user nhiều company.
+* Unit filter.
+* Position filter.
+* Manager filter.
+* Status filter.
+* Employment type filter.
+* Has User filter.
+* Active contract filter.
+* Pagination.
+* Sort.
+* Avatar thumbnail.
+* Employee code.
+* Full name.
+* Work email.
+* Unit.
+* Position.
+* Manager.
+* Status.
+* Action buttons theo permission.
+* Empty state.
+* Loading state.
+* Error state.
+* Responsive.
+
+Trang Employee detail phải có tabs:
+
+```text
+Tổng quan
+Công việc
+Phân công
+Lịch sử
+Chứng chỉ
+Hợp đồng
+Tài liệu
+Đồng ý dữ liệu
+Activity log
+```
+
+Không query database trong Blade.
+
+Mỗi tab dùng DTO/ViewModel hoặc Query riêng phù hợp.
+
+Không load tất cả dữ liệu nặng trong một request nếu không cần.
+
+Có thể dùng lazy AJAX tab nhưng endpoint phải authorize.
+
+Form Employee phải có:
+
+* Personal information.
+* Contact.
+* Work information.
+* Manager.
+* Status.
+* Employment type.
+* Dates.
+* Avatar.
+* Address.
+* Emergency contacts.
+* Dependants.
+
+JSON fields phải dùng UI form có cấu trúc.
+
+Không bắt user nhập JSON thô.
+
+---
+
+# 24. SIDEBAR
+
+Sau khi route tồn tại thật, cập nhật sidebar:
+
+```text
+Nhân sự
+├── Danh sách nhân viên
+├── Hồ sơ nhân viên
+├── Phân công
+├── Lịch sử nhân sự
+├── Chứng chỉ sắp hết hạn
+├── Hợp đồng sắp hết hạn
+├── Tài liệu nhân sự
+└── Đồng ý dữ liệu
+```
+
+Mỗi menu:
+
+* Dẫn route thật.
+* Active đúng.
+* Ẩn theo permission.
+* Không dùng `href="#"`.
+* Không gọi route chưa tồn tại.
+* Không lỗi khi user không có quyền.
+
+---
+
+# 25. CACHE
+
+Dùng Redis nếu project đã cấu hình.
+
+Cache key phải có Company:
+
+```text
+schema_admin:employee:{companyId}:list:{filterHash}
+schema_admin:employee:{companyId}:detail:{employeeId}
+schema_admin:employee:{companyId}:summary
+schema_admin:employee:{companyId}:expiring-contracts
+schema_admin:employee:{companyId}:expiring-credentials
+```
+
+Không dùng:
+
+```php
+Cache::flush();
+```
+
+Khi Employee hoặc Assignment thay đổi phải clear:
+
+* Employee detail.
+* Employee list.
+* Organization headcount.
+* Job position headcount.
+* Manager tree.
+* Dashboard.
+* Relevant contract/credential cache.
+
+Dùng tags chỉ nếu Redis driver và project convention hỗ trợ ổn định.
+
+---
+
+# 26. EVENTS
+
+Tạo hoặc hoàn thiện:
+
+```text
+EmployeeCreated
+EmployeeUpdated
+EmployeeDeleted
+EmployeeRestored
+EmployeeStatusChanged
+EmployeeManagerChanged
+EmployeeUserLinked
+EmployeeUserUnlinked
+EmployeeAvatarUpdated
+
+EmployeeAssignmentCreated
+EmployeeAssignmentUpdated
+EmployeeAssignmentEnded
+EmployeeTransferred
+EmployeePromoted
+
+EmployeeCredentialCreated
+EmployeeCredentialUpdated
+EmployeeCredentialExpiring
+
+EmploymentContractCreated
+EmploymentContractSubmitted
+EmploymentContractApproved
+EmploymentContractActivated
+EmploymentContractTerminated
+EmploymentContractExpiring
+
+DataConsentGranted
+DataConsentWithdrawn
+DataConsentExpiring
+
+EmployeeDocumentUploaded
+EmployeeDocumentVersionCreated
+EmployeeDocumentSigned
+```
+
+Event chỉ biểu diễn điều đã xảy ra.
+
+Không dispatch một event cả trong Controller và Handler.
+
+Dispatch sau transaction thành công.
+
+---
+
+# 27. LISTENERS VÀ JOBS
+
+Listeners xử lý:
+
+* Cache invalidation.
+* Activity log.
+* Notification.
+* Broadcast.
+* Headcount refresh.
+* Search index nếu có.
+* Expiration reminder scheduling.
+
+Jobs có thể cần:
+
+```text
+ProcessEmployeeAvatarJob
+GenerateEmployeeThumbnailJob
+ScanEmployeeDocumentJob
+SendEmployeeInvitationJob
+NotifyExpiringCredentialJob
+NotifyExpiringContractJob
+NotifyExpiringConsentJob
+ExportEmployeesJob
+ImportEmployeesJob
+```
+
+Job phải có:
+
+* `ShouldQueue`.
+* Queue name phù hợp.
+* Retry.
+* Backoff.
+* Timeout.
+* Failed handling.
+* Idempotency.
+* Không serialize dữ liệu nhạy cảm thừa.
+
+---
+
+# 28. REALTIME
+
+Realtime tối thiểu:
+
+```text
+employee.created
+employee.updated
+employee.status-changed
+employee.transferred
+employee.promoted
+employee.assignment-updated
+employment-contract.approved
+employment-contract.expiring
+employee-credential.expiring
+employee-document.signed
+employee-dashboard.updated
+```
+
+Channel:
+
+```text
+private-company.{companyId}
+private-user.{userId}
+```
+
+Phải kiểm tra:
+
+* Backend implements `ShouldBroadcast` hoặc `ShouldBroadcastNow`.
+* `broadcastOn()`.
+* `broadcastAs()`.
+* `broadcastWith()`.
+* `routes/channels.php`.
+* Echo listener frontend.
+* Channel authorization.
+* Không leak identity number.
+* Không leak salary.
+* Không leak private document URL.
+* Không leak Company khác.
+
+Browser A thay đổi Employee thì Browser B:
+
+* Refresh row hoặc AJAX list.
+* Refresh employee detail nếu đang mở đúng Employee.
+* Refresh headcount.
+* Refresh dashboard.
+
+Không reload toàn trang.
+
+Nếu Reverb chưa chạy thật thì không báo realtime hoàn thành.
+
+---
+
+# 29. ACTIVITY LOG
+
+Log tối thiểu:
+
+```text
+Employee created
+Employee updated
+Employee deleted
+Employee restored
+Employee status changed
+Employee manager changed
+Employee linked to user
+Employee unlinked from user
+Employee transferred
+Employee promoted
+Assignment created
+Assignment ended
+Credential created
+Credential updated
+Contract created
+Contract submitted
+Contract approved
+Contract activated
+Contract terminated
+Consent granted
+Consent withdrawn
+Document uploaded
+Document signed
+```
+
+Activity log phải có:
+
+* causer.
+* subject.
+* event.
+* company context.
+* before.
+* after.
+* reason nếu có.
+* effective date nếu có.
+
+Không log:
+
+* identity number plaintext.
+* password.
+* invitation token.
+* private signed URL.
+* base salary nếu viewer không có quyền.
+* access policy secret.
+* raw document contents.
+
+---
+
+# 30. SEEDER VÀ FACTORY
+
+Hiện bảng Employee có thể đang rỗng.
+
+Tạo Factory và Seeder chuyên nghiệp nhưng không xóa dữ liệu hiện tại.
+
+Seeder phải:
+
+* Idempotent.
+* Không tạo trùng.
+* Dùng Company hiện có.
+* Dùng Organization Unit và Job Position hiện có.
+* Tạo manager hierarchy hợp lý.
+* Tạo User link cho một số Employee, không phải tất cả.
+* Không dùng identity number thật.
+* Không tự động chạy production seeder.
+
+Dữ liệu mẫu đề xuất:
+
+```text
+Nguyễn Minh Anh — Engineering Manager
+Trần Hoàng Nam — Backend Developer
+Lê Thu Trang — Frontend Developer
+Phạm Quốc Huy — Mobile Developer
+Võ Thanh Hà — DevOps Engineer
+Đặng Ngọc Lan — HR Specialist
+Bùi Văn Phúc — Accountant
+Hoàng Gia Bảo — Sales Executive
+Nguyễn Mỹ Linh — Marketing Specialist
+```
+
+Không dùng:
+
+```text
+Employee 1
+Test User
+Demo Employee
+```
+
+Tạo:
+
+* Primary assignments.
+* Một vài concurrent assignments.
+* Active contracts.
+* Credentials.
+* Documents giả bằng local fake path nếu phù hợp.
+* Histories hợp lý.
+* Consent records.
+
+Không tạo dữ liệu nhạy cảm thật.
+
+---
+
+# 31. IMPORT EMPLOYEE
+
+Chỉ triển khai nếu project đã có import infrastructure.
+
+Nếu triển khai:
+
+* CSV/XLSX.
+* Template download.
+* Preview.
+* Validation từng dòng.
+* Không ghi nếu toàn batch fail theo chế độ atomic.
+* Có tùy chọn partial import nếu thiết kế cho phép.
+* Duplicate employee code.
+* Duplicate identity hash.
+* Company isolation.
+* Unit/position mapping.
+* Queue cho file lớn.
+* Import report.
+* Failed rows export.
+* Idempotency key.
+
+Không xử lý file lớn trong web request.
+
+Không triển khai import sơ sài nếu chưa đủ thời gian; ưu tiên CRUD và nghiệp vụ chính chạy thật.
+
+---
+
+# 32. EXPORT EMPLOYEE
+
+Export phải:
+
+* Tôn trọng filter hiện tại.
+* Tôn trọng permission.
+* Không xuất identity plaintext mặc định.
+* Không xuất salary nếu thiếu quyền.
+* Không xuất private document URL.
+* Queue nếu dữ liệu lớn.
+* Có audit.
+* Có file expiry nếu lưu tạm.
+
+---
+
+# 33. TESTS BẮT BUỘC
+
+## Employee CRUD
+
+* Guest bị redirect hoặc 401.
+* User thiếu permission bị 403.
+* User có permission xem được.
+* Create thành công.
+* Update thành công.
+* Employee code duplicate bị chặn.
+* Company không hợp lệ bị chặn.
+* Cross-company create bị chặn.
+* Soft delete hoạt động.
+* Restore hoạt động.
+* Không hard delete dữ liệu lịch sử.
+* Status transition hợp lệ.
+* Status transition sai bị chặn.
+
+## Manager hierarchy
+
+* Employee không làm manager chính mình.
+* Manager Company khác bị chặn.
+* Manager descendant gây cycle bị chặn.
+* Manager hợp lệ cập nhật thành công.
+
+## User linking
+
+* Link User thành công.
+* Một User không link hai Employee.
+* Unlink không xóa User.
+* Cross-company link bị chặn.
+* Không tự gán role quyền cao.
+
+## Identity
+
+* Identity được mã hóa trong database.
+* Hash được tạo.
+* Duplicate identity bị phát hiện.
+* API mặc định chỉ trả masked identity.
+* Activity log không chứa plaintext.
+
+## Assignment
+
+* Create primary assignment.
+* Unit khác Company bị chặn.
+* Position khác Company bị chặn.
+* Position không thuộc Unit bị chặn nếu business rule yêu cầu.
+* Tổng allocation vượt 100% bị chặn.
+* Hai primary active bị chặn.
+* Overlap bất hợp lệ bị chặn.
+* Transfer kết thúc assignment cũ.
+* Transfer tạo assignment mới.
+* Transfer ghi history.
+* Promotion ghi history.
+* Future assignment không tính active.
+* Expired assignment không tính active.
+
+## Contract
+
+* Create draft.
+* Contract number duplicate bị chặn.
+* Date range sai bị chặn.
+* Salary âm bị chặn.
+* Invalid state transition bị chặn.
+* Approve đúng permission.
+* User thiếu quyền salary không thấy base salary.
+* Cross-company contract access bị chặn.
+* Signed document download yêu cầu authorization.
+
+## Credential
+
+* Create/update/delete.
+* Expiry date hợp lệ.
+* Expiring query đúng.
+* Private document download bị chặn nếu thiếu quyền.
+
+## Consent
+
+* Grant.
+* Withdraw.
+* Withdraw không xóa lịch sử.
+* Expired consent không active.
+* Cross-company bị chặn.
+
+## Document
+
+* Upload MIME hợp lệ.
+* Executable bị chặn.
+* File quá lớn bị chặn.
+* Version tăng đúng.
+* Checksum được lưu.
+* Download authorization.
+* Signed URL không bị log.
+* Company khác không tải được.
+
+## CQRS
+
+* Command Handler tests.
+* Query Handler tests.
+* Repository integration tests.
+* Policy tests.
+* Validation tests.
+* Event dispatch tests.
+* Cache invalidation tests.
+* Queue dispatch tests.
+* Realtime event payload tests.
+* Cross-company isolation tests.
+
+Không tạo test giả:
+
+```php
+$this->assertTrue(true);
+```
+
+---
+
+# 34. DATABASE MIGRATIONS AN TOÀN
+
+Trước khi tạo migration, kiểm tra:
+
+* `employees.user_id` có unique hay chưa.
+* `employees.work_email` có cần unique theo Company hay toàn hệ thống.
+* Index cho `company_id`.
+* Index cho `manager_id`.
+* Composite indexes phục vụ list/filter.
+* Index cho assignment effective dates.
+* Unique hoặc constraint active primary assignment không thể thực hiện trực tiếp đơn giản trong MySQL thì enforce bằng transaction và lock.
+* Encryption không yêu cầu đổi kiểu cột nếu ciphertext vừa varchar; nếu không đủ độ dài thì tạo migration đổi sang text an toàn.
+* Employee document indexes.
+* Contract date/status indexes.
+
+Không tạo index trùng.
+
+Không sửa migration cũ.
+
+Chạy:
+
+```bash
+php artisan migrate --pretend
+php artisan migrate
+php artisan migrate:status
+```
+
+Trước khi thêm unique `employees.user_id`, kiểm tra duplicate và null.
+
+Nếu có dữ liệu xung đột, dừng và báo rõ, không tự xóa dữ liệu.
+
+---
+
+# 35. TRANSACTION VÀ CONCURRENCY
+
+Dùng transaction cho:
+
+* Create Employee cùng Assignment.
+* Transfer.
+* Promotion.
+* Link User.
+* Contract state transition.
+* Document versioning.
+* Consent decision.
+* Status change có history.
+
+Dùng lock khi cần:
+
+```text
+lockForUpdate
+distributed lock
+```
+
+Đặc biệt:
+
+* Allocation validation.
+* Primary assignment validation.
+* Contract overlap.
+* User linking.
+* Document version increment.
+
+Không để race condition tạo hai primary assignment hoặc link cùng User hai lần.
+
+---
+
+# 36. API RESOURCE
+
+Nếu project có API, tạo hoặc hoàn thiện:
+
+```text
+EmployeeResource
+EmployeeCollection
+EmployeeAssignmentResource
+EmployeeCredentialResource
+EmploymentContractResource
+EmployeeDocumentResource
+```
+
+Không return Eloquent Model trực tiếp.
+
+Resource phải:
+
+* Ẩn identity plaintext.
+* Ẩn salary nếu thiếu permission.
+* Ẩn storage key.
+* Không trả access policy nội bộ.
+* Trả signed download endpoint thay vì signed URL dài hạn.
+* Tôn trọng Company isolation.
+
+---
+
+# 37. PERFORMANCE
+
+Phải tránh N+1.
+
+Employee list không được query riêng cho từng:
+
+* Company.
+* Manager.
+* Assignment.
+* Unit.
+* Position.
+* User.
+* Contract.
+
+Dùng:
+
+* Eager loading có chọn cột.
+* Aggregate query.
+* Subquery.
+* withCount.
+* Query riêng tối ưu nếu cần.
+
+Không load toàn bộ timeline, documents hoặc contracts trong list.
+
+Chạy kiểm tra query count cho Employee list.
+
+Pagination bắt buộc.
+
+Không dùng `get()` cho toàn bộ nhân viên trên trang quản trị.
+
+---
+
+# 38. QUALITY CHECK
+
+Sau khi hoàn thành chạy:
+
+```bash
+php artisan optimize:clear
+composer dump-autoload
+
+php artisan route:list
+php artisan migrate:status
+
+./vendor/bin/pint --test
+./vendor/bin/phpstan analyse
+php artisan test
+
+npm run build
+```
+
+Nếu test suite lớn, chạy trước:
+
+```bash
+php artisan test Modules/Employee
+```
+
+sau đó chạy toàn bộ:
+
+```bash
+php artisan test
+```
+
+Nếu Docker đang hoạt động:
+
+```bash
+docker compose config
+docker compose build
+docker compose up -d
+docker compose ps
+```
+
+Kiểm tra:
+
+```bash
+docker compose exec app php artisan route:list
+docker compose exec app php artisan migrate:status
+docker compose exec app php artisan test
+```
+
+Không:
+
+* Hạ PHPStan level.
+* Thêm ignore tràn lan.
+* Xóa test lỗi.
+* Comment logic để né lỗi.
+* Dùng fake response để báo thành công.
+* Báo hoàn thành khi build hoặc test còn fail.
+
+---
+
+# 39. TÀI LIỆU
+
+Cập nhật:
+
+```text
+docs/employee-audit-before.md
+docs/employee-audit-after.md
+docs/architecture.md
+docs/cqrs.md
+docs/permissions.md
+docs/realtime.md
+docs/database.md
+docs/security.md
+project.txt
+db.txt
+luong.txt
+```
+
+`luong.txt` phải ghi luồng thực tế.
+
+Ví dụ tạo Employee:
+
+```text
+POST /admin/employees
+→ StoreEmployeeRequest
+→ EmployeeController@store
+→ CreateEmployeeCommand
+→ CommandBus
+→ CreateEmployeeHandler
+→ EmployeeWriteRepository
+→ Employee
+→ EmployeeAssignment
+→ EmployeeCreated
+→ Cache invalidation
+→ Activity log
+→ Broadcast
+→ Redirect
+```
+
+Ví dụ transfer:
+
+```text
+POST /admin/employees/{employee}/transfer
+→ TransferEmployeeRequest
+→ EmployeeAssignmentController@transfer
+→ TransferEmployeeCommand
+→ CommandBus
+→ TransferEmployeeHandler
+→ AssignmentOverlapValidator
+→ EmployeeAssignmentWriteRepository
+→ End old assignment
+→ Create new assignment
+→ Create employee history
+→ EmployeeTransferred
+→ Refresh organization headcount
+→ Cache invalidation
+→ Activity log
+→ Broadcast
+→ Redirect
+```
+
+Ví dụ contract approval:
+
+```text
+POST /admin/employment-contracts/{contract}/approve
+→ ApproveEmploymentContractRequest
+→ EmploymentContractController@approve
+→ ApproveEmploymentContractCommand
+→ CommandBus
+→ ApproveEmploymentContractHandler
+→ ContractStateMachine
+→ EmploymentContractWriteRepository
+→ EmploymentContractApproved
+→ Activity log
+→ Notification
+→ Broadcast
+→ Redirect
+```
+
+---
+
+# 40. BÁO CÁO CUỐI
+
+Cuối cùng báo rõ:
+
+```text
+1. Phần audit đã thực hiện
+2. Module Employee đã hoàn thành đến mức nào
+3. File đã tạo
+4. File đã sửa
+5. Migration đã thêm
+6. Index/FK đã thêm
+7. Route đã thêm
+8. Permission đã thêm
+9. Policy đã thêm
+10. Commands đã tạo
+11. Queries đã tạo
+12. Handlers đã nối
+13. Repository đã nối
+14. Business rules đã xử lý
+15. Encryption đã triển khai
+16. Avatar/document storage đã triển khai
+17. Menu đã nối
+18. View đã hoàn thiện
+19. Realtime đã nối
+20. Seeder/factory đã thêm
+21. Test đã chạy
+22. Kết quả Pint
+23. Kết quả PHPStan
+24. Kết quả PHPUnit
+25. Kết quả npm build
+26. URL có thể mở
+27. Lỗi còn lại
+28. Module còn skeleton
+29. Nội dung chưa làm và lý do
+```
+
+Không được báo hoàn thành nếu:
+
+* Employee list chưa mở được.
+* Create/Edit chưa ghi database.
+* Assignment chưa chống overlap.
+* Manager hierarchy chưa chống cycle.
+* Permission chỉ ẩn nút nhưng route chưa chặn.
+* Identity number chưa mã hóa.
+* Contract state transition chưa được kiểm soát.
+* Document download chưa authorize.
+* Cross-company test chưa có.
+* Controller còn query trực tiếp.
+* Blade còn query database.
+* Menu còn link giả.
+* Test chưa chạy.
+
+Bắt đầu audit và triển khai ngay.

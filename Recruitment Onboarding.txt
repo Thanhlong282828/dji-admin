@@ -1,0 +1,2479 @@
+Tiếp tục trực tiếp project Laravel hiện tại:
+
+```text
+~/Desktop/laraveldji/admin
+```
+
+Database:
+
+```text
+MySQL
+schema_admin
+```
+
+Các phần đã hoàn thành trước đó:
+
+```text
+Company
+Cost Center
+Organization Unit
+Job Position
+Organization Tree
+Headcount Dashboard
+Employee Core
+Employee Assignment
+Employee History
+Employee Credential
+Employment Contract
+Data Consent
+Employee Document
+```
+
+Trong lần này chỉ thực hiện:
+
+```text
+PHASE 3 — RECRUITMENT VÀ ONBOARDING
+```
+
+Bao gồm các bảng hiện có:
+
+```text
+recruitment_requisitions
+candidates
+applications
+onboarding_cases
+```
+
+Không triển khai Attendance, Leave, Payroll, Performance, Learning hoặc CMS trong lần này.
+
+Không tạo lại project.
+
+Không chạy:
+
+```bash
+php artisan migrate:fresh
+php artisan db:wipe
+```
+
+Không sửa migration đã chạy.
+
+Mọi thay đổi database phải dùng migration mới.
+
+Không tạo skeleton rỗng.
+
+Không báo hoàn thành nếu route, CQRS, permission, giao diện và test chưa hoạt động thật.
+
+---
+
+# 1. AUDIT TRƯỚC KHI SỬA
+
+Chạy:
+
+```bash
+cd ~/Desktop/laraveldji/admin
+
+php artisan about
+php artisan module:list
+php artisan route:list
+php artisan migrate:status
+```
+
+Kiểm tra database:
+
+```bash
+php artisan tinker --execute="
+dump(config('database.default'));
+dump(DB::connection()->getDatabaseName());
+dump(Schema::hasTable('recruitment_requisitions'));
+dump(Schema::hasTable('candidates'));
+dump(Schema::hasTable('applications'));
+dump(Schema::hasTable('onboarding_cases'));
+"
+```
+
+Kết quả bắt buộc:
+
+```text
+mysql
+schema_admin
+true
+true
+true
+true
+```
+
+Tìm toàn bộ code liên quan:
+
+```bash
+find app Modules routes resources database tests \
+-type f 2>/dev/null | \
+grep -Ei "recruit|requisition|candidate|application|onboarding|interview|offer|hiring" | \
+sort
+```
+
+Phải mở và kiểm tra nội dung thật của:
+
+* Models
+* Relations
+* Controllers
+* Routes
+* Form Requests
+* Commands
+* Queries
+* Handlers
+* Repositories
+* Policies
+* Permissions
+* DTOs
+* ViewModels
+* Events
+* Listeners
+* Jobs
+* Notifications
+* Blade
+* JavaScript
+* Tests
+
+Không kết luận module hoàn chỉnh chỉ vì file tồn tại.
+
+Tạo:
+
+```text
+docs/recruitment-audit-before.md
+```
+
+Phân loại từng phần:
+
+```text
+NOT_STARTED
+SKELETON
+PARTIAL
+FUNCTIONAL
+TESTED
+PRODUCTION_READY
+```
+
+---
+
+# 2. KIẾN TRÚC CQRS
+
+Phải tái sử dụng Command Bus và Query Bus hiện tại.
+
+Không tạo Bus mới nếu đã có.
+
+Luồng ghi:
+
+```text
+Route
+→ FormRequest
+→ Controller
+→ CommandBus
+→ Command
+→ CommandHandler
+→ Domain Service
+→ WriteRepository
+→ Model
+→ Domain Event
+→ Listener
+→ Cache invalidation
+→ Activity Log
+→ Notification
+→ Broadcast
+→ Response
+```
+
+Luồng đọc:
+
+```text
+Route
+→ Controller
+→ QueryBus
+→ Query
+→ QueryHandler
+→ ReadRepository
+→ DTO/ViewModel
+→ Blade hoặc API Resource
+```
+
+Controller không được gọi trực tiếp:
+
+```php
+RecruitmentRequisition::query();
+Candidate::query();
+Application::query();
+OnboardingCase::query();
+DB::table();
+DB::transaction();
+RepositoryInterface;
+```
+
+Không đặt business logic trong Controller, Blade hoặc JavaScript.
+
+---
+
+# 3. ENUM VÀ TRẠNG THÁI
+
+Tạo hoặc hoàn thiện enum:
+
+```text
+RecruitmentRequisitionStatus
+ApplicationStage
+OnboardingStatus
+CandidateConsentStatus
+InterviewResult
+OfferStatus
+```
+
+Requisition status:
+
+```text
+draft
+approval
+open
+paused
+filled
+cancelled
+```
+
+Application stage:
+
+```text
+received
+screening
+test
+interview
+reference
+offer
+hired
+rejected
+```
+
+Onboarding status:
+
+```text
+preboarding
+in_progress
+probation_review
+completed
+cancelled
+```
+
+Không dùng chuỗi trạng thái rải rác trong Controller.
+
+Phải có transition validator hoặc state machine cho:
+
+```text
+RecruitmentRequisition
+Application
+OnboardingCase
+```
+
+---
+
+# 4. RECRUITMENT REQUISITIONS
+
+Bảng:
+
+```text
+recruitment_requisitions
+```
+
+Schema:
+
+```text
+id
+job_position_id
+requested_by
+vacancies
+budget
+status
+approval_context nullable
+target_date nullable
+created_at
+updated_at
+```
+
+Quan hệ:
+
+```text
+RecruitmentRequisition belongsTo JobPosition
+RecruitmentRequisition belongsTo RequestedBy Employee
+RecruitmentRequisition hasMany Applications
+```
+
+## Chức năng
+
+* Danh sách yêu cầu tuyển dụng
+* Search
+* Filter theo company
+* Filter đơn vị
+* Filter vị trí
+* Filter trạng thái
+* Filter người yêu cầu
+* Filter target date
+* Create draft
+* Edit draft
+* Show detail
+* Submit approval
+* Approve
+* Reject hoặc return nếu workflow hỗ trợ
+* Open
+* Pause
+* Resume
+* Mark filled
+* Cancel
+* Duplicate requisition
+* Xem số ứng viên
+* Xem số vacancy còn lại
+* Xem hiring progress
+* Export
+* Activity log
+* Tenant isolation
+
+## Business rules
+
+* Job position phải tồn tại.
+* Job position phải thuộc Company hiện tại.
+* Requested by phải là Employee thuộc cùng Company.
+* Vacancies phải lớn hơn 0.
+* Budget không âm.
+* Target date không được nhỏ hơn ngày tạo nếu business rule yêu cầu.
+* Không mở requisition chưa được duyệt.
+* Không chỉnh sửa trường quan trọng sau khi requisition đã open, trừ action riêng.
+* Không mark filled nếu chưa đủ số hired, trừ người dùng có permission đặc biệt.
+* Không mở thêm requisition vượt approved headcount nếu chính sách không cho phép.
+* Không tin company_id từ client.
+* Không cho Company A xem requisition Company B.
+
+## Headcount validation
+
+Khi tạo hoặc mở requisition phải kiểm tra:
+
+```text
+approved_headcount
+current allocated FTE
+existing open vacancies
+requested vacancies
+```
+
+Không cho tuyển vượt định biên nếu không có permission:
+
+```text
+recruitment-requisition.override-headcount
+```
+
+Tạo Domain Service:
+
+```text
+RecruitmentHeadcountService
+RequisitionBudgetValidator
+```
+
+## Commands
+
+```text
+CreateRecruitmentRequisitionCommand
+UpdateRecruitmentRequisitionCommand
+SubmitRecruitmentRequisitionCommand
+ApproveRecruitmentRequisitionCommand
+RejectRecruitmentRequisitionCommand
+ReturnRecruitmentRequisitionCommand
+OpenRecruitmentRequisitionCommand
+PauseRecruitmentRequisitionCommand
+ResumeRecruitmentRequisitionCommand
+FillRecruitmentRequisitionCommand
+CancelRecruitmentRequisitionCommand
+DuplicateRecruitmentRequisitionCommand
+```
+
+## Queries
+
+```text
+GetRecruitmentRequisitionListQuery
+GetRecruitmentRequisitionDetailQuery
+GetRecruitmentRequisitionEditQuery
+GetRecruitmentRequisitionDashboardQuery
+GetOpenRecruitmentRequisitionsQuery
+GetRecruitmentHeadcountSummaryQuery
+```
+
+## Events
+
+```text
+RecruitmentRequisitionCreated
+RecruitmentRequisitionSubmitted
+RecruitmentRequisitionApproved
+RecruitmentRequisitionRejected
+RecruitmentRequisitionOpened
+RecruitmentRequisitionPaused
+RecruitmentRequisitionFilled
+RecruitmentRequisitionCancelled
+```
+
+---
+
+# 5. CANDIDATE MANAGEMENT
+
+Bảng:
+
+```text
+candidates
+```
+
+Schema:
+
+```text
+id
+uuid
+full_name
+email
+phone nullable
+source nullable
+resume_url nullable
+profile_fingerprint nullable
+profile nullable
+consent
+created_at
+updated_at
+```
+
+Quan hệ:
+
+```text
+Candidate hasMany Applications
+```
+
+## Chức năng
+
+* Candidate talent pool
+* Search theo tên, email, điện thoại
+* Filter source
+* Filter consent
+* Filter đã ứng tuyển/chưa ứng tuyển
+* Filter stage hiện tại
+* Create
+* Edit
+* Show profile
+* Upload CV
+* Replace CV
+* Download CV
+* Parse profile nếu có infrastructure
+* Duplicate detection
+* Merge duplicate candidate
+* Consent management
+* Candidate timeline
+* Application history
+* Notes
+* Tags nếu có
+* Export
+* Activity log
+* Permission
+
+## Business rules
+
+* UUID unique.
+* Email chuẩn hóa lowercase.
+* Điện thoại chuẩn hóa.
+* Không tự động xem cùng email là cùng người nếu dữ liệu mâu thuẫn; phải tạo cảnh báo duplicate.
+* Profile fingerprint dùng phát hiện gần trùng.
+* Candidate chưa consent không được xử lý ngoài mục đích hợp pháp đã cấu hình.
+* Resume phải là tài liệu private.
+* Download CV phải authorize.
+* Không log dữ liệu CV.
+* Không broadcast email/phone đầy đủ nếu không cần.
+* Không lưu signed URL dài hạn vào database.
+* Không xóa cứng candidate có application history.
+* Khi merge phải giữ toàn bộ applications và audit.
+
+## Duplicate detection
+
+Tạo service:
+
+```text
+CandidateDuplicateDetectionService
+CandidateFingerprintService
+CandidateMergeService
+```
+
+Fingerprint có thể dựa trên dữ liệu đã chuẩn hóa:
+
+```text
+full_name
+email
+phone
+date_of_birth nếu profile có
+```
+
+Không dùng fingerprint như bằng chứng tuyệt đối.
+
+Phải trả:
+
+```text
+exact_match
+probable_match
+possible_match
+no_match
+```
+
+## Commands
+
+```text
+CreateCandidateCommand
+UpdateCandidateCommand
+UploadCandidateResumeCommand
+DeleteCandidateResumeCommand
+GrantCandidateConsentCommand
+WithdrawCandidateConsentCommand
+MergeCandidatesCommand
+ArchiveCandidateCommand
+RestoreCandidateCommand
+```
+
+Nếu bảng chưa có soft delete và cần archive/restore, tạo migration mới hoặc dùng trạng thái archive được thiết kế rõ ràng.
+
+Không sửa migration cũ.
+
+## Queries
+
+```text
+GetCandidateListQuery
+GetCandidateDetailQuery
+GetCandidateEditQuery
+GetCandidateApplicationsQuery
+FindCandidateDuplicatesQuery
+GetCandidateTalentPoolQuery
+GetCandidateTimelineQuery
+```
+
+## Events
+
+```text
+CandidateCreated
+CandidateUpdated
+CandidateResumeUploaded
+CandidateConsentGranted
+CandidateConsentWithdrawn
+CandidateDuplicatesDetected
+CandidatesMerged
+```
+
+---
+
+# 6. RESUME STORAGE
+
+Tái sử dụng MediaStorage hoặc DocumentStorage abstraction hiện có.
+
+Không tạo abstraction trùng.
+
+CV phải:
+
+* Validate MIME thực.
+* Cho phép PDF và các định dạng tài liệu được cấu hình.
+* Giới hạn dung lượng.
+* Không tin extension.
+* Quét virus nếu infrastructure hỗ trợ.
+* Dùng UUID hoặc random filename.
+* Lưu private bucket hoặc private local disk.
+* Dùng storage key thay vì public URL nếu có thể.
+* Dùng signed download route.
+* Kiểm tra permission mỗi lần download.
+* Không log signed URL.
+* Không trả storage key cho client.
+* Không cho upload executable.
+
+Tạo Commands:
+
+```text
+UploadCandidateResumeCommand
+ReplaceCandidateResumeCommand
+DeleteCandidateResumeCommand
+```
+
+Jobs nếu cần:
+
+```text
+ScanCandidateResumeJob
+ExtractCandidateProfileJob
+GenerateResumePreviewJob
+```
+
+---
+
+# 7. APPLICATION PIPELINE
+
+Bảng:
+
+```text
+applications
+```
+
+Schema:
+
+```text
+id
+recruitment_requisition_id
+candidate_id
+stage
+score nullable
+evaluations nullable
+stage_changed_at
+created_at
+updated_at
+unique(recruitment_requisition_id, candidate_id)
+```
+
+Quan hệ:
+
+```text
+Application belongsTo RecruitmentRequisition
+Application belongsTo Candidate
+```
+
+## Chức năng
+
+* Tạo application
+* Gắn Candidate vào requisition
+* Pipeline dạng bảng
+* Kanban theo stage
+* Search
+* Filter requisition
+* Filter position
+* Filter stage
+* Filter source
+* Filter score
+* Xem detail
+* Chuyển stage
+* Bulk stage change
+* Ghi đánh giá
+* Ghi score
+* Test result
+* Interview result
+* Reference check
+* Offer
+* Hire
+* Reject
+* Reopen nếu có quyền
+* Timeline
+* Activity log
+* Realtime
+* Export
+
+## Business rules
+
+* Một Candidate chỉ được có một Application trong cùng Requisition.
+* Requisition phải ở trạng thái open khi thêm Application.
+* Candidate phải có consent hợp lệ nếu chính sách yêu cầu.
+* Không chuyển stage tùy ý.
+* Không được chuyển từ rejected sang hired trực tiếp.
+* Không được hire nếu requisition đã cancelled hoặc filled.
+* Không được vượt vacancies nếu không có override permission.
+* Reject phải có reason nếu policy yêu cầu.
+* Hired phải chạy conversion transaction an toàn.
+* Score nằm trong thang điểm cấu hình.
+* Evaluations phải validate schema.
+* Không tin stage từ client mà không qua transition validator.
+* Không để Company A thao tác Application Company B.
+
+## State transitions đề xuất
+
+```text
+received
+→ screening
+→ test
+→ interview
+→ reference
+→ offer
+→ hired
+```
+
+Có thể reject từ các stage trước hired:
+
+```text
+received
+screening
+test
+interview
+reference
+offer
+→ rejected
+```
+
+Reopen phải là action riêng và có permission:
+
+```text
+application.reopen
+```
+
+Tạo:
+
+```text
+ApplicationStageMachine
+ApplicationTransitionValidator
+```
+
+## Commands
+
+```text
+CreateApplicationCommand
+MoveApplicationStageCommand
+BulkMoveApplicationsCommand
+ScoreApplicationCommand
+AddApplicationEvaluationCommand
+RejectApplicationCommand
+ReopenApplicationCommand
+CreateCandidateOfferCommand
+AcceptCandidateOfferCommand
+DeclineCandidateOfferCommand
+HireCandidateCommand
+```
+
+## Queries
+
+```text
+GetApplicationListQuery
+GetApplicationDetailQuery
+GetApplicationPipelineQuery
+GetApplicationKanbanQuery
+GetApplicationsByRequisitionQuery
+GetApplicationTimelineQuery
+GetRecruitmentFunnelQuery
+```
+
+## Events
+
+```text
+ApplicationCreated
+ApplicationStageChanged
+ApplicationScored
+ApplicationEvaluated
+ApplicationRejected
+ApplicationReopened
+CandidateOfferCreated
+CandidateOfferAccepted
+CandidateOfferDeclined
+CandidateHired
+```
+
+---
+
+# 8. INTERVIEW VÀ EVALUATION
+
+Schema hiện tại chỉ có:
+
+```text
+applications.evaluations json
+```
+
+Không render JSON thô cho người dùng.
+
+Tạo DTO hoặc schema có cấu trúc:
+
+```text
+ApplicationEvaluationDTO
+InterviewEvaluationDTO
+CandidateScorecardDTO
+```
+
+Evaluation tối thiểu:
+
+```text
+evaluator_id
+evaluation_type
+criteria
+scores
+overall_score
+recommendation
+comments
+evaluated_at
+```
+
+Nếu cần lịch sử nhiều lần và nhiều evaluator, không nên tiếp tục nhồi tất cả vào một JSON lớn.
+
+Hãy audit nhu cầu và cân nhắc migration mới:
+
+```text
+application_evaluations
+```
+
+Cột đề xuất:
+
+```text
+id
+application_id
+evaluator_id
+type
+scores json
+overall_score decimal(5,2) nullable
+recommendation
+comments text nullable
+evaluated_at
+created_at
+updated_at
+```
+
+Nếu tạo bảng mới phải:
+
+* Giải thích lý do trong ADR.
+* Không xóa dữ liệu evaluations cũ.
+* Viết migration chuyển dữ liệu nếu cần.
+* Giữ tương thích ngược trong giai đoạn chuyển tiếp.
+
+Không tạo bảng mới nếu logic hiện tại đơn giản và JSON đủ an toàn.
+
+---
+
+# 9. INTERVIEW SCHEDULING
+
+Schema chưa có bảng lịch phỏng vấn chuyên biệt.
+
+Thiết kế migration mới nếu triển khai đầy đủ:
+
+```text
+application_interviews
+```
+
+Cột đề xuất:
+
+```text
+id
+application_id
+round
+type
+scheduled_at
+duration_minutes
+location nullable
+meeting_url nullable
+status
+result nullable
+notes nullable
+created_by
+created_at
+updated_at
+```
+
+Có thể thêm bảng người phỏng vấn:
+
+```text
+application_interviewers
+```
+
+```text
+interview_id
+user_id
+role nullable
+attendance_status nullable
+```
+
+Tính năng:
+
+* Lên lịch phỏng vấn
+* Nhiều vòng
+* Gán interviewer
+* Online/offline
+* Meeting URL
+* Reschedule
+* Cancel
+* Complete
+* Evaluation
+* Reminder
+* Calendar integration nếu project có
+* Realtime notification
+
+Không lưu access token meeting provider trong bảng.
+
+Commands:
+
+```text
+ScheduleApplicationInterviewCommand
+RescheduleApplicationInterviewCommand
+CancelApplicationInterviewCommand
+CompleteApplicationInterviewCommand
+AssignInterviewersCommand
+SubmitInterviewEvaluationCommand
+```
+
+Queries:
+
+```text
+GetApplicationInterviewsQuery
+GetUpcomingInterviewsQuery
+GetInterviewDetailQuery
+GetInterviewerScheduleQuery
+```
+
+---
+
+# 10. OFFER MANAGEMENT
+
+Schema hiện tại chưa có bảng offer chuyên biệt.
+
+Nếu cần luồng offer production-ready, tạo migration mới:
+
+```text
+candidate_offers
+```
+
+Cột đề xuất:
+
+```text
+id
+application_id
+offer_number
+job_position_id
+base_salary
+currency
+start_date
+expires_at nullable
+terms json
+document_storage_key nullable
+status
+approved_by nullable
+approved_at nullable
+accepted_at nullable
+declined_at nullable
+created_at
+updated_at
+```
+
+Status:
+
+```text
+draft
+approval
+approved
+sent
+accepted
+declined
+expired
+withdrawn
+```
+
+Tính năng:
+
+* Create draft
+* Edit
+* Submit approval
+* Approve
+* Generate document
+* Send
+* Accept
+* Decline
+* Withdraw
+* Expire
+* Audit
+* Signed document
+
+Không gửi lương qua broadcast công khai.
+
+Salary visibility phải có permission:
+
+```text
+candidate-offer.view-salary
+```
+
+Nếu chưa triển khai offer table trong phase này, application stage `offer` vẫn phải hoạt động nhưng phải ghi rõ giới hạn trong báo cáo.
+
+---
+
+# 11. HIRE CANDIDATE
+
+`HireCandidateCommand` phải thực hiện transaction hoàn chỉnh.
+
+Luồng:
+
+```text
+Application ở stage offer
+→ kiểm tra offer accepted hoặc rule tương đương
+→ kiểm tra vacancy
+→ tạo Employee
+→ tạo employee_code
+→ liên kết Company
+→ tạo primary assignment
+→ tạo employment contract draft hoặc active theo policy
+→ tạo Onboarding Case
+→ cập nhật Application stage = hired
+→ cập nhật Requisition vacancy progress
+→ đánh dấu Requisition filled nếu đủ số người
+→ tạo EmployeeHistory nếu cần
+→ dispatch CandidateHired
+→ clear cache
+→ activity log
+→ notification
+→ broadcast
+```
+
+## Business rules
+
+* Không tạo Employee trùng Candidate đã hire.
+* Phải idempotent.
+* Nếu request gửi lại không được tạo hai Employee.
+* Phải khóa Application hoặc Requisition khi xử lý để tránh race condition.
+* Phải dùng transaction.
+* Nếu bất kỳ bước nào lỗi thì rollback toàn bộ phần database.
+* Không tự động tạo User có password mặc định.
+* Có thể tạo invitation riêng sau khi hire.
+* Employee code phải sinh theo convention project.
+* Company và Job Position phải lấy từ Requisition.
+* Assignment phải đúng Organization Unit.
+* Manager lấy theo cấu hình hoặc yêu cầu người dùng chọn.
+* Không vượt approved headcount nếu thiếu override permission.
+
+Tạo service:
+
+```text
+CandidateHiringService
+EmployeeCodeGenerator
+HiringIdempotencyService
+```
+
+---
+
+# 12. ONBOARDING CASES
+
+Bảng:
+
+```text
+onboarding_cases
+```
+
+Schema:
+
+```text
+id
+employee_id
+buddy_id nullable
+start_date
+probation_review_date nullable
+checklist
+provisioning nullable
+status
+created_at
+updated_at
+```
+
+Quan hệ:
+
+```text
+OnboardingCase belongsTo Employee
+OnboardingCase belongsTo Buddy Employee nullable
+```
+
+## Chức năng
+
+* Danh sách onboarding case
+* Search Employee
+* Filter Company
+* Filter status
+* Filter start date
+* Filter overdue
+* Create
+* Show
+* Edit
+* Assign buddy
+* Change buddy
+* Start onboarding
+* Complete checklist item
+* Reopen checklist item
+* Update provisioning
+* Start probation review
+* Complete onboarding
+* Cancel
+* Timeline
+* Dashboard
+* Deadline alerts
+* Activity log
+* Realtime
+* Tenant isolation
+
+## Business rules
+
+* Employee phải thuộc Company hiện tại.
+* Buddy phải thuộc cùng Company.
+* Buddy không được là chính Employee.
+* Buddy phải active nếu business rule yêu cầu.
+* Start date hợp lệ.
+* Probation review date không nhỏ hơn start date.
+* Không complete onboarding nếu còn checklist bắt buộc chưa xong.
+* Không sửa case completed trừ permission đặc biệt.
+* Một Employee chỉ có một onboarding case active tại một thời điểm.
+* Không tạo onboarding cho Employee terminated hoặc alumni.
+* Không render checklist và provisioning dưới dạng JSON thô.
+
+## Checklist DTO
+
+Tạo cấu trúc rõ ràng:
+
+```text
+OnboardingChecklistItemDTO
+OnboardingChecklistSectionDTO
+ProvisioningItemDTO
+```
+
+Mỗi checklist item tối thiểu:
+
+```text
+key
+label
+category
+required
+status
+owner_type
+owner_id nullable
+due_at nullable
+completed_at nullable
+completed_by nullable
+notes nullable
+```
+
+Provisioning item tối thiểu:
+
+```text
+key
+label
+type
+status
+requested_at nullable
+completed_at nullable
+reference nullable
+notes nullable
+```
+
+## Commands
+
+```text
+CreateOnboardingCaseCommand
+UpdateOnboardingCaseCommand
+AssignOnboardingBuddyCommand
+StartOnboardingCommand
+CompleteOnboardingChecklistItemCommand
+ReopenOnboardingChecklistItemCommand
+UpdateOnboardingProvisioningCommand
+StartProbationReviewCommand
+CompleteOnboardingCaseCommand
+CancelOnboardingCaseCommand
+```
+
+## Queries
+
+```text
+GetOnboardingCaseListQuery
+GetOnboardingCaseDetailQuery
+GetOnboardingDashboardQuery
+GetOverdueOnboardingCasesQuery
+GetUpcomingProbationReviewsQuery
+GetEmployeeOnboardingQuery
+```
+
+## Events
+
+```text
+OnboardingCaseCreated
+OnboardingBuddyAssigned
+OnboardingStarted
+OnboardingChecklistItemCompleted
+OnboardingProvisioningUpdated
+OnboardingProbationReviewStarted
+OnboardingCompleted
+OnboardingCancelled
+```
+
+---
+
+# 13. ONBOARDING CHECKLIST TEMPLATES
+
+Schema hiện chỉ lưu checklist JSON trong từng case.
+
+Để tránh hard-code checklist trong Controller, tạo config hoặc bảng template.
+
+Ưu tiên tạo bảng nếu cần quản trị động:
+
+```text
+onboarding_templates
+```
+
+Cột đề xuất:
+
+```text
+id
+company_id
+name
+job_position_id nullable
+employment_type nullable
+checklist_definition json
+provisioning_definition json nullable
+is_active
+created_at
+updated_at
+```
+
+Tính năng:
+
+* Template theo Company
+* Template theo Position
+* Template theo Employment Type
+* Clone template
+* Activate/deactivate
+* Preview
+* Áp dụng khi tạo Onboarding Case
+
+Nếu chưa tạo bảng trong phase này, có thể dùng config nhưng phải:
+
+* Có schema rõ ràng.
+* Không hard-code trong Controller.
+* Có test.
+* Có migration path sau này.
+
+---
+
+# 14. RECRUITMENT DASHBOARD
+
+Tạo trang:
+
+```text
+/admin/recruitment/dashboard
+```
+
+Cards:
+
+```text
+Open requisitions
+Pending approval requisitions
+Total vacancies
+Applications received
+Candidates in screening
+Candidates in interview
+Offers pending
+Hires this month
+Rejected applications
+Average time to hire
+```
+
+Charts:
+
+```text
+Applications by stage
+Applications by source
+Recruitment funnel
+Hires by position
+Hires by department
+Time to hire trend
+Requisition status distribution
+```
+
+Filters:
+
+```text
+company
+date range
+organization unit
+job position
+requisition
+source
+stage
+```
+
+Dữ liệu phải qua:
+
+```text
+GetRecruitmentDashboardQuery
+```
+
+Không query trong Controller hoặc Blade.
+
+Cache Redis theo company và filter hash.
+
+---
+
+# 15. ONBOARDING DASHBOARD
+
+Tạo trang:
+
+```text
+/admin/onboarding/dashboard
+```
+
+Cards:
+
+```text
+Preboarding
+In progress
+Probation reviews due
+Completed this month
+Overdue checklist items
+Pending provisioning
+```
+
+Charts:
+
+```text
+Onboarding by status
+Completion rate
+Average onboarding duration
+Checklist completion by category
+Provisioning status
+```
+
+Dữ liệu qua:
+
+```text
+GetOnboardingDashboardQuery
+```
+
+---
+
+# 16. PERMISSIONS
+
+Tạo hoặc kiểm tra:
+
+```text
+recruitment-requisition.view
+recruitment-requisition.create
+recruitment-requisition.update
+recruitment-requisition.submit
+recruitment-requisition.approve
+recruitment-requisition.reject
+recruitment-requisition.open
+recruitment-requisition.pause
+recruitment-requisition.fill
+recruitment-requisition.cancel
+recruitment-requisition.export
+recruitment-requisition.audit
+recruitment-requisition.override-headcount
+
+candidate.view
+candidate.create
+candidate.update
+candidate.archive
+candidate.restore
+candidate.merge
+candidate.view-sensitive
+candidate.upload-resume
+candidate.download-resume
+candidate.manage-consent
+candidate.export
+candidate.audit
+
+application.view
+application.create
+application.update
+application.change-stage
+application.bulk-change-stage
+application.score
+application.evaluate
+application.reject
+application.reopen
+application.offer
+application.hire
+application.export
+application.audit
+
+application-interview.view
+application-interview.create
+application-interview.update
+application-interview.cancel
+application-interview.evaluate
+
+candidate-offer.view
+candidate-offer.view-salary
+candidate-offer.create
+candidate-offer.update
+candidate-offer.submit
+candidate-offer.approve
+candidate-offer.send
+candidate-offer.withdraw
+candidate-offer.download
+
+onboarding.view
+onboarding.create
+onboarding.update
+onboarding.assign-buddy
+onboarding.start
+onboarding.complete-item
+onboarding.manage-provisioning
+onboarding.start-probation-review
+onboarding.complete
+onboarding.cancel
+onboarding.audit
+onboarding.export
+```
+
+Không tạo permission trùng.
+
+Seeder phải idempotent.
+
+Không hard-code role.
+
+---
+
+# 17. POLICIES
+
+Tạo hoặc hoàn thiện:
+
+```text
+RecruitmentRequisitionPolicy
+CandidatePolicy
+ApplicationPolicy
+ApplicationInterviewPolicy
+CandidateOfferPolicy
+OnboardingCasePolicy
+```
+
+Policy phải kiểm tra:
+
+* Permission
+* Company context
+* Record thuộc Company nào
+* Dữ liệu nhạy cảm
+* Salary visibility
+* Resume download
+* Cross-company isolation
+* Action theo trạng thái
+* Actor có thuộc workflow approval hay không
+
+Mọi route theo ID phải chống IDOR.
+
+---
+
+# 18. ROUTES
+
+Tạo route thật, tên nhất quán.
+
+## Recruitment Requisitions
+
+```text
+admin.recruitment.dashboard
+
+admin.recruitment-requisitions.index
+admin.recruitment-requisitions.create
+admin.recruitment-requisitions.store
+admin.recruitment-requisitions.show
+admin.recruitment-requisitions.edit
+admin.recruitment-requisitions.update
+admin.recruitment-requisitions.submit
+admin.recruitment-requisitions.approve
+admin.recruitment-requisitions.reject
+admin.recruitment-requisitions.return
+admin.recruitment-requisitions.open
+admin.recruitment-requisitions.pause
+admin.recruitment-requisitions.resume
+admin.recruitment-requisitions.fill
+admin.recruitment-requisitions.cancel
+admin.recruitment-requisitions.duplicate
+admin.recruitment-requisitions.export
+```
+
+## Candidates
+
+```text
+admin.candidates.index
+admin.candidates.create
+admin.candidates.store
+admin.candidates.show
+admin.candidates.edit
+admin.candidates.update
+admin.candidates.archive
+admin.candidates.restore
+admin.candidates.merge
+admin.candidates.resume.store
+admin.candidates.resume.download
+admin.candidates.resume.destroy
+admin.candidates.consent.grant
+admin.candidates.consent.withdraw
+admin.candidates.duplicates
+admin.candidates.export
+```
+
+## Applications
+
+```text
+admin.applications.index
+admin.applications.pipeline
+admin.applications.kanban
+admin.applications.store
+admin.applications.show
+admin.applications.move-stage
+admin.applications.bulk-move-stage
+admin.applications.score
+admin.applications.evaluate
+admin.applications.reject
+admin.applications.reopen
+admin.applications.offer
+admin.applications.hire
+admin.applications.export
+```
+
+## Interviews
+
+```text
+admin.applications.interviews.index
+admin.applications.interviews.store
+admin.application-interviews.show
+admin.application-interviews.update
+admin.application-interviews.reschedule
+admin.application-interviews.cancel
+admin.application-interviews.complete
+admin.application-interviews.evaluate
+```
+
+## Onboarding
+
+```text
+admin.onboarding.dashboard
+admin.onboarding-cases.index
+admin.onboarding-cases.create
+admin.onboarding-cases.store
+admin.onboarding-cases.show
+admin.onboarding-cases.edit
+admin.onboarding-cases.update
+admin.onboarding-cases.assign-buddy
+admin.onboarding-cases.start
+admin.onboarding-cases.complete-item
+admin.onboarding-cases.reopen-item
+admin.onboarding-cases.provisioning.update
+admin.onboarding-cases.probation-review
+admin.onboarding-cases.complete
+admin.onboarding-cases.cancel
+admin.onboarding-cases.export
+```
+
+Mọi route phải có:
+
+```text
+auth
+permission hoặc Policy
+```
+
+---
+
+# 19. FORM REQUESTS
+
+Tạo Form Request riêng:
+
+```text
+StoreRecruitmentRequisitionRequest
+UpdateRecruitmentRequisitionRequest
+SubmitRecruitmentRequisitionRequest
+ApproveRecruitmentRequisitionRequest
+RejectRecruitmentRequisitionRequest
+CancelRecruitmentRequisitionRequest
+
+StoreCandidateRequest
+UpdateCandidateRequest
+UploadCandidateResumeRequest
+GrantCandidateConsentRequest
+MergeCandidatesRequest
+
+StoreApplicationRequest
+MoveApplicationStageRequest
+BulkMoveApplicationsRequest
+ScoreApplicationRequest
+AddApplicationEvaluationRequest
+RejectApplicationRequest
+HireCandidateRequest
+
+ScheduleApplicationInterviewRequest
+RescheduleApplicationInterviewRequest
+SubmitInterviewEvaluationRequest
+
+StoreOnboardingCaseRequest
+UpdateOnboardingCaseRequest
+AssignOnboardingBuddyRequest
+CompleteOnboardingChecklistItemRequest
+UpdateOnboardingProvisioningRequest
+CompleteOnboardingCaseRequest
+```
+
+Không dùng:
+
+```php
+$request->all()
+```
+
+Chỉ dùng:
+
+```php
+$request->validated()
+```
+
+---
+
+# 20. VIEWS
+
+## Recruitment Dashboard
+
+```text
+/admin/recruitment/dashboard
+```
+
+## Requisition list
+
+Phải có:
+
+* Search
+* Company filter
+* Unit filter
+* Position filter
+* Status filter
+* Requester filter
+* Date range
+* Vacancies
+* Filled count
+* Remaining vacancies
+* Budget
+* Target date
+* Actions theo permission
+* Pagination
+* Sort whitelist
+* Empty state
+
+## Candidate list
+
+Phải có:
+
+* Search
+* Source filter
+* Consent filter
+* Duplicate warning
+* Application count
+* Current stage
+* Resume state
+* Actions theo permission
+* Pagination
+
+## Candidate detail tabs
+
+```text
+Tổng quan
+Hồ sơ
+CV
+Đơn ứng tuyển
+Đánh giá
+Phỏng vấn
+Consent
+Timeline
+Activity log
+```
+
+## Application pipeline
+
+Phải có:
+
+* Kanban stage
+* Drag/drop chỉ khi có permission
+* Backend vẫn validate transition
+* Search
+* Requisition filter
+* Position filter
+* Source filter
+* Stage count
+* Candidate card
+* Score
+* Last stage change
+* Open detail
+* Reject
+* Move stage
+* Hire
+
+Không tin stage từ frontend drag/drop.
+
+## Onboarding detail
+
+Tabs hoặc sections:
+
+```text
+Tổng quan
+Checklist
+Provisioning
+Buddy
+Probation Review
+Timeline
+Activity log
+```
+
+Không hiển thị JSON thô.
+
+Không query database trong Blade.
+
+---
+
+# 21. SIDEBAR
+
+Sau khi route tồn tại thật, cập nhật:
+
+```text
+Tuyển dụng
+├── Dashboard tuyển dụng
+├── Yêu cầu tuyển dụng
+├── Ứng viên
+├── Pipeline ứng tuyển
+├── Lịch phỏng vấn
+├── Offer
+└── Báo cáo tuyển dụng
+
+Onboarding
+├── Dashboard onboarding
+├── Hồ sơ onboarding
+├── Checklist quá hạn
+├── Provisioning
+└── Probation review
+```
+
+Mỗi menu:
+
+* Route thật
+* Active đúng
+* Ẩn theo permission
+* Không `href="#"`
+* Không gọi route chưa tồn tại
+
+---
+
+# 22. WORKFLOW INTEGRATION
+
+Requisition approval phải tích hợp Workflow nếu Workflow Engine đã có.
+
+Luồng:
+
+```text
+SubmitRecruitmentRequisitionCommand
+→ tạo hoặc cập nhật WorkflowInstance
+→ pending approval
+→ WorkflowAction
+→ approve/reject/return
+→ cập nhật requisition status
+→ event
+→ notification
+→ broadcast
+```
+
+Offer approval nếu có bảng offer cũng dùng Workflow.
+
+Không hard-code approver trong Controller.
+
+Nếu Workflow module chưa hoàn thiện, tạo adapter tạm nhưng phải:
+
+* Interface rõ ràng
+* Không nhồi logic approval vào Controller
+* Có kế hoạch migration sang Workflow Engine
+* Ghi rõ trong tài liệu
+
+---
+
+# 23. CACHE
+
+Cache keys:
+
+```text
+schema_admin:recruitment:{companyId}:dashboard:{filterHash}
+schema_admin:requisition:{companyId}:list:{filterHash}
+schema_admin:requisition:{companyId}:detail:{requisitionId}
+schema_admin:candidate:{companyId}:list:{filterHash}
+schema_admin:candidate:{companyId}:detail:{candidateId}
+schema_admin:application:{companyId}:pipeline:{requisitionId}
+schema_admin:onboarding:{companyId}:dashboard:{filterHash}
+```
+
+Không dùng:
+
+```php
+Cache::flush();
+```
+
+Khi thay đổi application phải clear:
+
+* Pipeline
+* Recruitment dashboard
+* Requisition detail
+* Candidate detail
+* Funnel report
+
+Khi hire phải clear thêm:
+
+* Employee list
+* Organization headcount
+* Job position headcount
+* Onboarding dashboard
+
+---
+
+# 24. EVENTS VÀ LISTENERS
+
+Events tối thiểu:
+
+```text
+RecruitmentRequisitionCreated
+RecruitmentRequisitionSubmitted
+RecruitmentRequisitionApproved
+RecruitmentRequisitionRejected
+RecruitmentRequisitionOpened
+RecruitmentRequisitionPaused
+RecruitmentRequisitionFilled
+RecruitmentRequisitionCancelled
+
+CandidateCreated
+CandidateUpdated
+CandidateResumeUploaded
+CandidateConsentGranted
+CandidateConsentWithdrawn
+CandidatesMerged
+
+ApplicationCreated
+ApplicationStageChanged
+ApplicationScored
+ApplicationEvaluated
+ApplicationRejected
+ApplicationReopened
+CandidateOfferCreated
+CandidateOfferAccepted
+CandidateHired
+
+ApplicationInterviewScheduled
+ApplicationInterviewRescheduled
+ApplicationInterviewCancelled
+ApplicationInterviewCompleted
+
+OnboardingCaseCreated
+OnboardingBuddyAssigned
+OnboardingStarted
+OnboardingChecklistItemCompleted
+OnboardingProvisioningUpdated
+OnboardingCompleted
+OnboardingCancelled
+```
+
+Listeners xử lý:
+
+* Cache invalidation
+* Activity log
+* Notifications
+* Broadcast
+* Dashboard refresh
+* Headcount refresh
+* Email queue
+* Reminder scheduling
+
+Không dispatch event trùng trong Controller và Handler.
+
+---
+
+# 25. JOBS
+
+Jobs có thể cần:
+
+```text
+ProcessCandidateResumeJob
+ScanCandidateResumeJob
+ExtractCandidateProfileJob
+SendInterviewInvitationJob
+SendInterviewReminderJob
+SendCandidateRejectionJob
+GenerateCandidateOfferDocumentJob
+SendCandidateOfferJob
+ConvertCandidateToEmployeeJob
+NotifyOnboardingBuddyJob
+NotifyOnboardingChecklistDueJob
+NotifyProbationReviewDueJob
+ExportRecruitmentReportJob
+```
+
+Job phải:
+
+* Implement ShouldQueue
+* Retry
+* Backoff
+* Timeout
+* Failed handling
+* Idempotency
+* Queue name phù hợp
+* Không serialize dữ liệu nhạy cảm dư thừa
+* Không gửi password plaintext
+
+---
+
+# 26. REALTIME
+
+Realtime tối thiểu:
+
+```text
+requisition.created
+requisition.submitted
+requisition.approved
+requisition.opened
+application.created
+application.stage-changed
+application.scored
+application.rejected
+candidate.hired
+interview.scheduled
+interview.updated
+onboarding.created
+onboarding.checklist-updated
+onboarding.completed
+recruitment.dashboard-updated
+onboarding.dashboard-updated
+```
+
+Channels:
+
+```text
+private-company.{companyId}
+private-user.{userId}
+```
+
+Phải có:
+
+* ShouldBroadcast hoặc ShouldBroadcastNow
+* broadcastOn()
+* broadcastAs()
+* broadcastWith()
+* Channel authorization
+* Echo frontend listener
+* Reconnect handling
+* Không leak CV
+* Không leak phone/email không cần thiết
+* Không leak offer salary
+* Không leak Company khác
+
+Browser A move Application stage thì Browser B:
+
+* Cập nhật Kanban
+* Cập nhật stage count
+* Cập nhật recruitment dashboard
+* Không reload toàn trang
+
+---
+
+# 27. ACTIVITY LOG
+
+Log tối thiểu:
+
+```text
+Requisition created
+Requisition updated
+Requisition submitted
+Requisition approved
+Requisition rejected
+Requisition opened
+Requisition paused
+Requisition filled
+Requisition cancelled
+
+Candidate created
+Candidate updated
+Resume uploaded
+Consent granted
+Consent withdrawn
+Candidates merged
+
+Application created
+Application stage changed
+Application scored
+Application evaluated
+Application rejected
+Candidate hired
+
+Interview scheduled
+Interview rescheduled
+Interview cancelled
+Interview completed
+
+Onboarding created
+Buddy assigned
+Checklist item completed
+Provisioning updated
+Onboarding completed
+Onboarding cancelled
+```
+
+Không log:
+
+* Resume content
+* Signed URL
+* Private storage key
+* Access token
+* Candidate sensitive profile
+* Offer salary cho viewer không có quyền
+* Invitation token
+
+---
+
+# 28. SEEDER VÀ FACTORY
+
+Tạo dữ liệu mẫu chuyên nghiệp.
+
+Không xóa dữ liệu hiện tại.
+
+Seeder phải idempotent.
+
+## Requisitions
+
+Ví dụ:
+
+```text
+Senior Backend Developer — 2 vacancies
+Mobile Developer — 2 vacancies
+DevOps Engineer — 1 vacancy
+HR Specialist — 1 vacancy
+Sales Executive — 3 vacancies
+```
+
+## Candidates
+
+Dùng tên hợp lý:
+
+```text
+Nguyễn Anh Tuấn
+Trần Minh Châu
+Lê Quốc Bảo
+Phạm Thảo Vy
+Võ Thành Công
+Đặng Ngọc Mai
+Bùi Gia Hưng
+Hoàng Khánh Linh
+```
+
+## Applications
+
+Phân bổ vào nhiều stage:
+
+```text
+received
+screening
+test
+interview
+reference
+offer
+hired
+rejected
+```
+
+## Onboarding
+
+Tạo một số case:
+
+```text
+preboarding
+in_progress
+probation_review
+completed
+```
+
+Không dùng:
+
+```text
+Test Candidate
+Candidate 1
+Demo Application
+```
+
+Không sử dụng dữ liệu cá nhân thật.
+
+Không tự động chạy seeder production.
+
+---
+
+# 29. TESTS BẮT BUỘC
+
+## Requisition
+
+* Guest bị chặn
+* Thiếu permission bị 403
+* Create thành công
+* Vacancies bằng 0 bị chặn
+* Budget âm bị chặn
+* Position khác Company bị chặn
+* Requested by khác Company bị chặn
+* Submit đúng transition
+* Open khi chưa approve bị chặn
+* Pause đúng
+* Fill khi chưa đủ hire bị chặn
+* Override headcount yêu cầu permission
+* Cross-company access bị chặn
+
+## Candidate
+
+* Create/update thành công
+* Email normalize
+* Phone normalize
+* Duplicate detection
+* Resume MIME hợp lệ
+* Executable bị chặn
+* Download thiếu permission bị chặn
+* Consent grant/withdraw
+* Merge giữ Applications
+* Merge không tạo duplicate Application
+* Activity log không chứa CV data
+
+## Application
+
+* Không tạo duplicate trong cùng Requisition
+* Requisition không open bị chặn
+* Invalid stage transition bị chặn
+* Valid stage transition thành công
+* Reject cần reason nếu rule yêu cầu
+* Reopen cần permission
+* Hire vượt vacancy bị chặn
+* Hire chạy transaction
+* Hire tạo Employee
+* Hire tạo Assignment
+* Hire tạo Onboarding Case
+* Hire idempotent
+* Concurrent hire không vượt vacancy
+* Cross-company access bị chặn
+
+## Interview
+
+* Schedule hợp lệ
+* Reschedule
+* Cancel
+* Interviewer authorization
+* Company isolation
+* Reminder job dispatch
+
+## Onboarding
+
+* Create case
+* Buddy cùng Company
+* Buddy không phải chính Employee
+* Một active case mỗi Employee
+* Complete khi checklist bắt buộc chưa xong bị chặn
+* Complete khi đủ checklist thành công
+* Completed case không sửa trái phép
+* Overdue query đúng
+* Probation review query đúng
+* Cross-company access bị chặn
+
+## CQRS
+
+* Command Handler tests
+* Query Handler tests
+* Repository integration tests
+* Policy tests
+* Validation tests
+* State transition tests
+* Event dispatch tests
+* Cache invalidation tests
+* Queue dispatch tests
+* Realtime payload tests
+* Tenant isolation tests
+
+Không dùng:
+
+```php
+$this->assertTrue(true);
+```
+
+---
+
+# 30. DATABASE MIGRATION AN TOÀN
+
+Kiểm tra trước khi tạo migration:
+
+* Index requisition status/target_date
+* Index application stage/stage_changed_at
+* Index candidate email
+* Candidate archive hoặc soft delete nếu cần
+* Interview tables nếu triển khai
+* Offer table nếu triển khai
+* Onboarding template table nếu triển khai
+* Unique active onboarding case nếu không thể enforce trực tiếp thì dùng transaction và lock
+* Composite indexes phục vụ dashboard
+
+Không tạo index trùng.
+
+Không sửa migration cũ.
+
+Chạy:
+
+```bash
+php artisan migrate --pretend
+php artisan migrate
+php artisan migrate:status
+```
+
+Nếu có dữ liệu xung đột, dừng và báo rõ.
+
+---
+
+# 31. TRANSACTION VÀ CONCURRENCY
+
+Dùng transaction cho:
+
+* Candidate merge
+* Application creation
+* Application stage change có nhiều thay đổi
+* Requisition approval
+* Hire Candidate
+* Offer approval
+* Onboarding creation từ hire
+* Checklist completion có aggregate update
+
+Dùng:
+
+```text
+lockForUpdate
+distributed lock
+idempotency key
+```
+
+cho:
+
+* Hire Candidate
+* Vacancy validation
+* Requisition filled calculation
+* Candidate merge
+* Offer acceptance
+* Active onboarding uniqueness
+
+Không để race condition hire quá số vacancy.
+
+---
+
+# 32. API RESOURCES
+
+Nếu có API, tạo hoặc hoàn thiện:
+
+```text
+RecruitmentRequisitionResource
+CandidateResource
+CandidateCollection
+ApplicationResource
+ApplicationPipelineResource
+ApplicationInterviewResource
+CandidateOfferResource
+OnboardingCaseResource
+```
+
+Không return Model trực tiếp.
+
+Ẩn:
+
+* Resume storage key
+* Private signed URL
+* Sensitive candidate profile
+* Offer salary nếu thiếu permission
+* Internal workflow context
+* Approval secrets
+
+---
+
+# 33. PERFORMANCE
+
+Phải tránh N+1 trong:
+
+* Requisition list
+* Candidate list
+* Application Kanban
+* Recruitment dashboard
+* Onboarding dashboard
+
+Không query riêng từng Application để lấy:
+
+* Candidate
+* Requisition
+* Position
+* Unit
+* Latest evaluation
+* Interview
+* Offer
+
+Dùng eager loading có chọn cột, aggregate query, subquery hoặc read model.
+
+Pagination bắt buộc.
+
+Kanban không được load vô hạn toàn bộ Applications.
+
+Dùng per-stage limit và lazy load nếu dữ liệu lớn.
+
+---
+
+# 34. QUALITY CHECK
+
+Sau khi hoàn thành chạy:
+
+```bash
+php artisan optimize:clear
+composer dump-autoload
+
+php artisan route:list
+php artisan migrate:status
+
+./vendor/bin/pint --test
+./vendor/bin/phpstan analyse
+php artisan test
+
+npm run build
+```
+
+Chạy test module trước nếu phù hợp:
+
+```bash
+php artisan test Modules/Recruitment
+php artisan test Modules/Onboarding
+```
+
+Sau đó chạy toàn bộ:
+
+```bash
+php artisan test
+```
+
+Nếu Docker đang hoạt động:
+
+```bash
+docker compose config
+docker compose build
+docker compose up -d
+docker compose ps
+```
+
+Không:
+
+* Hạ PHPStan level
+* Thêm ignore tràn lan
+* Xóa test lỗi
+* Comment logic để né test
+* Dùng response giả
+* Báo hoàn thành khi test còn fail
+
+---
+
+# 35. TÀI LIỆU
+
+Cập nhật:
+
+```text
+docs/recruitment-audit-before.md
+docs/recruitment-audit-after.md
+docs/architecture.md
+docs/cqrs.md
+docs/permissions.md
+docs/realtime.md
+docs/database.md
+docs/security.md
+project.txt
+db.txt
+luong.txt
+```
+
+Ví dụ luồng Application:
+
+```text
+POST /admin/applications/{application}/move-stage
+→ MoveApplicationStageRequest
+→ ApplicationController@moveStage
+→ MoveApplicationStageCommand
+→ CommandBus
+→ MoveApplicationStageHandler
+→ ApplicationStageMachine
+→ ApplicationWriteRepository
+→ ApplicationStageChanged
+→ Cache invalidation
+→ Activity log
+→ Broadcast
+→ Response
+```
+
+Ví dụ Hire:
+
+```text
+POST /admin/applications/{application}/hire
+→ HireCandidateRequest
+→ ApplicationController@hire
+→ HireCandidateCommand
+→ CommandBus
+→ HireCandidateHandler
+→ CandidateHiringService
+→ lock Application và Requisition
+→ validate vacancy
+→ create Employee
+→ create Employee Assignment
+→ create Employment Contract
+→ create Onboarding Case
+→ update Application = hired
+→ update Requisition progress
+→ CandidateHired
+→ cache invalidation
+→ activity log
+→ notifications
+→ broadcast
+→ response
+```
+
+Ví dụ Onboarding checklist:
+
+```text
+POST /admin/onboarding-cases/{case}/checklist/{item}/complete
+→ CompleteOnboardingChecklistItemRequest
+→ OnboardingController@completeItem
+→ CompleteOnboardingChecklistItemCommand
+→ CommandBus
+→ CompleteOnboardingChecklistItemHandler
+→ OnboardingChecklistService
+→ OnboardingWriteRepository
+→ OnboardingChecklistItemCompleted
+→ cache invalidation
+→ activity log
+→ broadcast
+→ response
+```
+
+---
+
+# 36. BÁO CÁO CUỐI
+
+Cuối cùng báo rõ:
+
+```text
+1. Audit đã thực hiện
+2. Module Recruitment hoàn thành đến đâu
+3. Module Onboarding hoàn thành đến đâu
+4. File đã tạo
+5. File đã sửa
+6. Migration đã thêm
+7. Index/FK đã thêm
+8. Route đã thêm
+9. Permission đã thêm
+10. Policy đã thêm
+11. Commands đã tạo
+12. Queries đã tạo
+13. Handlers đã nối
+14. Repository đã nối
+15. State machine đã triển khai
+16. Candidate duplicate detection đã triển khai
+17. Resume storage đã triển khai
+18. Hiring transaction đã triển khai
+19. Onboarding checklist đã triển khai
+20. Workflow đã nối
+21. Menu đã nối
+22. View đã hoàn thiện
+23. Realtime đã nối
+24. Seeder/factory đã thêm
+25. Test đã chạy
+26. Kết quả Pint
+27. Kết quả PHPStan
+28. Kết quả PHPUnit
+29. Kết quả npm build
+30. URL có thể mở
+31. Lỗi còn lại
+32. Module còn skeleton
+33. Tính năng chưa làm và lý do
+```
+
+Không được báo hoàn thành nếu:
+
+* Requisition chưa có transition thật.
+* Candidate CV chưa được bảo vệ.
+* Pipeline chưa hoạt động.
+* Drag/drop chỉ đổi giao diện nhưng không ghi database.
+* Application chưa chống duplicate.
+* Hire chưa tạo Employee trong transaction.
+* Hire chưa chống vượt vacancy.
+* Onboarding checklist còn render JSON thô.
+* Policy chỉ ẩn nút nhưng route chưa chặn.
+* Cross-company chưa được test.
+* Controller còn query trực tiếp.
+* Menu còn link giả.
+* Test chưa chạy.
+
+Bắt đầu audit và triển khai ngay.

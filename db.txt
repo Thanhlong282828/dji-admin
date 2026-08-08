@@ -1,0 +1,560 @@
+SCHEMA ADMIN — TÀI LIỆU DATABASE THỰC TẾ
+Cập nhật: 2026-07-23
+Engine: MySQL; database: schema_admin; kiểm tra trực tiếp từ information_schema.
+Tổng số: 44 bảng. DBeaver chỉ là công cụ quản trị/kết nối, không phải database engine.
+
+QUY ƯỚC
+- PK: primary key; FK: foreign key; UQ: unique; IDX: index; NULL: cho phép rỗng.
+- created_at/updated_at là timestamp chuẩn Laravel; deleted_at là soft delete.
+- Đếm dữ liệu thực tế: users=1, articles=1, roles=14, permissions=408,
+  role_has_permissions=939, model_has_roles=1, migrations=7; bảng nghiệp vụ HRM còn lại=0.
+- URL tài liệu/ảnh (`avatar_url`, `hero_image`, `document_url`, `storage_key`...) có thể chứa URL/key Cloudflare R2.
+
+I. HỆ THỐNG, XÁC THỰC VÀ PHÂN QUYỀN
+
+1. users — tài khoản đăng nhập quản trị (1 dòng)
+- id bigint unsigned PK auto increment
+- name varchar(255); email varchar(255) UQ; email_verified_at timestamp NULL
+- password varchar(255); remember_token varchar(100) NULL
+- created_at, updated_at
+- Được tham chiếu bởi articles.author_id, employees.user_id, employee_histories.approved_by,
+  workflow_actions.actor_id.
+
+2. password_reset_tokens — token đặt lại mật khẩu
+- email varchar(255) PK; token varchar(255); created_at timestamp NULL
+
+3. sessions — phiên đăng nhập database
+- id varchar(255) PK; user_id bigint unsigned NULL IDX
+- ip_address varchar(45) NULL; user_agent text NULL; payload longtext
+- last_activity int IDX
+- Lưu ý: user_id chỉ có index, migration hiện không khai báo FK.
+
+4. roles — vai trò Spatie Permission (14 dòng)
+- id bigint unsigned PK; name varchar(255); guard_name varchar(255)
+- created_at, updated_at; UQ(name, guard_name)
+
+5. permissions — quyền chi tiết Spatie Permission (408 dòng)
+- id bigint unsigned PK; name varchar(255); guard_name varchar(255)
+- created_at, updated_at; UQ(name, guard_name)
+- Quyền được seed theo module/action: view, create, update, delete, export, import,
+  approve, reject, publish, restore, audit; thêm payroll.calculate.
+
+6. model_has_roles — gán role cho User/model (1 dòng)
+- role_id bigint unsigned FK -> roles.id
+- model_type varchar(255); model_id bigint unsigned
+- PK(role_id, model_id, model_type); IDX(model_id, model_type)
+
+7. model_has_permissions — gán permission trực tiếp cho User/model
+- permission_id bigint unsigned FK -> permissions.id
+- model_type varchar(255); model_id bigint unsigned
+- PK(permission_id, model_id, model_type); IDX(model_id, model_type)
+
+8. role_has_permissions — permission của role (939 dòng)
+- permission_id bigint unsigned FK -> permissions.id
+- role_id bigint unsigned FK -> roles.id
+- PK(permission_id, role_id)
+
+9. migrations — lịch sử migration Laravel (7 dòng)
+- id int unsigned PK auto increment; migration varchar(255); batch int
+
+10. activity_log — nhật ký Activity Log
+- id bigint unsigned PK; log_name varchar(255) NULL IDX; description text
+- subject_type varchar(255) NULL + subject_id bigint unsigned NULL (polymorphic IDX)
+- event varchar(255) NULL
+- causer_type varchar(255) NULL + causer_id bigint unsigned NULL (polymorphic IDX)
+- attribute_changes json NULL; properties json NULL; created_at, updated_at
+
+II. CACHE, QUEUE VÀ JOB
+
+11. cache — Laravel database cache dự phòng
+- key varchar(255) PK; value mediumtext; expiration bigint IDX
+- Runtime hiện được cấu hình Redis; bảng vẫn được giữ làm fallback.
+
+12. cache_locks — distributed cache locks
+- key varchar(255) PK; owner varchar(255); expiration bigint IDX
+
+13. jobs — queue job chờ xử lý
+- id bigint unsigned PK; queue varchar(255) IDX; payload longtext
+- attempts smallint unsigned; reserved_at int unsigned NULL
+- available_at int unsigned; created_at int unsigned
+
+14. job_batches — batch/queue chain
+- id varchar(255) PK; name varchar(255)
+- total_jobs, pending_jobs, failed_jobs int; failed_job_ids longtext
+- options mediumtext NULL; cancelled_at int NULL; created_at int; finished_at int NULL
+
+15. failed_jobs — queue job thất bại
+- id bigint unsigned PK; uuid varchar(255) UQ
+- connection varchar(255); queue varchar(255); payload longtext; exception longtext
+- failed_at timestamp default CURRENT_TIMESTAMP
+- IDX(connection, queue, failed_at)
+
+III. CMS / NỘI DUNG
+
+16. articles — bài viết CMS (1 dòng)
+- id bigint unsigned PK; author_id bigint unsigned FK -> users.id
+- title varchar(255); slug varchar(255) UQ; excerpt text; body longtext
+- category varchar(255) IDX; hero_image varchar(255)
+- status enum(draft, review, published, archived) default draft IDX
+- featured boolean default false IDX; published_at timestamp NULL IDX
+- seo_title varchar(255) NULL; seo_description varchar(320) NULL
+- created_at, updated_at, deleted_at (soft delete)
+
+IV. CƠ CẤU TỔ CHỨC VÀ ĐỊNH BIÊN
+
+17. companies — pháp nhân/công ty
+- id bigint unsigned PK; uuid char(36) UQ; code varchar(255) UQ; name varchar(255)
+- short_name varchar(100) NULL; tax_code varchar(255) NULL UQ
+- email varchar(255) NULL; phone varchar(30) NULL; website varchar(255) NULL
+- logo_media_id bigint unsigned NULL (TODO FK khi Media module hoạt động); address varchar(255) NULL
+- country_code char(2) default VN; currency_code char(3) default VND
+- timezone varchar(255) default Asia/Ho_Chi_Minh; legal_representative varchar(255) NULL
+- status enum(active,inactive) default active; description text NULL
+- created_by bigint unsigned NULL FK -> users.id; updated_by bigint unsigned NULL FK -> users.id
+- created_at, updated_at, deleted_at; IDX(name,status,created_at)
+- Hai cột legacy currency/is_active vẫn được đồng bộ bởi Write Repository để tương thích schema HRM cũ.
+
+18. cost_centers — trung tâm chi phí/ngân sách
+- id bigint unsigned PK; company_id FK -> companies.id
+- code varchar(255); name varchar(255); annual_budget decimal(18,2) default 0
+- currency char(3) default VND; created_at, updated_at
+- UQ(company_id, code)
+
+19. organization_units — cây công ty/chi nhánh/khối/phòng/ban/nhóm
+- id bigint unsigned PK; company_id FK -> companies.id
+- parent_id bigint unsigned NULL FK -> organization_units.id
+- cost_center_id bigint unsigned NULL FK -> cost_centers.id
+- type enum(company, branch, division, department, section, team)
+- code varchar(255); name varchar(255); headcount_limit int unsigned default 0
+- effective_from date; effective_to date NULL; metadata json NULL
+- created_at, updated_at; UQ(company_id, code)
+
+20. job_positions — vị trí, cấp bậc và định biên
+- id bigint unsigned PK; company_id bigint unsigned (tham gia UQ nhưng hiện không có FK)
+- organization_unit_id FK -> organization_units.id
+- code varchar(255); title varchar(255); job_grade varchar(255) NULL
+- approved_headcount int unsigned default 1; budgeted_cost decimal(18,2) default 0
+- competency_requirements json NULL; is_critical boolean default false
+- created_at, updated_at; UQ(company_id, code)
+
+V. HỒ SƠ NHÂN SỰ VÀ HỢP ĐỒNG
+
+21. employees — hồ sơ nhân viên trung tâm
+- id bigint unsigned PK; uuid char(36) UQ
+- user_id bigint unsigned NULL FK -> users.id; company_id FK -> companies.id
+- manager_id bigint unsigned NULL FK tự tham chiếu -> employees.id
+- employee_code varchar(255) UQ; full_name varchar(255)
+- date_of_birth date NULL; gender varchar(20) NULL
+- personal_email, work_email varchar(255) NULL; phone varchar(30) NULL
+- avatar_url varchar(255) NULL; nationality varchar(2) default VN
+- identity_number varchar(255) NULL; identity_number_hash varchar(255) NULL IDX
+- identity_expires_at date NULL IDX
+- addresses, emergency_contacts, dependants json NULL
+- join_date date; official_date date NULL
+- employment_status enum(preboarding, probation, active, suspended, leave, terminated, alumni) IDX
+- employment_type varchar(255) default full_time; termination_date date NULL
+- created_at, updated_at, deleted_at (soft delete)
+- Cảnh báo: identity_number hiện là varchar thường, cần application encryption/KMS production.
+
+22. employee_assignments — nhân viên kiêm nhiệm/nhiều đơn vị
+- id PK; employee_id FK -> employees.id
+- organization_unit_id FK -> organization_units.id; job_position_id FK -> job_positions.id
+- manager_id NULL FK -> employees.id
+- assignment_type enum(primary, concurrent, temporary)
+- allocation_percent decimal(5,2) default 100; work_location varchar(255) NULL
+- effective_from date; effective_to date NULL; created_at, updated_at
+
+23. employee_histories — lịch sử điều chuyển/thăng chức/lương/kỷ luật
+- id PK; employee_id FK -> employees.id
+- event_type enum(transfer, promotion, salary_change, discipline, award, status_change)
+- before json NULL; after json; reason text NULL
+- approved_by bigint unsigned NULL FK -> users.id; effective_at timestamp
+- created_at, updated_at
+
+24. employee_credentials — học vấn/chứng chỉ/kỹ năng/giấy tờ
+- id PK; employee_id FK -> employees.id
+- type enum(education, certificate, language, skill, license, passport, work_permit, award)
+- name varchar(255); issuer varchar(255) NULL
+- issued_at date NULL; expires_at date NULL IDX
+- document_url varchar(255) NULL; attributes json NULL; created_at, updated_at
+
+25. employment_contracts — hợp đồng lao động
+- id PK; employee_id FK -> employees.id; contract_number varchar(255) UQ
+- type enum(probation, fixed_term, indefinite, contractor)
+- starts_at date; ends_at date NULL IDX; base_salary decimal(18,2)
+- currency char(3) default VND; terms json
+- signed_document_url varchar(255) NULL; signed_at timestamp NULL
+- status enum(draft, approval, active, expired, terminated) IDX
+- created_at, updated_at
+
+26. data_consents — đồng ý xử lý dữ liệu cá nhân
+- id PK; employee_id FK -> employees.id
+- purpose varchar(255); policy_version varchar(255); granted boolean
+- decided_at timestamp; expires_at timestamp NULL; evidence_url varchar(255) NULL
+- created_at, updated_at
+
+27. employee_documents — kho tài liệu nhân sự
+- id PK; employee_id bigint unsigned NULL FK -> employees.id
+- type, name varchar(255); version int unsigned default 1
+- storage_key varchar(255); checksum varchar(255); expires_at date NULL IDX
+- access_policy json; signed_at timestamp NULL; created_at, updated_at
+
+VI. TUYỂN DỤNG VÀ ONBOARDING
+
+28. recruitment_requisitions — yêu cầu tuyển dụng
+- id PK; job_position_id FK -> job_positions.id
+- requested_by FK -> employees.id; vacancies int unsigned; budget decimal(18,2) default 0
+- status enum(draft, approval, open, paused, filled, cancelled) IDX
+- approval_context json NULL; target_date date NULL; created_at, updated_at
+
+29. candidates — kho ứng viên
+- id PK; uuid char(36) UQ; full_name varchar(255); email varchar(255) IDX
+- phone varchar(30) NULL; source varchar(255) NULL; resume_url varchar(255) NULL
+- profile_fingerprint varchar(255) NULL IDX (phát hiện trùng)
+- profile json NULL; consent boolean default false; created_at, updated_at
+
+30. applications — pipeline ứng tuyển
+- id PK; recruitment_requisition_id FK -> recruitment_requisitions.id
+- candidate_id FK -> candidates.id
+- stage enum(received, screening, test, interview, reference, offer, hired, rejected) IDX
+- score decimal(5,2) NULL; evaluations json NULL; stage_changed_at timestamp
+- created_at, updated_at; UQ(recruitment_requisition_id, candidate_id)
+
+31. onboarding_cases — checklist tiếp nhận nhân viên
+- id PK; employee_id FK -> employees.id; buddy_id NULL FK -> employees.id
+- start_date date; probation_review_date date NULL
+- checklist json; provisioning json NULL
+- status enum(preboarding, in_progress, probation_review, completed, cancelled) IDX
+- created_at, updated_at
+
+VII. CHẤM CÔNG, NGHỈ PHÉP VÀ LƯƠNG
+
+32. work_shifts — ca làm việc
+- id PK; company_id FK -> companies.id; code, name varchar(255)
+- starts_at time; ends_at time; crosses_midnight boolean default false
+- rules json; created_at, updated_at
+
+33. attendance_records — bản ghi chấm công
+- id PK; employee_id FK -> employees.id; work_shift_id NULL FK -> work_shifts.id
+- work_date date IDX; check_in_at/check_out_at timestamp NULL
+- source varchar(255) NULL; worked_hours/overtime_hours decimal(7,2) default 0
+- location json NULL; adjustment json NULL; is_locked boolean default false
+- created_at, updated_at; UQ(employee_id, work_date)
+
+34. leave_types — loại nghỉ và chính sách phép
+- id PK; company_id FK -> companies.id; code, name varchar(255)
+- accrual_policy json; carry_forward_policy json NULL; is_paid boolean default true
+- created_at, updated_at
+
+35. leave_requests — đơn nghỉ phép
+- id PK; employee_id FK -> employees.id; leave_type_id FK -> leave_types.id
+- starts_at/ends_at date; days decimal(7,2); reason text NULL
+- status enum(draft, pending, approved, rejected, cancelled) IDX
+- approved_by bigint unsigned NULL FK -> employees.id; created_at, updated_at
+
+36. payroll_runs — kỳ/bảng lương
+- id PK; company_id FK -> companies.id; code varchar(255) UQ
+- period_start/period_end date
+- status enum(draft, calculating, review, approved, locked, paid) IDX
+- gross_total, deduction_total, net_total decimal(20,2) default 0
+- formula_version json; locked_at timestamp NULL; created_at, updated_at
+
+37. payroll_items — lương từng nhân viên
+- id PK; payroll_run_id FK -> payroll_runs.id; employee_id FK -> employees.id
+- gross_salary decimal(18,2); insurance, personal_income_tax, deductions decimal(18,2) default 0
+- net_salary decimal(18,2); breakdown json; payslip_url varchar(255) NULL
+- created_at, updated_at; UQ(payroll_run_id, employee_id)
+
+VIII. HIỆU SUẤT VÀ ĐÀO TẠO
+
+38. performance_cycles — chu kỳ đánh giá
+- id PK; company_id FK -> companies.id; name varchar(255)
+- starts_at/ends_at date; rating_scale json
+- status enum(draft, active, calibration, closed); created_at, updated_at
+
+39. performance_goals — KPI/OKR/năng lực
+- id PK; performance_cycle_id FK -> performance_cycles.id; employee_id FK -> employees.id
+- parent_goal_id NULL FK tự tham chiếu -> performance_goals.id
+- type enum(KPI, OKR, competency); title varchar(255)
+- weight/progress decimal(5,2); measure json; reviews json NULL
+- created_at, updated_at
+
+40. learning_courses — khóa học LMS
+- id PK; company_id FK -> companies.id; code, name varchar(255)
+- delivery enum(online, classroom, blended); budget decimal(18,2) default 0
+- content json; required_positions json NULL; created_at, updated_at
+
+41. learning_enrollments — đăng ký/tiến độ học
+- id PK; learning_course_id FK -> learning_courses.id; employee_id FK -> employees.id
+- progress decimal(5,2) default 0; score decimal(5,2) NULL
+- certificate_expires_at date NULL IDX
+- status enum(assigned, in_progress, completed, failed, expired)
+- created_at, updated_at
+
+IX. WORKFLOW VÀ TÍCH HỢP
+
+42. workflow_instances — tiến trình phê duyệt
+- id PK; uuid char(36) UQ; company_id FK -> companies.id
+- workflow_type varchar(255); subject_type + subject_id polymorphic IDX
+- definition_snapshot json; current_step int unsigned default 1
+- status enum(pending, approved, rejected, returned, cancelled) IDX
+- due_at timestamp NULL IDX; created_at, updated_at
+
+43. workflow_actions — thao tác trong tiến trình
+- id PK; workflow_instance_id FK -> workflow_instances.id
+- actor_id FK -> users.id; action varchar(255); comment text NULL
+- context json NULL; acted_at timestamp; created_at, updated_at
+
+44. integration_logs — nhật ký đồng bộ/tích hợp
+- id PK; company_id FK -> companies.id; connector, direction varchar(255)
+- correlation_id varchar(255) IDX
+- status enum(pending, success, retrying, failed) IDX; attempts int unsigned default 0
+- request_meta/response_meta json NULL; error text NULL; next_retry_at timestamp NULL
+- created_at, updated_at
+
+ĐÁNH GIÁ KHOẢNG TRỐNG DATABASE HIỆN TẠI
+- Schema mới bao phủ nền tảng Core HR, ATS, onboarding, attendance, leave, payroll, KPI/LMS,
+  workflow và integration nhưng đa số module ứng dụng vẫn chỉ là skeleton/đang tắt.
+- Chưa có bảng chuyên biệt cho: bảo hiểm quá trình đóng/chế độ, thuế/người phụ thuộc theo kỳ,
+  benefit plans/enrollments, offboarding, succession/talent matrix, labor grievance/discipline case,
+  tài sản/thiết bị, thông báo, media library, menu/page/SEO/product, salary bands, leave balances,
+  overtime requests, timesheets, bank transfer files, e-signature và multi-factor authentication.
+- articles và employees có soft delete; phần lớn bảng nghiệp vụ khác chưa có deleted_at/restore.
+- Một số quan hệ cần xem lại ở migration kế tiếp: sessions.user_id chưa có FK; job_positions.company_id
+  chưa có FK dù có unique composite; work_shifts chưa unique(company_id, code); leave_types chưa
+  unique(company_id, code); dữ liệu nhạy cảm cần encryption ở application/KMS.
+- Không chỉnh trực tiếp migration đã chạy. Mọi bổ sung phải dùng migration mới và không chạy migrate:fresh.
+
+PHASE 1B — ORGANIZATION CORE (2026-07-23)
+- company_user_access: company_id FK, user_id FK, unique(company_id,user_id), timestamps.
+- cost_centers: 5 bản ghi seed; unique(company_id,code); budget không âm qua validation.
+- organization_units: 12 bản ghi seed; index company/parent, company/type, effective dates.
+- job_positions: 9 bản ghi seed; FK company_id đã tồn tại; index company/job_grade, unit/critical.
+- employee_assignments: index job_position/effective; active khi effective_from <= date và effective_to null hoặc >= date.
+- Headcount hiện tại production: approved 73; people 0; allocated FTE 0; vacancy 73.
+
+PHASE 2 EMPLOYEE CORE
+- Migration batch 5: 2026_07_23_140000_optimize_employee_core.
+- employees: unique user_id, identity_number_hash, company/work_email; composite list indexes.
+- assignments/history/credential/contract/consent/document: effective-date, timeline, expiry and version indexes.
+- Demo records: employees 9; assignments 9; histories 9; credentials 9; contracts 9; consents 9; documents 9.
+- identity_number stores Laravel ciphertext; identity_number_hash stores keyed HMAC-SHA256.
+
+PHASE 3
+- Migration batch 6: 2026_07_23_150000_optimize_recruitment_onboarding.
+- Added Candidate deleted_at plus requisition/application/onboarding composite indexes.
+- Demo: 5 recruitment requisitions, 8 candidates, 8 applications, 4 onboarding cases.
+- Interview/offer/template tables intentionally not created because corresponding workflows remain pending.
+
+PHASE 2.5A: no schema change. Verified cost_centers=5, organization_units=12, job_positions=9,
+approved_headcount=73, annual_budget=6200000000.00, budgeted_position_cost=2740000000.00.
+EMPLOYEE CORE DATABASE ADDITIONS (2026-07-24)
+- employee_credentials: credential_number (encrypted text), document_storage_key (private), archived_at.
+- employment_contracts: signed_storage_key, termination_reason, terminated_at; status adds approved/cancelled.
+- data_consents: actor_id -> users, reason, evidence_storage_key.
+- employee_documents: mime_type, size_bytes, scan_status, archived_at.
+- employees: avatar_storage_key.
+- employee_user_invitations: id, employee_id, email, token_hash unique, expires_at, accepted_at, invalidated_at, created_by, timestamps.
+- Migration batches: 8 = complete_employee_core_security_fields; 9 = employee_user_invitations.
+PHASE 2.5C-2D
+notifications: id UUID PK; type; polymorphic notifiable_type/notifiable_id; JSON data; read_at; timestamps. Stores only safe internal notification metadata. Migration batch 13; existing HRM data preserved.
+recruitment_notification_deliveries: company_id, notification_type, entity_type/id/version, recipient_user_id, channel, unique idempotency_key, dispatched_at, timestamps. Migration batch 14.
+
+PHASE 2.5C-3 (migration batch 15)
+- hire_transaction_markers: company_id, offer_id UNIQUE, employee_id UNIQUE nullable, onboarding_case_id UNIQUE nullable, idempotency_key UUID UNIQUE, status, actor_id, completed_at, timestamps.
+- candidate_offers: hired_employee_id UNIQUE nullable, hired_at; reservation_status becomes consumed after successful Hire.
+- applications: hired_at (existing hired_employee_id/hiring_reference retained).
+- candidates: hired_employee_id UNIQUE nullable, hired_application_id UNIQUE nullable, hired_at.
+- employees: source indexed, source_candidate_id/application_id/offer_id nullable UNIQUE foreign keys.
+- employment_contracts: source_offer_id nullable UNIQUE foreign key.
+- onboarding_cases: unique application/offer links, requisition/position/unit/owner/template/creator links, unique company+employee.
+- onboarding_provisioning_items: code, provider, provider_status, unique case+code.
+- Production verification: MySQL schema_admin; cost_centers=5, organization_units=12, job_positions=9, hire_transaction_markers=0. No production Hire records were fabricated.
+
+PHASE 3 / BATCH 16
+New: work_calendars, work_calendar_days, employee_work_profiles, shift_break_rules, attendance_events, attendance_adjustment_histories, leave_policies, employee_leave_policy_assignments, overtime_policies, employee_overtime_policy_assignments, payroll_periods, payroll_input_snapshots, payroll_employee_inputs.
+Extended: work_shifts, employee_shift_assignments, attendance_records, attendance_adjustment_requests, company_holidays, leave_requests, leave_balance_transactions, overtime_requests.
+All time quantities use integer minutes or FTE basis points. No salary/net-pay fields exist in payroll input snapshots.
+PHASE 3A-2 SCHEMA
+- attendance_adjustment_requests: added nullable idempotency_key, unique(company_id,idempotency_key).
+- attendance_records: added locked_at, locked_by, payroll_period_id and readiness composite index.
+- attendance_approval_histories: immutable relational history containing company, record, action, from/to status, actor, comment and record version.
+- Migration: 2026_07_26_000005_complete_attendance_approval_lock_workflow, batch 17.
+PHASE 3A-3 LEAVE SCHEMA — BATCH 18
+- leave_policies.status.
+- employee_leave_policy_assignments.version/idempotency_key and effective lookup index.
+- leave_requests.idempotency_key.
+- leave_request_histories relational immutable workflow history.
+- leave_attachments private quarantine/scan metadata, SHA-256, size, version and idempotency.
+
+PHASE 3A-4 OVERTIME — BATCH 19
+- overtime_policies: thêm status (active/inactive, indexed).
+- employee_overtime_policy_assignments: thêm version, UUID idempotency_key và effective lookup index.
+- overtime_requests: thêm UUID idempotency_key, calculation_status, calculation_version và employee/day/status lookup index.
+- overtime_request_histories: company_id, overtime_request_id, action, from_status, to_status, actor_id, comment, JSON snapshot, request_version, created_at.
+- Payroll integration: payroll_employee_inputs.approved_overtime_minutes lấy SUM(overtime_requests.payable_minutes) của request status=approved trong kỳ.
+
+PHASE 3A-5 — BATCH 20
+- shift_break_rules: name, mode, sort_order, status, effective_from/to, version, editor lookup index.
+- leave_attachments: replaced_by_attachment_id, removed_at, removed_by, runtime lookup index.
+- notification_deliveries: durable unique marker theo company/type/entity/version/recipient/channel/action; trạng thái attempt/sent/failed.
+
+PHASE 3A-6 DATABASE VERIFICATION
+- Không có migration/schema change mới; batch cao nhất vẫn là 20.
+- MySQL production: schema_admin; MySQL 9.6.0; REPEATABLE-READ.
+- Process concurrency schema: schema_admin_testing; fixture được dọn sau test.
+- Shift assignment overlap dùng employee row lock trước effective-range check; transaction deadlock retry tối đa 3.
+- Cache key company-scoped: schema:workforce:{companyId}:{scope}:{readModel}.
+PHASE 3A-7 DATABASE NOTE — COMPLETED (2026-07-26)
+- Runtime: MySQL schema_admin, MySQL 9.6.0, REPEATABLE-READ.
+- Concurrency tests: isolated schema_admin_testing only.
+- Migration 2026_07_26_000009 aligns leave_requests statuses with the domain workflow and approved_by with users.id; guarded additive migration, no wipe/fresh/reset.
+- Cache keys are tenant/domain/version scoped; no Cache::flush().
+PHASE 3B-1 DATABASE (PARTIAL, batch 22)
+- New: salary_components, employee_salary_component_assignments, payroll_item_components, payroll_validation_issues, payroll_run_histories.
+- Additive payroll_runs/payroll_items columns preserve legacy decimal columns; integer *_minor columns are the new calculation source of truth.
+- Production Payroll tables had zero records before migration; no production Payroll data was seeded.
+PHASE 3B-1G DATABASE NOTE
+- Không tạo migration; giữ nguyên batch 1–22.
+- Production `schema_admin` không được seed hoặc benchmark.
+- Integration/performance tests dùng MySQL `schema_admin_testing`.
+- `notification_deliveries`: durable marker theo company/type/entity/version/recipient/channel/action; retry chỉ channel failed.
+- Payroll CSV đọc `payroll_runs`, `payroll_items`, `payroll_item_components` bằng tenant-scoped cursor; không xuất cột nhạy cảm.
+PHASE 3B-2A — BATCH 23
+- payroll_input_snapshots: idempotency/note, source totals, issue totals, validated/superseded metadata.
+- payroll_employee_inputs: immutable employee/org/position labels, employment dates, source counts, overtime category quantities, input status and SHA-256 source fingerprint.
+- payroll_input_validation_issues: safe typed readiness findings scoped to snapshot/employee.
+- payroll_input_histories: idempotent capture/validate/create-run audit trail.
+- payroll_runs.payroll_input_snapshot_id remains the exact immutable input reference.
+
+PHASE 3B-2B — BATCH 24
+- payroll_periods adds created_by, company-scoped idempotency_key, note and stable list index.
+- payroll_period_histories stores actor, action, transition, version, safe changes and timestamp.
+- Existing company/code uniqueness and lifecycle fields remain unchanged.
+- Production Payroll business rows are not seeded.
+
+PHASE 3B-3 — BATCH 25
+- payroll_runs.finalized_by: nullable FK users.id, populated atomically by Finalize.
+- payroll_runs.payroll_input_snapshot_id remains the exact calculation source reference.
+- payroll_items and payroll_item_components are versioned by calculation_version; integer *_minor totals are authoritative.
+- schema_admin_testing contains manual/automated fixtures only. schema_admin received no seed/update/delete.
+PHASE 3B-4 — payroll_input_source_records
+- Immutable per-source capture: company/snapshot/employee-input FK, source type/id/date/status/update timestamp, integer quantity, classification, checksum, metadata, captured timestamps.
+- Unique segment key includes snapshot, source, source date, quantity type and classification.
+- payroll_items now preserves weekday_overtime_minutes, weekend_overtime_minutes and holiday_overtime_minutes.
+PHASE 3C-1 — INSURANCE
+- insurance_policies: company/version/effective range/status/currency/rounding/audit actors.
+- insurance_policy_rates: typed employee/employer basis-point rates and per-type floor/cap.
+- employee_insurance_profiles: company/employee participation, effective range, policy, override, masked-sensitive number and exemption reason.
+- payroll_items/payroll_runs: insurance base, policy snapshot and employee/employer aggregate minor units.
+PHASE 3C-2 / MYSQL schema_admin / batch 28
+tax_policies: company-scoped code/version, effective range, currency, method, residency group, rounding, floor rule, flat rate, status, audit actors.
+tax_policy_brackets: ordered lower/upper integer-minor boundaries, basis-point rate, optional quick/fixed extension columns.
+tax_policy_deductions: policy-scoped configurable personal/dependent/employee-insurance/other deductions with effective range.
+employee_tax_profiles: company/employee/policy, tax and residency status, effective range, Tax ID, eligibility/method/override/reason, audit actors.
+employee_tax_dependents: minimal approved/effective tax dependent declaration; no full family-management data.
+payroll_items additions: tax_policy_id/version, taxable income before/after floor, PIT, net before/after PIT.
+payroll_runs additions: PIT total and net-after-PIT total.
+Production after migration: tax configuration tables 0 rows; insurance tables 0; payroll_periods 1; snapshots/runs/items/components 0. No Tax seed or business update/delete.
+
+PHASE 3D-1 / MYSQL schema_admin / batch 29
+payroll_payslip_batches: company/run request UUID, processing counters/status, requester and timestamps.
+payroll_payslips: company/run/item/employee/period exact references; calculation, payslip and template versions; lifecycle; private disk/path; MIME/size/SHA-256; idempotency; generation/publication/revocation/delivery metadata.
+payroll_payslip_snapshots: immutable canonical JSON source payload, schema version and payload checksum.
+payroll_payslip_access_logs: company/payslip/actor/action/access timestamp and optional privacy-preserving request hashes.
+Production after migration: new Payslip tables 0 rows; payroll_periods 1; runs/items/components 0; tax/insurance policies 0. No seed, PDF generation, update or delete performed.
+
+PHASE 3D-2 / MYSQL schema_admin / batch 30
+- employee_payment_accounts: encrypted account, last4, verified/effective/primary payment instruction source.
+- payroll_payment_batches: Run/Period/version, lifecycle actors, integer aggregate and private file integrity metadata.
+- payroll_payment_batch_items: exact Payroll Item/version/amount plus immutable encrypted beneficiary instruction snapshot and unique active intent.
+- payroll_payment_validation_issues: safe blocking/warning eligibility findings.
+- payroll_payment_access_logs: tenant-scoped release/download audit.
+- Production payment tables remain 0 rows; no payment account, batch or CSV was created.
+PHASE 3D-3 ACCOUNTING (MySQL schema_admin, migration batch 31)
+accounting_accounts: id,uuid,company_id,parent_id,code,name,account_type,normal_balance,currency,allow_posting,status,effective_from,effective_to,created_by,timestamps
+payroll_accounting_policies: id,uuid,company_id,code,name,version,currency,aggregation_strategy,effective dates,rounding_rule,status,created_by,note,timestamps
+payroll_accounting_mappings: id,uuid,company_id,policy_id,source_type,source_code,debit/credit account,optional cost center/org unit,priority,effective dates,status,creator,timestamps
+payroll_accounting_journals: Run/Period/Policy/calculation snapshots,lifecycle actors/timestamps,integer totals,active intent,idempotency,private CSV integrity,reversal links
+payroll_accounting_journal_lines: account/mapping/dimension snapshots,integer debit/credit,source count
+payroll_accounting_journal_sources: exact Payroll Item/Component/Employee references,calculation version,source amount
+payroll_accounting_validation_issues: safe code,severity,message,blocking flag/context
+payroll_accounting_access_logs: company,journal,actor,action,accessed_at
+Production Accounting business rows after migration: 0. No Accounting seeder executed.
+PHASE 3E-1 / BATCH 32: payroll_adjustment_reasons; payroll_adjustment_requests; payroll_adjustment_snapshots; payroll_adjustment_components; payroll_adjustment_validation_issues; payroll_adjustment_recoveries; payroll_adjustment_runs; payroll_adjustment_payslips; payroll_adjustment_downstream_intents; payroll_adjustment_histories; payroll_adjustment_access_logs. Amounts are signed BIGINT minor units; snapshots are canonical JSON + SHA-256; active intent and idempotency are unique per company. Production business rows after migration: 0 in every new table.
+PHASE 3E-1C1 / BATCH 33: payment batch items and accounting journals/sources support explicit regular_payroll, retroactive_adjustment and adjustment_reversal source metadata. The three legacy regular-source FKs are nullable but retained. Adjustment statement rows have private storage/integrity/generation metadata. Downstream intents have idempotency, retry/completion/failure timestamps and explicit artifact FKs. All audited production business tables remained 0 rows; no artifact file was generated.
+PHASE 3E-1C2 / NO MIGRATION: business services now use the existing batch-33 columns to persist real Adjustment Payment Item references, balanced Accounting Journal/source trace, private Statement PDF metadata/checksum and retry lifecycle. All fixtures used isolated MySQL testing databases. Production audited Payment/Accounting/Adjustment business tables remained 0 rows and no production artifact file was created.
+PHASE 3E-1C3 / NO MIGRATION: process races use schema_admin_testing; guarded UI fixtures use schema_admin_browser_testing only. Cleanup result: 0 marked companies, 0 Adjustment requests, 0 Statements, generated files removed. Production Adjustment/linked artifact counts remain 0.
+PHASE 3E-2A / AUDIT-DESIGN / NO MIGRATION: current annual-capable sources are finalized payroll_runs/items/item_components, payslip snapshots/checksums, applied adjustment runs/components/snapshots and effective Tax configuration. Missing annual header/source/component/version/checksum/lifecycle/document/settlement tables are proposed only in docs. Production Payroll/Items/Payslips/Adjustments/Payment/Accounting counts remain read-only.
+PHASE 3E-2B / BATCH 34–35: payroll_annual_tax_reconciliations (tenant/employee/year/version/current/idempotency, identity/policy JSON snapshots, integer totals, actors/timestamps/checksum); payroll_annual_tax_sources (explicit finalized Run/Item/Payslip or applied Adjustment Request/Run trace, attribution year, calculation/policy version, integer source totals/checksum); payroll_annual_tax_components (explicit source/item-component/adjustment-component trace); payroll_annual_tax_validation_issues; payroll_annual_tax_histories; payroll_annual_tax_documents; payroll_annual_tax_downstream_intents; payroll_annual_tax_access_logs. payroll_adjustment_requests gains nullable indexed tax_attribution_year with no inferred backfill. Batch 35 scopes Item uniqueness by source type. Production Annual Tax business rows and files: 0.
+PHASE 3E-2C / BATCH 36: reconciliation calculator_version + calculated_source_checksum; validation issue stage + deterministic fingerprint unique guard. No source, Payroll, Adjustment or artifact table is mutated by the migration. Operational lifecycle creates only annual header/history/eligibility intent rows when explicitly invoked outside production.
+Annual PIT Phase 3E-2C2: không thêm migration; giữ nguyên batch 34–36. Validation issues dùng `validation_stage` + SHA-256 `fingerprint`; sources/issues/history phân trang 25, components 50, max 100. Production `schema_admin`: Annual Tax business rows/files 0 trước audit.
+Annual PIT Phase 3E-2C COMPLETED (2026-08-01): không migration, batch 34–36 Ran. Production read-only audit: 8 bảng Annual Tax = 0; payroll_runs/items, adjustment requests/runs, payment batches, accounting journals = 0 trước/sau. Browser/process fixtures chỉ dùng `schema_admin_testing` và đã cleanup.
+Annual PIT Phase 3E-2D / batch 37: payroll_annual_tax_refund_obligations; payroll_annual_tax_settlement_journals; payroll_annual_tax_settlement_journal_lines; downstream intents thêm refund_obligation_id và settlement_journal_id. Unique reconciliation+calculation version; journal source_type annual_tax_reconciliation; debit=credit; không backfill và không sửa batch 1–36.
+ERP INTEGRATION — BATCH 38 (ADDITIVE)
+ERP COMPLETION — BATCH 39: effective-dated immutable mapping versions, encrypted credential-reference administration metadata, export attempt_count/last_attempt_at. Production ERP tables remained 0 rows after migration.
+erp_connections: id, uuid, company_id, name, provider, encrypted/reference-only credential_reference, status, created_by, timestamps.
+erp_mapping_rules: company/connection scope, source_account_code, external_account_code, dimension_mapping, status.
+erp_exports: company, connection, accounting journal, provider, lifecycle, export version, idempotency/active intent, immutable journal snapshot, payload SHA-256, opaque external reference, private artifact metadata/checksum, maker-checker actors/timestamps, failure metadata.
+erp_export_items: exact accounting journal line reference, mapped account, bigint debit/credit minor units, currency, dimensions and per-item SHA-256.
+erp_export_logs: actor-safe lifecycle history. erp_access_logs: actor/action/result access audit.
+Production row count immediately after schema migration: 0 for every ERP table. No Payroll/Accounting business row is created by the migration.
+
+GOVERNMENT FILING — BATCH 40 (ADDITIVE)
+government_tax_filings: company + finalized Annual Tax source, filing type/year/version/lifecycle, immutable taxpayer/company/result snapshot, source/payload SHA-256, maker-checker/submission actors and timestamps, active/idempotency guards.
+government_tax_filing_items: filing-scoped authoritative income/deduction/withheld/liability/settlement component snapshots in BIGINT minor units with checksum.
+government_tax_filing_documents: private opaque UUID artifact, MIME, size, SHA-256, payload checksum, generator version and actor/time metadata.
+government_tax_submission_attempts: attempt number, idempotency key, request/response hashes, safe local status and actor/time.
+government_tax_validation_issues: deterministic issue code/fingerprint/severity/safe message.
+government_tax_filing_logs: safe lifecycle from/to status and actor metadata.
+government_tax_access_logs: actor/action/result/timestamp without storage path.
+Production safety audit 2026-08-01: all seven Government Filing tables = 0 rows; Annual Tax/Payroll/Adjustment/Payment/Accounting/ERP reference tables = 0 rows; production Government XML artifacts = 0.
+PHASE 3E-5B — EMPLOYEE LIFECYCLE (migration batch 41)
+- employee_lifecycle_events: append-only event type/from/to/effective/correlation/causation/idempotency/SHA-256/actor.
+- employment_transitions: immutable business transition/reason/effective/approver/checksum.
+- employee_positions_history: immutable employee-position-unit effective-dated evidence.
+- employee_manager_history: immutable employee-manager effective-dated evidence.
+- employee_documents_history: immutable document reference/version/checksum.
+- employee_lifecycle_outbox: transactional event envelope; no external side effect in Phase 3E-5B.
+- Production audit after migration: all six new tables contain 0 rows. Existing employees=9, employee_assignments=9, employment_contracts=9, employee_histories=9, employee_documents=9 (unchanged).
+HR DATA GOVERNANCE (batch 47 + additive completion batch 48)
+hr_data_quality_rules: company-scoped configurable rule metadata, severity, configuration, active flag.
+hr_data_quality_runs: company, run_date, rule_version, lifecycle status, issue_count, checksum, idempotency key, creator.
+hr_data_quality_issues: run/entity/rule identity, severity, open-reviewed-approved-resolved state, maker/reviewer/approver/resolver, resolution evidence and SHA-256 checksum.
+hr_governance_audit_events: append-only actor/company/entity/action metadata, checksum and idempotency key.
+hr_consent_governance_history: immutable consent purpose/version/action/expiry snapshot.
+hr_document_governance_history: immutable document metadata lifecycle/version/retention/checksum; no storage path.
+Constraints verified: `hr_quality_run_company_key_unique`, `hr_quality_issue_identity_unique`, company audit idempotency, consent `(consent_id,version)`, document `(document_id,version)`. Batch 48 is the latest governance schema batch and all migrations report Ran.
+
+WORKFLOW ENGINE (migration batch 49)
+- workflow_definitions: company blueprint identity, lifecycle and latest version.
+- workflow_definition_versions: immutable routing configuration, checksum and publisher.
+- workflow_steps / workflow_step_transitions: ordered approval routing, resolver, condition and SLA metadata.
+- workflow_instances: legacy-compatible aggregate plus version pin, engine status, lock, idempotency, checksum and actor timestamps.
+- workflow_tasks: tenant-scoped assignments, task lifecycle, optimistic version and SLA/escalation.
+- workflow_decisions: one immutable, checksummed decision per task.
+- workflow_histories: append-only checksummed audit timeline with idempotency.
+- workflow_outbox: tenant-safe completion callback envelope.
+- Production business rows seeded: 0.
+- Completion lock order: definition/version → instance → task → decision/history → outbox. Idempotency constraints and row locks were verified by 6 MySQL process tests / 29 assertions.
+- Production read-only audit after hardening: every Workflow table listed above plus legacy workflow_instances/workflow_actions remains at 0 rows in schema_admin.
+
+ENTERPRISE NOTIFICATION CENTER (migration batch 50)
+- notification_templates / notification_template_versions: company/global template identity, immutable published content, version and SHA-256.
+- notification_messages: company-scoped immutable rendered title/body, safe entity reference, pinned template version, checksum and idempotency.
+- notification_recipients: deduplicated company/user recipient projection.
+- notification_deliveries: existing durable marker extended with nullable notification_message_id and artifact_uuid.
+- notification_delivery_attempts: append-only per-channel attempt number/result/safe failure/checksum.
+- notification_preferences: company/user/category database-broadcast-email preferences and optimistic version.
+- notification_read_states: one checksummed read state per message/user.
+- notification_outbox: safe, checksummed and idempotent notification requests.
+- No password, token, signed URL, storage path, salary, tax, bank or identity values are stored.
+IAM GOVERNANCE — migration batch 51: iam_access_requests; iam_access_request_items; iam_access_assignments; iam_role_entitlements; iam_privileged_roles; iam_sod_rules; iam_sod_violations; iam_access_reviews; iam_access_review_items; iam_certifications; iam_governance_histories; iam_outbox. SHA-256/checksum, UUID/idempotency, actor IDs, company scope, effective dates; no credentials or business restricted values.
+IAM HARDENING — batch 52 additive: workflow_instance_id/workflow_version/approval_mode; requested_by/reviewed_by; SoD severity/detected_at/resolution/resolved_at; review item reason/version/checksum/snapshot; Workflow and Employee iam_consumed_at checkpoints. Production business rows unchanged.
+IAM completion audit: no batch 53 required. Source outbox PK/event UUID plus locked iam_consumed_at/published_at is the deterministic consumer guard. Production: all 12 IAM tables 0; users 1; roles 14; permissions 725; model_has_roles 1; model_has_permissions 0; role_has_permissions 1928; company_user_access 1; employees 9; payroll_runs 0.
+Integration Hub batch 53: integration_connections (encrypted credential reference), integration_connectors, integration_outbound_messages (company idempotency unique), integration_inbound_messages (provider event unique), integration_delivery_attempts (message/attempt unique), integration_dead_letters, integration_external_references, integration_webhook_receipts, integration_histories append-only, integration_outbox. Production business row target: 0.
+Bridge checkpoint uses integration_outbound_messages unique(company_id,idempotency_key); deterministic identity includes source aggregate/version/artifact checksum. No batch 54 schema was needed.
+Enterprise Audit batch 54: audit_correlations; audit_events; audit_event_snapshots; audit_access_logs; audit_exports; audit_retention_policies; audit_outbox. Production target after migration is 0 rows in all seven tables; no fake evidence/export/archive is seeded.
+Enterprise Audit production verification: all seven batch-54 tables contain 0 rows after implementation; employees=9, payroll_runs=0, erp_exports=0, government_tax_filings=0, iam_access_requests=0, integration_outbound_messages=0. Four Audit permissions are configuration metadata; no Audit business row or artifact remains.
+Enterprise Audit hardening batch 55: audit_source_checkpoints unique(source_module, source_event_id, consumer_name); audit_archive_artifacts with company/range/event_count/UUID reference/SHA-256/MIME/size/actor. Both tables are append-only evidence and never store absolute artifact paths.
+Enterprise Audit final production verification: audit_events=0, audit_exports=0, audit_archive_artifacts=0, audit_source_checkpoints=0; employees=9, payroll_runs=0, iam_access_requests=0, workflow_instances=0, notification_deliveries=0, integration_outbound_messages=0. Batches 54 and 55 are Ran.

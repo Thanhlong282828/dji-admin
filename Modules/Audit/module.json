@@ -1,0 +1,12 @@
+{
+    "name": "Audit",
+    "alias": "audit",
+    "description": "Enterprise Audit Platform",
+    "keywords": ["audit", "compliance", "integrity"],
+    "priority": 0,
+    "requires": ["Core", "Company", "Workflow", "Notification", "Iam", "Integration", "Employee", "Payroll"],
+    "providers": [
+        "Modules\\Audit\\Providers\\AuditServiceProvider"
+    ],
+    "files": []
+}

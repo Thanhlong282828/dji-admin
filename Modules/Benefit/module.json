@@ -1,0 +1,11 @@
+{
+    "name": "Benefit",
+    "alias": "benefit",
+    "description": "",
+    "keywords": [],
+    "priority": 0,
+    "providers": [
+        "Modules\\Benefit\\Providers\\BenefitServiceProvider"
+    ],
+    "files": []
+}

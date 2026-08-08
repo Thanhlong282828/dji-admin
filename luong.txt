@@ -1,0 +1,1694 @@
+SCHEMA ADMIN — LUỒNG KẾT NỐI FILE RUNTIME
+Cập nhật: 2026-07-26
+
+================================================================================
+PAYROLL 3B-1G — DELIVERY, CSV, FRAGMENT VÀ REALTIME (FILE-TO-FILE)
+================================================================================
+
+Notification retry:
+PayrollRunChanged.php | event payload
+→ SendPayrollRunNotifications.php | handle(PayrollRunChanged $event)
+→ WorkforceNotificationDeliveryService.php | deliver($recipient, 'payroll_run', $payload)
+→ channel(..., 'database') / channel(..., 'broadcast')
+→ notification_deliveries | durable unique marker + attempts/status
+→ LaravelWorkforceNotificationChannelSender.php | send(...)
+→ notifications / private company broadcast.
+
+Employee CSV:
+Modules/Payroll/routes/web.php | GET admin/payroll/runs/{run}/export.csv
+→ PayrollExportController.php | items(Request $request, int $run)
+→ Gate workforce.company + payroll-run.export-record
+→ GetPayrollRunCsvExportQuery.php | companyId, runId, filters
+→ QueryBusInterface.php | ask($query)
+→ GetPayrollRunCsvExportHandler.php | handle($query)
+→ PayrollExportReadRepositoryInterface.php | payrollItems(...)
+→ EloquentPayrollExportReadRepository.php | payrollItems() + cursor()
+→ StreamingCsvResponseFactory.php | make()
+→ CsvCellSanitizer.php | sanitize()
+→ StreamedResponse CSV.
+
+Component CSV:
+Modules/Payroll/routes/web.php | GET admin/payroll/runs/{run}/components-export.csv
+→ PayrollExportController.php | components()
+→ GetPayrollComponentBreakdownCsvExportQuery.php
+→ QueryBusInterface.php | ask()
+→ GetPayrollComponentBreakdownCsvExportHandler.php | handle()
+→ EloquentPayrollExportReadRepository.php | components() + cursor()
+→ StreamingCsvResponseFactory.php → CsvCellSanitizer.php → StreamedResponse.
+
+Payroll Run fragment (summary/readiness/items/validation/history/actions):
+Modules/Payroll/routes/web.php | GET admin/payroll/runs/{run}/fragments/{fragment}
+→ PayrollFragmentController.php | show(Request $request, int $run, string $fragment)
+→ Gate workforce.company + payroll-run.view-record
+→ GetPayrollRunDetailQuery.php | companyId, runId
+→ QueryBusInterface.php | ask()
+→ GetPayrollRunDetailHandler.php | handle()
+→ PayrollDeliveryReadRepositoryInterface.php | runDetail()
+→ EloquentPayrollDeliveryReadRepository.php | runDetail()
+→ PayrollRunDetailViewModel.php | summary/items/issues/history
+→ partials/run-{fragment}.blade.php | data-workforce-region.
+
+Realtime refresh:
+PayrollRunChanged.php | broadcastWith() allowlist + refresh_scopes
+→ private-company.{companyId} | payroll.run.changed
+→ resources/ts/realtime/workforce.ts | schedule(change)
+→ company/run/version filtering + 250ms debounce
+→ refresh(root, change) | DOM data-refresh-url + AbortController
+→ PayrollFragmentController.php | show()
+→ replacement đúng data-refresh-scope, không reload toàn trang.
+Phạm vi: chỉ ghi các module đang Enabled và route thực sự xuất hiện trong `php artisan route:list`.
+Mỗi flow chỉ xuất hiện một lần. Module Disabled không có runtime flow và được ghi ở phần cuối.
+
+THỨ TỰ TÀI LIỆU
+1. Core Bus
+2. Dashboard
+3. Company
+4. Organization
+5. Employee
+6. Recruitment
+7. Onboarding
+8. Attendance
+9. Leave
+10. Payroll
+11. Module disabled và functional gaps
+
+======================================================================
+FILE-TO-FILE WIRING MAP — CÚ PHÁP FILE | FUNCTION | BIẾN
+======================================================================
+
+Cách đọc:
+`file A | functionA($biến)` → `file B | functionB($biến)` nghĩa là function trong file A tạo/truyền biến sang function ở file B.
+`$commands->dispatch($command)` và `$queries->ask($query)` đi qua Core Bus; Bus tìm Handler theo convention tên class.
+
+1. CORE BUS
+Modules/Core/app/Application/Buses/LaravelCommandBus.php | dispatch(object $command)
+→ lấy `$messageClass = $command::class`
+→ đổi `Command` thành `Handler` trong biến `$handler`
+→ Container::make($handler)
+→ Handler | handle($command).
+Modules/Core/app/Application/Buses/LaravelQueryBus.php | ask(object $query)
+→ lấy `$messageClass = $query::class`
+→ đổi `Query` thành `Handler` trong `$handler`
+→ Container::make($handler)
+→ Handler | handle($query).
+
+2. DASHBOARD
+Modules/Dashboard/routes/web.php | GET `/dashboard`
+→ Modules/Dashboard/app/Presentation/Http/Controllers/DashboardController.php | __invoke(Request $request)
+→ `$companyId = $request->integer('company_id') ?: null`
+→ Modules/Dashboard/app/Application/Queries/GetDashboard/GetDashboardQuery.php | __construct($companyId)
+→ QueryBus | ask($query)
+→ Modules/Dashboard/app/Application/Queries/GetDashboard/GetDashboardHandler.php | handle(GetDashboardQuery $query)
+→ `$this->dashboards->overview($query->companyId)` + cache key `schema:dashboard:{company}:overview`
+→ Modules/Dashboard/app/Infrastructure/Persistence/EloquentDashboardReadRepository.php | overview(?int $companyId)
+→ DashboardViewModel `$dashboard`
+→ resources/views/admin/dashboard/index.blade.php | biến array từ `$dashboard->toArray()` và `$companyStats`.
+
+3. COMPANY — LIST
+Modules/Company/routes/web.php | GET `/admin/companies`
+→ Modules/Company/app/Presentation/Http/Controllers/CompanyController.php | index(Request $request)
+→ tạo GetCompanyListQuery(`$search`, `$status`, `$perPage`, `$page`, `$sort`, `$direction`, `$withTrashed`)
+→ Modules/Core/app/Application/Buses/LaravelQueryBus.php | ask($query)
+→ Modules/Company/app/Application/Queries/GetCompanyList/GetCompanyListHandler.php | handle(GetCompanyListQuery $query)
+→ Modules/Company/app/Domain/Repositories/CompanyReadRepositoryInterface.php | paginate(...filters...)
+→ Modules/Company/app/Infrastructure/Persistence/EloquentCompanyReadRepository.php | paginate(...)
+→ CompanyListViewModel `$result`
+→ Modules/Company/resources/views/companies/index.blade.php | `$companies = $result->companies` hoặc JsonResponse.
+
+3.1 COMPANY — CREATE/UPDATE/STATUS/DELETE/RESTORE
+Modules/Company/routes/web.php | POST `/admin/companies`
+→ Modules/Company/app/Presentation/Http/Requests/StoreCompanyRequest.php | rules()
+→ CompanyController.php | store(StoreCompanyRequest $request)
+→ CreateCompanyCommand.php | __construct(`$request->validated()`, `$actorId`)
+→ LaravelCommandBus.php | dispatch($command)
+→ CreateCompanyHandler.php | handle(CreateCompanyCommand $command)
+→ CompanyWriteRepositoryInterface.php | create($command->data)
+→ EloquentCompanyWriteRepository.php | create(...)
+→ Modules/Company/app/Domain/Models/Company.php
+→ CompanyCreated.php (`$company`, `$actorId`)
+→ ClearCompanyCache.php | handle($event) + WriteCompanyActivityLog.php | handle($event)
+→ CompanyController | RedirectResponse/JsonResponse.
+PUT|PATCH `{company}` dùng UpdateCompanyRequest → UpdateCompanyCommand → UpdateCompanyHandler → repository update → CompanyUpdated.
+PATCH `{company}/status` dùng ChangeCompanyStatusRequest → ChangeCompanyStatusCommand → ChangeCompanyStatusHandler → CompanyStatusChanged.
+DELETE `{company}` dùng DeleteCompanyCommand → DeleteCompanyHandler → soft delete → CompanyDeleted.
+POST `{company}/restore` dùng RestoreCompanyCommand → RestoreCompanyHandler → restore → CompanyRestored.
+
+4. ORGANIZATION — COST CENTER
+Modules/Organization/routes/web.php | GET `/admin/cost-centers`
+→ CostCenterController.php | index(Request $r)
+→ `$c = $r->integer('company_id')`, `$filters = only(search,currency,has_budget,sort,direction,per_page)`
+→ GetCostCenterListQuery.php | __construct($c, $filters)
+→ GetCostCenterListHandler.php | handle($query)
+→ OrganizationReadRepositoryInterface.php | costCenters($companyId, $filters)
+→ EloquentOrganizationReadRepository.php | costCenters(...)
+→ resources/views/cost-centers/index.blade.php | `$items`, `$companyId`.
+POST/PUT:
+StoreCostCenterRequest.php | rules()
+→ CostCenterController.php | store($r)/update($r, int $cost_center)
+→ CreateCostCenterCommand/UpdateCostCenterCommand (`$c`, `$data`, `$actor`; update thêm `$cost_center`)
+→ matching Handler | handle($command)
+→ OrganizationWriteRepositoryInterface → EloquentOrganizationWriteRepository
+→ CostCenter model
+→ CostCenterCreated/CostCenterUpdated
+→ OrganizationChangeListener.php | handle(OrganizationChanged $event): tăng cache version + activity log.
+DELETE đi qua DeleteCostCenterCommand → DeleteCostCenterHandler → repository dependency guard → CostCenterDeleted.
+
+4.1 ORGANIZATION — UNIT/TREE
+Modules/Organization/routes/web.php | GET `/admin/organization/tree-data`
+→ OrganizationUnitController.php | treeData(Request $r)
+→ GetOrganizationTreeQuery.php (`$c`, `$filters`)
+→ GetOrganizationTreeHandler.php | handle($query)
+→ OrganizationReadRepositoryInterface/EloquentOrganizationReadRepository | tree source
+→ OrganizationTreeService.php | build($rows)
+→ JsonResponse biến `data`.
+POST `/admin/organization-units`
+→ StoreOrganizationUnitRequest.php | rules()
+→ OrganizationUnitController.php | store($r)
+→ CreateOrganizationUnitCommand.php (`$companyId`, `$data`, `$actorId`)
+→ CreateOrganizationUnitHandler.php | handle($command)
+→ OrganizationHierarchyValidator.php + OrganizationCycleDetector.php
+→ OrganizationWriteRepositoryInterface/EloquentOrganizationWriteRepository
+→ OrganizationUnit model → OrganizationUnitCreated → OrganizationChangeListener → redirect.
+PATCH `{organization_unit}/move`
+→ OrganizationUnitController.php | move(Request $r, int $organization_unit)
+→ `$parentId = $r->integer('parent_id') ?: null`
+→ MoveOrganizationUnitCommand → MoveOrganizationUnitHandler
+→ OrganizationCycleDetector → repository move → OrganizationUnitMoved → listener.
+
+4.2 ORGANIZATION — JOB POSITION/HEADCOUNT/EXPORT
+JobPositionController.php | index/show → GetJobPositionListQuery/GetJobPositionDetailQuery
+→ QueryBus → matching Handler → OrganizationReadRepositoryInterface → Blade `$items`/`$item`.
+JobPositionController.php | store/update
+→ StoreJobPositionRequest `$r` → CreateJobPositionCommand/UpdateJobPositionCommand
+→ matching Handler → OrganizationWriteRepositoryInterface → JobPosition → JobPositionCreated/Updated.
+JobPositionController.php | changeCritical($r, $job_position)
+→ `$r->boolean('is_critical')` → ChangeCriticalPositionStatusCommand → Handler → JobPositionCriticalStatusChanged.
+JobPositionController.php | changeHeadcount($r, $job_position)
+→ `$r->integer('approved_headcount')` → UpdateApprovedHeadcountCommand → Handler → JobPositionHeadcountChanged.
+HeadcountController.php | __invoke(Request $r)
+→ GetOrganizationHeadcountDashboardQuery(`$c`, `$filters`)
+→ GetOrganizationHeadcountDashboardHandler.php | handle($q)
+→ OrganizationReadRepositoryInterface.php | dashboard($q->companyId, $q->filters)
+→ Blade `organization::headcount.index` | `$stats`, `$companyId`.
+OrganizationExportController.php | costCenters/organizationUnits/organizationTree/jobPositions/headcount
+→ GetOrganizationExportQuery → GetOrganizationExportHandler
+→ OrganizationReadRepositoryInterface export generator
+→ SpreadsheetFormulaSanitizer → StreamedResponse `$response`.
+
+5. EMPLOYEE — CRUD
+Modules/Employee/routes/web.php | GET `/admin/employees`
+→ EmployeeController.php | index(Request $r)
+→ GetEmployeeListQuery(`$companyId`, `$filters`)
+→ GetEmployeeListHandler.php | handle($query)
+→ EmployeeReadRepositoryInterface/EloquentEmployeeReadRepository
+→ employee::employees.index | `$items`, `$companyId`.
+POST `/admin/employees`
+→ StoreEmployeeRequest.php | rules()
+→ EmployeeController.php | store(StoreEmployeeRequest $r)
+→ CreateEmployeeCommand(`$c`, `$data`, `$actor`)
+→ CreateEmployeeHandler.php | handle($command)
+→ EmployeeWriteRepositoryInterface/EloquentEmployeeWriteRepository
+→ Employee model → EmployeeCreated → EmployeeChangeListener.php | handle($event)
+→ employee detail redirect với `$e['id']`.
+GET show/edit → GetEmployeeDetailQuery(`$c`, `$employee`, `$canViewSensitive`) → Handler → read repository → `$item` Blade.
+PUT update → StoreEmployeeRequest → UpdateEmployeeCommand → Handler → repository → EmployeeUpdated.
+DELETE/restore → DeleteEmployeeCommand/RestoreEmployeeCommand → matching Handler → EmployeeDeleted/EmployeeRestored.
+
+5.1 EMPLOYEE — ASSIGNMENT
+EmployeeAssignmentController.php | index($request, int $employee)
+→ GetEmployeeAssignmentsQuery(`$companyId`, `$employee`)
+→ GetEmployeeAssignmentsHandler → read repository → assignments Blade `$assignments`.
+EmployeeAssignmentController.php | store/update
+→ StoreEmployeeAssignmentRequest.php
+→ EmployeeAssignmentData::fromArray($payload)
+→ CreateEmployeeAssignmentCommand/UpdateEmployeeAssignmentCommand
+→ matching Handler → EmployeeAssignmentService.php
+→ EmployeeAssignment + EmployeeHistory → EmployeeAssignmentChanged
+→ EmployeeAssignmentChangeListener.php | handle($event).
+transfer/promote → TransferEmployeeCommand(`$promotion=false/true`) → Handler → EmployeeAssignmentService.
+end → EndEmployeeAssignmentRequest → EndEmployeeAssignmentCommand → Handler → service/history/event.
+
+6. RECRUITMENT — REQUISITION/CANDIDATE/APPLICATION
+Modules/Recruitment/routes/web.php | GET requisitions/dashboard/candidates/pipeline
+→ RecruitmentController.php | requisitions/dashboard/candidates/pipeline
+→ GetRecruitmentRequisitionListQuery/GetRecruitmentDashboardQuery/GetCandidateListQuery/GetApplicationPipelineQuery
+→ QueryBus → matching Handler → RecruitmentReadRepositoryInterface/EloquentRecruitmentReadRepository → Blade variables `$items`, `$stats`, `$pipeline`.
+POST requisition/candidate/application
+→ StoreRecruitmentRequisitionRequest/StoreCandidateRequest/StoreApplicationRequest
+→ RecruitmentController store method
+→ CreateRecruitmentRequisitionCommand/CreateCandidateCommand/CreateApplicationCommand
+→ CommandBus → matching Handler → RecruitmentWriteRepositoryInterface/EloquentRecruitmentWriteRepository
+→ model mutation → RecruitmentWorkflowChanged.
+PATCH application move-stage
+→ RecruitmentController.php | move($r, int $application)
+→ MoveApplicationStageCommand → MoveApplicationStageHandler
+→ ApplicationStageMachine + write repository lock → RecruitmentWorkflowChanged.
+RecruitmentWorkflowChanged
+→ SendRecruitmentWorkflowNotifications.php | handle($event)
+→ RecruitmentNotificationRecipientResolver → queued database/private broadcast notification.
+
+6.1 RECRUITMENT — INTERVIEW/OFFER/HIRE
+InterviewController.php | index/show/panelSummary/editEvaluation
+→ QueryBus → interview Query → matching Handler → RecruitmentReadRepository → Blade/fragment.
+InterviewController.php | store/reschedule/transition/assignInterviewer/evaluation methods
+→ matching FormRequest hoặc inline validation
+→ dedicated Interview Command → Handler → interview service/state/version → RecruitmentWorkflowChanged.
+CandidateOfferController.php | index/show/hireForm
+→ offer Query/GetHireCandidatePreviewQuery → QueryBus → Handler → DTO → Blade.
+CandidateOfferController.php | hire(HireCandidateRequest $request, int $candidate_offer)
+→ HireCandidateCommand → HireCandidateHandler.php | handle($command)
+→ HireCandidateService.php | hire(...)
+→ Employee + EmployeeAssignment + EmploymentContract + OnboardingCase/checklist/provisioning
+→ CandidateHireCompleted
+→ HandleCandidateHireCompleted.php | handle($event)
+→ RecruitmentWorkflowChanged + cache/notification/realtime.
+
+7. ONBOARDING
+Modules/Onboarding/routes/web.php | GET dashboard/cases
+→ Modules/Onboarding/app/Presentation/Http/Controllers/OnboardingController.php | dashboard/index
+→ GetOnboardingDashboardQuery/GetOnboardingCaseListQuery (`$companyId`, `$filters`)
+→ QueryBus → matching Handler
+→ OnboardingReadRepositoryInterface/EloquentOnboardingReadRepository
+→ dashboard/index.blade.php `$stats` hoặc cases/index.blade.php `$items`.
+API legacy của Onboarding được ghi duy nhất tại mục 11.2.
+
+8. ATTENDANCE
+Modules/Attendance/routes/web.php | GET `/admin/attendance`
+→ AttendanceController.php | index(Request $request)
+→ GetAttendanceDashboardQuery($companyId) → GetAttendanceDashboardHandler
+→ WorkforceReadRepositoryInterface/EloquentWorkforceReadRepository
+→ AttendanceDashboard `$dashboard` → attendance::index.
+POST check-in/check-out
+→ CaptureAttendanceRequest.php → AttendanceController.php | capture($request, bool $checkIn)
+→ CheckInCommand/CheckOutCommand → matching Handler
+→ AttendanceCaptureService.php | capture(...)
+→ AttendanceWriteRepositoryInterface/EloquentAttendanceWriteRepository
+→ AttendanceEvent + WorkforceAttendanceChanged.
+AttendanceWorkflowController.php | show/readiness
+→ GetAttendanceRecordDetailQuery/GetAttendancePeriodReadinessQuery
+→ QueryBus → matching Handler → AttendanceWorkflowRepositoryInterface/EloquentAttendanceWorkflowRepository → View/JSON.
+AttendanceWorkflowController.php | adjustment/attendance/lock
+→ AttendanceWorkflowRequest → ProcessAttendanceWorkflowCommand(`$action`, `$companyId`, `$record`, `$actorId`, `$version`, `$data`)
+→ ProcessAttendanceWorkflowHandler → AttendanceWorkflowService → row locks/model/history → WorkforceAttendanceChanged.
+
+9. LEAVE
+Modules/Leave/routes/web.php | POST `/admin/leave`
+→ StoreLeaveRequest.php | rules()
+→ LeaveController.php | store($request)
+→ CreateLeaveRequestCommand(`$companyId`, `$employeeId`, `$leavePolicyId`, `$startsAt`, `$endsAt`, `$reason`, `$actorId`, `$idempotencyKey`)
+→ CreateLeaveRequestHandler.php | handle($command)
+→ LeaveWorkflowService.php → LeaveRequest/history/ledger → WorkforceLeaveChanged.
+PATCH `/admin/leave/{leaveRequest}/{target}`
+→ LeaveController.php | transition(Request $request, int $leaveRequest, LeaveRequestStatus $target)
+→ TransitionLeaveRequestCommand → Handler → LeaveWorkflowService state machine → WorkforceLeaveChanged.
+WorkforceLeaveChanged → InvalidateWorkforceReadModels.php + SendLeaveWorkflowNotifications.php.
+LeaveManagementController.php | index → GetLeaveManagementQuery → Handler → LeaveReadRepositoryInterface/EloquentLeaveReadRepository → `$viewModel`.
+LeaveManagementController.php | execute → ManageLeaveRequest → ManageLeaveCommand → Handler → LeaveManagementService.
+LeaveAttachmentController.php | upload/mutate → ManageLeaveAttachmentCommand → Handler → private storage/scanner.
+LeaveAttachmentController.php | download → DownloadLeaveAttachmentQuery → Handler → BinaryFileResponse.
+
+10. PAYROLL
+Modules/Payroll/routes/web.php | GET `/admin/payroll/delivery`
+→ PayrollDeliveryController.php | index(Request $r)
+→ `$c = company($r, 'payroll.component.view')`
+→ GetPayrollDeliveryQuery($c) → GetPayrollDeliveryHandler.php | handle($query)
+→ PayrollDeliveryReadRepositoryInterface/EloquentPayrollDeliveryReadRepository | dashboard($companyId)
+→ PayrollDeliveryViewModel `$vm`
+→ payroll::delivery | `$viewModel`, `$companyId`.
+GET `/admin/payroll/runs/{run}`
+→ PayrollDeliveryController.php | show(Request $r, int $run)
+→ GetPayrollRunDetailQuery($c, $run) → GetPayrollRunDetailHandler
+→ PayrollDeliveryReadRepositoryInterface | runDetail($companyId, $runId)
+→ PayrollRunDetailViewModel → payroll::run-detail.
+GET `/admin/payroll/runs`
+→ Modules/Payroll/routes/web.php | route `admin.payroll.runs.index`, middleware auth + verified + permission:payroll.run.view
+→ PayrollDeliveryController.php | runs(Request `$request`): authorize Company + `payroll-run.view-any`
+→ GetPayrollRunListQuery.php | `$companyId`, `$filters` (search/status/period/date/page)
+→ QueryBusInterface.php | ask(GetPayrollRunListQuery)
+→ GetPayrollRunListHandler.php | handle(GetPayrollRunListQuery `$query`)
+→ PayrollDeliveryReadRepositoryInterface.php | runList(int `$company`, array `$filters`)
+→ EloquentPayrollDeliveryReadRepository.php | runList(): tenant scope + whitelist filters + stable pagination + Period/Snapshot joins
+→ PayrollRunListViewModel.php | `$runs`, `$page`, `$hasMore`
+→ resources/views/runs/index.blade.php | foundation totals + exact snapshot version + actions.
+GET `/admin/payroll/runs/{run}/items/{item}`
+→ Modules/Payroll/routes/web.php | route `admin.payroll.runs.items.show`, permission:payroll.item.view
+→ PayrollDeliveryController.php | item(Request `$request`, int `$run`, int `$item`): Company + parent Run Policy
+→ GetPayrollItemDetailQuery.php | `$companyId`, `$runId`, `$itemId`
+→ QueryBusInterface.php | ask() → GetPayrollItemDetailHandler.php | handle()
+→ PayrollDeliveryReadRepositoryInterface.php | itemDetail()
+→ EloquentPayrollDeliveryReadRepository.php | itemDetail(): item scoped to Company + Run; component/issue read models
+→ PayrollItemDetailViewModel.php | `$summary`, `$components`, `$issues`
+→ resources/views/items/show.blade.php | immutable calculation result.
+GET `/admin/payroll/runs/{run}/export.csv`
+→ PayrollExportController.php | items(Request $request, int $run)
+→ workforce.company(`payroll.export`) + PayrollRunPolicy::export
+→ GetPayrollRunCsvExportQuery(`$companyId`, `$run`, `$filters`)
+→ GetPayrollRunCsvExportHandler.php | handle($query)
+→ PayrollExportReadRepositoryInterface::payrollItems → EloquentPayrollExportReadRepository::payrollItems
+→ cursor ordered by employee number/id → StreamingCsvResponseFactory → UTF-8 BOM + formula-safe CSV.
+GET `/admin/payroll/runs/{run}/components-export.csv`
+→ PayrollExportController.php | components(Request $request, int $run)
+→ GetPayrollComponentBreakdownCsvExportQuery → Handler
+→ PayrollExportReadRepositoryInterface::components → cursor ordered by employee/calculation order/id
+→ StreamingCsvResponseFactory → formula-safe CSV.
+POST/PUT component
+→ PayrollConfigurationRequest.php | rules() theo `$action`
+→ SalaryComponentController.php | execute($r, string $action, ?int $component)
+→ CreateSalaryComponentCommand/UpdateSalaryComponentCommand/ChangeSalaryComponentStatusCommand
+→ matching Handler | handle($command)
+→ PayrollConfigurationService.php | createComponent/updateComponent/statusComponent
+→ SalaryComponent → PayrollConfigurationChanged
+→ InvalidateWorkforceReadModels.php | handle($event) + private company broadcast.
+POST assignment
+→ PayrollConfigurationRequest → SalaryComponentAssignmentController.php | execute(...)
+→ AssignSalaryComponentCommand/EndSalaryComponentAssignmentCommand
+→ Handler → PayrollConfigurationService.php | assign/endAssignment
+→ EmployeeSalaryComponentAssignment → PayrollConfigurationChanged.
+POST `/admin/payroll/runs/store`
+→ Modules/Payroll/routes/web.php | route `admin.payroll.runs.store`
+→ PayrollRunMutationRequest.php | rules(): company/period/snapshot/run number/currency/idempotency
+→ PayrollRunController.php | store(PayrollRunMutationRequest `$request`, string `$action`)
+→ Gate | workforce.company(`payroll.run.create`) + PayrollRunPolicy create-record
+→ CreatePayrollRunCommand.php | typed IDs, run number, currency, key, actor
+→ CommandBusInterface.php | dispatch(CreatePayrollRunCommand)
+→ CreatePayrollRunHandler.php | handle()
+→ PayrollRunService.php | create(): lock exact ready Snapshot + Period, prevent duplicate, persist Run/history
+→ PayrollRunChanged.php → cache invalidation/broadcast → redirect + flash.
+POST `/admin/payroll/runs/{run}/calculate|recalculate`
+→ PayrollRunMutationRequest.php | rules(): company_id/version/idempotency_key
+→ PayrollRunController.php | mutate(Request, int `$run`, string `$action`)
+→ Gate | permission `payroll.run.calculate` + record Policy
+→ CalculatePayrollRunCommand.php → CommandBusInterface::dispatch()
+→ CalculatePayrollRunHandler.php | handle()
+→ PayrollRunService.php | calculate(): lock Run/version + require exact ready `payroll_input_snapshot_id`
+→ PayrollCalculationService.php | calculate from persisted payroll_employee_inputs only
+→ payroll_items + payroll_item_components current `calculation_version` + aggregate totals
+→ payroll_run_histories(`calculated`) + PayrollRunChanged → fragments/cache/notification → redirect.
+POST `/admin/payroll/runs/{run}/submit`
+→ PayrollRunController.php | mutate() → SubmitPayrollRunCommand.php
+→ SubmitPayrollRunHandler.php | handle() → PayrollRunService.php | transition(`submit`)
+→ PayrollRunService.php | assertConsistent(): employee/item/current-version/aggregate/blocking-issue checks
+→ submitted_by/submitted_at + one history/event/approver notification → redirect.
+POST `/admin/payroll/runs/{run}/approve|reject`
+→ PayrollRunMutationRequest.php | reject requires `$reason`
+→ PayrollRunController.php | mutate() → ApprovePayrollRunCommand.php hoặc RejectPayrollRunCommand.php
+→ matching Handler | handle() → PayrollRunService.php | transition()
+→ PayrollRunStateMachine.php | submitted-only; Approve maker-checker; optimistic version/row lock
+→ approved/rejected actor + timestamp/reason + history/event/notification → redirect.
+POST `/admin/payroll/runs/{run}/finalize`
+→ PayrollRunController.php | mutate() → FinalizePayrollRunCommand.php
+→ FinalizePayrollRunHandler.php | handle() → PayrollRunService.php | transition(`finalize`)
+→ approved state + exact calculation-version aggregate consistency + row lock
+→ payroll_runs.finalized_by/finalized_at/status=finalized + one history/event/notification
+→ PayrollRunDetailViewModel.php | actions=[] → finalized UI view-only.
+GET `/admin/payroll/runs/{run}/fragments/{summary|readiness|items|validation|history|actions}`
+→ PayrollFragmentController.php | show(): Company + PayrollRunPolicy + fragment allowlist
+→ GetPayrollRunDetailQuery.php → QueryBus → Handler → EloquentPayrollDeliveryReadRepository.php | runDetail()
+→ PayrollRunDetailViewModel.php → resources/views/partials/run-*.blade.php
+→ resources/ts/realtime/workforce.ts | company/run/version filter + debounce 250 ms + AbortController DOM replacement.
+PayrollRunChanged
+→ SendPayrollRunNotifications.php | handle(PayrollRunChanged $event) (ShouldQueue)
+→ company-scoped approver/run actor resolution
+→ WorkforceNotificationDeliveryService::deliver($recipient, 'payroll_run', `$safePayload`)
+→ independent database/broadcast delivery markers; payload contains state signal only, never salary amounts.
+
+PHASE 3B-3 VERIFIED HTTP CHAIN
+PayrollEndToEndOperationalFlowTest.php | test_admin_can_complete_the_full_payroll_workflow_through_http()
+→ POST Period store/open → POST Input capture/validate/create-run
+→ POST Run calculate → GET Item detail → POST submit
+→ actingAs distinct approver → POST approve → POST finalize
+→ assert exact snapshot linkage + current calculation V1 + aggregate consistency
+→ assert history created/calculated/submitted/approved/finalized
+→ assert notification delivery + finalized immutability + terminal actions empty.
+
+11. MODULE DISABLED VÀ FUNCTIONAL GAPS
+
+11.1 MODULE DISABLED — KHÔNG CÓ RUNTIME FLOW
+Article, ArticleCategory, Audit, Benefit, Contract, Document, Insurance, Integration, LaborRelation,
+Media, Menu, Notification, Offboarding, Page, Performance, Position, Product, ProductCategory,
+Report, Security, Seo, Setting, Shift, Succession, System, Tax, Training, Workflow.
+Các file route/controller trong những module này không được ServiceProvider nạp khi module đang Disabled.
+
+11.2 ROUTE LEGACY CHỦ ĐỘNG ĐÓNG
+Modules/Onboarding/routes/api.php | apiResource `/api/v1/onboardings`
+→ Modules/Onboarding/app/Http/Controllers/OnboardingController.php | mọi action
+→ Response HTTP 410; không nối Bus/repository/model.
+Modules/Recruitment/routes/api.php | apiResource `/api/v1/recruitments`
+→ Modules/Recruitment/app/Http/Controllers/RecruitmentController.php | mọi action
+→ Response HTTP 410; không nối Bus/repository/model.
+
+11.3 FLOW CÒN THIẾU
+- LeaveController@index mới authorize và truyền `$companyId`; chưa có Query/Handler/list ViewModel.
+- Payroll Input đã có Query/Handler/ViewModel và UI vận hành tại luồng Phase 3B-2A bên dưới; employee detail hiện hiển thị theo dòng trong snapshot, chưa có endpoint riêng.
+- Payroll Run đã có streaming CSV export, fragment routes và export/security tests; Payroll Input CSV là tùy chọn và chưa triển khai.
+- Payroll Run đã có durable notification listener/delivery marker; Payroll Input chỉ broadcast tín hiệu refresh an toàn, chưa phát notification nghiệp vụ riêng.
+- Payroll update/status component và end assignment chưa ghi Activity Log riêng.
+- CompanyPolicy chỉ kiểm tra permission; chưa nhận company record/companyId để scope từng record.
+- Organization resource route dùng middleware permission `*.view` chung; quyền create/update/delete được kiểm tra tiếp trong Controller/Policy.
+
+11.4 PAYROLL PROCESS CONCURRENCY
+tests/Concurrency/Payroll/PayrollProcessConcurrencyTest.php | fixture()
+→ MysqlProcessRaceRunner.php | run(`$scenario`, `$payloadA`, `$payloadB`)
+→ two independent PHP processes
+→ workforce_concurrency_worker.php | explicit match allowlist
+→ PayrollConfigurationService::assign hoặc PayrollRunService::create/calculate/transition
+→ MySQL row locks + optimistic version/domain guard
+→ parent collects exit codes/stdout/stderr
+→ final database invariant assertions → cleanup company-scoped fixture and barrier directory.
+Scenarios đã có process test thật: assignment overlap, same-period create, calculate/calculate,
+submit/recalculate, approve/reject, finalize/recalculate, finalize/finalize và payroll notification delivery.
+================================================================================
+PHASE 3B-2A — PAYROLL INPUT OPERATIONS (FILE → METHOD → FILE)
+================================================================================
+
+GET /admin/payroll/inputs
+→ Modules/Payroll/routes/web.php | admin.payroll.inputs.index
+→ PayrollController.php | index(Request $request)
+→ GetPayrollInputListQuery.php | companyId, typed filters
+→ QueryBusInterface.php | ask()
+→ GetPayrollInputListHandler.php | handle()
+→ PayrollInputOperationsReadRepositoryInterface.php | listing()
+→ EloquentPayrollInputOperationsReadRepository.php | listing()
+→ PayrollInputOperationsViewModel.php | snapshots, periods
+→ resources/views/inputs/index.blade.php.
+
+POST /admin/payroll/inputs
+→ PayrollInputOperationRequest.php | rules()
+→ PayrollController.php | store()
+→ CapturePayrollInputSnapshotCommand.php
+→ CommandBusInterface.php | dispatch()
+→ CapturePayrollInputSnapshotHandler.php | handle()
+→ PayrollInputOperationsService.php | capture()
+→ PayrollInputGenerationService.php | generate()
+→ payroll_input_snapshots + payroll_employee_inputs
+→ PayrollInputOperationsService.php | validatePersisted(), history()
+→ payroll_input_validation_issues + payroll_input_histories
+→ WorkforcePayrollInputChanged.php
+→ redirect admin.payroll.inputs.show.
+
+GET /admin/payroll/inputs/{snapshot}
+→ PayrollController.php | show()
+→ GetPayrollInputDetailQuery.php
+→ QueryBusInterface.php | ask()
+→ GetPayrollInputDetailHandler.php | handle()
+→ EloquentPayrollInputOperationsReadRepository.php | detail()
+→ PayrollInputOperationsViewModel.php | summary/employees/issues/history
+→ resources/views/inputs/show.blade.php.
+
+GET /admin/payroll/inputs/{snapshot}/employees
+→ Modules/Payroll/routes/web.php | route admin.payroll.inputs.employees.index
+→ PayrollController.php | employees(Request $request, int $snapshot)
+→ Gate | payroll-input.view-snapshot + verified company context
+→ GetPayrollInputEmployeeListQuery.php | typed company/snapshot/filter data
+→ QueryBusInterface::ask()
+→ GetPayrollInputEmployeeListHandler.php | handle()
+→ PayrollInputOperationsReadRepositoryInterface::employeeList()
+→ EloquentPayrollInputOperationsReadRepository.php | employeeList() company scope + stable server pagination
+→ PayrollInputEmployeeViewModel.php | items/page/hasMore
+→ inputs/employees.blade.php
+
+GET /admin/payroll/inputs/{snapshot}/employees/{employeeInput}
+→ Modules/Payroll/routes/web.php | route admin.payroll.inputs.employees.show
+→ PayrollController.php | employee(Request $request, int $snapshot, int $employeeInput)
+→ Gate | payroll-input.view-snapshot + verified company context
+→ GetPayrollInputEmployeeDetailQuery.php
+→ QueryBusInterface::ask()
+→ GetPayrollInputEmployeeDetailHandler.php | handle()
+→ EloquentPayrollInputOperationsReadRepository.php | employeeDetail()
+→ payroll_employee_inputs + payroll_input_source_records + validation issues (all company/snapshot scoped)
+→ PayrollInputEmployeeViewModel.php
+→ inputs/employee.blade.php
+
+POST payroll input capture — source accuracy sub-flow
+→ PayrollInputGenerationService.php | generate()
+→ PayrollOvertimeClassificationService.php | classify(companyId, employeeId, startsAt, endsAt, approvedMinutes)
+→ employee_work_profiles + work_calendar_days + company_holidays
+→ PayrollOvertimeClassification.php | weekday/weekend/holiday integer minutes + segments/issue
+→ payroll_employee_inputs | immutable categorized totals
+→ payroll_input_source_records | Attendance/Leave/Overtime captured source trace + checksum
+→ PayrollInputOperationsService.php | validateSnapshot() aggregate/category consistency
+→ PayrollRunService.php | calculate() reads exact snapshot and preserves categories in payroll_items
+
+POST /admin/payroll/inputs/{snapshot}/validate
+→ PayrollController.php | validateSnapshot()
+→ ValidatePayrollInputSnapshotCommand.php
+→ ValidatePayrollInputSnapshotHandler.php
+→ PayrollInputOperationsService.php | validate()
+→ persisted rows only; no live-source recapture.
+
+POST /admin/payroll/inputs/{snapshot}/versions
+→ PayrollController.php | createVersion()
+→ CreatePayrollInputSnapshotVersionCommand.php
+→ CreatePayrollInputSnapshotVersionHandler.php
+→ PayrollInputOperationsService.php | capture()
+→ locked next version + supersede previous snapshot.
+
+POST /admin/payroll/inputs/{snapshot}/create-run
+→ PayrollController.php | createRun()
+→ CreatePayrollRunFromInputSnapshotCommand.php
+→ CreatePayrollRunFromInputSnapshotHandler.php
+→ PayrollInputOperationsService.php | createRun()
+→ PayrollRunService.php | create()
+→ payroll_runs.payroll_input_snapshot_id = exact snapshot
+→ redirect admin.payroll.runs.show.
+
+================================================================================
+PHASE 3B-2B — PAYROLL PERIOD OPERATIONS (FILE → METHOD → FILE)
+================================================================================
+
+GET /admin/payroll/periods
+→ Modules/Payroll/routes/web.php | admin.payroll.periods.index
+→ PayrollPeriodController.php | index(Request)
+→ GetPayrollPeriodListQuery.php | companyId + search/status/year/page
+→ QueryBusInterface.php | ask()
+→ GetPayrollPeriodListHandler.php | handle()
+→ PayrollPeriodReadRepositoryInterface.php | listing()
+→ EloquentPayrollPeriodReadRepository.php | listing(): tenant scope + counts + pagination
+→ PayrollPeriodViewModel.php | items/page/hasMore
+→ resources/views/periods/index.blade.php.
+
+POST /admin/payroll/periods
+→ PayrollPeriodRequest.php | rules()
+→ PayrollPeriodController.php | store()
+→ CreatePayrollPeriodCommand.php → CommandBusInterface.php | dispatch()
+→ CreatePayrollPeriodHandler.php | handle()
+→ PayrollPeriodOperationsService.php | create()
+→ PayrollPeriod.php + payroll_period_histories + activity_log
+→ PayrollPeriodChanged.php → InvalidateWorkforceReadModels.php
+→ redirect Period detail hoặc Payroll Input create.
+
+GET /admin/payroll/periods/{period}
+→ PayrollPeriodController.php | show()
+→ GetPayrollPeriodDetailQuery.php → QueryBus → Handler
+→ EloquentPayrollPeriodReadRepository.php | detail()
+→ PayrollPeriodViewModel.php | detail/history/counts
+→ resources/views/periods/show.blade.php.
+
+PUT /admin/payroll/periods/{period}
+→ PayrollPeriodRequest.php → PayrollPeriodController.php | update()
+→ UpdatePayrollPeriodCommand.php → Handler
+→ PayrollPeriodOperationsService.php | update(): draft + no dependency only
+→ history/activity/event → detail redirect.
+
+POST /admin/payroll/periods/{period}/open|lock|close
+→ PayrollPeriodController.php | open()/lock()/close()
+→ matching Command → matching Handler
+→ PayrollPeriodOperationsService.php | transition()
+→ PayrollPeriodStateMachine.php | assertCanTransition()
+→ PayrollPeriod + history/activity + PayrollPeriodChanged → redirect.
+
+DELETE /admin/payroll/periods/{period}
+→ PayrollPeriodController.php | destroy()
+→ DeletePayrollPeriodCommand.php → Handler
+→ PayrollPeriodOperationsService.php | delete(): draft + no Snapshot/Run only
+→ activity log → list redirect.
+
+GET /admin/payroll/inputs/create
+→ PayrollController.php | create()
+→ GetPayrollInputCreateOptionsQuery.php → QueryBus → Handler
+→ EloquentPayrollInputOperationsReadRepository.php | periods(): same Company + collecting/review
+→ inputs/create.blade.php | dropdown hoặc empty state + Create Period link.
+PHASE 3C-1 — INSURANCE POLICY WRITE
+POST /admin/payroll/insurance/policies
+→ InsuranceAdministrationRequest.php | rules()
+→ InsuranceAdministrationController.php | savePolicy()
+→ SaveInsurancePolicyCommand.php
+→ CommandBusInterface::dispatch()
+→ SaveInsurancePolicyHandler.php | handle()
+→ InsuranceManagementService.php | savePolicy() transaction + overlap/usage validation
+→ insurance_policies + insurance_policy_rates
+→ Activity Log → Redirect policy detail
+
+PHASE 3C-1 — EMPLOYEE PROFILE WRITE
+POST /admin/payroll/insurance/employees/{employee}/profiles
+→ InsuranceAdministrationRequest.php
+→ InsuranceAdministrationController.php | saveProfile()
+→ SaveEmployeeInsuranceProfileCommand → Command Bus → Handler
+→ InsuranceManagementService.php | saveProfile() company/policy/effective overlap validation
+→ employee_insurance_profiles → masked Activity Log → Redirect
+
+PHASE 3C-1 — PAYROLL CALCULATION
+POST /admin/payroll/runs/{run}/calculate
+→ PayrollRunController.php → CalculatePayrollRunCommand/Handler
+→ PayrollRunService.php | calculate()
+→ PayrollInsuranceIntegrator.php | context() batch effective policy/profile/rates
+→ InsuranceContributionBaseResolver.php | resolve()
+→ StatutoryInsuranceCalculationService.php | calculate()
+→ InsuranceRoundingService.php | percentage() integer basis points
+→ payroll_items insurance aggregates + payroll_item_components immutable contribution lines
+→ payroll_validation_issues or calculated Run totals → History/Event/Response
+PHASE 3C-2 — PERSONAL INCOME TAX FOUNDATION
+
+GET /admin/payroll/tax/policies
+→ Modules/Payroll/routes/web.php | admin.payroll.tax.policies.index
+→ TaxAdministrationController.php | policies(Request)
+→ GetTaxPolicyListQuery.php | companyId + typed filters
+→ QueryBusInterface::ask()
+→ GetTaxPolicyListHandler.php | handle()
+→ TaxAdministrationReadRepositoryInterface.php | policies()
+→ EloquentTaxAdministrationReadRepository.php | policies()
+→ TaxAdministrationViewModel.php | items/page/hasMore
+→ tax/policies/index.blade.php
+
+POST /admin/payroll/tax/policies
+→ TaxAdministrationRequest.php | rules()/validated()
+→ TaxAdministrationController.php | savePolicy()
+→ SaveTaxPolicyCommand.php | companyId/policyId/data/actorId
+→ CommandBusInterface::dispatch()
+→ SaveTaxPolicyHandler.php | handle()
+→ TaxManagementService.php | savePolicy()
+→ tax_policies + tax_policy_brackets + tax_policy_deductions
+→ activity(payroll-tax)
+→ admin.payroll.tax.policies.show
+
+GET /admin/payroll/tax/employees/{employee}
+→ TaxAdministrationController.php | employee()
+→ GetEmployeeTaxProfileDetailQuery.php
+→ QueryBusInterface::ask()
+→ GetEmployeeTaxProfileDetailHandler.php | handle()
+→ TaxAdministrationReadRepositoryInterface.php | employee()
+→ EloquentTaxAdministrationReadRepository.php | employee() + masked Tax ID
+→ TaxAdministrationViewModel.php
+→ tax/employees/show.blade.php
+
+POST /admin/payroll/tax/employees/{employee}/profiles
+→ TaxAdministrationRequest.php | profile rules
+→ TaxAdministrationController.php | saveProfile()
+→ SaveEmployeeTaxProfileCommand.php
+→ CommandBusInterface::dispatch()
+→ SaveEmployeeTaxProfileHandler.php
+→ TaxManagementService.php | saveProfile() + tenant/policy/overlap validation
+→ employee_tax_profiles + activity log
+→ redirect back
+
+POST /admin/payroll/runs/{run}/calculate
+→ PayrollRunController.php | mutate(calculate)
+→ CalculatePayrollRunCommand.php
+→ CommandBusInterface::dispatch()
+→ CalculatePayrollRunHandler.php
+→ PayrollRunService.php | calculate()
+→ PayrollInsuranceIntegrator.php | context()/calculate()
+→ PayrollTaxIntegrator.php | context() batch preload + calculate()
+→ PersonalIncomeTaxCalculationService.php | progressive/flat integer calculation
+→ TaxRoundingService.php | percentage()
+→ payroll_items | policy/version, taxable income, PIT, net-before/after-tax
+→ payroll_item_components | taxable summary, configured deductions, bracket lines
+→ payroll_validation_issues | safe blocking codes
+→ payroll_runs | Tax total + net-after-tax aggregate
+→ PayrollRunChanged.php | identifier-only realtime refresh
+
+PHASE 3D-1 — PAYSLIP FILE FLOWS
+
+POST /admin/payroll/runs/{run}/items/{item}/payslips/generate
+→ PayslipActionRequest.php | rules(): UUID idempotency_key
+→ PayslipController.php | generateItem(): authorize workforce.company/payroll.payslip.generate
+→ GeneratePayrollItemPayslipCommand.php | companyId/runId/itemId/actorId/idempotencyKey
+→ CommandBusInterface.php | dispatch()
+→ GeneratePayrollItemPayslipHandler.php | handle()
+→ PayslipGenerationService.php | requestItem(): finalized + tenant + duplicate guard
+→ PayslipSnapshotBuilder.php | build(): exact Payroll Item/calculation_version/components
+→ payroll_payslips + payroll_payslip_snapshots
+→ GeneratePayslipPdfJob.php | handle()
+→ PayslipGenerationService.php | generate()
+→ PayslipPdfRenderer.php | render(): Dompdf A4, remote disabled
+→ private local disk + SHA-256/MIME/size
+→ PayslipChanged.php | safe identifier-only broadcast
+→ PayslipController.php | redirect Payslip detail
+
+POST /admin/payroll/runs/{run}/payslips/generate
+→ PayslipActionRequest.php | rules()
+→ PayslipController.php | generateRun()
+→ GeneratePayrollRunPayslipsCommand.php
+→ CommandBusInterface.php | dispatch()
+→ GeneratePayrollRunPayslipsHandler.php | handle()
+→ PayslipGenerationService.php | requestRun(): finalized scoped item IDs + batch counters
+→ requestItem() / GeneratePayslipPdfJob.php per Payroll Item
+→ payroll_payslip_batches progress
+
+GET /admin/payroll/payslips
+→ PayslipController.php | index(): permission + company Gate + filter normalization
+→ GetPayslipListQuery.php
+→ QueryBusInterface.php | ask()
+→ GetPayslipListHandler.php | handle()
+→ PayslipReadRepositoryInterface.php | list()
+→ EloquentPayslipReadRepository.php | company-scoped stable page query
+→ PayslipViewModel.php
+→ payslips/index.blade.php
+
+GET /admin/payroll/payslips/{payslip}
+→ PayslipController.php | show()
+→ GetPayslipDetailQuery.php
+→ QueryBusInterface.php | ask()
+→ GetPayslipDetailHandler.php | handle()
+→ EloquentPayslipReadRepository.php | detail(): tenant + immutable snapshot
+→ PayslipViewModel.php
+→ payslips/show.blade.php
+
+GET /admin/payroll/payslips/{payslip}/download
+→ PayslipController.php | download(): permission + company Gate
+→ DownloadPayslipQuery.php
+→ QueryBusInterface.php | ask()
+→ DownloadPayslipHandler.php | handle()
+→ PayslipGenerationService.php | download(): lifecycle + checksum verification
+→ payroll_payslip_access_logs
+→ private Storage::download() | no-store/nosniff
+
+POST /admin/payroll/payslips/{payslip}/publish
+→ PayslipController.php | publish()
+→ PublishPayslipCommand.php
+→ PublishPayslipHandler.php | handle()
+→ PayslipGenerationService.php | publish(): lock + integrity + idempotent transition
+→ payroll_payslips + payroll_payslip_access_logs + activity log
+→ PayslipChanged.php
+→ SendPayslipPublishedNotification.php | employee user mapping + durable safe notification
+
+POST /admin/payroll/payslips/{payslip}/revoke
+→ PayslipActionRequest.php | required reason
+→ PayslipController.php | revoke()
+→ RevokePayslipCommand.php → RevokePayslipHandler.php
+→ PayslipGenerationService.php | revoke(): tenant lock + reason + immutable retention
+→ payroll_payslip_access_logs + PayslipChanged.php
+
+POST /admin/payroll/payslips/{payslip}/regenerate
+→ PayslipController.php | regenerate()
+→ RegeneratePayslipCommand.php → RegeneratePayslipHandler.php
+→ PayslipGenerationService.php | regenerate(): block published/revoked, same snapshot
+→ GeneratePayslipPdfJob.php
+
+PHASE 3D-2 — BANK PAYMENT FILE FLOWS
+
+POST /admin/payroll/payment-accounts/{employee}
+→ PaymentAccountRequest.php | validate bank_transfer/account/effective/currency
+→ PaymentAccountController.php | store()/save() + company Gate
+→ SavePaymentAccountCommand.php → CommandBusInterface::dispatch()
+→ SavePaymentAccountHandler.php | handle()
+→ EmployeePaymentAccountService.php | save(): tenant/overlap/encrypt/last4
+→ employee_payment_accounts + safe activity log
+→ Payment Account detail (masked only)
+
+POST /admin/payroll/payment-batches
+→ PaymentBatchRequest.php | run_id/idempotency_key
+→ PaymentBatchController.php | store() + company Gate
+→ CreatePaymentBatchCommand.php → CommandBusInterface::dispatch()
+→ CreatePaymentBatchHandler.php
+→ PayrollPaymentBatchService.php | create(): finalized Run lock
+→ payroll_items.net_after_personal_income_tax_minor exact version
+→ effective verified account batch resolution
+→ payroll_payment_batches + immutable payroll_payment_batch_items
+→ validation issues + unique active_intent_key
+→ PaymentBatchChanged.php | safe realtime identifiers
+
+POST /admin/payroll/payment-batches/{batch}/approve
+→ PaymentBatchController.php | approve() + permission/company Gate
+→ ApprovePaymentBatchCommand.php → Handler
+→ PayrollPaymentBatchService.php | approve(): reviewed state lock + maker != checker
+→ approved_by/approved_at + activity + safe event
+
+POST /admin/payroll/payment-batches/{batch}/release
+→ ReleasePaymentBatchCommand.php → Handler
+→ PayrollPaymentBatchService.php | release(): approved + aggregate integrity
+→ decrypt instruction snapshot in memory only
+→ SpreadsheetFormulaSanitizer.php | descriptive text fields
+→ generic UTF-8 CSV minor units
+→ private storage/app/private/payroll-payments
+→ SHA-256/MIME/size/released actor metadata
+→ access/activity log + safe event
+
+GET /admin/payroll/payment-batches/{batch}/download
+→ PaymentBatchController.php | download() + company Gate
+→ DownloadPaymentBatchFileQuery.php → QueryBusInterface::ask()
+→ DownloadPaymentBatchFileHandler.php
+→ PayrollPaymentBatchService.php | released + checksum verification
+→ payroll_payment_access_logs
+→ private no-store StreamedResponse
+PHASE 3D-3 — PAYROLL ACCOUNTING POSTING FILE FLOW
+
+GET /admin/payroll/accounting/journals
+→ Modules/Payroll/routes/web.php | route admin.payroll.accounting.journals.index
+→ AccountingJournalController.php | index(Request)
+→ GetAccountingViewQuery.php | view="journals", companyId, filters
+→ QueryBusInterface::ask()
+→ GetAccountingViewHandler.php | handle()
+→ AccountingReadRepositoryInterface.php | journals()
+→ EloquentAccountingReadRepository.php | journals()
+→ AccountingViewModel.php | items/page/hasMore
+→ accounting/journals/index.blade.php
+
+POST /admin/payroll/accounting/journals
+→ AccountingJournalRequest.php | rules(): company_id, run_id, posting_date, idempotency_key
+→ AccountingJournalController.php | store()
+→ Gate workforce.company(payroll.accounting.journal.create, companyId)
+→ ExecuteAccountingJournalCommand.php | action=create
+→ CommandBusInterface::dispatch()
+→ ExecuteAccountingJournalHandler.php | handle()
+→ PayrollAccountingJournalService.php | create()
+→ finalized Payroll Run lock + exact calculation_version
+→ active Policy/Mapping resolution at Payroll Period end date
+→ persisted Payroll Items/Components + captured dimensions
+→ payroll_accounting_journals + lines + normalized sources
+→ AccountingJournalChanged.php + activity log
+→ redirect admin.payroll.accounting.journals.show
+
+POST /admin/payroll/accounting/journals/{journal}/{action}
+→ AccountingJournalRequest.php
+→ AccountingJournalController.php | mutate()
+→ permission map + workforce.company Gate
+→ ExecuteAccountingJournalCommand.php
+→ ExecuteAccountingJournalHandler.php
+→ PayrollAccountingJournalService.php | validate/review/approve/reject/post/export
+→ row lock + state/balance/maker-checker validation
+→ activity/access log + safe broadcast
+→ redirect back with flash message
+
+GET /admin/payroll/accounting/journals/{journal}/download
+→ AccountingJournalController.php | download()
+→ DownloadAccountingJournalQuery.php
+→ QueryBusInterface::ask()
+→ DownloadAccountingJournalHandler.php
+→ PayrollAccountingJournalService.php | download()
+→ tenant-scoped Journal + SHA-256 verification + access log
+→ private StreamedResponse (no-store)
+
+POST /admin/payroll/accounting/journals/{journal}/reverse
+→ AccountingJournalRequest.php | reason + idempotency_key
+→ AccountingJournalController.php | reverse()
+→ ReverseAccountingJournalCommand.php
+→ ReverseAccountingJournalHandler.php
+→ PayrollAccountingJournalService.php | reverse()
+→ new linked draft Journal + swapped Debit/Credit + copied source trace
+→ AccountingJournalChanged + redirect to reversal detail
+
+ACCOUNT / POLICY / MAPPING WRITE
+→ AccountingAdministrationRequest.php | conditional typed validation
+→ AccountingAccountController / AccountingPolicyController / AccountingMappingController | store/update
+→ SaveAccountingAdministrationCommand.php
+→ SaveAccountingAdministrationHandler.php | boundary normalization
+→ AccountingAdministrationService.php | saveAccount/savePolicy/saveMapping
+→ tenant, effective overlap, active/postable/currency validation
+→ activity log + redirect
+PHASE 3E-1 — PAYROLL ADJUSTMENT FILE/FUNCTION FLOW
+
+GET /admin/payroll/adjustments → Modules/Payroll/routes/web.php | admin.payroll.adjustments.index → PayrollAdjustmentController.php | index() → QueryBusInterface.php | ask(GetPayrollAdjustmentQuery) → GetPayrollAdjustmentHandler.php | handle() → EloquentPayrollAdjustmentReadRepository.php | listing() → PayrollAdjustmentViewModel.php | data → adjustments/index.blade.php.
+
+GET /admin/payroll/adjustments/create → PayrollAdjustmentController.php | create() → GetPayrollAdjustmentQuery(view=create) → GetPayrollAdjustmentHandler.php | handle() → EloquentPayrollAdjustmentReadRepository.php | createContext() → adjustments/create.blade.php.
+
+POST /admin/payroll/adjustments → PayrollAdjustmentRequest.php | rules() → PayrollAdjustmentController.php | store() → CommandBusInterface.php | dispatch(CreatePayrollAdjustmentCommand) → CreatePayrollAdjustmentHandler.php | handle() → PayrollAdjustmentManagementService.php | create() → payroll_items/payroll_runs finalized lock → historicalPayload() → snapshot() → payroll_adjustment_requests + payroll_adjustment_snapshots + payroll_adjustment_histories → PayrollAdjustmentChanged.php | broadcastOn()/broadcastWith() → redirect show.
+
+GET /admin/payroll/adjustments/{adjustment} → PayrollAdjustmentController.php | show() → QueryBusInterface | GetPayrollAdjustmentQuery(view=detail) → EloquentPayrollAdjustmentReadRepository.php | detail() → PayrollAdjustmentViewModel → adjustments/show.blade.php.
+
+POST /admin/payroll/adjustments/{adjustment}/calculate → PayrollAdjustmentRequest.php | corrected integer totals → PayrollAdjustmentController.php | mutate() → ProcessPayrollAdjustmentCommand.php | corrected* → ProcessPayrollAdjustmentHandler.php | handle() → PayrollAdjustmentManagementService.php | calculate() → snapshotPayload(historical) → effectiveTotals(historical + SUM applied runs) → delta() → correction snapshot/checksum + components/issues/history/event.
+
+POST .../validate|submit|review|approve|reject → Controller::mutate() → CommandBus → ProcessPayrollAdjustmentHandler::handle() → PayrollAdjustmentManagementService::process()/transitionLocked()/approve()/reject() → maker-checker + state validation + history/activity/private event.
+
+POST .../apply → Controller::mutate() → CommandBus → PayrollAdjustmentManagementService::apply() → payroll_adjustment_runs (delta only) → payroll_adjustment_payslips (separate statement) → positive payment_eligible OR negative payroll_adjustment_recoveries → accounting_eligible → applied immutable history/event. Original Payroll Item/Payslip/Payment Batch/Accounting Journal are read-only and unchanged.
+
+PHASE 3E-1C1 — DOWNSTREAM SCHEMA COMPATIBILITY (KHÔNG CÓ HTTP/BUS BUSINESS FLOW)
+
+php artisan migrate
+→ database/migrations/2026_07_29_000021_complete_payroll_adjustment_downstream_schema.php | up()
+→ payroll_payment_batch_items | nullable payroll_item_id + explicit source/request/run/version references
+→ payroll_accounting_journals | nullable payroll_run_id + explicit Adjustment journal source references
+→ payroll_accounting_journal_sources | nullable payroll_item_id + signed historical/corrected/delta trace
+→ payroll_adjustment_payslips | private storage/checksum/generation metadata
+→ payroll_adjustment_downstream_intents | retry/completion/failure + explicit artifact foreign keys
+
+Typed schema boundary
+→ Modules/Payroll/app/Domain/Enums/PayrollDownstreamSourceType.php | regular_payroll/retroactive_adjustment/adjustment_reversal
+→ Modules/Payroll/app/Domain/Enums/PayrollAdjustmentDownstreamType.php | payment/accounting/statement/recovery
+→ Modules/Payroll/app/Domain/Enums/PayrollAdjustmentDownstreamStatus.php | pending/eligible/processing/completed/blocked/failed/not_applicable
+→ Modules/Payroll/app/Domain/Services/PayrollDownstreamSourceInvariant.php | assertPayment()/assertAccounting() rejects ambiguous regular/Adjustment source shapes
+→ Modules/Payroll/app/Application/DTOs/AdjustmentPaymentSourceData.php | payment source fields
+→ Modules/Payroll/app/Application/DTOs/AdjustmentAccountingSourceData.php | accounting source fields
+→ Modules/Payroll/app/Application/DTOs/AdjustmentStatementArtifactData.php | statement integrity fields
+→ Modules/Payroll/app/Application/DTOs/AdjustmentDownstreamIntentData.php | intent status/attempt/artifact fields
+
+Không có Route → Controller → Command trong C1 vì C1 chỉ chuẩn hóa schema. Business integration Payment/Accounting/Statement thuộc Phase 3E-1C2.
+
+PHASE 3E-1C2 — RETROACTIVE ADJUSTMENT DOWNSTREAM FILE/FUNCTION FLOW
+
+POST /admin/payroll/adjustments/{adjustment}/downstream/payment
+→ Modules/Payroll/routes/web.php | admin.payroll.adjustments.downstream.execute
+→ PayrollAdjustmentRequest.php | rules()/validatedCompanyId()
+→ PayrollAdjustmentController.php | downstream(type=payment)
+→ Gate | payroll.adjustment.payment.create + workforce.company
+→ CommandBusInterface.php | dispatch(CreateAdjustmentPaymentInstructionCommand)
+→ CreateAdjustmentPaymentInstructionHandler.php | handle()
+→ PayrollAdjustmentDownstreamService.php | executePayment()/begin()/complete()/fail()
+→ PayrollAdjustmentPaymentService.php | create()
+→ payroll_adjustment_requests/runs/downstream_intents | company-scoped lock + persisted delta_net_minor
+→ employee_payment_accounts | verified effective account snapshot
+→ payroll_payment_batches + payroll_payment_batch_items | source_type=retroactive_adjustment, deterministic intent/reference
+→ PayrollAdjustmentDownstreamService.php | payment_batch_item_id + completed metadata
+→ PayrollAdjustmentController.php | redirect + flash.
+
+POST /admin/payroll/adjustments/{adjustment}/downstream/accounting
+→ PayrollAdjustmentController.php | downstream(type=accounting)
+→ Gate | payroll.adjustment.accounting.create + workforce.company
+→ CommandBusInterface.php | dispatch(CreateAdjustmentAccountingJournalCommand)
+→ CreateAdjustmentAccountingJournalHandler.php | handle()
+→ PayrollAdjustmentDownstreamService.php | executeAccounting()/begin()
+→ PayrollAdjustmentAccountingService.php | create()
+→ payroll_adjustment_runs/components | signed persisted historical/corrected/delta values
+→ payroll_accounting_policies/mappings/accounts | effective mapping resolution, no hard-coded account ID
+→ payroll_accounting_journals/lines/sources | draft delta-only journal, negative delta reverses direction, debit=credit
+→ PayrollAdjustmentDownstreamService.php | accounting_journal_id + completed metadata
+→ redirect + flash.
+
+POST /admin/payroll/adjustments/{adjustment}/downstream/statement
+→ PayrollAdjustmentController.php | downstream(type=statement)
+→ Gate | payroll.adjustment.statement.generate + workforce.company
+→ CommandBusInterface.php | dispatch(GenerateAdjustmentStatementCommand)
+→ GenerateAdjustmentStatementHandler.php | handle()
+→ PayrollAdjustmentDownstreamService.php | executeStatement()/begin()
+→ PayrollAdjustmentStatementService.php | generate()
+→ AdjustmentStatementPdfRenderer.php | render() using resources/views/pdf/adjustment-statement.blade.php
+→ Storage private local | payroll-adjustments/{company}/{adjustment}/{uuid}.pdf
+→ PayrollAdjustmentIntegrityService.php | checksum()/assertValidPdf()
+→ payroll_adjustment_payslips | disk/path/name/MIME/size/SHA-256/snapshot checksum/actor/time/version
+→ payroll_adjustment_downstream_intents | statement_id + completed metadata
+→ redirect + flash.
+
+POST /admin/payroll/adjustments/{adjustment}/downstream/{type}/retry
+→ PayrollAdjustmentController.php | retry()
+→ Gate | payroll.adjustment.downstream.retry + artifact-specific permission
+→ CommandBusInterface.php | dispatch(RetryAdjustmentDownstreamCommand)
+→ RetryAdjustmentDownstreamHandler.php | handle()
+→ PayrollAdjustmentDownstreamService.php | retry()/begin()
+→ processing + attempt_count + last_attempt_at + clear safe failure fields
+→ corresponding Payment/Accounting/Statement service
+→ completed/not_applicable OR blocked/failed with sanitized failure metadata
+→ redirect + flash.
+
+GET /admin/payroll/adjustments/{adjustment}/statement/download
+→ PayrollAdjustmentController.php | downloadStatement()
+→ Gate | payroll.adjustment.statement.download + workforce.company
+→ QueryBusInterface.php | ask(DownloadAdjustmentStatementQuery)
+→ DownloadAdjustmentStatementHandler.php | handle()
+→ PayrollAdjustmentStatementService.php | download()
+→ PayrollAdjustmentIntegrityService.php | exists + MIME + byte size + `%PDF-` + SHA-256 verification
+→ payroll_adjustment_access_logs | statement_download actor/time
+→ StreamedResponse | private, no-store attachment.
+
+GET /admin/payroll/adjustments/{adjustment}
+→ PayrollAdjustmentController.php | show()
+→ GetPayrollAdjustmentHandler.php | handle()
+→ EloquentPayrollAdjustmentReadRepository.php | detail()
+→ PayrollAdjustmentViewModel.php | intents + Payment/Journal/Statement artifact data
+→ resources/views/adjustments/show.blade.php | artifact status, failure, execute/retry/download links, maker-checker warning.
+
+PHASE 3E-1C3 — CONCURRENCY + GUARDED BROWSER FIXTURE
+
+CLI php artisan payroll:adjustment-browser-fixture --scenario={positive|negative}
+→ PayrollAdjustmentBrowserFixtureCommand.php | handle()
+→ PayrollAdjustmentBrowserFixtureService.php | assertSafeEnvironment()
+→ require APP_ENV local/testing + DB suffix `_testing`
+→ PayrollRunService.php | create()/calculate()/transition()
+→ PayrollAdjustmentManagementService.php | create()/process()
+→ PayrollAdjustmentDownstreamService.php | executeAll()
+→ Payment/Accounting/Statement services | real isolated artifacts
+→ output login + Detail/Download URLs.
+
+CLI ... --cleanup
+→ PayrollAdjustmentBrowserFixtureService.php | cleanup()
+→ marker company lookup BROWSER-ADJUSTMENT-{SCENARIO}
+→ delete company-scoped fixture rows + private Statement files
+→ force-delete fixture Employee/Company and delete fixture users
+→ unrelated testing rows remain unchanged.
+
+tests/Concurrency/Payroll/PayrollProcessConcurrencyTest.php | Adjustment race methods
+→ MysqlProcessRaceRunner.php | run()
+→ tests/Support/workforce_concurrency_worker.php | adjustmentProcess()/adjustmentDownstream()
+→ shared Command Bus/Handlers and PayrollAdjustmentDownstreamService.php | begin()
+→ lock intent; `processing`/`completed`/`not_applicable` concurrent retry exits
+→ exactly one terminal lifecycle/history/artifact/checksum.
+
+PHASE 3E-2A — ANNUAL PIT RECONCILIATION (DESIGNED, NOT IMPLEMENTED)
+
+Future WRITE flow:
+PHASE 3E-2B — ANNUAL PIT FOUNDATION (luồng file thật, chưa có HTTP/UI)
+
+CREATE DRAFT
+CommandBusInterface.php | dispatch(CreateAnnualTaxReconciliationCommand)
+→ Application/Commands/CreateAnnualTaxReconciliation/CreateAnnualTaxReconciliationCommand.php | companyId, employeeId, taxYear, jurisdiction, currency, idempotencyKey, actorId
+→ Application/Commands/CreateAnnualTaxReconciliation/CreateAnnualTaxReconciliationHandler.php | handle()
+→ Domain/Services/PayrollAnnualTaxReconciliationService.php | create()
+→ Domain/Repositories/AnnualTaxReconciliationRepositoryInterface.php | findByIdempotency(), findActive(), findScoped()
+→ Infrastructure/Persistence/EloquentAnnualTaxReconciliationRepository.php | tenant-scoped Eloquent implementation
+→ Domain/Models/PayrollAnnualTaxReconciliation.php | casts(), statusValue(), immutable snapshot accessors
+→ payroll_annual_tax_reconciliations + payroll_annual_tax_histories(created)
+→ Application/DTOs/AnnualTaxDraftData.php | typed result.
+
+COLLECT IMMUTABLE SOURCES
+CommandBusInterface.php | dispatch(CollectAnnualTaxSourcesCommand)
+→ Application/Commands/CollectAnnualTaxSources/CollectAnnualTaxSourcesCommand.php | companyId, reconciliationId, actorId
+→ Application/Commands/CollectAnnualTaxSources/CollectAnnualTaxSourcesHandler.php | handle()
+→ Domain/Services/PayrollAnnualTaxReconciliationService.php | collect()
+→ Domain/Services/AnnualTaxSourceCollector.php | collect()
+→ Domain/Services/PayrollAnnualTaxAttributionResolver.php | regular(), adjustment()
+→ payroll_runs(status=finalized) + payroll_items(exact calculation_version) + payroll_item_components(exact version)
+→ payroll_adjustment_requests(status=applied, explicit tax_attribution_year) + payroll_adjustment_runs(status=applied) + payroll_adjustment_components
+→ Application/DTOs/AnnualTaxSourceData.php + AnnualTaxComponentData.php + AnnualTaxCollectionData.php
+→ Domain/Services/AnnualTaxChecksumService.php | source(), reconciliation()
+→ payroll_annual_tax_sources + payroll_annual_tax_components + payroll_annual_tax_validation_issues + payroll_annual_tax_histories(sources_collected/recollected)
+→ Application/DTOs/AnnualTaxSourceCollectionResult.php | counts, issues, checksum.
+
+VERIFY SOURCE INTEGRITY
+PayrollAnnualTaxReconciliationService.php | verify(companyId, reconciliationId)
+→ AnnualTaxReconciliationRepositoryInterface.php | findScoped()
+→ PayrollAnnualTaxReconciliationService.php | hydrateSources(), metadata()
+→ AnnualTaxChecksumService.php | source() for each persisted source/component
+→ AnnualTaxChecksumService.php | reconciliation() for ordered aggregate
+→ hash_equals(stored source_checksum, calculated checksum)
+→ bool; tampered persisted source/component returns false.
+
+NOT IMPLEMENTED IN 3E-2B
+No Route/FormRequest/Controller/Blade, AnnualTaxCalculator, post-draft lifecycle, PDF/CSV, recovery/refund Payment, Accounting Journal or external filing flow exists yet. These remain Phase 3E-2C/3E-2D work and must not be presented as connected.
+
+PHASE 3E-2C WRITE HTTP
+POST /admin/payroll/annual-tax/{reconciliation}/{action}
+→ AnnualTaxReconciliationRequest.php | rules(), authenticated actor
+→ PayrollAnnualTaxReconciliationController.php | mutate(), Company Gate
+→ ProcessAnnualTaxReconciliationCommand.php | typed IDs/action/reason
+→ ProcessAnnualTaxReconciliationHandler.php | handle()
+→ PayrollAnnualTaxOperationsService.php | calculate(), validate(), supersede()
+OR PayrollAnnualTaxLifecycleService.php | transition()
+→ PayrollAnnualTaxValidator.php | checksum/stale/blocking gates
+→ annual header/history/eligibility intents
+→ redirect + flash.
+
+PHASE 3E-2C READ HTTP
+GET /admin/payroll/annual-tax[/{reconciliation}]
+→ PayrollAnnualTaxReconciliationController.php | index()/show(), Company Gate
+→ GetAnnualTaxReconciliationQuery.php
+→ GetAnnualTaxReconciliationHandler.php | Company-scoped bounded projection
+→ annual-tax/index.blade.php OR show.blade.php.
+ANNUAL PIT — DEDICATED ACTION FLOWS (PHASE 3E-2C2)
+
+ANNUAL PIT — TYPED READ FLOWS (PHASE 3E-2C COMPLETION)
+GET admin.payroll.annual-tax.index → PayrollAnnualTaxReconciliationController@index → QueryBusInterface::ask(GetAnnualTaxReconciliationListQuery) → GetAnnualTaxReconciliationListHandler::handle → AnnualTaxReconciliationRepositoryInterface → AnnualTaxReconciliationListViewModel → annual-tax/index.blade.php
+GET admin.payroll.annual-tax.show → PayrollAnnualTaxReconciliationController@show → GetAnnualTaxReconciliationDetailQuery → GetAnnualTaxReconciliationDetailHandler::handle → AnnualTaxReconciliationDetailViewModel → GetAnnualTaxSourceQuery/GetAnnualTaxHistoryQuery → respective handlers/repository → AnnualTaxSourceViewModel/AnnualTaxHistoryViewModel → annual-tax/show.blade.php
+CLI payroll:annual-tax-browser-fixture → PayrollAnnualTaxBrowserFixtureCommand::handle → PayrollAnnualTaxBrowserFixtureService::create → PayrollAdjustmentBrowserFixtureService + Annual Tax create/collect/calculate services → schema_admin_testing fixture only
+
+ANNUAL TAX DELIVERY (PHASE 3E-2D)
+POST statement → PayrollAnnualTaxReconciliationController@generateStatement → CommandBus → GenerateAnnualTaxStatementCommand → Handler → PayrollAnnualTaxDeliveryService@generateStatement → persisted snapshots/sources → Dompdf → private disk → payroll_annual_tax_documents → access log → redirect
+GET statement/{document} → Controller@downloadStatement → QueryBus → DownloadAnnualTaxStatementQuery → Handler → PayrollAnnualTaxDeliveryService@download → company-scoped document → exists/MIME/size/SHA-256/%PDF validation → access log → private PDF response
+POST payment-intent|refund-intent|settlement-journal → Controller → dedicated Command/Handler → PayrollAnnualTaxDeliveryService → locked finalized aggregate → idempotent intent/refund obligation/balanced annual settlement journal
+POST downstream/retry → RetryAnnualTaxDownstreamCommand → Handler → payment/refund/accounting/statement operations → existing resources returned without duplicate
+CLI payroll:annual-tax-delivery-fixture → PayrollAnnualTaxDeliveryFixtureCommand → guarded PayrollAnnualTaxDeliveryFixtureService → payable/refund/balanced testing fixtures → --cleanup removes database rows/private files
+POST /admin/payroll/annual-tax/{id}/calculate > PayrollAnnualTaxReconciliationController.php|calculate() > CalculateAnnualTaxReconciliationCommand.php|companyId,reconciliationId,actorId > CalculateAnnualTaxReconciliationHandler.php|handle() > PayrollAnnualTaxOperationsService.php|calculate() > PayrollAnnualTaxCalculator.php|liability() > payroll_annual_tax_reconciliations + payroll_annual_tax_histories > RedirectResponse.
+POST /admin/payroll/annual-tax/{id}/validate > Controller|validateReconciliation() > ValidateAnnualTaxReconciliationCommand|validationStage > Handler|handle() > PayrollAnnualTaxOperationsService|validate() > PayrollAnnualTaxValidator|validate() > payroll_annual_tax_validation_issues fingerprint reconcile > RedirectResponse.
+POST /admin/payroll/annual-tax/{id}/submit|review|approve|finalize|reject > Controller action > matching dedicated Command > matching Handler > PayrollAnnualTaxLifecycleService|transition() > row lock + maker-checker + stage validation > reconciliation/history; finalize additionally > downstream eligibility intents > RedirectResponse.
+POST /admin/payroll/annual-tax/{id}/supersede > SupersedeAnnualTaxReconciliationRequest|reason_code,reason,idempotency_key > Controller|supersede() > SupersedeAnnualTaxReconciliationCommand > Handler > PayrollAnnualTaxOperationsService|supersede() > old finalized→superseded + new version draft > redirect new detail.
+GET /admin/payroll/annual-tax/{id} > Controller|show() > GetAnnualTaxReconciliationQuery > QueryBus > GetAnnualTaxReconciliationHandler|handle() > Company-scoped header + independent sources_page/issues_page/history_page/components_page paginators > annual-tax/show.blade.php.
+
+QUALITY FLOW 2026-08-01 > mysql/schema_admin_testing > php artisan test > 221 tests / 1,908 assertions PASS > PHPStan Payroll + tests level 10 = 0 > Pint PASS > Blade clear/cache/clear PASS > Vite PASS > docker compose config PASS > production mysql/schema_admin read-only audit = all scoped rows/files 0.
+PHASE 3E-3 — ERP INTEGRATION FOUNDATION
+
+GET/POST/PUT /admin/payroll/erp/connections
+→ ErpExportRequest.php | rules()
+→ ErpExportController.php | connections()/connectionStore()/connectionUpdate()
+→ GetErpAdministrationQuery.php hoặc ManageErpAdministrationCommand.php
+→ QueryBus/CommandBus
+→ EloquentErpExportReadRepository.php hoặc ErpAdministrationService.php
+→ encrypted credential reference + company-scoped erp_connections
+→ connections Blade
+
+GET/POST/PUT /admin/payroll/erp/mappings
+→ ErpExportController mapping actions
+→ GetErpAdministrationQuery / ManageErpAdministrationCommand
+→ effective-date validation
+→ old version superseded + new immutable erp_mapping_rules version
+→ mappings Blade
+
+GET /admin/payroll/erp/exports/{export}/download
+→ ErpExportController.php | download()
+→ DownloadErpArtifactQuery.php
+→ DownloadErpArtifactHandler.php
+→ ErpExportService.php | download()
+→ private file exists + MIME + size + SHA-256 + CSV signature
+→ erp_access_logs | erp_artifact_download
+→ StreamedResponse (không trả storage path)
+
+GET /admin/payroll/erp/exports
+→ Modules/Payroll/routes/web.php | admin.payroll.erp.exports.index
+→ ErpExportController.php | index()
+→ GetErpExportListQuery.php | companyId/search/status
+→ Laravel QueryBus | ask()
+→ GetErpExportListHandler.php | handle()
+→ ErpExportReadRepositoryInterface.php | list()
+→ EloquentErpExportReadRepository.php | company-scoped journal/connection read
+→ ErpExportViewModel.php | items
+→ erp/exports/index.blade.php
+
+POST /admin/payroll/erp/exports
+→ ErpExportRequest.php | rules()
+→ ErpExportController.php | store()
+→ CreateErpExportCommand.php
+→ Laravel CommandBus | dispatch()
+→ CreateErpExportHandler.php | handle()
+→ ErpExportService.php | create()
+→ payroll_accounting_journal_lines (authoritative read)
+→ erp_exports + erp_export_items + erp_export_logs
+→ ErpExportResult.php
+→ redirect detail
+
+============================================================
+PHASE 3E-4 — GOVERNMENT FILING FOUNDATION
+============================================================
+
+GET /admin/payroll/government-filings
+→ GovernmentFilingController.php | index()
+→ GetGovernmentFilingListQuery.php | companyId/status/year/search
+→ QueryBus.php | ask()
+→ GetGovernmentFilingListHandler.php | handle()
+→ GovernmentFilingReadRepositoryInterface.php | list()
+→ EloquentGovernmentFilingReadRepository.php | company-scoped projection
+→ GovernmentFilingViewModel.php | filings
+→ government-filing/index.blade.php
+
+POST /admin/payroll/government-filings
+→ GovernmentFilingRequest.php | rules()
+→ GovernmentFilingController.php | store()
+→ CreateGovernmentFilingCommand.php
+→ CommandBus.php | dispatch()
+→ CreateGovernmentFilingHandler.php | handle()
+→ GovernmentTaxFilingService.php | create()
+→ finalized payroll_annual_tax_reconciliations snapshot
+→ government_tax_filings + government_tax_filing_items + government_tax_filing_logs
+→ redirect detail
+
+POST /admin/payroll/government-filings/{filing}/{generate|validate|approve|submit|retry|reject}
+→ GovernmentFilingController.php | mutate()
+→ action-specific typed Command
+→ matching Handler.php | handle()
+→ GovernmentTaxFilingService.php | generate()/validate()/approve()/submit()/retry()/reject()
+→ row lock + state/maker-checker/company validation
+→ GenericXmlDeclarationGenerator.php | generate()
+→ private XML + SHA-256 metadata + issue/attempt/lifecycle logs
+→ redirect detail
+
+GET /admin/payroll/government-filings/{filing}/documents/{document}
+→ GovernmentFilingController.php | download()
+→ DownloadGovernmentDocumentQuery.php
+→ QueryBus.php | ask()
+→ DownloadGovernmentDocumentHandler.php | handle()
+→ GovernmentTaxFilingService.php | download()
+→ existence + MIME + size + SHA-256 + payload/XML signature verification
+→ government_tax_access_logs
+→ streamed XML response
+
+PHASE 3E-4G HARDENING EVIDENCE
+→ permission matrix | view/create/generate/validate/approve/submit/download → middleware + workforce.company Gate → missing permission 403
+→ tenant matrix | accessible foreign company + foreign filing/document ID → company-scoped service/repository → 404
+→ lifecycle matrix | wrong status action → GovernmentTaxFilingService.php | expect() → ValidationException/status
+→ process worker | government_filing_{create,generate,validate,approve,submit,retry} → row lock/unique guard → one filing/document/transition/attempt winner
+→ GenericXmlDeclarationGeneratorTest.php → canonical order + deterministic hash + changed-source changed hash
+→ tampered private XML → DownloadGovernmentDocumentHandler.php → GovernmentTaxFilingService.php | download() → blocked access log
+
+============================================================
+PHASE 3E-5A — EMPLOYEE LIFECYCLE DESIGN (NO IMPLEMENTATION)
+============================================================
+
+Future write flow
+→ Route + typed FormRequest
+→ EmployeeLifecycleController | action()
+→ shared CommandBus | dispatch()
+→ CreateEmployeeLifecycle / StartOnboarding / CompleteOnboarding / TransferEmployee / PromoteEmployee / TerminateEmployee
+→ matching Handler | handle()
+→ EmployeeLifecycleStateMachine | assert transition/version/company
+→ EmployeeLifecycleService | transaction + row lock + idempotency
+→ Employee/Contract/Assignment existing aggregates
+→ append-only lifecycle/position/manager/document history proposal
+→ EmployeeHired / EmployeeOnboarded / EmployeePromoted / EmployeeTransferred / EmployeeTerminated
+→ transactional outbox proposal
+
+Future read flow
+→ Route + company/field authorization
+→ QueryBus | ask()
+→ Employee360View / EmploymentHistory / OrganizationPositionView / LifecycleTimeline
+→ bounded read repositories
+→ immutable ViewModel/API Resource
+
+Phase 3E-5A created documentation only; every file/class/table in this flow remains a future proposal.
+
+POST /admin/payroll/erp/exports/{export}/{validate|execute|retry|reverse}
+→ ErpExportController.php | mutate()
+→ typed action Command → matching Handler
+→ ErpExportService.php | validate()/execute()/retry()/reverse()
+→ lockForUpdate + maker-checker + state validation
+→ ErpAccountingAdapter.php
+→ GenericCsvErpAdapter.php | export()
+→ private local artifact + SHA-256 metadata + lifecycle log
+→ redirect detail
+
+Organization
+      |
+Employee Core
+      |
+Payroll Engine
+      |
+Payslip
+      |
+Bank Payment
+      |
+Accounting
+      |
+Retroactive Adjustment
+      |
+Annual Tax Reconciliation
+      |
+ERP Integration
+      |
+Government Filing
+      |
+      V
+HR Enterprise Layer
+PHASE 3E-5B — EMPLOYEE LIFECYCLE PLATFORM
+
+GET /admin/employee-lifecycle
+→ Modules/Employee/routes/web.php | route admin.employee-lifecycle.index
+→ EmployeeLifecycleController.php | index()
+→ GetEmployeeLifecycleListQuery.php | companyId/search/state/perPage
+→ LaravelQueryBus.php | ask()
+→ GetEmployeeLifecycleListHandler.php | handle()
+→ EmployeeLifecycleReadRepositoryInterface.php | paginate()
+→ EloquentEmployeeLifecycleReadRepository.php | paginate()/listItem()
+→ lifecycle/index.blade.php | filter + responsive table + Employee360 link
+
+GET /admin/employee-lifecycle/{employee}
+→ EmployeeLifecycleController.php | show()
+→ Employee360ViewQuery.php
+→ LaravelQueryBus.php | ask()
+→ Employee360ViewHandler.php | handle()
+→ EloquentEmployeeLifecycleReadRepository.php | employee360()/timeline()/employmentHistory()
+→ EmployeeLifecycleViewModel.php | employee/currentState/timeline/histories
+→ lifecycle/show.blade.php | state-aware actions + immutable timeline
+
+POST /admin/employee-lifecycle/{employee}[/*]
+→ EmployeeLifecycleActionRequest.php | authorize()/rules()
+→ EmployeeLifecycleController.php | createLifecycle()/startOnboarding()/completeOnboarding()/transfer()/promote()/terminate()
+→ LaravelCommandBus.php | dispatch()
+→ named *Command.php | LifecycleTransitionData
+→ named *Handler.php | handle()
+→ EmployeeLifecycleService.php | transition()/changeAssignment()/append()
+→ EmployeeLifecycleStateMachine.php | assertCanTransition()/assertCanChangeAssignment()
+→ EmployeeLifecycleEvent.php + EmploymentTransition.php + position/manager history
+→ employee_lifecycle_outbox | transactional event envelope
+→ EmployeeHired/EmployeeOnboarded/EmployeeTransferred/EmployeePromoted/EmployeeTerminated
+→ RedirectResponse + flash message
+
+Employee Lifecycle
+        |
+        |
+        v
+Talent & Performance
+        |
+        |
+        +---- Goal Management
+        |
+        +---- KPI / OKR
+        |
+        +---- Performance Review
+        |
+        +---- Competency
+        |
+        +---- Rating
+        |
+        +---- Development Plan
+
+PHASE 3E-5C — TALENT & PERFORMANCE FILE FLOW
+
+GET /admin/talent/performance
+→ Modules/Performance/routes/web.php | admin.talent.performance.index
+→ Presentation/Http/Controllers/PerformanceController.php | index()
+→ Application/Queries/GetPerformanceDashboard/GetPerformanceDashboardQuery.php | companyId
+→ Modules/Core/Application/Buses/LaravelQueryBus.php | ask()
+→ GetPerformanceDashboardHandler.php | handle()
+→ Domain/Repositories/PerformanceReadRepositoryInterface.php | dashboard()
+→ Infrastructure/Persistence/EloquentPerformanceReadRepository.php | dashboard()
+→ Resources/views/dashboard.blade.php | stats/cycles/Employee 360/actions
+
+GET /admin/talent/performance/employees/{employee}
+→ PerformanceController.php | show()
+→ EmployeePerformance360Query.php | companyId + employeeId
+→ LaravelQueryBus.php | ask()
+→ EmployeePerformance360Handler.php | handle()
+→ EloquentPerformanceReadRepository.php | employee360()/history()
+→ CompetencyService.php | profile()
+→ EmployeePerformanceViewModel.php | employee/goals/reviews/competencies/timeline
+→ Resources/views/employee.blade.php | readonly Employee Performance 360
+
+POST /admin/talent/performance/{action}/{subject?}
+→ PerformanceActionRequest.php | authorize()/rules()/validated input
+→ PerformanceController.php | action()/data()/allow()
+→ PerformancePolicy.php | allows(user, companyId, permission)
+→ LaravelCommandBus.php | dispatch(command)
+→ named Command.php | readonly PerformanceActionData
+→ named Handler.php | handle()
+→ PerformanceCycleService.php | create()/close()
+  OR GoalManagementService.php | assign()/progress()
+  OR PerformanceReviewService.php | start()/selfReview()/managerReview()/approve()
+→ PerformanceStateMachine.php | validate(from, to)
+→ MySQL transaction + row lock + idempotency
+→ performance_cycles/employee_goals/performance_reviews
+→ goal_progress_history/performance_review_history | append-only evidence
+→ PerformanceSupport.php | checksum()/outbox()
+→ talent_management_outbox | transactional domain event envelope
+→ RedirectResponse | success/controlled validation feedback
+
+PHASE 3E-5D — CAREER & SUCCESSION FILE FLOW
+
+GET /admin/career
+→ Modules/Performance/routes/web.php | admin.career.index
+→ CareerController.php | index()
+→ SuccessionDashboardQuery.php → LaravelQueryBus::ask()
+→ SuccessionDashboardHandler.php | handle()
+→ CareerReadRepositoryInterface.php → EloquentCareerReadRepository::dashboard()
+→ CareerDashboardViewModel.php → career/dashboard.blade.php
+
+GET /admin/career/employees/{employee}
+→ CareerController.php | employee()
+→ EmployeeCareer360Query.php → QueryBus → EmployeeCareer360Handler.php
+→ EloquentCareerReadRepository.php | employee360()/timeline()
+→ career/employee.blade.php | position/path/progress/competency gap/history
+
+POST /admin/career/{action}/{subject?}
+→ CareerActionRequest.php | rules()
+→ CareerController.php | action()/data()/allow()
+→ PerformancePolicy.php | company + permission
+→ named Career/Succession Command.php → LaravelCommandBus::dispatch()
+→ named Handler.php | handle()
+→ CareerPathService.php OR SuccessionPlanningService.php OR ReadinessAssessmentService.php
+→ CareerStateMachine.php | career()/succession()
+→ MySQL transaction + row lock + idempotency
+→ career aggregate tables
+→ CareerSupport.php | checksum()/record()
+→ career_history (append-only) + career_outbox (transactional)
+→ RedirectResponse
+
+PHASE 3E-5E — WORKFORCE ANALYTICS
+GET /admin/analytics/workforce → WorkforceAnalyticsController::index() → WorkforceDashboardQuery → QueryBus → WorkforceDashboardHandler → WorkforceAnalyticsService::calculate() → WorkforceAnalyticsViewModel → analytics/dashboard.blade.php
+POST /admin/analytics/workforce/snapshots → WorkforceAnalyticsController::generate() → GenerateWorkforceSnapshotCommand → CommandBus → Handler → WorkforceAnalyticsService::snapshot() → analytics_calculation_runs + workforce_analytics_snapshots + analytics_outbox → RedirectResponse
+---------
+
+Employee Lifecycle
+        |
+        |
+Performance Management
+        |
+        |
+        v
+Career & Succession Planning
+        |
+        |
+        +---- Career Path
+        |
+        +---- Skill Gap
+        |
+        +---- Talent Pool
+        |
+        +---- Successor Candidate
+        |
+        +---- Readiness Assessment
+
+Đây là lớp cuối để biến HRM thành Enterprise HCM:
+
+HR Data Governance
+
+        |
+        |
+        +---- Data Ownership
+        |
+        +---- Data Quality
+        |
+        +---- Privacy / Consent
+        |
+        +---- Retention Policy
+        |
+        +---- Audit Governance
+        |
+        +---- Master Data Management
+HR DATA GOVERNANCE
+GET /admin/hr/governance > Modules/Employee/routes/web.php|admin.hr.governance.dashboard > HRGovernanceController.php|dashboard() > QueryBusInterface|ask() > HRDataQualityDashboardQuery.php|companyId > HRDataQualityDashboardHandler.php|handle() > HRGovernanceReadRepositoryInterface.php|dashboard() > EloquentHRGovernanceReadRepository.php|dashboard() > HRGovernanceDashboardViewModel.php > governance/dashboard.blade.php
+POST /admin/hr/governance/runs > HRGovernanceActionRequest.php|rules() > HRGovernanceController.php|run() > CommandBusInterface|dispatch() > RunDataQualityCheckCommand.php > RunDataQualityCheckHandler.php|handle() > HRDataGovernanceService.php|run() > HRDataQualityRuleRegistry.php|rules() > five HRDataQualityRule implementations|evaluate() > hr_data_quality_runs/issues > HRGovernanceAuditService.php|append()
+POST /admin/hr/governance/issues/{issue}/transition > HRGovernanceController.php|transition() > ResolveDataQualityIssueCommand.php|action > ResolveDataQualityIssueHandler.php|handle() > HRDataGovernanceService.php|reviewIssue()/resolveIssue() > append-only audit
+POST /admin/hr/governance/issues/{issue}/approve > HRGovernanceController.php|approve() > ApproveDataCorrectionCommand.php > ApproveDataCorrectionHandler.php|handle() > HRDataGovernanceService.php|approveIssue() > maker-checker > append-only audit
+POST /admin/hr/governance/documents/{document}/archive > HRGovernanceController.php|archiveDocument() > ArchiveEmployeeDocumentCommand.php > ArchiveEmployeeDocumentHandler.php|handle() > HRDataGovernanceService.php|archiveDocument() > EmployeeDocumentService.php|archive() > hr_document_governance_history
+GET /admin/hr/governance/consents > HRGovernanceController.php|consents() > ConsentAuditViewQuery.php > QueryBusInterface|ask() > ConsentAuditViewHandler.php|handle() > HRGovernanceReadRepositoryInterface.php|dashboard() > HRGovernanceDashboardViewModel.php|consents > governance/consents.blade.php > RecordHRGovernanceAccessCommand.php|data_viewed
+GET /admin/hr/governance/documents > HRGovernanceController.php|documents() > DocumentGovernanceViewQuery.php > QueryBusInterface|ask() > DocumentGovernanceViewHandler.php|handle() > EloquentHRGovernanceReadRepository.php|document metadata whitelist > governance/documents.blade.php > RecordHRGovernanceAccessCommand.php|data_viewed
+
+================================================================================
+PHASE 3F-1 — ENTERPRISE WORKFLOW ENGINE
+================================================================================
+
+POST /admin/workflows/definitions
+→ Modules/Workflow/routes/web.php | admin.workflows.definitions.store
+→ WorkflowRequest | rules(), steps(), actorId()
+→ WorkflowController | store()
+→ CommandBusInterface | dispatch(CreateWorkflowDefinitionCommand)
+→ CreateWorkflowDefinitionHandler | handle()
+→ WorkflowDefinitionService | create()
+→ workflow_definitions + workflow_definition_versions + workflow_steps
+→ Redirect | admin.workflows.definitions
+
+POST /admin/workflows/definitions/{definition}/publish
+→ WorkflowController | publish()
+→ PublishWorkflowDefinitionCommand/Handler
+→ WorkflowDefinitionService | publish() + lockForUpdate()
+→ version published_at/published_by + definition status=published
+
+POST /admin/workflows/instances
+→ WorkflowController | start()
+→ StartWorkflowCommand/Handler
+→ WorkflowExecutionService | start()
+→ immutable definition_snapshot + checksum + idempotency_key
+→ WorkflowActorResolverInterface | resolve()
+→ workflow_tasks
+→ WorkflowHistoryService | workflow.started
+→ Redirect | admin.workflows.instances.show
+
+POST /admin/workflows/tasks/{task}/claim
+→ WorkflowController | claim()
+→ ClaimWorkflowTaskCommand/Handler
+→ WorkflowTaskService | claim() + row lock + lock_version check
+→ workflow_tasks(status=claimed) + workflow_histories(task.claimed)
+
+POST /admin/workflows/tasks/{task}/decision
+→ WorkflowController | decide()
+→ ApproveWorkflowTaskCommand/Handler OR RejectWorkflowTaskCommand/Handler
+→ WorkflowTaskService | decide()
+→ workflow_decisions(checksum/idempotency) + workflow_tasks
+→ advanceOrFinish() according to approval_mode
+→ workflow_histories
+→ OutboxWorkflowCompletionHandler | completed()
+→ workflow_outbox (domain owner callback envelope)
+
+GET /admin/workflows
+→ WorkflowController | dashboard()
+→ WorkflowDefinitionListQuery/Handler
+→ WorkflowReadRepositoryInterface | dashboard()
+→ WorkflowDashboardViewModel
+→ workflow::dashboard Blade
+
+GET /admin/workflows/instances/{instance}
+→ WorkflowController | show()
+→ WorkflowInstanceDetailQuery/Handler
+→ WorkflowReadRepositoryInterface | detail()
+→ WorkflowDashboardViewModel
+→ workflow::show Blade (tasks + append-only timeline)
+
+GET /admin/workflows/instances/{instance}/audit
+→ Modules/Workflow/routes/web.php | admin.workflows.instances.audit | auth + verified + permission:workflow.audit.view
+→ WorkflowController.php | audit(Request $r, int $instance)
+→ WorkflowPolicy.php | authorize($user, $companyId, 'workflow.audit.view')
+→ QueryBusInterface.php | ask(new WorkflowAuditViewQuery($companyId, $instance))
+→ WorkflowAuditViewQuery.php | companyId + instanceId
+→ WorkflowAuditViewHandler.php | handle()
+→ WorkflowReadRepositoryInterface.php | detail($companyId, $instanceId)
+→ EloquentWorkflowReadRepository.php | company-scoped instance/tasks/history query
+→ WorkflowDashboardViewModel.php | instances + tasks + append-only history
+→ Modules/Workflow/resources/views/audit.blade.php | immutable audit timeline
+
+GET /admin/workflows/tasks
+→ WorkflowController | tasks()
+→ MyWorkflowTasksQuery/Handler
+→ WorkflowReadRepositoryInterface | dashboard(company, actor)
+→ workflow::tasks Blade
+
+Scheduler
+→ WorkflowServiceProvider | everyFiveMinutes()->withoutOverlapping()
+→ workflow:escalate-overdue
+→ EscalateOverdueWorkflowTasksCommand | handle()
+→ WorkflowSlaService | escalateOverdue()
+→ WorkflowTaskService | escalate()
+
+Concurrency lock chain
+→ WorkflowTaskService.php | lockedInstanceAndTask()
+→ WorkflowTask.php | tenant-scoped reference lookup
+→ WorkflowInstance.php | lockForUpdate() — acquired first
+→ WorkflowTask.php | lockForUpdate() — acquired second
+→ workflow_decisions / WorkflowHistoryService.php | immutable idempotent append
+→ OutboxWorkflowCompletionHandler.php | completed() — one workflow.completed envelope
+
+================================================================================
+PHASE 3F-2 — ENTERPRISE NOTIFICATION CENTER
+================================================================================
+
+GET /admin/notifications
+→ Modules/Notification/routes/web.php | admin.notifications.index | auth + verified + notification.view
+→ NotificationCenterController.php | index()
+→ NotificationPolicy.php | authorize(user, company, notification.view)
+→ QueryBusInterface.php | ask(NotificationInboxQuery)
+→ NotificationInboxHandler.php | handle()
+→ NotificationReadRepository.php | inbox(companyId, userId, filters)
+→ NotificationCenterViewModel.php | items + unreadCount + pagination
+→ notification::inbox | recipient-only read/unread cards
+
+POST /admin/notifications/{message}/read
+→ NotificationCenterRequest.php | validated company context
+→ NotificationCenterController.php | markRead()
+→ CommandBusInterface.php | dispatch(MarkNotificationReadCommand)
+→ MarkNotificationReadHandler.php | handle()
+→ NotificationReadStateService.php | mark() + recipient ownership + transaction
+→ notification_read_states | insertOrIgnore checksum
+→ Redirect + success feedback
+
+POST /admin/notifications/deliveries/{delivery}/retry
+→ notification.retry middleware + NotificationPolicy
+→ NotificationCenterController.php | retry()
+→ RetryNotificationDeliveryCommand/Handler
+→ NotificationDeliveryService.php | retry() → delivery row lock → bounded attempt
+→ channel sender | DatabaseNotificationSender OR BroadcastNotificationSender OR MailNotificationSender
+→ notification_delivery_attempts | append-only result/checksum
+→ notification_deliveries | channel-local terminal status
+
+Workflow notification integration
+→ WorkflowExecutionService.php / WorkflowTaskService.php | task assigned/escalated/rejected
+→ WorkflowNotificationOutboxService.php | emit() safe event in workflow transaction
+→ workflow_outbox | unpublished immutable request
+→ NotificationServiceProvider.php | schedule notification:consume-workflow-outbox
+→ ConsumeWorkflowNotificationOutboxCommand.php | safe payload normalization
+→ QueueNotificationData.php | immutable message request
+→ NotificationDeliveryService.php | queue()
+→ notification_messages + notification_recipients + one delivery intent per channel
+→ sender → attempt history → workflow_outbox.published_at
+
+Template flow
+→ POST /admin/notifications/templates
+→ CreateNotificationTemplateCommand/Handler
+→ NotificationTemplateService.php | create()
+→ notification_templates + notification_template_versions(draft checksum)
+→ POST /admin/notifications/templates/{template}/publish
+→ PublishNotificationTemplateCommand/Handler
+→ NotificationTemplateService.php | publish() + lockForUpdate()
+→ immutable published version pinned by future notification_messages
+PHASE 3F-3 — IAM GOVERNANCE FILE FLOW
+GET /admin/iam → Modules/Iam/routes/web.php|admin.iam.dashboard → IamRequest|companyId → IamController|dashboard → QueryBus|ask → IamDashboardQuery → IamDashboardHandler|handle → IamReadRepository|dashboard → dashboard.blade.php
+POST /admin/iam/requests → IamRequest|entitlementItems → IamController|store → CommandBus|dispatch → CreateAccessRequestCommand → CreateAccessRequestHandler|handle → IamGovernanceService|create → iam_access_requests/items → governance history
+POST /admin/iam/requests/{request}/approve → IamController|transition → ApproveAccessRequestCommand → ApproveAccessRequestHandler → IamGovernanceService|transition → maker-checker → history + iam_outbox
+POST /admin/iam/requests/{request}/provision → ProvisionAccessRequestCommand → ProvisionAccessRequestHandler → IamGovernanceService|provision → SegregationOfDutiesService|assertProvisionable → AccessProvisioningAdapterInterface → SpatieAccessProvisioningAdapter|provision → iam_access_assignments → history/outbox
+POST /admin/iam/assignments/{assignment}/revoke → RevokeAccessAssignmentCommand → IamGovernanceService|revoke → SpatieAccessProvisioningAdapter|revoke → immutable history/outbox
+POST /admin/iam/reviews → IamController|reviewStore → CreateAccessReviewCampaignCommand → AccessReviewService|create → persisted User/Spatie/IAM snapshot → iam_access_reviews/items
+POST /admin/iam/reviews/{review}/items/{item}/decide → DecideAccessReviewItemCommand → AccessReviewService|decide → version lock → decision/checksum/history
+POST /admin/iam/reviews/{review}/complete → CompleteAccessReviewCampaignCommand → AccessReviewService|complete → persisted snapshot → adapter revoke → immutable iam_certifications → outbox
+workflow_outbox completed/rejected → iam:consume-workflow → CompleteWorkflowAccessRequestCommand|RejectWorkflowAccessRequestCommand → IamGovernanceService → provision|reject
+employee_lifecycle_outbox terminated/transferred → iam:consume-employee-lifecycle → RevokeAccessAssignmentCommand|CreateAccessReviewCampaignCommand → IAM service
+iam_outbox → iam:consume-notifications → QueueNotificationCommand → Notification Center
+Process race consumer flow: two workers select one source outbox ID → transaction re-check null checkpoint + lockForUpdate → one worker dispatches Command Bus → IAM request/review/assignment → Spatie adapter → history/outbox → source checkpoint; second worker observes checkpoint and exits without mutation.
+Initial browser audit → Chrome 151 present without automation driver → authorized dev-only playwright-core installation → no browser binary download → exact test flow below; IAM backend unchanged.
+Exact browser flow → guarded testing environment → iam:browser-fixture → local testing server → playwright-core → existing Google Chrome executable → fixture login route → eight IAM routes at 1280×800 → new context → eight IAM routes at 390×844 → viewport/overflow/console/responsive assertions → screenshots → browser close → fixture cleanup → server stop. Result: COMPLETED.
+ENTERPRISE INTEGRATION HUB
+POST /admin/integrations/outbound > IntegrationRequest.php|validated payload > IntegrationController.php|queue() > CommandBusInterface|dispatch() > QueueIntegrationMessageCommand.php > QueueIntegrationMessageHandler.php|handle() > IntegrationHubService.php|queue() > integration_outbound_messages > IntegrationHubService.php|history() > integration_histories + integration_outbox > RedirectResponse.
+POST /api/integrations/webhooks/{company}/{connection}/{provider} > IntegrationController.php|webhook() > ReceiveWebhookCommand.php > ReceiveWebhookHandler.php|handle() > IntegrationHubService.php|receiveWebhook() > HMAC integrity > integration_webhook_receipts unique guard > integration_inbound_messages > JsonResponse 202.
+POST /admin/integrations/dead-letters/{id}/replay > IntegrationController.php|replay() > ReplayDeadLetterCommand.php > ReplayDeadLetterHandler.php|handle() > IntegrationHubService.php|replay() > dead-letter lock/idempotency key > outbound queued > history.
+GET /admin/integrations/* > IntegrationController.php|page() > QueryBusInterface|ask() > IntegrationPageQuery.php > IntegrationPageHandler.php|handle() > IntegrationReadRepository.php|page() > IntegrationPageViewModel.php > hub.blade.php.
+ERP BRIDGE > erp_exports|persisted artifact + export_version + checksum > QueueErpExportIntegrationCommand.php > QueueErpExportIntegrationHandler.php|handle() > EnterpriseDomainIntegrationBridge.php|queueErpExport() > IntegrationHubService.php|queue() > one integration_outbound_messages row.
+GOVERNMENT BRIDGE > government_tax_filings + government_tax_filing_documents|persisted XML evidence > QueueGovernmentFilingIntegrationCommand.php > QueueGovernmentFilingIntegrationHandler.php|handle() > EnterpriseDomainIntegrationBridge.php|queueGovernmentFiling() > IntegrationHubService.php|queue() > one integration_outbound_messages row.
+Security posture hiện tại:
+Đã có đủ lớp:
+Authentication
+      |
+Authorization
+      |
+Tenant Isolation
+      |
+Credential Boundary
+      |
+Payload Privacy
+      |
+Audit History
+Audit Platform sẽ trở thành lớp quan sát toàn hệ thống:
+Sau khi có:
+
+Workflow
+Notification
+IAM
+Integration Hub
+Luồng nên làm:
+All Domains
+    |
+    |
+Domain Events / Outbox
+    |
+    v
+Enterprise Audit Platform
+    |
+    +---- Audit Timeline
+    |
+    +---- Change History
+    |
+    +---- Actor Tracking
+    |
+    +---- Before/After Snapshot
+    |
+    +---- Compliance Report
+    |
+    +---- Security Investigation
+
+PHASE 3F-5 — FILE CONNECTION FLOWS
+
+Domain outbox/event (Workflow|Notification|IAM|Integration|Employee|Payroll)
+→ WorkflowAuditConsumer|NotificationAuditConsumer|IamAuditConsumer|IntegrationAuditConsumer|EmployeeAuditConsumer|PayrollAuditConsumer::consume(int $sourceRowId)
+→ AbstractSourceAuditConsumer::consume()|lock source/company + claim audit_source_checkpoints
+→ AuditRecorderInterface::record
+→ EnterpriseAuditService::record
+→ audit_events + audit_event_snapshots + audit_outbox.
+
+GET /admin/audit/*
+→ AuditRequest::companyId/search
+→ AuditController::{dashboard|timeline|event|actors|resources|exports|retention}
+→ QueryBusInterface::ask(AuditPageQuery)
+→ AuditPageHandler::handle
+→ AuditReadRepository::page
+→ AuditPageViewModel
+→ Modules/Audit/resources/views/hub.blade.php.
+
+POST /admin/audit/exports
+→ AuditRequest::exportFormat
+→ AuditController::createExport
+→ CommandBusInterface::dispatch(CreateAuditExportCommand)
+→ CreateAuditExportHandler::handle
+→ AuditExportService::create
+→ cursor/generator rows → CSV stream hoặc StreamingPdfWriter::write
+→ private CSV/PDF artifact + audit_exports + audit_outbox.
+
+GET /admin/audit/exports/{export}/download
+→ AuditController::download
+→ AuditExportService::verifiedArtifact
+→ exists/MIME/size/SHA-256/signature check
+→ audit_access_logs success|blocked
+→ Response without storage path.
+
+POST /admin/audit/retention
+→ AuditController::applyRetention
+→ ApplyRetentionPolicyCommand/Handler
+→ AuditRetentionService::apply
+→ audit_retention_policies
+
+POST /admin/audit/retention/archive
+→ AuditController::archiveRange
+→ ArchiveAuditRangeCommand(rangeStart, rangeEnd)
+→ ArchiveAuditRangeHandler::handle
+→ AuditRetentionService::archive
+→ streamed immutable JSONL + audit_archive_artifacts + AuditRangeArchived event; audit_events không bị update/delete.
+→ EnterpriseAuditService append-only retention_policy_applied evidence.

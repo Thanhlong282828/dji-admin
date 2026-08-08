@@ -1,0 +1,1 @@
+{"name":"schema/iam","autoload":{"psr-4":{"Modules\\Iam\\":"app/"}}}

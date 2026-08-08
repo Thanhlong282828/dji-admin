@@ -1,0 +1,12 @@
+FEATURE MAP — ADMIN
+CRUD + MVC: app/Models/Article.php, app/Http/Controllers/ArticleController.php, resources/views/admin/articles/*
+Validation: app/Http/Requests/StoreArticleRequest.php
+Public microservice API: routes/api.php, app/Http/Controllers/Api/ArticleController.php, app/Http/Resources/ArticleResource.php
+Dashboard chart-ready metrics: routes/web.php, resources/views/admin/dashboard/index.blade.php
+Cloudflare images: articles.hero_image; production R2 credentials documented in .env.example
+Modules/CQRS shell: app/Modules/Content/{Domain,Application,Infrastructure,Presentation}
+HRM enterprise schema: database/migrations/2026_07_23_000200_create_hrm_core_schema.php
+23 domain requirements map into Core HR, Talent Management, Analytics & Platform; see db.txt for physical tables.
+Tests: tests/Feature/ArticleApiTest.php. CI: .github/workflows/ci.yml
+Docker/nginx/php-fpm/redis/mailpit/healthcheck: Dockerfile, compose.yml, docker/nginx/default.conf
+Planned integrations are recorded in README; packages must be version-checked against Laravel 13 before activation.

@@ -1,0 +1,1 @@
+@extends('layouts.admin') @section('title','Thêm vị trí') @section('content')<form method="POST" action="{{ route('admin.job-positions.store') }}">@include('organization::job-positions.partials.form')</form>@endsection

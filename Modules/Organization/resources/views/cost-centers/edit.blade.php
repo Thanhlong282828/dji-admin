@@ -1,0 +1,1 @@
+@extends('layouts.admin') @section('title','Sửa trung tâm chi phí') @section('content')<form method="POST" action="{{ route('admin.cost-centers.update',[$item['id'],'company_id'=>$companyId]) }}">@include('organization::cost-centers.partials.form')</form>@endsection

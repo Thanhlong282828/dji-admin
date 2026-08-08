@@ -1,0 +1,7 @@
+# Enterprise Workflow Audit — Phase 3F-1
+
+Existing approval logic is domain-owned and must remain authoritative. Employee Lifecycle and Attendance use direct transition services; Leave has submit/approve/reject/cancel/withdraw; Performance reviews and Succession are staged; Payroll Run, Payment, Accounting, Adjustment, Annual Tax, ERP and Government Filing implement row locks, maker-checker and explicit reject reasons. HR Governance uses open/reviewed/approved/resolved.
+
+Hard-coded routing exists mainly as permission checks and actor comparisons inside domain services. Multi-stage flows exist in Payroll Adjustment, Annual Tax, ERP/Government Filing and HR Governance. Reject reason is mandatory in Attendance, Leave, Payroll, Adjustment, Annual Tax and filing flows. SLA/escalation is absent across these contexts. The engine introduced here orchestrates assignments, decisions and SLA only; it never writes those domain tables.
+
+Completion hardening verified deterministic snapshot-based conditional routing, company-scoped specific/manager/permission/role actor resolution, idempotent SLA escalation, the canonical lock order, seven-capability HTTP security and append-only outbox behavior. MySQL process tests cover all seven required race pairs. Browser evidence was captured at exact 1280×800 and 390×844 viewports, including a real claim/approve path; the testing fixture was then removed.

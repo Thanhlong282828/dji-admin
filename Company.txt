@@ -1,0 +1,2377 @@
+Bạn là Senior Laravel Architect và Senior Backend Engineer.
+
+Hãy tiếp tục làm việc trực tiếp trong project Laravel Admin hiện có:
+
+```text
+~/Desktop/laraveldji/admin
+```
+
+Project hiện đã có database MySQL:
+
+```text
+schema_admin
+```
+
+Database hiện có 44 bảng, nhưng phần lớn module Laravel mới chỉ là skeleton:
+
+* Có thư mục module.
+* Có migration hoặc bảng database.
+* Có một số model/controller/view rỗng.
+* Chưa có đầy đủ business logic.
+* Chưa có CQRS chạy thật.
+* Chưa có route hoàn chỉnh.
+* Chưa có menu dẫn đến module.
+* Chưa có Policy và authorization đầy đủ.
+* Chưa có CRUD thật.
+* Chưa có realtime thật.
+* Chưa có test đầy đủ.
+* Chưa có dữ liệu seed nghiệp vụ.
+* Một số bảng chưa được liên kết đầy đủ với `users`.
+* User chưa có hồ sơ quản trị đầy đủ, avatar/thumbnail và luồng phân quyền quản trị hoàn chỉnh.
+
+Nhiệm vụ là audit, thiết kế và triển khai logic nghiệp vụ đầy đủ dựa trên schema hiện tại.
+
+Không được chỉ tạo file rỗng để báo hoàn thành.
+
+---
+
+# I. QUY TẮC BẮT BUỘC
+
+## 1. Không tạo lại project
+
+Không được:
+
+```bash
+laravel new
+composer create-project
+php artisan migrate:fresh
+php artisan db:wipe
+```
+
+Không xóa dữ liệu hiện tại.
+
+Không chuyển database sang SQLite.
+
+Không chỉnh trực tiếp migration đã chạy.
+
+Mọi thay đổi database phải dùng migration mới.
+
+## 2. Database bắt buộc
+
+```env
+DB_CONNECTION=mysql
+DB_DATABASE=schema_admin
+```
+
+DBeaver chỉ là công cụ quản trị database, không phải database engine.
+
+Trước khi làm phải kiểm tra:
+
+```bash
+cd ~/Desktop/laraveldji/admin
+
+php artisan about
+php artisan module:list
+php artisan route:list
+php artisan migrate:status
+
+php artisan tinker --execute="
+dump(config('database.default'));
+dump(DB::connection()->getDatabaseName());
+"
+```
+
+Kết quả bắt buộc:
+
+```text
+mysql
+schema_admin
+```
+
+Nếu không đúng thì dừng và sửa cấu hình trước.
+
+## 3. Không tạo skeleton hàng loạt
+
+Không được chỉ chạy:
+
+```bash
+php artisan module:make
+php artisan make:controller
+php artisan make:model
+```
+
+rồi để nội dung rỗng.
+
+Mỗi module chỉ được đánh dấu hoàn thành khi:
+
+* Route chạy thật.
+* Controller dispatch CQRS thật.
+* Handler có logic.
+* Repository query thật.
+* View có dữ liệu thật.
+* Menu bấm được.
+* Permission chặn được URL.
+* CRUD hoạt động.
+* Test chạy được.
+* Có validation.
+* Có activity log.
+* Có event.
+* Có dữ liệu seed phù hợp.
+* Không có nút `href="#"` giả.
+
+---
+
+# II. AUDIT TOÀN BỘ PROJECT
+
+Trước khi sửa, hãy audit tất cả file hiện tại.
+
+Chạy:
+
+```bash
+find app Modules routes resources database tests .github docker \
+-type f 2>/dev/null | sort > storage/logs/project-files-before.txt
+```
+
+Kiểm tra từng module hiện có:
+
+```bash
+php artisan module:list
+```
+
+Với từng module, mở và kiểm tra thực tế:
+
+* Routes.
+* Controller.
+* Form Request.
+* Model.
+* Enum.
+* DTO.
+* Command.
+* Command Handler.
+* Query.
+* Query Handler.
+* Command Bus.
+* Query Bus.
+* Repository interface.
+* Repository implementation.
+* Service Provider.
+* Policy.
+* Permission.
+* Seeder.
+* Factory.
+* Event.
+* Listener.
+* Job.
+* Notification.
+* Observer.
+* API Resource.
+* Blade.
+* TypeScript/JavaScript.
+* Menu.
+* Dashboard.
+* Unit Test.
+* Feature Test.
+
+Không được kết luận module hoàn chỉnh chỉ vì file có tồn tại.
+
+Tạo báo cáo audit:
+
+```text
+docs/module-audit-before.md
+```
+
+Mỗi module phải được phân loại:
+
+```text
+NOT_STARTED
+SKELETON
+PARTIAL
+FUNCTIONAL
+TESTED
+PRODUCTION_READY
+```
+
+---
+
+# III. KIẾN TRÚC BẮT BUỘC
+
+Project phải tiếp tục theo:
+
+```text
+Modular Monolith
+CQRS
+Repository Pattern
+Domain Events
+Policy Authorization
+Redis Cache
+Queue
+Laravel Reverb
+```
+
+Không chuyển thành microservices.
+
+Không dùng Event Sourcing.
+
+Không tạo một `Service` khổng lồ chứa toàn bộ CRUD.
+
+---
+
+# IV. CẤU TRÚC CQRS BẮT BUỘC
+
+Mỗi module nghiệp vụ phải có cấu trúc tương đương:
+
+```text
+Modules/{Module}/
+├── App/
+│   ├── Application/
+│   │   ├── Commands/
+│   │   ├── Queries/
+│   │   ├── DTOs/
+│   │   ├── ViewModels/
+│   │   └── Services/
+│   ├── Domain/
+│   │   ├── Models/
+│   │   ├── Enums/
+│   │   ├── Events/
+│   │   ├── Exceptions/
+│   │   ├── Policies/
+│   │   └── Repositories/
+│   ├── Infrastructure/
+│   │   ├── Persistence/
+│   │   ├── Repositories/
+│   │   ├── Integrations/
+│   │   └── Providers/
+│   └── Presentation/
+│       ├── Http/
+│       │   ├── Controllers/
+│       │   ├── Requests/
+│       │   └── Resources/
+│       └── ViewModels/
+├── Database/
+│   ├── Factories/
+│   ├── Migrations/
+│   └── Seeders/
+├── Resources/
+│   ├── views/
+│   ├── js/
+│   └── lang/
+├── Routes/
+└── Tests/
+```
+
+Điều chỉnh theo convention thật của project, nhưng phải giữ đúng trách nhiệm.
+
+## Luồng ghi
+
+```text
+Route
+→ Form Request
+→ Controller
+→ Command Bus
+→ Command
+→ Command Handler
+→ Domain Service nếu cần
+→ Write Repository
+→ Eloquent Model
+→ Domain Event
+→ Listener
+→ Job nếu cần
+→ Cache invalidation
+→ Activity Log
+→ Response
+```
+
+## Luồng đọc
+
+```text
+Route
+→ Controller
+→ Query Bus
+→ Query
+→ Query Handler
+→ Read Repository
+→ DTO/ViewModel
+→ Blade hoặc API Resource
+```
+
+## Controller bị cấm gọi trực tiếp
+
+Không được dùng trong Controller:
+
+```php
+Model::query();
+Model::create();
+Model::find();
+DB::table();
+DB::transaction();
+RepositoryInterface;
+```
+
+Controller chỉ:
+
+* Nhận Request.
+* Authorize.
+* Tạo Command hoặc Query.
+* Dispatch Bus.
+* Trả response.
+
+## Command Bus và Query Bus
+
+Phải có interface và implementation thật:
+
+```text
+CommandBusInterface
+QueryBusInterface
+```
+
+Nếu hiện tại đã có thì tái sử dụng, không tạo bản trùng.
+
+Phải bind trong Service Container.
+
+---
+
+# V. DANH SÁCH DATABASE HIỆN TẠI
+
+Database hiện có 44 bảng:
+
+```text
+users
+password_reset_tokens
+sessions
+roles
+permissions
+model_has_roles
+model_has_permissions
+role_has_permissions
+migrations
+activity_log
+
+cache
+cache_locks
+jobs
+job_batches
+failed_jobs
+
+articles
+
+companies
+cost_centers
+organization_units
+job_positions
+
+employees
+employee_assignments
+employee_histories
+employee_credentials
+employment_contracts
+data_consents
+employee_documents
+
+recruitment_requisitions
+candidates
+applications
+onboarding_cases
+
+work_shifts
+attendance_records
+leave_types
+leave_requests
+payroll_runs
+payroll_items
+
+performance_cycles
+performance_goals
+learning_courses
+learning_enrollments
+
+workflow_instances
+workflow_actions
+integration_logs
+```
+
+Không tạo bảng trùng tên.
+
+Phải đọc migration thật trước khi thiết kế Model và Relation.
+
+---
+
+# VI. SỬA CÁC KHOẢNG TRỐNG DATABASE
+
+Không sửa migration cũ.
+
+Tạo migration mới để bổ sung các thiếu sót an toàn.
+
+## 1. sessions.user_id
+
+Kiểm tra dữ liệu và engine trước khi thêm FK:
+
+```text
+sessions.user_id
+→ users.id
+```
+
+Quy tắc delete:
+
+```text
+nullOnDelete
+```
+
+Chỉ thêm nếu không phá dữ liệu hiện tại.
+
+## 2. job_positions.company_id
+
+Thêm FK:
+
+```text
+job_positions.company_id
+→ companies.id
+```
+
+Phải kiểm tra dữ liệu orphan trước khi thêm.
+
+## 3. Unique indexes
+
+Bổ sung nếu chưa tồn tại:
+
+```text
+work_shifts(company_id, code)
+leave_types(company_id, code)
+learning_courses(company_id, code)
+```
+
+Không tạo index trùng.
+
+## 4. User profile
+
+Không nhồi toàn bộ hồ sơ nhân viên vào bảng `users`.
+
+`users` chỉ là tài khoản xác thực.
+
+Tạo migration mới bổ sung các trường quản trị hợp lý nếu chưa có:
+
+```text
+uuid
+avatar_url nullable
+thumbnail_url nullable
+phone nullable
+status enum(active, inactive, locked)
+last_login_at nullable
+last_login_ip nullable
+locale default vi
+timezone default Asia/Ho_Chi_Minh
+```
+
+Nếu hệ thống đã dùng Media/R2 thì ưu tiên:
+
+```text
+avatar_media_id nullable
+```
+
+Thay vì lưu file trực tiếp.
+
+Không lưu ảnh base64 trong database.
+
+Không bắt buộc User phải là Employee.
+
+Một User có thể:
+
+* Là tài khoản quản trị hệ thống.
+* Liên kết với một Employee.
+* Không có Employee.
+* Bị khóa mà hồ sơ Employee vẫn còn.
+
+Quan hệ:
+
+```text
+User hasOne Employee
+Employee belongsTo User nullable
+```
+
+## 5. Company thiếu trường giao diện
+
+Không thay đổi bảng nếu chưa thật sự cần.
+
+Nếu logic Company cần thêm:
+
+```text
+short_name
+email
+phone
+website
+address
+legal_representative
+description
+logo_url hoặc logo_media_id
+deleted_at
+created_by
+updated_by
+```
+
+thì tạo migration bổ sung mới.
+
+Phải cân nhắc dữ liệu hiện tại và nullable hợp lý.
+
+## 6. Soft delete
+
+Không tự động thêm `deleted_at` cho tất cả bảng.
+
+Chỉ thêm cho các master data hoặc hồ sơ cần khôi phục, ví dụ:
+
+```text
+companies
+organization_units
+job_positions
+employees
+candidates
+learning_courses
+```
+
+Không dùng soft delete tùy tiện cho:
+
+```text
+payroll_items
+workflow_actions
+integration_logs
+attendance_records đã khóa
+activity_log
+```
+
+Các bản ghi audit và tài chính phải ưu tiên bất biến hoặc khóa trạng thái.
+
+---
+
+# VII. USER, ROLE VÀ PERMISSION
+
+Module User hiện phải được triển khai đầy đủ.
+
+## 1. User Management
+
+Phải có:
+
+* Danh sách user.
+* Tìm kiếm.
+* Filter theo trạng thái.
+* Filter theo role.
+* Xem chi tiết.
+* Tạo user.
+* Sửa user.
+* Khóa user.
+* Mở khóa user.
+* Gán role.
+* Gán permission trực tiếp.
+* Thu hồi role.
+* Thu hồi permission.
+* Reset mật khẩu.
+* Gửi email đặt lại mật khẩu.
+* Xác minh email thủ công nếu có quyền.
+* Xem lần đăng nhập cuối.
+* Xem activity log.
+* Avatar/thumbnail.
+* Liên kết hoặc hủy liên kết Employee.
+* Không hiển thị password hash.
+* Không cho user tự xóa tài khoản Super Admin cuối cùng.
+
+## 2. Avatar và thumbnail
+
+Thiết kế abstraction:
+
+```text
+MediaStorageInterface
+```
+
+Implementation:
+
+```text
+CloudflareR2Storage
+LocalStorage
+```
+
+Tính năng:
+
+* Upload avatar.
+* Validate MIME.
+* Validate dung lượng.
+* Resize ảnh.
+* Tạo thumbnail.
+* Xóa file cũ khi thay ảnh.
+* Signed URL nếu bucket private.
+* Fallback avatar.
+* Không tin extension từ client.
+* Không lưu base64.
+
+Nếu Cloudflare R2 chưa cấu hình, dùng local storage development nhưng giữ interface.
+
+## 3. Role Management
+
+Phải có:
+
+* Danh sách role.
+* Tạo role.
+* Sửa role.
+* Xóa role.
+* Clone role.
+* Gán permission theo module.
+* Chọn tất cả permission của module.
+* So sánh role.
+* Xem user thuộc role.
+* Không xóa role hệ thống đang được bảo vệ.
+* Không xóa Super Admin role.
+* Không làm mất Super Admin cuối cùng.
+
+## 4. Permission Management
+
+408 permission hiện có phải được nhóm theo module/action.
+
+Ví dụ:
+
+```text
+company.view
+company.create
+company.update
+company.delete
+company.restore
+company.export
+company.import
+company.audit
+```
+
+Không hard-code role trong Controller:
+
+```php
+if ($user->role === 'admin')
+```
+
+Phải dùng:
+
+```php
+$user->can()
+Gate::authorize()
+$this->authorize()
+Policy
+permission middleware
+@can
+```
+
+## 5. Route authorization
+
+Mọi route nghiệp vụ phải có:
+
+```text
+auth
+```
+
+và quyền tương ứng qua:
+
+* Middleware permission.
+* Policy.
+* Hoặc cả hai.
+
+`@can` trong Blade chỉ để ẩn nút, không được xem là bảo vệ route.
+
+Chạy kiểm tra:
+
+```bash
+php artisan route:list -v
+```
+
+---
+
+# VIII. MODULE COMPANY
+
+Triển khai đầy đủ:
+
+* List.
+* Search.
+* Filter active/inactive.
+* Create.
+* Show.
+* Edit.
+* Update.
+* Activate.
+* Deactivate.
+* Soft delete nếu migration đã bổ sung.
+* Restore.
+* Logo.
+* Company dashboard.
+* Cost center summary.
+* Organization summary.
+* Employee count.
+* Payroll run count.
+* Audit log.
+
+CQRS Commands:
+
+```text
+CreateCompanyCommand
+UpdateCompanyCommand
+ChangeCompanyStatusCommand
+DeleteCompanyCommand
+RestoreCompanyCommand
+UploadCompanyLogoCommand
+```
+
+CQRS Queries:
+
+```text
+GetCompanyListQuery
+GetCompanyDetailQuery
+GetCompanyEditQuery
+GetCompanyDashboardQuery
+```
+
+Permissions:
+
+```text
+company.view
+company.create
+company.update
+company.delete
+company.restore
+company.change-status
+company.audit
+company.export
+company.import
+```
+
+---
+
+# IX. MODULE ORGANIZATION
+
+Bao gồm:
+
+```text
+companies
+cost_centers
+organization_units
+job_positions
+```
+
+Tính năng:
+
+* Cây tổ chức.
+* Công ty.
+* Chi nhánh.
+* Khối.
+* Phòng.
+* Ban.
+* Section.
+* Team.
+* Parent-child.
+* Không cho tạo vòng lặp cây.
+* Không cho parent thuộc company khác.
+* Không cho xóa đơn vị còn đơn vị con.
+* Không cho xóa đơn vị đang có nhân viên.
+* Chuyển đơn vị.
+* Effective date.
+* Headcount limit.
+* Headcount actual.
+* Vacancy.
+* Cost center.
+* Budget.
+* Position.
+* Job grade.
+* Approved headcount.
+* Critical position.
+* Export sơ đồ tổ chức.
+* API dữ liệu cây.
+
+Commands tối thiểu:
+
+```text
+CreateOrganizationUnitCommand
+UpdateOrganizationUnitCommand
+MoveOrganizationUnitCommand
+DeleteOrganizationUnitCommand
+
+CreateCostCenterCommand
+UpdateCostCenterCommand
+DeleteCostCenterCommand
+
+CreateJobPositionCommand
+UpdateJobPositionCommand
+DeleteJobPositionCommand
+```
+
+Queries tối thiểu:
+
+```text
+GetOrganizationTreeQuery
+GetOrganizationUnitDetailQuery
+GetCostCenterListQuery
+GetJobPositionListQuery
+GetHeadcountReportQuery
+```
+
+---
+
+# X. MODULE EMPLOYEE
+
+Bao gồm:
+
+```text
+employees
+employee_assignments
+employee_histories
+employee_credentials
+employment_contracts
+data_consents
+employee_documents
+```
+
+Tính năng Employee:
+
+* Danh sách.
+* Search theo mã, tên, email, điện thoại.
+* Filter company.
+* Filter unit.
+* Filter position.
+* Filter manager.
+* Filter status.
+* Filter employment type.
+* Create.
+* Show profile.
+* Edit.
+* Soft delete.
+* Restore.
+* Avatar.
+* Personal information.
+* Work information.
+* Emergency contacts.
+* Dependants.
+* Address.
+* Assignment chính.
+* Assignment kiêm nhiệm.
+* Assignment tạm thời.
+* Manager hierarchy.
+* Transfer.
+* Promotion.
+* Salary change history.
+* Discipline history.
+* Award history.
+* Employment status change.
+* Credentials.
+* Certificates.
+* Expiration alerts.
+* Contracts.
+* Documents.
+* Consent.
+* Timeline.
+* Activity log.
+
+Quy tắc:
+
+* Employee code unique.
+* User liên kết nullable.
+* Không liên kết một User với nhiều Employee nếu business rule không cho phép.
+* Manager không được là chính Employee đó.
+* Không tạo vòng lặp manager hierarchy.
+* Assignment phải thuộc cùng Company.
+* Allocation tổng không vượt 100% nếu không có rule cho phép.
+* Assignment primary chỉ có một bản ghi active tại một thời điểm.
+* Identity number phải mã hóa application-level.
+* Identity hash dùng tìm kiếm trùng.
+* Không log plaintext identity number.
+* Không trả dữ liệu nhạy cảm trong API khi không có permission.
+
+Commands tối thiểu:
+
+```text
+CreateEmployeeCommand
+UpdateEmployeeCommand
+DeleteEmployeeCommand
+RestoreEmployeeCommand
+ChangeEmployeeStatusCommand
+LinkEmployeeUserCommand
+UnlinkEmployeeUserCommand
+UploadEmployeeAvatarCommand
+
+CreateEmployeeAssignmentCommand
+UpdateEmployeeAssignmentCommand
+EndEmployeeAssignmentCommand
+TransferEmployeeCommand
+PromoteEmployeeCommand
+
+CreateEmployeeCredentialCommand
+UpdateEmployeeCredentialCommand
+DeleteEmployeeCredentialCommand
+
+CreateEmploymentContractCommand
+UpdateEmploymentContractCommand
+SubmitContractApprovalCommand
+ActivateContractCommand
+TerminateContractCommand
+
+UploadEmployeeDocumentCommand
+GrantDataConsentCommand
+WithdrawDataConsentCommand
+```
+
+Queries tối thiểu:
+
+```text
+GetEmployeeListQuery
+GetEmployeeProfileQuery
+GetEmployeeEditQuery
+GetEmployeeTimelineQuery
+GetEmployeeAssignmentsQuery
+GetEmployeeContractsQuery
+GetEmployeeCredentialsQuery
+GetExpiringDocumentsQuery
+```
+
+---
+
+# XI. MODULE RECRUITMENT
+
+Bao gồm:
+
+```text
+recruitment_requisitions
+candidates
+applications
+```
+
+Tính năng:
+
+* Recruitment requisition.
+* Approval.
+* Open.
+* Pause.
+* Fill.
+* Cancel.
+* Candidate talent pool.
+* Duplicate detection.
+* Resume upload.
+* Consent.
+* Application pipeline.
+* Stage change.
+* Score.
+* Evaluation.
+* Interview notes.
+* Offer.
+* Hire.
+* Reject.
+* Convert candidate thành Employee.
+* Audit timeline.
+* Kanban pipeline.
+* Search/filter.
+* Export.
+
+Không cho:
+
+* Một candidate ứng tuyển cùng requisition hai lần.
+* Hired candidate nhưng chưa có Employee nếu command conversion thất bại.
+* Chuyển stage sai thứ tự nếu workflow không cho phép.
+
+---
+
+# XII. MODULE ONBOARDING
+
+Dựa vào:
+
+```text
+onboarding_cases
+```
+
+Tính năng:
+
+* Tạo onboarding case.
+* Gán buddy.
+* Checklist.
+* Provisioning.
+* Start date.
+* Probation review.
+* Complete.
+* Cancel.
+* Dashboard onboarding.
+* Deadline alerts.
+* Realtime notification.
+* Activity timeline.
+
+Checklist không chỉ là JSON hiển thị thô.
+
+Phải có DTO/ViewModel để render các mục checklist.
+
+---
+
+# XIII. MODULE SHIFT VÀ ATTENDANCE
+
+Bao gồm:
+
+```text
+work_shifts
+attendance_records
+```
+
+## Shift
+
+* Create.
+* Edit.
+* Delete nếu chưa được dùng.
+* Cross midnight.
+* Break rules.
+* Late rules.
+* Overtime rules.
+* Grace period.
+* Unique company/code.
+* Assign shift.
+
+## Attendance
+
+* Check-in.
+* Check-out.
+* Manual adjustment.
+* Import.
+* Export.
+* Lock.
+* Unlock có permission cao.
+* Worked hours.
+* Overtime hours.
+* Late minutes.
+* Early leave.
+* Attendance source.
+* Location.
+* Duplicate prevention.
+* Realtime dashboard.
+* Approval nếu adjustment.
+* Audit log.
+
+Quy tắc:
+
+* Một employee chỉ có một attendance record mỗi ngày theo schema hiện tại.
+* Không check-out trước check-in.
+* Không sửa attendance đã khóa nếu không có quyền unlock.
+* Cross-midnight phải tính đúng.
+* Không tính lương trực tiếp trong Controller.
+* Attendance calculation dùng Domain Service.
+* Tất cả thời gian lưu timezone nhất quán.
+
+Commands tối thiểu:
+
+```text
+CheckInCommand
+CheckOutCommand
+CreateAttendanceCommand
+AdjustAttendanceCommand
+ApproveAttendanceAdjustmentCommand
+RejectAttendanceAdjustmentCommand
+LockAttendanceCommand
+UnlockAttendanceCommand
+ImportAttendanceCommand
+```
+
+Queries:
+
+```text
+GetAttendanceListQuery
+GetAttendanceDetailQuery
+GetAttendanceDashboardQuery
+GetDailyAttendanceQuery
+GetMonthlyAttendanceQuery
+GetAttendanceExceptionsQuery
+```
+
+---
+
+# XIV. MODULE LEAVE
+
+Bao gồm:
+
+```text
+leave_types
+leave_requests
+```
+
+Tính năng:
+
+* Leave type.
+* Accrual policy.
+* Carry forward policy.
+* Paid/unpaid.
+* Create leave request.
+* Submit.
+* Approve.
+* Reject.
+* Cancel.
+* Manager inbox.
+* Calendar.
+* Overlap validation.
+* Weekend/holiday calculation.
+* Half day nếu policy cho phép.
+* Realtime notification.
+* Workflow integration.
+* Audit.
+
+Hiện chưa có `leave_balances`.
+
+Tạo migration mới và module logic cho:
+
+```text
+leave_balances
+```
+
+Cột đề xuất:
+
+```text
+id
+employee_id
+leave_type_id
+year
+opening_balance
+accrued
+used
+adjusted
+carried_forward
+remaining
+created_at
+updated_at
+unique(employee_id, leave_type_id, year)
+```
+
+Không lưu `remaining` nếu kiến trúc quyết định tính động; nếu lưu phải kiểm soát đồng bộ bằng transaction và lock.
+
+Tạo thêm nếu cần:
+
+```text
+leave_balance_transactions
+```
+
+để audit phát sinh phép.
+
+---
+
+# XV. MODULE PAYROLL
+
+Bao gồm:
+
+```text
+payroll_runs
+payroll_items
+```
+
+Tính năng:
+
+* Create payroll period.
+* Prevent overlapping period.
+* Import attendance.
+* Import overtime.
+* Calculate payroll.
+* Recalculate draft.
+* Review.
+* Approve.
+* Lock.
+* Mark paid.
+* Generate payslip.
+* Download payslip.
+* Payroll summary.
+* Employee breakdown.
+* Tax.
+* Insurance.
+* Deductions.
+* Allowance.
+* Bonus.
+* Audit.
+* Export bank transfer.
+* Export Excel.
+* PDF payslip.
+* Queue calculation.
+* Progress display.
+* Realtime status.
+
+Payroll phải có Domain Services:
+
+```text
+PayrollCalculationService
+GrossSalaryCalculator
+InsuranceCalculator
+PersonalIncomeTaxCalculator
+OvertimeCalculator
+DeductionCalculator
+NetSalaryCalculator
+```
+
+Công thức phải version hóa trong:
+
+```text
+payroll_runs.formula_version
+```
+
+Không hard-code toàn bộ công thức trong Controller hoặc Blade.
+
+Quy tắc:
+
+* Payroll approved/locked không được sửa trực tiếp.
+* Payroll item unique theo payroll run và employee.
+* Calculate dùng transaction.
+* Với dữ liệu lớn phải dùng batch/queue.
+* Không dùng float cho tiền.
+* Dùng decimal hoặc Money value object.
+* Không tự động rollback migration khi deploy lỗi.
+* Không log dữ liệu lương nhạy cảm cho người không có quyền.
+
+Hiện schema thiếu một số cấu phần payroll.
+
+Thiết kế migration bổ sung mới nếu thật sự cần:
+
+```text
+salary_components
+employee_salary_components
+payroll_adjustments
+payroll_approval_histories
+```
+
+Không tạo nếu logic có thể dùng `breakdown` JSON an toàn và có cấu trúc rõ ràng; phải giải thích lựa chọn.
+
+---
+
+# XVI. MODULE PERFORMANCE
+
+Bao gồm:
+
+```text
+performance_cycles
+performance_goals
+```
+
+Tính năng:
+
+* Create cycle.
+* Activate.
+* Calibration.
+* Close.
+* KPI.
+* OKR.
+* Competency.
+* Parent-child goals.
+* Weight validation.
+* Progress.
+* Self review.
+* Manager review.
+* Calibration.
+* Final score.
+* Dashboard.
+* Export.
+* Audit.
+* Realtime notifications.
+
+Quy tắc:
+
+* Tổng weight theo employee/cycle không vượt 100%.
+* Goal không được parent chính nó.
+* Không tạo vòng lặp goal.
+* Cycle closed không được sửa trừ quyền đặc biệt.
+
+---
+
+# XVII. MODULE LEARNING
+
+Bao gồm:
+
+```text
+learning_courses
+learning_enrollments
+```
+
+Tính năng:
+
+* Course CRUD.
+* Content.
+* Online/classroom/blended.
+* Budget.
+* Required positions.
+* Assign employees.
+* Bulk enrollment.
+* Progress.
+* Score.
+* Complete.
+* Fail.
+* Expire.
+* Certificate.
+* Expiration alerts.
+* Dashboard.
+* Export.
+* Notifications.
+
+---
+
+# XVIII. MODULE WORKFLOW
+
+Bao gồm:
+
+```text
+workflow_instances
+workflow_actions
+```
+
+Workflow engine phải hỗ trợ tối thiểu:
+
+* Leave approval.
+* Recruitment requisition approval.
+* Contract approval.
+* Payroll approval.
+* Attendance adjustment approval.
+
+Tính năng:
+
+* Definition snapshot.
+* Current step.
+* Pending.
+* Approve.
+* Reject.
+* Return.
+* Cancel.
+* Due date.
+* Escalation.
+* Actor validation.
+* Duplicate action protection.
+* Audit timeline.
+* Realtime notification.
+
+Không hard-code toàn bộ workflow trong từng Controller.
+
+Tạo abstraction:
+
+```text
+WorkflowEngineInterface
+WorkflowDefinitionResolver
+WorkflowActionService
+```
+
+---
+
+# XIX. MODULE INTEGRATION
+
+Dựa vào:
+
+```text
+integration_logs
+```
+
+Tính năng:
+
+* Danh sách connector.
+* Direction.
+* Correlation ID.
+* Retry.
+* Failure detail.
+* Redact secret.
+* Retry queue.
+* Exponential backoff.
+* Webhook log.
+* API synchronization log.
+* Filter.
+* Export.
+* Detail.
+* Permission.
+* Không hiển thị access token hoặc password trong metadata.
+
+---
+
+# XX. CMS ARTICLE
+
+Bảng hiện có:
+
+```text
+articles
+```
+
+Triển khai:
+
+* List.
+* Search.
+* Category filter.
+* Status filter.
+* Create.
+* Edit.
+* Preview.
+* Review.
+* Publish.
+* Archive.
+* Restore.
+* Featured.
+* Hero image.
+* SEO.
+* Author.
+* Slug.
+* Scheduled publish.
+* Activity log.
+* Realtime publish event.
+* Public API Resource.
+
+Trạng thái:
+
+```text
+draft
+review
+published
+archived
+```
+
+Không cho publish khi thiếu:
+
+* Title.
+* Slug.
+* Body.
+* Hero image nếu policy yêu cầu.
+* SEO data nếu rule yêu cầu.
+
+---
+
+# XXI. MODULE MỚI CÒN THIẾU
+
+Hiện database chưa có các module sau.
+
+Không tạo toàn bộ một cách mù quáng.
+
+Phải thiết kế migration và logic theo thứ tự ưu tiên.
+
+## Ưu tiên 1
+
+```text
+notifications
+media_library
+menus
+pages
+seo_metadata
+products
+leave_balances
+overtime_requests
+timesheets
+```
+
+## Ưu tiên 2
+
+```text
+benefit_plans
+benefit_enrollments
+employee_dependant_tax_profiles
+insurance_contributions
+tax_period_records
+salary_bands
+bank_transfer_batches
+offboarding_cases
+asset_categories
+employee_assets
+```
+
+## Ưu tiên 3
+
+```text
+succession_plans
+talent_matrix
+discipline_cases
+grievance_cases
+electronic_signatures
+mfa_recovery_codes hoặc tích hợp MFA chuẩn Laravel
+```
+
+Mỗi module mới phải có:
+
+* ADR hoặc giải thích schema.
+* Migration.
+* Model.
+* Relation.
+* CQRS.
+* Permission.
+* Route.
+* UI.
+* Test.
+
+Không tạo tất cả module mới trước khi các module dựa trên 44 bảng hiện tại chạy được.
+
+---
+
+# XXII. MENU VÀ NAVIGATION
+
+Tìm sidebar hiện tại:
+
+```bash
+grep -R "sidebar\|navigation\|HRM\|Công ty\|Nhân viên" \
+resources Modules app \
+-n --include="*.blade.php" --include="*.php" --include="*.ts" --include="*.js"
+```
+
+Tạo menu quản trị đầy đủ:
+
+```text
+Dashboard
+
+Hệ thống
+├── Người dùng
+├── Vai trò
+├── Quyền
+├── Activity log
+├── Queue
+├── Failed jobs
+└── Integration logs
+
+Tổ chức
+├── Công ty
+├── Cơ cấu tổ chức
+├── Trung tâm chi phí
+└── Vị trí công việc
+
+Nhân sự
+├── Nhân viên
+├── Phân công
+├── Lịch sử nhân sự
+├── Hợp đồng
+├── Chứng chỉ
+├── Tài liệu
+└── Đồng ý dữ liệu
+
+Tuyển dụng
+├── Yêu cầu tuyển dụng
+├── Ứng viên
+├── Pipeline ứng tuyển
+└── Onboarding
+
+Thời gian
+├── Ca làm việc
+├── Chấm công
+├── Điều chỉnh chấm công
+├── Nghỉ phép
+└── Làm thêm giờ
+
+Tiền lương
+├── Kỳ lương
+├── Chi tiết lương
+├── Thành phần lương
+├── Phiếu lương
+└── Báo cáo
+
+Hiệu suất
+├── Chu kỳ đánh giá
+├── KPI/OKR
+└── Hiệu chuẩn
+
+Đào tạo
+├── Khóa học
+├── Đăng ký học
+└── Chứng chỉ hết hạn
+
+Workflow
+├── Tiến trình
+├── Yêu cầu chờ duyệt
+└── Lịch sử duyệt
+
+CMS
+├── Bài viết
+├── Trang
+├── Sản phẩm
+├── Media
+├── Menu
+└── SEO
+```
+
+Quy tắc:
+
+* Route phải tồn tại trước khi đưa menu vào.
+* Không dùng `href="#"` cho chức năng thật.
+* Module chưa triển khai hiển thị `Đang phát triển`.
+* Menu active đúng.
+* Dropdown hoạt động.
+* Menu ẩn theo `@can`.
+* Nhập URL trực tiếp vẫn phải bị Policy/Middleware chặn.
+
+---
+
+# XXIII. VIEW VÀ UI
+
+Mỗi module phải có tối thiểu:
+
+```text
+index
+create
+show
+edit
+partials/form
+```
+
+UI phải có:
+
+* Search.
+* Filter.
+* Pagination.
+* Sort whitelist.
+* Empty state.
+* Loading state.
+* Error state.
+* Validation error.
+* Flash message.
+* Confirm delete.
+* Permission-aware buttons.
+* Responsive desktop/tablet/mobile.
+* Breadcrumb.
+* Page title.
+* Action buttons thật.
+* Không hard-code database rows.
+
+Không query database trong Blade.
+
+Không nhét business logic vào Blade.
+
+---
+
+# XXIV. REALTIME
+
+Dùng Laravel Reverb và Laravel Echo.
+
+Realtime tối thiểu cho:
+
+```text
+notification.created
+company.created
+employee.created
+employee.updated
+attendance.checked-in
+attendance.checked-out
+attendance.adjusted
+leave.submitted
+leave.approved
+leave.rejected
+payroll.calculation-started
+payroll.calculation-progress
+payroll.calculated
+payroll.approved
+workflow.actioned
+article.published
+dashboard.updated
+```
+
+Mỗi broadcast event phải có:
+
+```php
+implements ShouldBroadcast
+```
+
+hoặc:
+
+```php
+implements ShouldBroadcastNow
+```
+
+Phải có:
+
+* `broadcastOn()`.
+* `broadcastAs()`.
+* `broadcastWith()`.
+* Private channel authorization.
+* Presence channel nếu hiển thị online user.
+* `routes/channels.php`.
+* Echo bootstrap.
+* Reconnect handling.
+* Không leak dữ liệu công ty khác.
+* Channel phải theo tenant/company.
+
+Ví dụ:
+
+```text
+private-company.{companyId}
+private-user.{userId}
+private-employee.{employeeId}
+```
+
+Browser A thao tác thì Browser B phải cập nhật không reload.
+
+Nếu DataTable không hỗ trợ insert an toàn, phải reload dữ liệu qua AJAX có debounce thay vì reload cả trang.
+
+---
+
+# XXV. MULTI-COMPANY DATA ISOLATION
+
+Tất cả dữ liệu có `company_id` phải được cô lập.
+
+Không tin `company_id` từ client.
+
+Phải lấy company hiện tại từ:
+
+* User context.
+* Session.
+* Tenant resolver.
+* Hoặc explicit authorized company context.
+
+Tạo abstraction:
+
+```text
+CurrentCompanyResolverInterface
+```
+
+Mọi Query/Command liên quan tenant phải nhận company context đã được authorize.
+
+Không cho:
+
+* Employee Company A xem Company B.
+* Payroll Company A đọc Company B.
+* Workflow Company A thao tác Company B.
+* Broadcast Company A gửi cho Company B.
+
+Super Admin có thể chuyển company context nếu có quyền.
+
+Test bắt buộc có cross-company isolation.
+
+---
+
+# XXVI. CACHE VÀ REDIS
+
+Dùng Redis cho:
+
+* Cache.
+* Queue.
+* Rate limit.
+* Lock.
+* Realtime coordination.
+* Dashboard.
+
+Cache key phải có prefix:
+
+```text
+schema_admin:{module}:{companyId}:{key}
+```
+
+Không dùng:
+
+```php
+Cache::flush();
+```
+
+Khi ghi dữ liệu phải clear đúng cache liên quan.
+
+Payroll calculation, imports và sequence nhạy cảm phải dùng distributed lock khi cần.
+
+---
+
+# XXVII. EVENT, LISTENER, JOB
+
+Event chỉ biểu diễn điều đã xảy ra.
+
+Ví dụ:
+
+```text
+EmployeeCreated
+EmployeeTransferred
+AttendanceCheckedIn
+LeaveApproved
+PayrollCalculated
+ArticlePublished
+```
+
+Listener xử lý:
+
+* Cache invalidation.
+* Activity log.
+* Notification dispatch.
+* Queue jobs.
+* Broadcast.
+
+Không dispatch cùng một event hai lần từ Controller và Handler.
+
+Domain event nên được phát từ Handler hoặc Application Service sau transaction thành công.
+
+Job phải:
+
+* Implement `ShouldQueue`.
+* Có retry.
+* Có backoff.
+* Có timeout.
+* Có failed handling.
+* Không serialize dữ liệu không cần thiết.
+* Chỉ truyền ID nếu phù hợp.
+* Có idempotency khi thao tác bên ngoài.
+
+---
+
+# XXVIII. ACTIVITY LOG VÀ AUDIT
+
+Ghi log cho:
+
+* Login.
+* Failed login nếu phù hợp.
+* User create/update/lock.
+* Role assignment.
+* Permission assignment.
+* Employee create/update/transfer.
+* Contract change.
+* Attendance adjustment.
+* Leave approval.
+* Payroll calculate/approve/lock/pay.
+* Workflow action.
+* Article publish.
+* Integration retry.
+
+Không log:
+
+* Password.
+* Password reset token.
+* Session payload.
+* Identity number plaintext.
+* Bank account plaintext nếu không cần.
+* Access token.
+* Secret key.
+* Raw personal data không cần thiết.
+
+---
+
+# XXIX. VALIDATION VÀ SECURITY
+
+Mọi action ghi phải dùng Form Request.
+
+Bắt buộc kiểm tra:
+
+* CSRF.
+* XSS.
+* Mass assignment.
+* SQL injection.
+* File upload.
+* MIME.
+* File size.
+* Authorization.
+* Rate limiting.
+* Sensitive data redaction.
+* Password policy.
+* Session fixation.
+* Open redirect.
+* Tenant isolation.
+* IDOR.
+* Signed URLs cho tài liệu private.
+* Download authorization.
+* Encryption cho dữ liệu nhạy cảm.
+
+Không sử dụng `$request->all()` để ghi model.
+
+Không return model trực tiếp trong API.
+
+Dùng DTO và API Resource.
+
+---
+
+# XXX. TESTING
+
+Mỗi module phải có:
+
+## Unit Tests
+
+* Command Handler.
+* Query Handler.
+* Domain Service.
+* Calculator.
+* Policy logic nếu phù hợp.
+* Enum transition.
+* Validation rule phức tạp.
+
+## Feature Tests
+
+* Route.
+* Authentication.
+* Permission.
+* Policy.
+* CRUD.
+* Search.
+* Filter.
+* Pagination.
+* Validation.
+* Soft delete.
+* Restore.
+* Workflow.
+* Realtime event dispatch.
+* Queue dispatch.
+* Cross-company isolation.
+
+## Integration Tests
+
+* MySQL.
+* Redis nếu cần.
+* Repository.
+* Transaction.
+* Unique constraints.
+* Foreign keys.
+* Queue pipeline.
+* Cloudflare R2 adapter dùng fake hoặc contract test.
+
+Không được tạo:
+
+```php
+$this->assertTrue(true);
+```
+
+Không được mock toàn bộ logic đến mức test không kiểm tra gì thật.
+
+---
+
+# XXXI. THỨ TỰ TRIỂN KHAI
+
+Không làm tất cả module cùng lúc.
+
+Triển khai theo từng phase.
+
+## PHASE 0 — AUDIT VÀ CORE
+
+1. Audit project.
+2. Kiểm tra database.
+3. Kiểm tra module.
+4. Kiểm tra CQRS Bus.
+5. Kiểm tra auth.
+6. Hoàn thiện User.
+7. Hoàn thiện Role.
+8. Hoàn thiện Permission.
+9. Hoàn thiện avatar/thumbnail.
+10. Hoàn thiện menu.
+11. Bổ sung migration FK/index an toàn.
+
+## PHASE 1 — ORGANIZATION
+
+1. Company.
+2. Cost Center.
+3. Organization Unit.
+4. Job Position.
+5. Organization Tree.
+6. Headcount Dashboard.
+
+## PHASE 2 — EMPLOYEE
+
+1. Employee.
+2. Assignment.
+3. History.
+4. Credential.
+5. Contract.
+6. Documents.
+7. Consent.
+
+## PHASE 3 — RECRUITMENT
+
+1. Requisition.
+2. Candidate.
+3. Application.
+4. Pipeline.
+5. Onboarding.
+
+## PHASE 4 — TIME
+
+1. Work Shift.
+2. Attendance.
+3. Leave Type.
+4. Leave Balance.
+5. Leave Request.
+6. Overtime.
+
+## PHASE 5 — PAYROLL
+
+1. Payroll Run.
+2. Payroll Item.
+3. Calculation.
+4. Approval.
+5. Payslip.
+6. Export.
+7. Bank transfer.
+
+## PHASE 6 — PERFORMANCE VÀ LEARNING
+
+1. Performance Cycle.
+2. Goals.
+3. Review.
+4. Learning Course.
+5. Enrollment.
+6. Certificate expiry.
+
+## PHASE 7 — WORKFLOW VÀ INTEGRATION
+
+1. Workflow Engine.
+2. Approval Inbox.
+3. Integration Logs.
+4. Retry.
+
+## PHASE 8 — CMS
+
+1. Article.
+2. Media.
+3. Page.
+4. Menu.
+5. SEO.
+6. Product.
+
+## PHASE 9 — REALTIME
+
+1. Reverb.
+2. Echo.
+3. Private channels.
+4. Notification bell.
+5. Dashboard realtime.
+6. Module realtime.
+
+## PHASE 10 — DEVOPS
+
+1. Docker.
+2. CI.
+3. CD staging.
+4. CD production.
+5. Healthcheck.
+6. Rollback.
+7. Monitoring.
+
+Sau mỗi phase phải chạy test và báo cáo.
+
+Không chuyển sang phase tiếp theo nếu phase hiện tại chưa đạt tiêu chí.
+
+---
+
+# XXXII. DOCKER
+
+Audit:
+
+```text
+Dockerfile
+docker-compose.yml
+docker-compose.dev.yml
+docker-compose.prod.yml
+.dockerignore
+docker/nginx
+docker/php
+docker/mysql
+docker/supervisor
+```
+
+Services tối thiểu:
+
+```text
+nginx
+app
+mysql
+redis
+queue
+scheduler
+horizon
+reverb
+mailpit
+```
+
+Production:
+
+* Không bind mount source.
+* Không chạy development server.
+* Không để secret trong image.
+* Image tag theo commit SHA.
+* Non-root user nếu phù hợp.
+* Healthcheck.
+* Restart policy.
+* Persistent volume.
+* Log rotation.
+* Proper signal handling.
+* Separate dev/prod config.
+
+Chạy thật:
+
+```bash
+docker compose config
+docker compose build
+docker compose up -d
+docker compose ps
+docker compose logs --tail=200
+```
+
+Kiểm tra container:
+
+```bash
+docker compose exec app php artisan about
+docker compose exec app php artisan migrate:status
+docker compose exec app php artisan route:list
+docker compose exec app php artisan horizon:status
+```
+
+---
+
+# XXXIII. CI/CD
+
+Audit:
+
+```text
+.github/workflows
+```
+
+CI phải có:
+
+* Composer validate.
+* Composer install.
+* npm ci.
+* npm run build.
+* Pint.
+* PHPStan level 10.
+* Unit tests.
+* Feature tests.
+* MySQL 8 service.
+* Redis service.
+* Coverage.
+* Composer audit.
+* Secret scan.
+* Docker build.
+* Docker Compose config validation.
+* Migration pretend.
+* Artifact upload.
+
+Docker images phải tag:
+
+```text
+commit SHA
+branch
+release version
+```
+
+Không chỉ dùng `latest`.
+
+Deploy staging:
+
+* Protected secrets.
+* Concurrency lock.
+* Backup database.
+* Versioned release.
+* Maintenance mode.
+* Migration.
+* Optimize.
+* Queue restart.
+* Horizon terminate.
+* Reverb restart.
+* Healthcheck.
+* Smoke test.
+* Rollback application release.
+
+Deploy production:
+
+* Protected environment.
+* Manual approval.
+* Release tag.
+* Backup.
+* Migration safety.
+* Healthcheck.
+* Smoke test.
+* Rollback code/image.
+* Không tự động rollback database migration.
+* Dùng forward-fix migration.
+
+Smoke test:
+
+```text
+/up
+/api/health
+/login
+database
+Redis
+queue
+Horizon
+Reverb
+public CMS API
+```
+
+---
+
+# XXXIV. HEALTHCHECK
+
+Tạo:
+
+```text
+GET /up
+GET /api/health
+```
+
+`/api/health` kiểm tra:
+
+* Application.
+* Database.
+* Redis.
+* Cache.
+* Queue.
+* Storage.
+* Reverb process hoặc connectivity.
+* Build/version.
+
+Không trả secret hoặc thông tin connection nhạy cảm.
+
+---
+
+# XXXV. TÀI LIỆU
+
+Cập nhật hoặc tạo:
+
+```text
+README.md
+docs/architecture.md
+docs/database.md
+docs/cqrs.md
+docs/permissions.md
+docs/realtime.md
+docs/docker.md
+docs/deployment.md
+docs/module-audit-before.md
+docs/module-audit-after.md
+project.txt
+db.txt
+luong.txt
+```
+
+`db.txt` phải ghi schema thực tế sau migration.
+
+`project.txt` phải ghi file của từng module.
+
+`luong.txt` phải mô tả luồng request thật.
+
+Ví dụ:
+
+```text
+POST /admin/employees
+→ StoreEmployeeRequest
+→ EmployeeController@store
+→ CreateEmployeeCommand
+→ CommandBus
+→ CreateEmployeeHandler
+→ EmployeeWriteRepository
+→ Employee
+→ EmployeeCreated
+→ Listener
+→ Cache invalidation
+→ Activity log
+→ Redirect
+```
+
+---
+
+# XXXVI. TIÊU CHÍ HOÀN THÀNH MỖI MODULE
+
+Module chỉ được đánh dấu `FUNCTIONAL` khi:
+
+* Có migration đúng.
+* Có model và relation.
+* Có CQRS Command.
+* Có CQRS Query.
+* Handler có logic thật.
+* Repository có query thật.
+* Có Form Request.
+* Có Policy.
+* Route có auth và authorization.
+* View có dữ liệu.
+* Menu mở được.
+* CRUD hoạt động.
+* Search hoạt động.
+* Filter hoạt động.
+* Pagination hoạt động.
+* Validation hoạt động.
+* Activity log hoạt động.
+* Event hoạt động.
+* Cache invalidation đúng.
+* Unit Test chạy.
+* Feature Test chạy.
+
+Module chỉ được đánh dấu `PRODUCTION_READY` khi thêm:
+
+* PHPStan không lỗi.
+* Pint không lỗi.
+* Security review.
+* Tenant isolation test.
+* Docker build thành công.
+* CI workflow thành công.
+* Không còn link giả.
+* Không còn file rỗng.
+* Không còn TODO nghiệp vụ quan trọng.
+
+---
+
+# XXXVII. KIỂM TRA SAU MỖI PHASE
+
+Chạy:
+
+```bash
+php artisan optimize:clear
+composer dump-autoload
+php artisan route:list
+php artisan migrate:status
+
+./vendor/bin/pint --test
+./vendor/bin/phpstan analyse
+php artisan test
+
+npm run build
+```
+
+Nếu Docker đã cấu hình:
+
+```bash
+docker compose config
+docker compose build
+docker compose up -d
+docker compose ps
+```
+
+Không hạ PHPStan level.
+
+Không thêm ignore tràn lan.
+
+Không xóa test lỗi để CI xanh.
+
+---
+
+# XXXVIII. CÁCH BÁO CÁO
+
+Sau mỗi phase phải báo:
+
+```text
+1. Phase đã thực hiện.
+2. Module đã hoàn thiện.
+3. Module còn skeleton.
+4. Migration đã thêm.
+5. File đã tạo.
+6. File đã sửa.
+7. Route đã thêm.
+8. Permission đã thêm.
+9. Role đã cập nhật.
+10. CQRS flow đã kết nối.
+11. View/menu đã kết nối.
+12. Realtime đã kết nối.
+13. Tests đã chạy.
+14. Kết quả Pint.
+15. Kết quả PHPStan.
+16. Kết quả PHPUnit.
+17. Lỗi còn tồn tại.
+18. URL có thể mở.
+19. Command cần chạy thủ công nếu có.
+```
+
+Không được báo “hoàn thành toàn bộ” nếu chỉ hoàn thành một phase.
+
+---
+
+# XXXIX. NHIỆM VỤ BẮT ĐẦU NGAY
+
+Chỉ bắt đầu với:
+
+```text
+PHASE 0 — AUDIT VÀ CORE
+```
+
+Trong lần thực hiện này phải hoàn thành:
+
+1. Audit 44 bảng.
+2. Audit toàn bộ module hiện tại.
+3. Xác định module skeleton.
+4. Kiểm tra CQRS Bus.
+5. Hoàn thiện User Management.
+6. Hoàn thiện Role Management.
+7. Hoàn thiện Permission Management.
+8. Hoàn thiện avatar và thumbnail.
+9. Hoàn thiện quan hệ User–Employee.
+10. Hoàn thiện route authorization.
+11. Hoàn thiện sidebar/menu System.
+12. Tạo migration bổ sung FK/index an toàn.
+13. Tạo test cho User/Role/Permission.
+14. Cập nhật tài liệu.
+15. Chạy kiểm tra chất lượng.
+
+Không bắt đầu Company, Employee nghiệp vụ hoặc Payroll trước khi Core chạy thành công.
+
+Bắt đầu bằng cách mở và audit file hiện tại.
+
+Không tạo lại project.
+
+Không chạy `migrate:fresh`.
+
+Không tạo file rỗng.
+
+Không dùng dữ liệu giả trong View.
+
+Không báo hoàn thành trước khi chạy test.

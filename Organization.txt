@@ -1,0 +1,1196 @@
+Tiếp tục trực tiếp project Laravel hiện tại:
+
+```text
+~/Desktop/laraveldji/admin
+```
+
+Database:
+
+```text
+MySQL
+schema_admin
+```
+
+Module Company đã hoàn thành.
+
+Không tạo lại project.
+
+Không chạy:
+
+```bash
+php artisan migrate:fresh
+php artisan db:wipe
+```
+
+Không sửa migration đã chạy.
+
+Không tạo skeleton rỗng.
+
+Trong lần này chỉ thực hiện:
+
+```text
+PHASE 1B — ORGANIZATION CORE
+```
+
+Bao gồm:
+
+```text
+cost_centers
+organization_units
+job_positions
+organization tree
+headcount dashboard
+```
+
+Không làm Employee, Recruitment, Attendance, Leave hoặc Payroll trong lần này.
+
+---
+
+# 1. AUDIT TRƯỚC KHI SỬA
+
+Đầu tiên phải mở và kiểm tra code thật của:
+
+```text
+Modules/Company
+Modules/Organization
+Modules/CostCenter
+Modules/JobPosition
+```
+
+Nếu project gộp các chức năng trên vào cùng một module thì giữ kiến trúc hiện tại, không tạo module trùng.
+
+Chạy:
+
+```bash
+cd ~/Desktop/laraveldji/admin
+
+php artisan about
+php artisan module:list
+php artisan route:list
+php artisan migrate:status
+```
+
+Kiểm tra database thật:
+
+```bash
+php artisan tinker --execute="
+dump(config('database.default'));
+dump(DB::connection()->getDatabaseName());
+dump(Schema::hasTable('companies'));
+dump(Schema::hasTable('cost_centers'));
+dump(Schema::hasTable('organization_units'));
+dump(Schema::hasTable('job_positions'));
+"
+```
+
+Kết quả bắt buộc:
+
+```text
+mysql
+schema_admin
+true
+true
+true
+true
+```
+
+Không báo hoàn thành nếu chưa audit nội dung thực tế của:
+
+* Model
+* Relation
+* Controller
+* Request
+* Route
+* Command
+* Handler
+* Query
+* Query Handler
+* Repository
+* Policy
+* Permission
+* Blade
+* JavaScript
+* Test
+
+---
+
+# 2. GIỮ ĐÚNG KIẾN TRÚC CQRS
+
+Luồng ghi bắt buộc:
+
+```text
+Route
+→ FormRequest
+→ Controller
+→ CommandBus
+→ Command
+→ CommandHandler
+→ WriteRepository
+→ Model
+→ Event
+→ Listener
+→ Cache invalidation
+→ Activity log
+→ Response
+```
+
+Luồng đọc bắt buộc:
+
+```text
+Route
+→ Controller
+→ QueryBus
+→ Query
+→ QueryHandler
+→ ReadRepository
+→ DTO/ViewModel
+→ Blade hoặc API Resource
+```
+
+Controller không được gọi trực tiếp:
+
+```php
+Model::query();
+Model::create();
+Model::find();
+DB::table();
+DB::transaction();
+RepositoryInterface;
+```
+
+Nếu Company module đã có CommandBus và QueryBus thì phải tái sử dụng.
+
+Không tạo thêm Bus trùng.
+
+---
+
+# 3. MODULE COST CENTER
+
+Bảng hiện có:
+
+```text
+cost_centers
+```
+
+Schema:
+
+```text
+id
+company_id
+code
+name
+annual_budget
+currency
+created_at
+updated_at
+unique(company_id, code)
+```
+
+## Chức năng bắt buộc
+
+* Danh sách cost center
+* Tìm kiếm theo code và name
+* Filter theo company
+* Filter theo currency
+* Filter có ngân sách hoặc không
+* Tạo mới
+* Xem chi tiết
+* Chỉnh sửa
+* Xóa có kiểm soát
+* Export
+* Dashboard ngân sách
+* Activity log
+* Permission
+* Tenant isolation
+
+## Business rules
+
+* `company_id` phải tồn tại
+* Không tin `company_id` từ client
+* Company context phải được authorize
+* `code` unique trong từng company
+* `annual_budget` không âm
+* `currency` phải là ISO currency code hợp lệ
+* Không xóa cost center nếu đang được dùng bởi `organization_units`
+* Nếu đã được dùng, trả lỗi nghiệp vụ rõ ràng
+* Không để Company A xem hoặc sửa Cost Center của Company B
+
+## Commands
+
+Tạo hoặc hoàn thiện:
+
+```text
+CreateCostCenterCommand
+UpdateCostCenterCommand
+DeleteCostCenterCommand
+```
+
+## Queries
+
+```text
+GetCostCenterListQuery
+GetCostCenterDetailQuery
+GetCostCenterEditQuery
+GetCostCenterBudgetSummaryQuery
+```
+
+## Repository
+
+Tách rõ:
+
+```text
+CostCenterReadRepositoryInterface
+CostCenterWriteRepositoryInterface
+```
+
+## Events
+
+```text
+CostCenterCreated
+CostCenterUpdated
+CostCenterDeleted
+```
+
+## Permissions
+
+```text
+cost-center.view
+cost-center.create
+cost-center.update
+cost-center.delete
+cost-center.export
+cost-center.audit
+```
+
+---
+
+# 4. MODULE ORGANIZATION UNIT
+
+Bảng hiện có:
+
+```text
+organization_units
+```
+
+Schema:
+
+```text
+id
+company_id
+parent_id nullable
+cost_center_id nullable
+type enum(company, branch, division, department, section, team)
+code
+name
+headcount_limit
+effective_from
+effective_to nullable
+metadata nullable
+created_at
+updated_at
+unique(company_id, code)
+```
+
+## Chức năng bắt buộc
+
+* Danh sách dạng bảng
+* Dạng cây tổ chức
+* Search theo code và name
+* Filter theo company
+* Filter theo type
+* Filter theo parent
+* Filter active theo effective date
+* Create
+* Show
+* Edit
+* Move node
+* Change parent
+* Delete có kiểm soát
+* Xem đơn vị con
+* Xem breadcrumb tổ chức
+* Xem cost center
+* Xem headcount limit
+* Xem actual headcount
+* Xem vacancy
+* Export tree
+* API tree JSON
+* Activity log
+* Permission
+* Tenant isolation
+
+## Business rules
+
+* `company_id` phải tồn tại
+* `parent_id` nếu có phải thuộc cùng company
+* `cost_center_id` nếu có phải thuộc cùng company
+* Không cho node làm parent của chính nó
+* Không cho tạo vòng lặp cây
+* Không cho chuyển node vào descendant của chính nó
+* Không xóa đơn vị còn child
+* Không xóa đơn vị đang có assignment hoặc job position
+* `effective_to` không được nhỏ hơn `effective_from`
+* `headcount_limit` không âm
+* Type hierarchy phải hợp lý
+
+Hierarchy đề xuất:
+
+```text
+company
+→ branch
+→ division
+→ department
+→ section
+→ team
+```
+
+Không bắt buộc cứng hoàn toàn nếu hệ thống cho phép linh hoạt, nhưng phải validate để tránh cấu trúc vô lý.
+
+## Commands
+
+```text
+CreateOrganizationUnitCommand
+UpdateOrganizationUnitCommand
+MoveOrganizationUnitCommand
+DeleteOrganizationUnitCommand
+AssignOrganizationUnitCostCenterCommand
+```
+
+## Queries
+
+```text
+GetOrganizationUnitListQuery
+GetOrganizationUnitDetailQuery
+GetOrganizationUnitEditQuery
+GetOrganizationTreeQuery
+GetOrganizationUnitChildrenQuery
+GetOrganizationBreadcrumbQuery
+GetOrganizationUnitHeadcountQuery
+```
+
+## Domain services
+
+Tạo nếu chưa có:
+
+```text
+OrganizationTreeService
+OrganizationCycleDetector
+OrganizationHierarchyValidator
+```
+
+Không để logic kiểm tra vòng lặp trong Controller hoặc Blade.
+
+## Events
+
+```text
+OrganizationUnitCreated
+OrganizationUnitUpdated
+OrganizationUnitMoved
+OrganizationUnitDeleted
+```
+
+## Permissions
+
+```text
+organization-unit.view
+organization-unit.create
+organization-unit.update
+organization-unit.move
+organization-unit.delete
+organization-unit.export
+organization-unit.audit
+```
+
+---
+
+# 5. MODULE JOB POSITION
+
+Bảng hiện có:
+
+```text
+job_positions
+```
+
+Schema:
+
+```text
+id
+company_id
+organization_unit_id
+code
+title
+job_grade nullable
+approved_headcount
+budgeted_cost
+competency_requirements nullable
+is_critical
+created_at
+updated_at
+unique(company_id, code)
+```
+
+Trước tiên kiểm tra FK:
+
+```text
+job_positions.company_id
+→ companies.id
+```
+
+Nếu chưa có FK thì tạo migration mới an toàn.
+
+Không sửa migration cũ.
+
+Trước khi thêm FK phải kiểm tra orphan data.
+
+## Chức năng bắt buộc
+
+* Danh sách
+* Search theo code và title
+* Filter company
+* Filter organization unit
+* Filter job grade
+* Filter critical position
+* Create
+* Show
+* Edit
+* Delete có kiểm soát
+* Approved headcount
+* Filled headcount
+* Vacancy
+* Budgeted cost
+* Competency requirements
+* Critical position report
+* Headcount report
+* Export
+* Activity log
+* Permission
+* Tenant isolation
+
+## Business rules
+
+* `company_id` phải tồn tại
+* `organization_unit_id` phải thuộc cùng company
+* `code` unique theo company
+* `approved_headcount` tối thiểu 0
+* `budgeted_cost` không âm
+* Không xóa position đang có employee assignment
+* `competency_requirements` phải validate cấu trúc JSON
+* Không cho Company A thao tác position của Company B
+
+## Commands
+
+```text
+CreateJobPositionCommand
+UpdateJobPositionCommand
+DeleteJobPositionCommand
+ChangeCriticalPositionStatusCommand
+UpdateApprovedHeadcountCommand
+```
+
+## Queries
+
+```text
+GetJobPositionListQuery
+GetJobPositionDetailQuery
+GetJobPositionEditQuery
+GetCriticalPositionListQuery
+GetJobPositionHeadcountQuery
+GetVacancyReportQuery
+```
+
+## Events
+
+```text
+JobPositionCreated
+JobPositionUpdated
+JobPositionDeleted
+JobPositionCriticalStatusChanged
+JobPositionHeadcountChanged
+```
+
+## Permissions
+
+```text
+job-position.view
+job-position.create
+job-position.update
+job-position.delete
+job-position.change-headcount
+job-position.change-critical
+job-position.export
+job-position.audit
+```
+
+---
+
+# 6. HEADCOUNT LOGIC
+
+Hiện Employee module chưa làm đầy đủ, nhưng schema đã có:
+
+```text
+employees
+employee_assignments
+job_positions
+organization_units
+```
+
+Thiết kế headcount read model ngay trong Organization phase.
+
+Không triển khai Employee CRUD trong lần này.
+
+## Chỉ đọc dữ liệu hiện có
+
+Tính:
+
+```text
+headcount_limit
+approved_headcount
+filled_headcount
+vacancy
+budgeted_cost
+actual allocation
+```
+
+Quy ước:
+
+```text
+filled_headcount
+= số employee assignment active thuộc position
+```
+
+Assignment active khi:
+
+```text
+effective_from <= today
+AND
+(effective_to IS NULL OR effective_to >= today)
+```
+
+Nếu tính theo allocation:
+
+```text
+allocated_fte
+= SUM(allocation_percent / 100)
+```
+
+Cần hiển thị cả:
+
+```text
+people_count
+allocated_fte
+```
+
+Không xem hai giá trị này là giống nhau.
+
+## Headcount rules
+
+```text
+position vacancy
+= approved_headcount - allocated_fte
+```
+
+```text
+organization actual headcount
+= tổng allocated_fte của tất cả position trực thuộc
+```
+
+Có thể thêm recursive child aggregation cho tree dashboard.
+
+Phải tránh N+1 query.
+
+Phải xử lý trường hợp không có dữ liệu Employee.
+
+Kết quả khi bảng nghiệp vụ rỗng phải là `0`, không được lỗi.
+
+---
+
+# 7. ORGANIZATION TREE UI
+
+Tạo trang:
+
+```text
+/admin/organization/tree
+```
+
+Phải có:
+
+* Tree dạng recursive
+* Expand/collapse
+* Company selector nếu user có quyền nhiều company
+* Search node
+* Filter type
+* Hiển thị code
+* Hiển thị name
+* Hiển thị type
+* Hiển thị headcount limit
+* Hiển thị actual FTE
+* Hiển thị vacancy
+* Hiển thị cost center
+* Link detail
+* Nút create child theo permission
+* Nút edit theo permission
+* Nút move theo permission
+* Empty state
+* Loading state
+* Error state
+
+Không query database trong Blade.
+
+Tree phải được cung cấp qua DTO/ViewModel hoặc API Resource.
+
+Nếu dùng AJAX, tạo endpoint JSON có Policy và permission đầy đủ.
+
+Không đưa toàn bộ dữ liệu nhạy cảm vào payload.
+
+---
+
+# 8. HEADCOUNT DASHBOARD
+
+Tạo trang:
+
+```text
+/admin/organization/headcount
+```
+
+Cards tối thiểu:
+
+```text
+Total organization units
+Total cost centers
+Total job positions
+Approved headcount
+Actual people count
+Allocated FTE
+Vacancy
+Critical positions
+Annual budget
+Budgeted position cost
+```
+
+Charts tối thiểu:
+
+```text
+Headcount by organization type
+Headcount by unit
+Vacancy by unit
+Critical positions
+Budget by cost center
+```
+
+Filters:
+
+```text
+company
+organization unit
+type
+job grade
+critical only
+effective date
+```
+
+Dữ liệu phải đi qua:
+
+```text
+GetOrganizationHeadcountDashboardQuery
+```
+
+Không query trong Blade hoặc Controller.
+
+Dùng cache Redis có prefix company.
+
+Ví dụ:
+
+```text
+schema_admin:organization:{companyId}:headcount-dashboard:{filterHash}
+```
+
+Không dùng:
+
+```php
+Cache::flush();
+```
+
+---
+
+# 9. ROUTES
+
+Tạo route thật, tên nhất quán.
+
+Ví dụ:
+
+```text
+admin.cost-centers.index
+admin.cost-centers.create
+admin.cost-centers.store
+admin.cost-centers.show
+admin.cost-centers.edit
+admin.cost-centers.update
+admin.cost-centers.destroy
+admin.cost-centers.export
+
+admin.organization-units.index
+admin.organization-units.tree
+admin.organization-units.tree-data
+admin.organization-units.create
+admin.organization-units.store
+admin.organization-units.show
+admin.organization-units.edit
+admin.organization-units.update
+admin.organization-units.move
+admin.organization-units.destroy
+admin.organization-units.export
+
+admin.job-positions.index
+admin.job-positions.create
+admin.job-positions.store
+admin.job-positions.show
+admin.job-positions.edit
+admin.job-positions.update
+admin.job-positions.destroy
+admin.job-positions.export
+
+admin.organization.headcount
+```
+
+Mọi route phải có:
+
+```text
+auth
+permission hoặc Policy
+```
+
+Không dùng chỉ `@can` để bảo vệ chức năng.
+
+---
+
+# 10. POLICY VÀ AUTHORIZATION
+
+Tạo hoặc hoàn thiện:
+
+```text
+CostCenterPolicy
+OrganizationUnitPolicy
+JobPositionPolicy
+```
+
+Policy phải kiểm tra:
+
+* Permission
+* Company context
+* Record thuộc company nào
+* User có được thao tác record đó không
+
+Mọi thao tác theo ID phải chống IDOR.
+
+Ví dụ Company A không được mở URL record Company B.
+
+Dùng scoped route binding hoặc kiểm tra Policy rõ ràng.
+
+---
+
+# 11. SIDEBAR
+
+Sau khi route tồn tại thật, cập nhật sidebar:
+
+```text
+Tổ chức
+├── Công ty
+├── Trung tâm chi phí
+├── Cơ cấu tổ chức
+├── Cây tổ chức
+├── Vị trí công việc
+└── Báo cáo định biên
+```
+
+Mỗi menu phải:
+
+* Dẫn đến route thật
+* Active đúng
+* Ẩn theo permission
+* Không dùng `href="#"`
+* Không dùng route chưa tồn tại
+* Không làm lỗi khi user không có permission
+
+---
+
+# 12. VIEW
+
+Mỗi chức năng CRUD phải có:
+
+```text
+index
+create
+show
+edit
+partials/form
+```
+
+UI phải có:
+
+* Breadcrumb
+* Page title
+* Search
+* Filter
+* Sort whitelist
+* Pagination
+* Empty state
+* Validation errors
+* Flash message
+* Confirm delete
+* Permission-aware action buttons
+* Responsive
+* Không query trong Blade
+* Không hard-code dữ liệu
+
+Form phải giữ old input.
+
+Không dùng `$request->all()`.
+
+---
+
+# 13. REALTIME
+
+Chỉ triển khai realtime cần thiết cho Organization:
+
+```text
+cost-center.created
+cost-center.updated
+organization-unit.created
+organization-unit.updated
+organization-unit.moved
+job-position.created
+job-position.updated
+headcount.updated
+```
+
+Dùng Laravel Reverb và Echo nếu project đã cấu hình.
+
+Channel:
+
+```text
+private-company.{companyId}
+```
+
+Phải có:
+
+* `ShouldBroadcast` hoặc `ShouldBroadcastNow`
+* `broadcastOn()`
+* `broadcastAs()`
+* `broadcastWith()`
+* channel authorization
+* không leak dữ liệu company khác
+
+Khi Browser A thay đổi:
+
+* Browser B reload tree data qua AJAX
+* Dashboard reload stats
+* Không reload toàn trang
+
+Nếu Reverb chưa hoàn thiện, không được tạo event rỗng rồi báo realtime đã xong.
+
+Phải kiểm tra cả backend broadcast và frontend listener.
+
+---
+
+# 14. ACTIVITY LOG
+
+Log tối thiểu:
+
+```text
+Cost center created
+Cost center updated
+Cost center deleted
+
+Organization unit created
+Organization unit updated
+Organization unit moved
+Organization unit deleted
+
+Job position created
+Job position updated
+Job position deleted
+Approved headcount changed
+Critical status changed
+```
+
+Log phải có:
+
+* causer
+* subject
+* event
+* before
+* after
+* company context
+
+Không log dữ liệu không cần thiết.
+
+---
+
+# 15. SEEDER VÀ FACTORY
+
+Hiện bảng nghiệp vụ đang rỗng.
+
+Tạo dữ liệu demo chuyên nghiệp, nhưng không xóa dữ liệu hiện tại.
+
+Seed tối thiểu cho company hiện có:
+
+```text
+Cost Centers:
+- OPS — Vận hành
+- TECH — Công nghệ
+- HR — Nhân sự
+- SALES — Kinh doanh
+- FIN — Tài chính
+
+Organization Tree:
+- Trụ sở chính
+  - Khối Công nghệ
+    - Phòng Backend
+    - Phòng Frontend
+    - Phòng Mobile
+    - Phòng DevOps
+  - Khối Vận hành
+    - Phòng Nhân sự
+    - Phòng Tài chính
+  - Khối Kinh doanh
+    - Phòng Sales
+    - Phòng Marketing
+
+Job Positions:
+- Backend Developer
+- Frontend Developer
+- Mobile Developer
+- DevOps Engineer
+- HR Specialist
+- Accountant
+- Sales Executive
+- Marketing Specialist
+- Department Manager
+```
+
+Không dùng tên:
+
+```text
+Test
+Demo 1
+Company 1
+Unit 1
+Position 1
+```
+
+Seeder phải idempotent.
+
+Không tạo dữ liệu trùng khi chạy lại.
+
+Không tự động chạy production seeder.
+
+---
+
+# 16. TEST BẮT BUỘC
+
+## Cost Center
+
+* Guest bị chặn
+* User thiếu permission bị 403
+* Có permission xem được
+* Create thành công
+* Duplicate code trong cùng company bị chặn
+* Cùng code khác company được phép
+* Budget âm bị chặn
+* Xóa cost center đang được dùng bị chặn
+* Cross-company access bị chặn
+
+## Organization Unit
+
+* Create root
+* Create child
+* Parent khác company bị chặn
+* Parent chính nó bị chặn
+* Move vào descendant bị chặn
+* Effective date không hợp lệ bị chặn
+* Delete node có child bị chặn
+* Delete node có position bị chặn
+* Tree query đúng
+* Breadcrumb đúng
+* Cross-company access bị chặn
+
+## Job Position
+
+* Create thành công
+* Unit khác company bị chặn
+* Duplicate code bị chặn
+* Approved headcount âm bị chặn
+* Budgeted cost âm bị chặn
+* Delete position đang được assign bị chặn
+* Critical status change đúng permission
+* Headcount update đúng permission
+* Cross-company access bị chặn
+
+## Headcount
+
+* Empty database trả 0
+* Active assignment được tính
+* Expired assignment không được tính
+* Future assignment không được tính
+* Allocation 50% trả 0.5 FTE
+* People count và FTE khác nhau
+* Vacancy tính đúng
+* Recursive unit summary tính đúng
+* Không N+1 nghiêm trọng
+
+## CQRS
+
+* Command Handler tests
+* Query Handler tests
+* Repository tests
+* Policy tests
+* Route tests
+* Validation tests
+* Event dispatch tests
+* Cache invalidation tests
+
+Không tạo test giả:
+
+```php
+$this->assertTrue(true);
+```
+
+---
+
+# 17. DATABASE MIGRATION AN TOÀN
+
+Kiểm tra trước khi thêm migration:
+
+* FK job_positions.company_id
+* Index phục vụ tree
+* Index effective dates
+* Index headcount queries
+
+Chỉ tạo migration mới khi thật sự thiếu.
+
+Trước khi thêm FK phải kiểm tra orphan data.
+
+Không chạy `migrate:fresh`.
+
+Chạy:
+
+```bash
+php artisan migrate --pretend
+php artisan migrate
+php artisan migrate:status
+```
+
+Nếu migration có nguy cơ phá dữ liệu, phải dừng và báo rõ.
+
+---
+
+# 18. QUALITY CHECK
+
+Sau khi hoàn thành phải chạy:
+
+```bash
+php artisan optimize:clear
+composer dump-autoload
+
+php artisan route:list
+php artisan migrate:status
+
+./vendor/bin/pint --test
+./vendor/bin/phpstan analyse
+php artisan test
+
+npm run build
+```
+
+Nếu Docker đã hoạt động thì chạy thêm:
+
+```bash
+docker compose config
+docker compose build
+docker compose up -d
+docker compose ps
+```
+
+Không:
+
+* Hạ PHPStan level
+* Thêm ignore tràn lan
+* Xóa test lỗi
+* Comment code để né lỗi
+* Báo hoàn thành khi còn test fail
+
+---
+
+# 19. TÀI LIỆU
+
+Cập nhật:
+
+```text
+docs/module-audit-after.md
+docs/architecture.md
+docs/cqrs.md
+docs/permissions.md
+docs/realtime.md
+docs/database.md
+project.txt
+db.txt
+luong.txt
+```
+
+`luong.txt` phải ghi luồng thật, ví dụ:
+
+```text
+POST /admin/organization-units
+→ StoreOrganizationUnitRequest
+→ OrganizationUnitController@store
+→ CreateOrganizationUnitCommand
+→ CommandBus
+→ CreateOrganizationUnitHandler
+→ OrganizationUnitWriteRepository
+→ OrganizationUnit
+→ OrganizationUnitCreated
+→ Cache invalidation
+→ Activity log
+→ Redirect
+```
+
+---
+
+# 20. BÁO CÁO CUỐI
+
+Cuối cùng báo rõ:
+
+```text
+1. Module đã hoàn thành
+2. File đã tạo
+3. File đã sửa
+4. Migration đã thêm
+5. Route đã thêm
+6. Permission đã thêm
+7. Policy đã thêm
+8. CQRS flow đã nối
+9. Business rules đã xử lý
+10. Menu đã nối
+11. Realtime đã nối
+12. Seeder đã thêm
+13. Test đã chạy
+14. Kết quả Pint
+15. Kết quả PHPStan
+16. Kết quả PHPUnit
+17. Kết quả npm build
+18. URL có thể mở
+19. Lỗi còn lại
+20. Module còn skeleton
+```
+
+Không được báo hoàn thành nếu:
+
+* Chỉ tạo file rỗng
+* Route chưa mở được
+* Menu còn link giả
+* Controller còn query trực tiếp
+* Policy chưa chặn cross-company
+* Tree chưa chống vòng lặp
+* Headcount chưa tính được
+* Test chưa chạy
+
+Bắt đầu audit và triển khai ngay.
