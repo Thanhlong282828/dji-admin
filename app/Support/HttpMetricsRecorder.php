@@ -3,13 +3,39 @@
 namespace App\Support;
 
 use Illuminate\Contracts\Cache\Repository;
+use Psr\Log\LoggerInterface;
+use Throwable;
 
 final class HttpMetricsRecorder
 {
     /** @var list<int> */
     private const LATENCY_BUCKETS_MS = [50, 100, 250, 500, 1000, 2500, 5000];
 
-    public function __construct(private Repository $cache) {}
+    public function __construct(private Repository $cache, private LoggerInterface $logger) {}
+
+    /**
+     * Metrics are a non-critical side effect. This boundary deliberately catches
+     * every telemetry failure so it can never replace an application response.
+     */
+    public function recordSafely(int $status, float $durationMilliseconds): bool
+    {
+        try {
+            $this->record($status, $durationMilliseconds);
+
+            return true;
+        } catch (Throwable $exception) {
+            try {
+                $this->logger->warning('HTTP metrics recording failed.', [
+                    'component' => 'http_metrics',
+                    'exception_class' => $exception::class,
+                ]);
+            } catch (Throwable $loggingFailure) {
+                error_log('HTTP metrics recording failed; fallback logger failure: '.$loggingFailure::class);
+            }
+
+            return false;
+        }
+    }
 
     public function record(int $status, float $durationMilliseconds): void
     {

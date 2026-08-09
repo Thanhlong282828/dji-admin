@@ -31,3 +31,6 @@ Migration count added by Phase 3F-9: **0**. Production was queried only for befo
 ## Release acceptance integration
 
 Phase 3F-10 consumes this dashboard's aggregate availability, 5xx, p95, queue, scheduler, dependency, Integration dead-letter and Notification failure signals after deployment. Production thresholds remain environment configuration; local/demo values never trigger automatic rollback.
+# Phase 3F-11 certification note
+
+Healthy candidate observability and all three health endpoints passed. The Redis-dependent liveness regression was fixed with an explicit fail-open metric-recording boundary; application exceptions remain visible. Redis-down final contract is live 200, ready/metrics-readiness 503, with safe payloads and full recovery.

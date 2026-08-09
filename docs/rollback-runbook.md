@@ -14,3 +14,8 @@ Separate application rollback from database recovery. Prefer an application roll
 6. Record outcome as `rolled_back` or `forward_fixed`, with approver/change reference.
 
 Database restoration follows the disaster-recovery process into an isolated `*_restore_testing` database first. Production cutover requires explicit ownership and approval.
+# Phase 3F-11 evidence
+
+Local application rollback was simulated from candidate `280043f...` to prior image `0890335...`; both returned ready 200 on the shared forward schema after Redis was healthy. This proves only local compatibility, not production blue/green. Database down migrations remain prohibited; use forward-fix when compatibility is uncertain.
+
+The corrected candidate repeated green-to-blue rollback successfully after telemetry hardening. A shared Redis outage is handled through dependency recovery, while release-check safely blocks acceptance without a stack-trace crash.

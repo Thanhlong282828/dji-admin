@@ -447,6 +447,7 @@ Phase 3F-10 release governance foundation:
 - protected `/admin/operations/releases` black-gold dashboard;
 - no migration and no production deployment/mutation.
 - Phase 3F-10 final: COMPLETED — full PHPUnit 409 tests/4,348 assertions/1 skipped/exit 0; repository PHPStan 0; all security/build/browser/production-safety gates pass.
+- Phase 3F-11: COMPLETED — telemetry fail-open boundary, Redis-down 200/503/503 and recovery 200/200/200, structured release-check failure, queue/scheduler, blue/green rollback, immutable failed+certified artifacts, exact browser and production safety pass. Full PHPUnit 411 tests/4,367 assertions/1 skipped/exit 0; source is explicitly `working_tree`.
 - app/Console/Commands/BootstrapDevelopmentDataCommand.php
 - app/Console/Commands/VerifyEnvironmentSchemaCommand.php
 - app/Support/DatabaseSchemaComparator.php

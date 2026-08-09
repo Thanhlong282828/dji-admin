@@ -32,3 +32,7 @@ Phase 3F-10 adds zero migrations and performs no production deployment, rollback
 - Testing preflight: every check true. Sample manifest internal checksum and external SHA-256 recorded without secrets.
 - Migration count remains 61 in all canonical environments; Phase 3F-10 added no migration.
 - Production before/after baseline identical.
+
+## Phase 3F-11 certification result
+
+The manifest now includes deterministic migration inventory and source-state checksums, and the dashboard reads immutable release certificates. The original failed certificate is retained. Corrected candidate `280043f...` plus working-tree checksum passed Redis failure/recovery, queue/scheduler, blue/green, rollback, security, browser and quality gates. Production tooling requires `source_state=committed`; see `enterprise-release-certification.md`.

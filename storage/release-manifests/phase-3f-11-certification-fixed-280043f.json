@@ -1,0 +1,39 @@
+{
+    "schema_version": 1,
+    "release_id": "phase-3f-11-certification-fixed-280043f",
+    "git_commit": "280043f58be7481dedc9daa1c8927bc4bc60635e",
+    "git_tag": "untagged-working-tree-phase-3f-11-candidate",
+    "source": {
+        "state": "working_tree",
+        "checksum": "a1531a41c2bba6a1e0a9c5fedc789a8ac8d8d5f32035e2249ef218cd64c520cd"
+    },
+    "image": {
+        "reference": "laraveldji-admin:280043f58be7481dedc9daa1c8927bc4bc60635e",
+        "digest": "sha256:5b286a8efedc667496d04fbe09e0f184efa1b669b9cd82cf3ee0e30cc08007c5"
+    },
+    "created_at": "2026-08-09T10:40:38Z",
+    "environment": "testing",
+    "migration_inventory": {
+        "count": 61,
+        "checksum": "2f2c2f15a6d43a1cfbb32b88ef0c291e825678bb562933f81f8bbeb1bc2425d9"
+    },
+    "application_version": "unversioned",
+    "runtime": {
+        "php": "8.4.23",
+        "laravel": "13.21.1"
+    },
+    "quality_gates": {
+        "blade": "pass",
+        "composer_audit": "pass",
+        "docker": "pass",
+        "npm_audit": "pass",
+        "phpstan": "pass",
+        "phpunit": "pass",
+        "pint": "pass",
+        "secret_scan": "pass",
+        "vite": "pass"
+    },
+    "approval_reference": "single-operator-certification-no-production-approval",
+    "rollback_target": "laraveldji-admin:08903359b58b7dc58b7c520ece59a7f65efa0ddf@sha256:9dadc464bc4472d5ab17eb7531609d8962b4793b92e31c9123fa045c7cb875ca",
+    "checksum": "2c0dc88db5a90a9d45b7d819e862782a049c0b2244d2f395a410b5d74aa8581f"
+}

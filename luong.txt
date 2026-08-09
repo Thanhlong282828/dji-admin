@@ -1821,3 +1821,17 @@ Migration 2026_08_13_000044_repair_canonical_production_indexes.php
 → no business-row mutation
 → app:verify-environment-schema
 → logical parity across production/development/testing/browser-testing
+
+PHASE 3F-11 RELEASE CERTIFICATION
+Git SHA image + digest
+→ isolated schema_admin_testing_release (61 migrations)
+→ read-only release-check
+→ health + queue + scheduler + observability
+→ application-only blue → green → blue switch
+→ immutable manifest checksum
+→ immutable certificate
+→ failed certificate when any gate is false (Redis-down liveness regression)
+→ telemetry fail-open correction
+→ Redis down: live 200, ready 503, metrics-readiness 503
+→ Redis recovery: 200 / 200 / 200
+→ new working-tree manifest + immutable certified certificate

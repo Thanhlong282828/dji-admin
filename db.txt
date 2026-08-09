@@ -571,6 +571,8 @@ PHASE 3F-8 DATABASE NOTE
 - Final migration matrix remains 61/61/61/61 for schema_admin, schema_admin_development, schema_admin_testing and schema_admin_browser_testing. Production business counts were unchanged before/after.
 - Phase 3F-10 stores release evidence as immutable files/CI artifacts, not database rows. It creates no migration and never bootstraps development data in production.
 - Final canonical migration inventory remains 61/61/61/61; production business counts remained unchanged before/after Phase 3F-10.
+- Phase 3F-11 added no migration. Disposable `schema_admin_testing_release` migrated all 61 files, then its exact Compose volumes/network were removed. Production counts remained unchanged.
+- Phase 3F-11 completion rerun used a second disposable 61-migration `schema_admin_testing_release` volume and removed it after Redis failure/recovery certification. No canonical database or business row changed.
 - Scheduler heartbeat and HTTP SLI counters use cache/Redis; they do not mutate domain business state.
 - Failure injection used only an isolated schema_admin_testing Docker volume and was removed after verification.
 

@@ -33,8 +33,12 @@ final class RequestCorrelationContext
 
         $startedAt = hrtime(true);
         $response = $next($request);
-        $this->metrics->record($response->getStatusCode(), (hrtime(true) - $startedAt) / 1_000_000);
+        $this->metrics->recordSafely($response->getStatusCode(), (hrtime(true) - $startedAt) / 1_000_000);
         $response->headers->set('X-Request-ID', $requestId);
+        $revision = config('release.revision');
+        if (is_string($revision) && preg_match('/^[A-Za-z0-9._-]{1,128}$/', $revision) === 1) {
+            $response->headers->set('X-Release-Revision', $revision);
+        }
 
         return $response;
     }

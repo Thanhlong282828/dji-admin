@@ -1,0 +1,43 @@
+{
+    "schema_version": 1,
+    "scope": "testing-production-like-certification-only",
+    "release_id": "phase-3f-11-certification-280043f",
+    "manifest_checksum": "3af3f34e7d0708d29e8653e64dcfef03882b9a7b9aa5e7f0eb3dbe6bfb22aac8",
+    "git_commit": "280043f58be7481dedc9daa1c8927bc4bc60635e",
+    "image_digest": "sha256:143697dfd0b63559cdae581ae1a27cf3e4bedea19f3158e192e20cbb3cde3360",
+    "migration_inventory": {
+        "count": 61,
+        "checksum": "2f2c2f15a6d43a1cfbb32b88ef0c291e825678bb562933f81f8bbeb1bc2425d9"
+    },
+    "certification_environment": "testing-production-like-isolated-docker",
+    "started_at": "2026-08-09T06:41:58Z",
+    "completed_at": "2026-08-09T07:16:00Z",
+    "gate_results": {
+        "blue_green_switch": true,
+        "candidate_acceptance": true,
+        "config_failure_blocks": true,
+        "docker_security": true,
+        "migration_certification": true,
+        "observability": true,
+        "queue_recovery": true,
+        "redis_failure_live_isolation": false,
+        "release_check": true,
+        "rollback_simulation": true,
+        "scheduler": true
+    },
+    "health_results": {
+        "database_ready": true,
+        "live_200": true,
+        "metrics_readiness_200": true,
+        "queue_baseline_restored": true,
+        "ready_200": true,
+        "redis_recovered": true,
+        "scheduler_heartbeat_fresh": true
+    },
+    "rollback_target": "laraveldji-admin:08903359b58b7dc58b7c520ece59a7f65efa0ddf@sha256:9dadc464bc4472d5ab17eb7531609d8962b4793b92e31c9123fa045c7cb875ca",
+    "rollback_compatible": true,
+    "quality_reference": "ci://phase3f11/local-full-gates-410-tests",
+    "browser_result": "pass",
+    "status": "failed",
+    "checksum": "d4b2ead9f76f057115dd939a4ffa309c3c6467c600f59d827dae0aaf395fb676"
+}

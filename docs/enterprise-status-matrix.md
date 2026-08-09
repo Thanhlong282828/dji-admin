@@ -98,3 +98,18 @@ Phase 3F-9 is **COMPLETED**. Production before/after counts were identical and P
 | UI/browser | COMPLETED | Exact 1280×800 and 390×844, no overflow/console/page errors, fixture cleanup zero |
 
 Phase 3F-10 is **COMPLETED**. No production deployment/rollback/backup, business-data mutation, migration or external traffic occurred.
+
+## Phase 3F-11 — Production Deployment Simulation & Release Certification
+
+| Area | Status | Evidence |
+|---|---|---|
+| Certification audit | COMPLETED | Release/rollback/manifest/health/observability boundaries audited before implementation |
+| Release candidate | COMPLETED | Full-SHA candidate and rollback images built and inspected; isolated 61-migration database |
+| Deployment simulation | COMPLETED | Redis healthy 200/200/200; Redis down 200/503/503 without telemetry override; recovery 200/200/200 |
+| Blue/green foundation | COMPLETED | Local application-only blue/green switch, distinct revision evidence; not claimed as production topology |
+| Rollback simulation | COMPLETED | Green-to-blue application rollback returned ready 200 against shared forward schema |
+| Release certificate | COMPLETED | Failed historical artifact retained; distinct certified working-tree manifest/certificate produced |
+| Security/quality | COMPLETED | Full PHPUnit 411/4,367/1 skipped/exit 0; PHPStan 0; all static/build/security gates pass |
+| UI/browser | COMPLETED | Exact 1280×800 and 390×844, latest certification/source state visible, zero overflow/console/page problems |
+
+Phase 3F-11 is **COMPLETED**. This is production-like testing certification, not a production deployment. The candidate is explicitly marked `working_tree`; production release governance still requires a committed source artifact.

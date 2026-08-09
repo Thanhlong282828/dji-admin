@@ -14,6 +14,8 @@ final class GenerateReleaseManifestCommand extends Command
         {--release-id= : Stable release identifier}
         {--commit= : Full Git commit SHA}
         {--tag= : Git release tag}
+        {--source-state=committed : committed|working_tree}
+        {--source-checksum= : Deterministic source-state SHA-256}
         {--environment=testing : development|testing|production}
         {--image= : Immutable image tag}
         {--digest= : sha256 image digest}
@@ -34,11 +36,14 @@ final class GenerateReleaseManifestCommand extends Command
                 $this->optionString('release-id'),
                 $this->optionString('commit'),
                 $this->optionString('tag'),
+                $this->optionString('source-state', 'committed'),
+                $this->optionString('source-checksum'),
                 $this->optionString('image'),
                 $this->optionString('digest'),
                 $this->optionString('created-at', now()->toIso8601String()),
                 $this->optionString('environment', 'testing'),
                 (int) DB::table('migrations')->count(),
+                $this->migrationInventoryChecksum(),
                 $this->applicationVersion(),
                 PHP_VERSION,
                 app()->version(),
@@ -113,5 +118,20 @@ final class GenerateReleaseManifestCommand extends Command
         $version = config('app.version');
 
         return is_string($version) && $version !== '' ? $version : 'unversioned';
+    }
+
+    private function migrationInventoryChecksum(): string
+    {
+        $files = glob(database_path('migrations/*.php'));
+        if (! is_array($files)) {
+            throw new RuntimeException('Unable to read migration inventory.');
+        }
+        sort($files);
+        $inventory = [];
+        foreach ($files as $file) {
+            $inventory[basename($file)] = hash_file('sha256', $file);
+        }
+
+        return hash('sha256', json_encode($inventory, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES));
     }
 }

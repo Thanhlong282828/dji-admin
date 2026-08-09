@@ -14,7 +14,9 @@ case "$environment" in development|production) ;; *) echo 'Environment must be d
 : "${BACKUP_REFERENCE:?BACKUP_REFERENCE is required}"
 : "${RELEASE_TAG:?RELEASE_TAG is required}"
 : "${APPROVAL_REFERENCE:?APPROVAL_REFERENCE is required}"
+: "${SOURCE_CHECKSUM:?SOURCE_CHECKSUM is required}"
 [[ "$IMAGE_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]] || { echo 'IMAGE_DIGEST must be sha256:<64 lowercase hex>.' >&2; exit 64; }
+[[ "$SOURCE_CHECKSUM" =~ ^[0-9a-f]{64}$ ]] || { echo 'SOURCE_CHECKSUM must be 64 lowercase hex.' >&2; exit 64; }
 [[ "$PREVIOUS_APP_IMAGE" =~ ^[A-Za-z0-9._/-]+:[0-9a-f]{40}@sha256:[0-9a-f]{64}$ ]] || { echo 'PREVIOUS_APP_IMAGE must be immutable tag@digest.' >&2; exit 64; }
 
 cd "$DEPLOY_PATH"
@@ -48,6 +50,8 @@ docker compose -f compose.yml -f docker-compose.prod.yml exec -T app php artisan
   --release-id="release-${release_sha}" \
   --commit="$release_sha" \
   --tag="$RELEASE_TAG" \
+  --source-state=committed \
+  --source-checksum="$SOURCE_CHECKSUM" \
   --environment="$environment" \
   --image="${CONTAINER_IMAGE}:${release_sha}" \
   --digest="$IMAGE_DIGEST" \
@@ -59,6 +63,8 @@ docker compose -f compose.yml -f docker-compose.prod.yml exec -T app php artisan
   --release-id="release-${release_sha}" \
   --commit="$release_sha" \
   --tag="$RELEASE_TAG" \
+  --source-state=committed \
+  --source-checksum="$SOURCE_CHECKSUM" \
   --environment="$environment" \
   --image="${CONTAINER_IMAGE}:${release_sha}" \
   --digest="$IMAGE_DIGEST" \

@@ -31,8 +31,18 @@ async function verify(label, width, height) {
     await page.goto(`${baseUrl}/admin/audit/_fixtures/login`, { waitUntil: 'networkidle' });
     const response = await page.goto(`${baseUrl}/admin/operations/releases`, { waitUntil: 'networkidle' });
     if (!response?.ok()) throw new Error(`${label}: HTTP ${response?.status()}`);
-    const metrics = await page.evaluate(() => ({ innerWidth, innerHeight, clientWidth: document.documentElement.clientWidth, scrollWidth: document.documentElement.scrollWidth, dashboard: Boolean(document.querySelector('main.rel')) }));
-    if (metrics.innerWidth !== width || metrics.innerHeight !== height || metrics.clientWidth !== width || metrics.scrollWidth !== metrics.clientWidth || !metrics.dashboard) throw new Error(`${label}: ${JSON.stringify(metrics)}`);
+    const metrics = await page.evaluate(() => ({
+        innerWidth,
+        innerHeight,
+        clientWidth: document.documentElement.clientWidth,
+        scrollWidth: document.documentElement.scrollWidth,
+        dashboard: Boolean(document.querySelector('main.rel')),
+        certification: document.body.textContent?.includes('Latest production-like certification') === true
+            && document.body.textContent.includes('280043f58be7481dedc9daa1c8927bc4bc60635e')
+            && document.body.textContent.includes('CERTIFIED'),
+        workingTreeSource: document.body.textContent?.includes('working_tree') === true,
+    }));
+    if (metrics.innerWidth !== width || metrics.innerHeight !== height || metrics.clientWidth !== width || metrics.scrollWidth !== metrics.clientWidth || !metrics.dashboard || !metrics.certification || !metrics.workingTreeSource) throw new Error(`${label}: ${JSON.stringify(metrics)}`);
     if (problems.length) throw new Error(`${label}: ${problems.join(' | ')}`);
     await page.screenshot({ path: `${evidenceDirectory}/${label}.png`, fullPage: true });
     await context.close();

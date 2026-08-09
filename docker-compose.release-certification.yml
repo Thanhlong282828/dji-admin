@@ -1,0 +1,89 @@
+x-certification-environment: &certification-environment
+  APP_ENV: testing
+  APP_DEBUG: "false"
+  APP_URL: http://localhost:18086
+  DB_CONNECTION: mysql
+  DB_HOST: mysql
+  DB_PORT: 3306
+  DB_DATABASE: schema_admin_testing_release
+  DB_USERNAME: schema
+  DB_PASSWORD: certification-only
+  REDIS_HOST: redis
+  REDIS_CLIENT: predis
+  CACHE_STORE: redis
+  QUEUE_CONNECTION: redis
+  SESSION_DRIVER: database
+  BROADCAST_CONNECTION: log
+  MAIL_MAILER: log
+  RELEASE_REVISION: ${RELEASE_REVISION:-candidate}
+
+x-certification-app: &certification-app
+  environment: *certification-environment
+  depends_on:
+    mysql:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+  restart: unless-stopped
+  security_opt:
+    - no-new-privileges:true
+  cap_drop:
+    - ALL
+
+services:
+  app:
+    environment: *certification-environment
+  queue:
+    environment: *certification-environment
+  scheduler:
+    environment: *certification-environment
+  horizon:
+    environment: *certification-environment
+  reverb:
+    environment: *certification-environment
+  mysql:
+    environment:
+      MYSQL_DATABASE: schema_admin_testing_release
+      MYSQL_USER: schema
+      MYSQL_PASSWORD: certification-only
+      MYSQL_ROOT_PASSWORD: certification-root-only
+  nginx:
+    ports: !override
+      - "18086:8080"
+  release-blue:
+    <<: *certification-app
+    image: ${BLUE_IMAGE:?BLUE_IMAGE is required}
+    command: php artisan serve --host=0.0.0.0 --port=8000
+    environment:
+      <<: *certification-environment
+      RELEASE_REVISION: ${BLUE_REVISION:-blue}
+    ports:
+      - "18087:8000"
+  release-green:
+    <<: *certification-app
+    image: ${GREEN_IMAGE:?GREEN_IMAGE is required}
+    command: php artisan serve --host=0.0.0.0 --port=8000
+    environment:
+      <<: *certification-environment
+      RELEASE_REVISION: ${GREEN_REVISION:-green}
+    ports:
+      - "18088:8000"
+  release-switch:
+    image: nginxinc/nginx-unprivileged:1.27-alpine
+    depends_on:
+      release-blue:
+        condition: service_started
+      release-green:
+        condition: service_started
+    environment:
+      RELEASE_UPSTREAM: ${RELEASE_UPSTREAM:-release-blue}
+      RELEASE_SWITCH_REVISION: ${RELEASE_SWITCH_REVISION:-blue}
+    volumes:
+      - ./docker/nginx/release-switch.conf.template:/etc/nginx/templates/default.conf.template:ro
+    ports:
+      - "18089:8080"
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL

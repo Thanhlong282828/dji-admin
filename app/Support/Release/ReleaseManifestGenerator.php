@@ -6,7 +6,7 @@ use RuntimeException;
 
 final class ReleaseManifestGenerator
 {
-    /** @return array{schema_version:int,release_id:string,git_commit:string,git_tag:string,image:array{reference:string,digest:string},created_at:string,environment:string,migration_count:int,application_version:string,runtime:array{php:string,laravel:string},quality_gates:array<string,string>,approval_reference:string,rollback_target:string,checksum:string} */
+    /** @return array{schema_version:int,release_id:string,git_commit:string,git_tag:string,source:array{state:string,checksum:string},image:array{reference:string,digest:string},created_at:string,environment:string,migration_inventory:array{count:int,checksum:string},application_version:string,runtime:array{php:string,laravel:string},quality_gates:array<string,string>,approval_reference:string,rollback_target:string,checksum:string} */
     public function generate(ReleaseManifestData $data): array
     {
         $this->validate($data);
@@ -15,10 +15,11 @@ final class ReleaseManifestGenerator
             'release_id' => $data->releaseId,
             'git_commit' => $data->gitCommit,
             'git_tag' => $data->gitTag,
+            'source' => ['state' => $data->sourceState, 'checksum' => $data->sourceChecksum],
             'image' => ['reference' => $data->imageReference, 'digest' => $data->imageDigest],
             'created_at' => $data->createdAt,
             'environment' => $data->environment,
-            'migration_count' => $data->migrationCount,
+            'migration_inventory' => ['count' => $data->migrationCount, 'checksum' => $data->migrationInventoryChecksum],
             'application_version' => $data->applicationVersion,
             'runtime' => ['php' => $data->phpVersion, 'laravel' => $data->laravelVersion],
             'quality_gates' => $data->qualityGates,
@@ -60,6 +61,9 @@ final class ReleaseManifestGenerator
         if (preg_match('/^[0-9a-f]{40}$/', $data->gitCommit) !== 1) {
             throw new RuntimeException('A full lowercase Git commit SHA is required.');
         }
+        if (! in_array($data->sourceState, ['committed', 'working_tree'], true) || preg_match('/^[0-9a-f]{64}$/', $data->sourceChecksum) !== 1) {
+            throw new RuntimeException('A valid source state and SHA-256 checksum are required.');
+        }
         if (! in_array($data->environment, ['development', 'testing', 'production'], true)) {
             throw new RuntimeException('Invalid release environment.');
         }
@@ -68,6 +72,9 @@ final class ReleaseManifestGenerator
         }
         if ($data->rollbackTarget === $data->imageReference || $data->rollbackTarget === '') {
             throw new RuntimeException('A distinct rollback image target is required.');
+        }
+        if (preg_match('/^[0-9a-f]{64}$/', $data->migrationInventoryChecksum) !== 1) {
+            throw new RuntimeException('Migration inventory checksum is required.');
         }
         foreach ($data->qualityGates as $gate => $status) {
             if ($gate === '' || ! in_array($status, ['pass', 'not_applicable'], true)) {

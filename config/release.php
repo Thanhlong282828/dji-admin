@@ -9,4 +9,5 @@ return [
     'feature_flags' => [
         'release_dashboard' => (bool) env('FEATURE_RELEASE_DASHBOARD', true),
     ],
+    'revision' => env('RELEASE_REVISION', 'unidentified'),
 ];

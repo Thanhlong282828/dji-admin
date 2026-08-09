@@ -105,7 +105,11 @@ final class ReleaseCheckCommand extends Command
             return true;
         }
 
-        return is_string(Cache::get('operations:scheduler:heartbeat'));
+        try {
+            return is_string(Cache::get('operations:scheduler:heartbeat'));
+        } catch (Throwable) {
+            return false;
+        }
     }
 
     private function immutableImage(string $image): bool
