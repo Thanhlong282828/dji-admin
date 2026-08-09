@@ -57,3 +57,5 @@ Phase 3F-8 adds reliability signals and failure-recovery evidence without changi
 # Phase 3F-9 observability composition
 
 Phase 3F-9 composes the Phase 3F-7 health, Horizon, worker, scheduler, Redis and Reverb topology. It adds no new production container or published port. Metrics remain permission-protected application aggregates and no external telemetry backend is configured.
+
+Phase 3F-10 requires full-SHA image tag plus digest, a previous immutable image, quality/backup/approval references and preflight before promotion. It does not claim canary or true zero-downtime support on the current single-instance topology.

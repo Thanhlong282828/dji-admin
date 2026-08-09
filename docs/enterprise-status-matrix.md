@@ -83,3 +83,18 @@ Phase 3F-8 is **PARTIAL** because the explicitly required repository-wide PHPSta
 | UI/browser | COMPLETED | Exact 1280×800 and 390×844, no overflow or console/page problems; fixture cleanup zero |
 
 Phase 3F-9 is **COMPLETED**. Production before/after counts were identical and Phase 3F-9 added no migration or external telemetry/provider call.
+
+## Phase 3F-10 — Enterprise Release Management & Change Governance
+
+| Area | Status | Evidence |
+|---|---|---|
+| Release audit/design | COMPLETED | Git/CI/deploy/rollback/Docker/migration/backup/observability boundaries audited before implementation |
+| Release manifest | COMPLETED | Deterministic immutable JSON/checksum, persistent volume/host evidence and testing sample verified |
+| Pre-deploy gates | COMPLETED | Read-only testing preflight passed all environment, dependency, evidence, image, backup and storage checks |
+| Migration governance | COMPLETED | 61 historical migrations conservatively classified; no historical rewrite or production execution |
+| Rollback governance | COMPLETED | Immutable image and schema/config/backward-compatibility fail-closed contract |
+| Security/CI | COMPLETED | Repository PHPStan 0; full PHPUnit 409 tests/4,348 assertions/1 skipped/exit 0; audits/scans/build/Compose pass |
+| Observability/smoke | COMPLETED | Safe health routes and Phase 3F-9 acceptance signals reused; no production smoke executed |
+| UI/browser | COMPLETED | Exact 1280×800 and 390×844, no overflow/console/page errors, fixture cleanup zero |
+
+Phase 3F-10 is **COMPLETED**. No production deployment/rollback/backup, business-data mutation, migration or external traffic occurred.

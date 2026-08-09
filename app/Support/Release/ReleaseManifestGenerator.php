@@ -1,0 +1,78 @@
+<?php
+
+namespace App\Support\Release;
+
+use RuntimeException;
+
+final class ReleaseManifestGenerator
+{
+    /** @return array{schema_version:int,release_id:string,git_commit:string,git_tag:string,image:array{reference:string,digest:string},created_at:string,environment:string,migration_count:int,application_version:string,runtime:array{php:string,laravel:string},quality_gates:array<string,string>,approval_reference:string,rollback_target:string,checksum:string} */
+    public function generate(ReleaseManifestData $data): array
+    {
+        $this->validate($data);
+        $manifest = [
+            'schema_version' => 1,
+            'release_id' => $data->releaseId,
+            'git_commit' => $data->gitCommit,
+            'git_tag' => $data->gitTag,
+            'image' => ['reference' => $data->imageReference, 'digest' => $data->imageDigest],
+            'created_at' => $data->createdAt,
+            'environment' => $data->environment,
+            'migration_count' => $data->migrationCount,
+            'application_version' => $data->applicationVersion,
+            'runtime' => ['php' => $data->phpVersion, 'laravel' => $data->laravelVersion],
+            'quality_gates' => $data->qualityGates,
+            'approval_reference' => $data->approvalReference,
+            'rollback_target' => $data->rollbackTarget,
+        ];
+        ksort($manifest['quality_gates']);
+        $manifest['checksum'] = hash('sha256', json_encode($manifest, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES));
+
+        return $manifest;
+    }
+
+    /** @param array<string, mixed> $manifest */
+    public function writeImmutable(array $manifest, string $path): void
+    {
+        $encoded = json_encode($manifest, JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)."\n";
+        if (is_file($path)) {
+            $existing = file_get_contents($path);
+            if ($existing !== $encoded) {
+                throw new RuntimeException('Release manifest already exists with different content.');
+            }
+
+            return;
+        }
+        $directory = dirname($path);
+        if (! is_dir($directory) && ! mkdir($directory, 0750, true) && ! is_dir($directory)) {
+            throw new RuntimeException('Unable to create release manifest directory.');
+        }
+        if (file_put_contents($path, $encoded, LOCK_EX) === false) {
+            throw new RuntimeException('Unable to write release manifest.');
+        }
+    }
+
+    private function validate(ReleaseManifestData $data): void
+    {
+        if (preg_match('/^[a-zA-Z0-9._-]{3,128}$/', $data->releaseId) !== 1) {
+            throw new RuntimeException('Invalid release ID.');
+        }
+        if (preg_match('/^[0-9a-f]{40}$/', $data->gitCommit) !== 1) {
+            throw new RuntimeException('A full lowercase Git commit SHA is required.');
+        }
+        if (! in_array($data->environment, ['development', 'testing', 'production'], true)) {
+            throw new RuntimeException('Invalid release environment.');
+        }
+        if (preg_match('/^sha256:[0-9a-f]{64}$/', $data->imageDigest) !== 1 || ! str_contains($data->imageReference, ':')) {
+            throw new RuntimeException('Immutable image tag and SHA-256 digest are required.');
+        }
+        if ($data->rollbackTarget === $data->imageReference || $data->rollbackTarget === '') {
+            throw new RuntimeException('A distinct rollback image target is required.');
+        }
+        foreach ($data->qualityGates as $gate => $status) {
+            if ($gate === '' || ! in_array($status, ['pass', 'not_applicable'], true)) {
+                throw new RuntimeException('Release quality gates must be pass or not_applicable.');
+            }
+        }
+    }
+}

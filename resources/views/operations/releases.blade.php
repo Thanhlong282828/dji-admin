@@ -1,0 +1,19 @@
+@extends('layouts.admin')
+@section('title', 'Enterprise Releases')
+@section('content')
+<style>
+.rel{--gold:#d4af37;color:#edf0f6;width:100%;max-width:1480px;min-width:0;margin:auto;overflow:hidden}.rel *{box-sizing:border-box}.rel-hero,.rel-card,.rel-panel{max-width:100%;background:linear-gradient(145deg,#151920,#090b0f);border:1px solid #2d3139;border-radius:20px;box-shadow:0 20px 55px #0005}.rel-hero{padding:28px}.rel-kicker,.rel-value{color:var(--gold)}.rel-kicker{text-transform:uppercase;letter-spacing:.16em;font-size:12px}.rel h1{font-size:clamp(30px,4vw,52px);margin:8px 0}.rel p,.rel code{overflow-wrap:anywhere}.rel-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin:18px 0}.rel-card{padding:20px;min-width:0}.rel-value{display:block;font-size:24px;margin-top:8px}.rel-panel{padding:22px;margin-top:18px;overflow:hidden}.rel-table{width:100%;max-width:100%;overflow-x:auto}.rel table{width:100%;min-width:640px;border-collapse:collapse}.rel th,.rel td{padding:12px;border-bottom:1px solid #292d34;text-align:left}.rel th{color:#d9bf67}.rel-ok{color:#9ad9b0}.rel-warn{color:#f3b59d}@media(max-width:760px){.rel-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.rel-hero,.rel-panel{padding:16px}.rel-card{padding:15px}}@media(max-width:420px){.rel-grid{grid-template-columns:1fr}}
+</style>
+<main class="rel">
+ <header class="rel-hero"><span class="rel-kicker">Release control plane</span><h1>Enterprise Releases</h1><p>Read-only immutable release evidence. This page cannot deploy, migrate or roll back production.</p></header>
+ <section class="rel-grid">
+  <article class="rel-card"><span>Manifest</span><strong class="rel-value {{ $release['available']?'rel-ok':'rel-warn' }}">{{ $release['available']?'AVAILABLE':'NOT PUBLISHED' }}</strong></article>
+  <article class="rel-card"><span>Integrity</span><strong class="rel-value {{ $release['integrity']?'rel-ok':'rel-warn' }}">{{ $release['integrity']?'VERIFIED':'UNVERIFIED' }}</strong></article>
+  <article class="rel-card"><span>Readiness</span><strong class="rel-value">{{ strtoupper($health['status']) }}</strong></article>
+  <article class="rel-card"><span>Migrations</span><strong class="rel-value">{{ $migrationCount }}</strong></article>
+ </section>
+ <section class="rel-panel"><h2>Current release</h2><p>Release: <code>{{ $release['release_id'] ?: '—' }}</code></p><p>Commit: <code>{{ $release['git_commit'] ?: '—' }}</code> · Tag: <code>{{ $release['git_tag'] ?: '—' }}</code></p><p>Image: <code>{{ $release['image_reference'] ?: '—' }}</code></p><p>Digest: <code>{{ $release['image_digest'] ?: '—' }}</code></p><p>Rollback target: <code>{{ $release['rollback_target'] ?: '—' }}</code></p></section>
+ <section class="rel-panel"><h2>Quality gates</h2><div class="rel-table"><table><thead><tr><th>Gate</th><th>Status</th></tr></thead><tbody>@forelse($release['quality_gates'] as $gate=>$status)<tr><td>{{ $gate }}</td><td class="{{ $status==='pass'?'rel-ok':'rel-warn' }}">{{ strtoupper($status) }}</td></tr>@empty<tr><td colspan="2">No release manifest has been published in this environment.</td></tr>@endforelse</tbody></table></div></section>
+ <section class="rel-panel"><h2>Deployment contract</h2><p>Preflight → backup readiness → immutable image/digest → migration review → deploy → readiness/smoke → queue/scheduler/observability → acceptance or controlled rollback decision.</p><p>Database rollback is never automatic. Forward-fix is preferred when schema backward compatibility is not proven.</p></section>
+</main>
+@endsection

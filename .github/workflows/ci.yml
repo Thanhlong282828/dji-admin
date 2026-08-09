@@ -62,12 +62,15 @@ jobs:
       - run: php artisan migrate --force
       - run: npm ci && npm run build
       - run: vendor/bin/pint --test
-      - run: vendor/bin/phpstan analyse --memory-limit=1G
+      - run: vendor/bin/phpstan analyse app Modules --level=10 --no-progress --memory-limit=2G
+      - run: vendor/bin/phpstan analyse tests/Unit/Operations tests/Feature/ReleaseGovernanceTest.php --level=10 --no-progress --memory-limit=1G
       - run: php artisan test --coverage --min=20
+      - run: php artisan view:clear && php artisan view:cache && php artisan view:clear
       - run: composer audit --no-interaction
       - run: npm audit --omit=dev --audit-level=high
       - run: scripts/ci/scan-secrets.sh
       - run: scripts/ci/validate-pipeline.sh
+      - run: php artisan operations:migration-risk
       - run: php artisan optimize
       - name: Readiness smoke test
         run: php artisan serve --host=127.0.0.1 --port=8000 & server=$!; trap 'kill $server' EXIT; for i in {1..12}; do curl --fail http://127.0.0.1:8000/health/ready && exit 0; sleep 2; done; exit 1
@@ -76,12 +79,15 @@ jobs:
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     needs: quality
     runs-on: ubuntu-latest
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
         with: {registry: ghcr.io, username: '${{ github.actor }}', password: '${{ secrets.GITHUB_TOKEN }}'}
       - uses: docker/build-push-action@v6
+        id: build
         with:
           context: .
           push: true
@@ -101,11 +107,17 @@ jobs:
           DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
           CONTAINER_IMAGE: ghcr.io/${{ github.repository }}
           DEPLOY_HEALTH_URL: ${{ vars.DEPLOY_HEALTH_URL }}
+          IMAGE_DIGEST: ${{ needs.docker.outputs.digest }}
+          PREVIOUS_APP_IMAGE: ${{ vars.PREVIOUS_APP_IMAGE }}
+          QUALITY_EVIDENCE_REFERENCE: ci://github-actions/${{ github.run_id }}
+          BACKUP_REFERENCE: ${{ vars.BACKUP_READINESS_REFERENCE }}
+          RELEASE_TAG: ${{ github.ref_name }}
+          APPROVAL_REFERENCE: github-environment/development/${{ github.run_id }}
         with:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
-          envs: DEPLOY_PATH,CONTAINER_IMAGE,DEPLOY_HEALTH_URL
+          envs: DEPLOY_PATH,CONTAINER_IMAGE,DEPLOY_HEALTH_URL,IMAGE_DIGEST,PREVIOUS_APP_IMAGE,QUALITY_EVIDENCE_REFERENCE,BACKUP_REFERENCE,RELEASE_TAG,APPROVAL_REFERENCE
           script: cd "$DEPLOY_PATH" && scripts/deploy/release.sh development ${{ github.sha }}
 
   deploy-production:
@@ -121,9 +133,15 @@ jobs:
           DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
           CONTAINER_IMAGE: ghcr.io/${{ github.repository }}
           DEPLOY_HEALTH_URL: ${{ vars.DEPLOY_HEALTH_URL }}
+          IMAGE_DIGEST: ${{ needs.docker.outputs.digest }}
+          PREVIOUS_APP_IMAGE: ${{ vars.PREVIOUS_APP_IMAGE }}
+          QUALITY_EVIDENCE_REFERENCE: ci://github-actions/${{ github.run_id }}
+          BACKUP_REFERENCE: ${{ vars.BACKUP_READINESS_REFERENCE }}
+          RELEASE_TAG: ${{ github.ref_name }}
+          APPROVAL_REFERENCE: github-environment/production/${{ github.run_id }}
         with:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
-          envs: DEPLOY_PATH,CONTAINER_IMAGE,DEPLOY_HEALTH_URL
+          envs: DEPLOY_PATH,CONTAINER_IMAGE,DEPLOY_HEALTH_URL,IMAGE_DIGEST,PREVIOUS_APP_IMAGE,QUALITY_EVIDENCE_REFERENCE,BACKUP_REFERENCE,RELEASE_TAG,APPROVAL_REFERENCE
           script: cd "$DEPLOY_PATH" && scripts/deploy/release.sh production ${{ github.sha }}

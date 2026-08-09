@@ -27,3 +27,7 @@ Migration count added by Phase 3F-9: **0**. Production was queried only for befo
 - Browser: Chrome/playwright-core exact 1280×800 and 390×844; document overflow 0, console warning/error 0, page error 0; fixture cleanup 0.
 - Database migration inventory: 61 in production, development, testing and browser testing; no Phase 3F-9 migration.
 - Production before/after: users 1, employees 9, roles 14, company access 1; Payroll/IAM/Workflow/Notification/Integration/Audit baseline rows unchanged.
+
+## Release acceptance integration
+
+Phase 3F-10 consumes this dashboard's aggregate availability, 5xx, p95, queue, scheduler, dependency, Integration dead-letter and Notification failure signals after deployment. Production thresholds remain environment configuration; local/demo values never trigger automatic rollback.

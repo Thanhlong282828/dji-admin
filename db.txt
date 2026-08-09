@@ -569,6 +569,8 @@ PHASE 3F-8 DATABASE NOTE
 - Reliability reads existing jobs, failed_jobs, workflow_outbox, notification_outbox, iam_outbox, integration_outbox, audit_outbox, integration_outbound_messages and integration_dead_letters.
 - Phase 3F-9 adds no table or migration. HTTP telemetry is bounded-TTL cache data; observability reads existing reliability/outbox/integration tables without processing or updating them.
 - Final migration matrix remains 61/61/61/61 for schema_admin, schema_admin_development, schema_admin_testing and schema_admin_browser_testing. Production business counts were unchanged before/after.
+- Phase 3F-10 stores release evidence as immutable files/CI artifacts, not database rows. It creates no migration and never bootstraps development data in production.
+- Final canonical migration inventory remains 61/61/61/61; production business counts remained unchanged before/after Phase 3F-10.
 - Scheduler heartbeat and HTTP SLI counters use cache/Redis; they do not mutate domain business state.
 - Failure injection used only an isolated schema_admin_testing Docker volume and was removed after verification.
 

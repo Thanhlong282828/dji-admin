@@ -1,0 +1,32 @@
+{
+    "schema_version": 1,
+    "release_id": "phase-3f-10-foundation-sample",
+    "git_commit": "08903359b58b7dc58b7c520ece59a7f65efa0ddf",
+    "git_tag": "phase-3f-9-enterprise-observability",
+    "image": {
+        "reference": "laraveldji-admin:08903359b58b7dc58b7c520ece59a7f65efa0ddf",
+        "digest": "sha256:350eb36549420908ab7f057c4526871625517313cf6006b688f40d8520e8e1de"
+    },
+    "created_at": "2026-08-09T12:00:00+07:00",
+    "environment": "testing",
+    "migration_count": 61,
+    "application_version": "unversioned",
+    "runtime": {
+        "php": "8.4.23",
+        "laravel": "13.21.1"
+    },
+    "quality_gates": {
+        "blade": "pass",
+        "composer_audit": "pass",
+        "docker": "pass",
+        "npm_audit": "pass",
+        "phpstan": "pass",
+        "phpunit": "pass",
+        "pint": "pass",
+        "secret_scan": "pass",
+        "vite": "pass"
+    },
+    "approval_reference": "sample-no-production-approval",
+    "rollback_target": "laraveldji-admin:ebea60e000000000000000000000000000000000",
+    "checksum": "6cf33e31e00b500cc5988de62e5592a6efb56eaf0c81f292c4808fabafd5dcd5"
+}

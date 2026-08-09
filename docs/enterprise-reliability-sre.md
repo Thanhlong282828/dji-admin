@@ -40,3 +40,5 @@ Final evidence after canonical index repair: full PHPUnit 397 tests / 4,291 asse
 ## Phase 3F-9 composition
 
 Observability composes this reliability snapshot rather than duplicating its database/readiness logic. HTTP counters and cumulative histogram buckets are cache-only with bounded TTL. Alert evaluation and burn status are informational read models; they do not mutate source rows or automatically trigger external notification/incident delivery.
+
+Phase 3F-10 release acceptance reuses live/ready contracts, queue/outbox lag and scheduler heartbeat. A degraded gate blocks promotion but does not mutate business state or automatically execute database rollback.

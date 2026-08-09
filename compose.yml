@@ -23,6 +23,8 @@ x-app: &app
     REVERB_HOST: reverb
     REVERB_PORT: 8080
     REVERB_SCHEME: http
+  volumes:
+    - release_manifests:/var/www/html/storage/release-manifests
   depends_on:
     mysql:
       condition: service_healthy
@@ -115,3 +117,4 @@ services:
 volumes:
   mysql_data:
   redis_data:
+  release_manifests:

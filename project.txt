@@ -439,6 +439,14 @@ Phase 3F-9 observability foundation:
 - `ObservabilityController` serves protected dashboard and aggregate metrics JSON under `operations.view`.
 - `SensitiveDataRedactor` provides recursive safe-context filtering; no observability migration or external provider was added.
 - Phase 3F-9 final: COMPLETED — PHPStan 0, final full PHPUnit 403 tests/4,324 assertions/1 skipped/exit 0, exact browser desktop/mobile, production unchanged.
+
+Phase 3F-10 release governance foundation:
+- immutable JSON release manifest, image tag/digest, quality/approval/rollback evidence and SHA-256;
+- read-only `operations:release-check`, conservative migration-risk scanner and rollback compatibility guard;
+- hardened GitHub Actions and deploy/rollback scripts;
+- protected `/admin/operations/releases` black-gold dashboard;
+- no migration and no production deployment/mutation.
+- Phase 3F-10 final: COMPLETED — full PHPUnit 409 tests/4,348 assertions/1 skipped/exit 0; repository PHPStan 0; all security/build/browser/production-safety gates pass.
 - app/Console/Commands/BootstrapDevelopmentDataCommand.php
 - app/Console/Commands/VerifyEnvironmentSchemaCommand.php
 - app/Support/DatabaseSchemaComparator.php

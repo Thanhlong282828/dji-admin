@@ -30,3 +30,5 @@ Redis and MySQL recovery contracts are exercised only in an isolated Docker runt
 # Observability references
 
 Phase 3F-9 alerts link existing runbooks by component and severity. Alert snapshots are informational; they do not automatically create incidents or perform recovery. Operators must verify symptoms against health/readiness and follow the corresponding runbook before mitigation.
+
+Release rollback now fails closed unless prior image, migration, config and database backward compatibility are proven. Production database rollback remains manual; forward-fix is preferred.

@@ -16,6 +16,24 @@ if grep -En '(password|token|secret|private_key):[[:space:]]+[A-Za-z0-9+/=_-]{12
     exit 1
 fi
 
+for required in \
+    'phpstan analyse app Modules --level=10' \
+    'php artisan test' \
+    'pint --test' \
+    'view:cache' \
+    'npm run build' \
+    'composer audit' \
+    'npm audit' \
+    'scan-secrets.sh' \
+    'operations:migration-risk' \
+    'github.sha' \
+    'steps.build.outputs.digest'; do
+    grep -q "$required" "$workflow" || { echo "Missing release gate: $required" >&2; exit 1; }
+done
+
+grep -q 'environment: production' "$workflow" || { echo 'Production environment approval boundary is missing.' >&2; exit 1; }
+grep -q 'concurrency: production-deployment' "$workflow" || { echo 'Production deployment serialization is missing.' >&2; exit 1; }
+
 docker compose -f "$root_dir/compose.yml" config --quiet
 APP_KEY='base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=' \
 DB_USERNAME='ci_validation' \

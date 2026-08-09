@@ -1760,6 +1760,30 @@ Alert path
 → dashboard/metrics aggregate only
 → no external PagerDuty/Slack/email/webhook and no automatic production incident
 
+PHASE 3F-10 — RELEASE GOVERNANCE
+
+CI quality + security + image scan
+→ full Git SHA image tag
+→ registry SHA-256 digest
+→ (app/Console/Commands/ScanMigrationRiskCommand.php) | operations:migration-risk
+→ (app/Console/Commands/ReleaseCheckCommand.php) | operations:release-check(): read-only PASS/FAIL
+→ (scripts/deploy/release.sh) | candidate migration > application promotion > health/read-only smoke
+→ (app/Console/Commands/GenerateReleaseManifestCommand.php) | deterministic immutable manifest
+→ storage/release-manifests | host/CI artifact, checksum, no secret
+
+GET /admin/operations/releases
+→ middleware | auth > verified > permission:operations.view
+→ (app/Http/Controllers/Operations/ReleaseDashboardController.php) | __invoke()
+→ (app/Support/Release/ReleaseDashboardService.php) | snapshot()
+→ (app/Support/Release/ReleaseManifestReader.php) | current() + checksum verification
+→ (app/Support/OperationsHealthService.php) | readiness()
+→ (resources/views/operations/releases.blade.php) | read-only black-gold release dashboard
+
+Rollback request
+→ (app/Support/Release/RollbackCompatibilityChecker.php) | image/schema/config/backward compatibility
+→ compatible | scripts/deploy/rollback.sh application image only
+→ incompatible | forward-fix; never automatic production down migration
+
 DEVELOPMENT DATA BOOTSTRAP
 CLI app:bootstrap-development-data
 → app/Console/Commands/BootstrapDevelopmentDataCommand.php | handle()
