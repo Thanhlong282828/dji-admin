@@ -22,8 +22,10 @@ final class EnvironmentSafetyGuard
             throw new RuntimeException('Unsafe environment: APP_DEBUG must be false in production.');
         }
 
-        if ($environment === 'testing' && $requireTestingSuffix && ! str_ends_with($database, '_testing')) {
-            throw new RuntimeException(sprintf('Unsafe test environment: database %s must end with _testing.', $database));
+        $safeTestingDatabase = str_ends_with($database, '_testing')
+            || preg_match('/^schema_admin_testing_[a-z0-9_]+$/', $database) === 1;
+        if ($environment === 'testing' && $requireTestingSuffix && ! $safeTestingDatabase) {
+            throw new RuntimeException(sprintf('Unsafe test environment: database %s must use an approved testing name.', $database));
         }
     }
 }

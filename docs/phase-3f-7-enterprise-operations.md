@@ -51,3 +51,6 @@ No production backup, load test, external telemetry call, seed, migration, or da
 
 - Phase 3F-7B Docker Production Hardening: **COMPLETED**.
 - Phase 3F-7 Enterprise Deployment & Operations: **COMPLETED**.
+# Phase 3F-8 follow-on
+
+Phase 3F-8 adds reliability signals and failure-recovery evidence without changing the Phase 3F-7 deployment topology. The verified production-like stack remains the authoritative Docker boundary; reliability injection uses a separate Compose project and `schema_admin_testing` only.

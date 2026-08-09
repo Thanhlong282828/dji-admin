@@ -1705,3 +1705,67 @@ Backup validation/execution > scripts/operations/backup-database.sh > guard + my
 Restore drill > scripts/operations/restore-verify.sh > *_restore_testing guard > SHA-256/gzip validation > isolated MySQL import > SELECT 1
 Testing load baseline > scripts/operations/load-baseline.sh > /health/live requests > OperationsBaselineCommand.php|handle() > DB/queue dispatch timing
 Production-like runtime verify > Dockerfile|multi-stage build > `.dockerignore`|secret/private-artifact exclusion > compose.yml + docker-compose.prod.yml + docker-compose.runtime-verify.yml|schema_admin_testing isolation > app/nginx/queue/scheduler/horizon/reverb containers|non-root + resource/security controls > HealthController + OperationsHealthService|live/ready/metrics contracts > OperationsProbeJob|Redis queue worker > schedule:work|safe scheduler > compose down -v|isolated cleanup
+PHASE 3F-8 — RELIABILITY FILE FLOW
+GET /health/live
+→ routes/web.php | route health.live
+→ HealthController.php | live()
+→ safe JsonResponse (no dependency or credential detail).
+
+GET /health/ready
+→ routes/web.php | route health.ready
+→ HealthController.php | ready(OperationsHealthService $health)
+→ OperationsHealthService.php | readiness()
+→ databaseIsReady() + redisIsReady() + durable queue driver check
+→ HTTP 200 ready hoặc HTTP 503 degraded.
+
+GET /admin/operations/reliability
+→ routes/web.php | auth + verified + can:operations.view
+→ ReliabilityController.php | __invoke(ReliabilitySnapshotService $service)
+→ ReliabilitySnapshotService.php | snapshot()
+→ existing queue/outbox/dead-letter tables + cache heartbeat
+→ SloCalculator.php | calculate($total, $failures, $target, $window)
+→ resources/views/operations/reliability.blade.php | `$snapshot`.
+
+Scheduler tick
+→ routes/console.php | Schedule::command('operations:heartbeat')
+→ OperationsHeartbeatCommand.php | handle()
+→ Cache key operations:scheduler:heartbeat
+→ ReliabilitySnapshotService.php | stale-age evaluation.
+
+DEVELOPMENT DATA BOOTSTRAP
+CLI app:bootstrap-development-data
+→ app/Console/Commands/BootstrapDevelopmentDataCommand.php | handle()
+→ guard APP_ENV=local + DB suffix _development
+→ CompanyDatabaseSeeder::run()
+→ OrganizationDatabaseSeeder::run()
+→ EmployeeDatabaseSeeder::run()
+→ RecruitmentDatabaseSeeder::run()
+→ OnboardingDatabaseSeeder::run()
+→ idempotent synthetic development rows
+
+SCHEMA PARITY AUDIT (READ ONLY)
+CLI app:verify-environment-schema
+→ app/Console/Commands/VerifyEnvironmentSchemaCommand.php | handle()
+→ app/Support/DatabaseSchemaComparator.php | compare()
+→ information_schema columns/indexes/foreign keys + migration inventories
+→ success or explicit drift report (no schema/data mutation)
+
+PROCESS RACE TEST ISOLATION
+PHPUnit concurrency test
+→ tests/Support/MysqlProcessRaceRunner.php | run()
+→ two tests/Support/workforce_concurrency_worker.php processes
+→ shared committed fixture in guarded schema_admin_testing
+→ atomic barrier release
+→ bounded completion wait
+→ collect both exit codes
+→ finally stop remaining owned workers and remove temporary barrier files
+
+CANONICAL INDEX REPAIR
+Migration 2026_08_13_000044_repair_canonical_production_indexes.php
+→ inspect Schema::getIndexes(table)
+→ compare ordered columns + unique flag
+→ existing logical index: skip
+→ missing logical index: ALTER TABLE ADD INDEX
+→ no business-row mutation
+→ app:verify-environment-schema
+→ logical parity across production/development/testing/browser-testing

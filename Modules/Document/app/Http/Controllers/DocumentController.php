@@ -3,6 +3,7 @@
 namespace Modules\Document\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
 
 class DocumentController extends Controller
@@ -10,47 +11,47 @@ class DocumentController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(): View
     {
-        return view('document::index');
+        return view()->make('document::index');
     }
 
     /**
      * Show the form for creating a new resource.
      */
-    public function create()
+    public function create(): View
     {
-        return view('document::create');
+        return view()->make('document::create');
     }
 
     /**
      * Store a newly created resource in storage.
      */
-    public function store(Request $request) {}
+    public function store(Request $request): void {}
 
     /**
      * Show the specified resource.
      */
-    public function show($id)
+    public function show(int|string $id): View
     {
-        return view('document::show');
+        return view()->make('document::show');
     }
 
     /**
      * Show the form for editing the specified resource.
      */
-    public function edit($id)
+    public function edit(int|string $id): View
     {
-        return view('document::edit');
+        return view()->make('document::edit');
     }
 
     /**
      * Update the specified resource in storage.
      */
-    public function update(Request $request, $id) {}
+    public function update(Request $request, int|string $id): void {}
 
     /**
      * Remove the specified resource from storage.
      */
-    public function destroy($id) {}
+    public function destroy(int|string $id): void {}
 }

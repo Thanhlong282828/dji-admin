@@ -2,5 +2,5 @@
 
 return [
     'name' => 'Employee',
-    'malware_scanner' => env('EMPLOYEE_MALWARE_SCANNER', app()->environment('production') ? 'clamav' : 'null'),
+    'malware_scanner' => config('app.env') === 'production' ? 'clamav' : 'null',
 ];

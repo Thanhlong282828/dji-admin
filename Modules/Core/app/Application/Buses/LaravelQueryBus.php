@@ -18,6 +18,11 @@ final readonly class LaravelQueryBus implements QueryBusInterface
             throw new LogicException("No query handler registered for {$messageClass}");
         }
 
-        return $this->container->make($handler)->handle($query);
+        $resolved = $this->container->make($handler);
+        if (! is_object($resolved) || ! method_exists($resolved, 'handle')) {
+            throw new LogicException("Query handler {$handler} must define handle().");
+        }
+
+        return $resolved->handle($query);
     }
 }

@@ -420,3 +420,24 @@ PHASE 3F-7 — ENTERPRISE DEPLOYMENT & OPERATIONS
 - Operations: scripts/operations/backup-database.sh; scripts/operations/restore-verify.sh; scripts/operations/load-baseline.sh
 - Documentation: docs/phase-3f-7-enterprise-operations.md; docs/backup-restore-runbook.md; docs/disaster-recovery.md; docs/enterprise-security-checklist.md
 - Runtime completion: `.dockerignore` provides a minimal secret-safe build context; `docker-compose.runtime-verify.yml` pins the verification stack to `schema_admin_testing`; Docker Engine 29.5.3 built and ran the image with non-root PHP/Nginx, private MySQL/Redis, health degradation/recovery, worker/scheduler and hardening controls verified. Phase 3F-7B and Phase 3F-7 Overall are COMPLETED.
+PHASE 3F-8 — ENTERPRISE RELIABILITY & SRE
+- app/Support/SloCalculator.php: deterministic configurable error-budget calculation.
+- app/Support/ReliabilitySnapshotService.php: safe queue/outbox/integration/scheduler read model.
+- app/Console/Commands/OperationsHeartbeatCommand.php: cache-only scheduler heartbeat.
+- app/Http/Controllers/Operations/ReliabilityController.php: protected operations dashboard.
+- resources/views/operations/reliability.blade.php: responsive black-gold reliability UI.
+- tests/Unit/Operations/SloCalculatorTest.php and tests/Feature/OperationsReliabilityTest.php.
+- tests/Browser/operations-responsive-check.mjs: exact Chrome viewport gate.
+- docs/enterprise-reliability-*.md and docs/runbooks/*.md.
+- No migration and no business module were added.
+
+Phase 3F-8 completion hardening additions:
+- app/Console/Commands/BootstrapDevelopmentDataCommand.php
+- app/Console/Commands/VerifyEnvironmentSchemaCommand.php
+- app/Support/DatabaseSchemaComparator.php
+- tests/Feature/DevelopmentDataBootstrapCommandTest.php
+- docs/development-data-baseline.md
+- EnvironmentSafetyGuard accepts deterministic `schema_admin_testing_<scope>` databases while still blocking production/development under APP_ENV=testing.
+- DatabaseSchemaComparator normalizes physical constraint names and verifies logical ordered index/FK contracts.
+- database/migrations/2026_08_13_000044_repair_canonical_production_indexes.php — additive, idempotent logical index repair.
+- tests/Unit/Architecture/DatabaseSchemaComparatorTest.php — generated-name normalization, missing/ordered index and repaired-parity tests.

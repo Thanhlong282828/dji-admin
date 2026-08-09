@@ -3,6 +3,7 @@
 namespace Modules\Dashboard\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
 
 class DashboardController extends Controller
@@ -10,47 +11,47 @@ class DashboardController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(): View
     {
-        return view('dashboard::index');
+        return view()->make('dashboard::index');
     }
 
     /**
      * Show the form for creating a new resource.
      */
-    public function create()
+    public function create(): View
     {
-        return view('dashboard::create');
+        return view()->make('dashboard::create');
     }
 
     /**
      * Store a newly created resource in storage.
      */
-    public function store(Request $request) {}
+    public function store(Request $request): void {}
 
     /**
      * Show the specified resource.
      */
-    public function show($id)
+    public function show(int|string $id): View
     {
-        return view('dashboard::show');
+        return view()->make('dashboard::show');
     }
 
     /**
      * Show the form for editing the specified resource.
      */
-    public function edit($id)
+    public function edit(int|string $id): View
     {
-        return view('dashboard::edit');
+        return view()->make('dashboard::edit');
     }
 
     /**
      * Update the specified resource in storage.
      */
-    public function update(Request $request, $id) {}
+    public function update(Request $request, int|string $id): void {}
 
     /**
      * Remove the specified resource from storage.
      */
-    public function destroy($id) {}
+    public function destroy(int|string $id): void {}
 }

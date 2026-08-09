@@ -28,7 +28,17 @@ final class GenericHttpAdapter implements IntegrationAdapterInterface
     public function send(array $configuration, array $payload, string $idempotencyKey): DeliveryResult
     {
         $this->validateConfiguration($configuration);
-        if (($configuration['mode'] ?? null) !== 'mock') {
+        $mode = $configuration['mode'] ?? null;
+        if ($mode === 'mock_timeout') {
+            return new DeliveryResult(false, null, 'timeout', 'Mock provider timed out.');
+        }
+        if ($mode === 'mock_5xx') {
+            return new DeliveryResult(false, null, '503', 'Mock provider was unavailable.');
+        }
+        if ($mode === 'mock_invalid_response') {
+            return new DeliveryResult(false, null, 'invalid_response', 'Mock provider returned an invalid response.');
+        }
+        if ($mode !== 'mock') {
             return new DeliveryResult(false, null, 'external_disabled', 'External HTTP delivery is disabled in this foundation phase.');
         }
 

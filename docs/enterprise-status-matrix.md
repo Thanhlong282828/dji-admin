@@ -40,3 +40,31 @@ Future phase completion must update this matrix in the same change as its final 
 | Security operations | COMPLETED | dependency audits clean, tracked secret scan, headers/rate limits/auth governance |
 
 Phase 3F-7 is **COMPLETED**. The production-like runtime gate used an isolated testing database and made no production mutation or external provider call.
+
+## Phase 3F-8 — Enterprise Reliability & SRE
+
+| Area | Status | Evidence |
+|---|---|---|
+| Reliability audit/design | COMPLETED | Existing health, queue, scheduler, Reverb and five enterprise outbox boundaries audited |
+| SLI/SLO foundation | COMPLETED | Configurable window/availability target and deterministic error-budget calculator |
+| Queue/outbox resilience | COMPLETED | Safe backlog/lag read model; worker-stop/recovery probe processed once; existing idempotency regressions retained |
+| Dependency recovery | COMPLETED | Isolated Redis/MySQL stop: live 200, ready 503; recovery returned ready 200; Reverb stop left core live/ready at 200 |
+| Runbooks | COMPLETED | Queue, Redis, database, deployment, integration dead letter and scheduler stale procedures |
+| Capacity baseline | COMPLETED | Testing-only 100-iteration DB/queue dispatch baseline; no production load |
+| Operations security | COMPLETED | `auth`, `verified`, `operations.view`; public health payload remains secret-free |
+| UI/browser | COMPLETED | Exact 1280×800 and 390×844; no document overflow or console problem |
+| Repository-wide PHPStan | PARTIAL | Phase 3F-8 scope is 0 errors; exact `app Modules --level=10` gate finds 418 pre-existing disabled/legacy module errors |
+
+Phase 3F-8 is **PARTIAL** because the explicitly required repository-wide PHPStan gate is not zero. Runtime, security, recovery, browser and Phase 3F-8 scoped quality evidence are complete; no legacy module was refactored outside this phase.
+# Phase 3F-8 completion hardening (2026-08-09)
+
+- Repository-wide PHPStan for `app + Modules`, level 10: **COMPLETED — 0 errors** (411 observed at the start of this working-tree audit; the requested historical baseline was 418).
+- Development bootstrap and environment guards: **COMPLETED** for the safe Company/Organization/Employee/Recruitment/Onboarding baseline.
+- Schema migration-name parity: **COMPLETED** at 60/60/60/60.
+- Physical schema parity: **PARTIAL** because development contains additional composite indexes and one equivalent foreign key has a different name; production was kept read-only.
+- Full PHPUnit: **COMPLETED** — 393 tests / 4,284 assertions / 1 skipped / exit code 0. Dedicated concurrency: 60 tests / 486 assertions / exit code 0.
+- Local major-UI browser matrix: **COMPLETED** for 18 representative routes at exact 1280×800 and 390×844 (all HTTP 200, no horizontal overflow, zero console errors/warnings). Runtime defects found and corrected were stale serialized cache-object recovery and the onboarding `is_required` schema column.
+- Phase 3F-8G Security/Quality: **COMPLETED**.
+- Phase 3F-8 Overall: **COMPLETED**.
+- Canonical index repair: migration batch 56, logical drift zero, 61 migrations in every environment, production business counts unchanged.
+- Final PHPUnit: **397 tests / 4,291 assertions / 1 skipped / exit code 0**. Concurrency: **60 tests / 486 assertions / exit code 0**.

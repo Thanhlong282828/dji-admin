@@ -31,6 +31,19 @@ final readonly class WorkforceCacheRegistry
         return $this->cache->remember($this->key($companyId, $scope, "v{$normalizedVersion}:{$readModel}"), $ttlSeconds, $resolver);
     }
 
+    /**
+     * Untyped cache boundary for safely normalizing serialized values created by an older autoload map.
+     *
+     * @param  Closure(): mixed  $resolver
+     */
+    public function rememberExternal(int $companyId, string $scope, string $readModel, int $ttlSeconds, Closure $resolver): mixed
+    {
+        $version = $this->cache->get($this->key($companyId, $scope, 'version'), 0);
+        $normalizedVersion = is_int($version) ? $version : 0;
+
+        return $this->cache->remember($this->key($companyId, $scope, "v{$normalizedVersion}:{$readModel}"), $ttlSeconds, $resolver);
+    }
+
     public function invalidate(int $companyId, string $scope): void
     {
         if (! in_array($scope, self::SCOPES, true)) {

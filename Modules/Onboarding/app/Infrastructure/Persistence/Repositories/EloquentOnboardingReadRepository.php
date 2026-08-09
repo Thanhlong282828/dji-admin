@@ -47,7 +47,7 @@ final class EloquentOnboardingReadRepository implements OnboardingReadRepository
         $caseIds = (clone $cases)->select('id');
         $overdue = DB::table('onboarding_checklist_items')
             ->whereIn('onboarding_case_id', $caseIds)
-            ->where('required', true)
+            ->where('is_required', true)
             ->where('status', '<>', 'completed')
             ->whereDate('due_at', '<', today())
             ->count();

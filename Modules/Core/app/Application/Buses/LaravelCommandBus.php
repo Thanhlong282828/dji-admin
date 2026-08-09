@@ -18,6 +18,11 @@ final readonly class LaravelCommandBus implements CommandBusInterface
             throw new LogicException("No command handler registered for {$messageClass}");
         }
 
-        return $this->container->make($handler)->handle($command);
+        $resolved = $this->container->make($handler);
+        if (! is_object($resolved) || ! method_exists($resolved, 'handle')) {
+            throw new LogicException("Command handler {$handler} must define handle().");
+        }
+
+        return $resolved->handle($command);
     }
 }

@@ -11,7 +11,7 @@ final class ShiftDurationCalculator
     {
         $start = CarbonImmutable::createFromFormat('!H:i', substr($startsAt, 0, 5));
         $end = CarbonImmutable::createFromFormat('!H:i', substr($endsAt, 0, 5));
-        if ($start === false || $end === false) {
+        if ($start === null || $end === null) {
             throw new InvalidArgumentException('Invalid shift time.');
         }
         if ($crossesMidnight) {

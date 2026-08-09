@@ -3,6 +3,7 @@
 namespace Modules\Employee\Domain\Models;
 
 use App\Models\User;
+use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -20,6 +21,7 @@ use Modules\Employee\Infrastructure\Casts\EncryptedIdentityNumberCast;
  * @property int $company_id
  * @property int|null $user_id
  * @property string $employee_code
+ * @property CarbonInterface $join_date
  */
 final class Employee extends Model
 {

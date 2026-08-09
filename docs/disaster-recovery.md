@@ -24,3 +24,6 @@
 ## Exercise cadence
 
 Run a tabletop quarterly and an isolated restore exercise twice yearly. Load tests and disaster exercises must never target production.
+# Reliability verification addendum
+
+Redis and MySQL recovery contracts are exercised only in an isolated Docker runtime. Liveness remains available while readiness reports 503, then returns to 200 after dependency recovery. Operational response procedures are in `docs/runbooks/`.

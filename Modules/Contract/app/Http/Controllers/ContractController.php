@@ -3,6 +3,7 @@
 namespace Modules\Contract\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
 
 class ContractController extends Controller
@@ -10,47 +11,47 @@ class ContractController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(): View
     {
-        return view('contract::index');
+        return view()->make('contract::index');
     }
 
     /**
      * Show the form for creating a new resource.
      */
-    public function create()
+    public function create(): View
     {
-        return view('contract::create');
+        return view()->make('contract::create');
     }
 
     /**
      * Store a newly created resource in storage.
      */
-    public function store(Request $request) {}
+    public function store(Request $request): void {}
 
     /**
      * Show the specified resource.
      */
-    public function show($id)
+    public function show(int|string $id): View
     {
-        return view('contract::show');
+        return view()->make('contract::show');
     }
 
     /**
      * Show the form for editing the specified resource.
      */
-    public function edit($id)
+    public function edit(int|string $id): View
     {
-        return view('contract::edit');
+        return view()->make('contract::edit');
     }
 
     /**
      * Update the specified resource in storage.
      */
-    public function update(Request $request, $id) {}
+    public function update(Request $request, int|string $id): void {}
 
     /**
      * Remove the specified resource from storage.
      */
-    public function destroy($id) {}
+    public function destroy(int|string $id): void {}
 }

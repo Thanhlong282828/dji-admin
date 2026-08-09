@@ -564,3 +564,21 @@ PHASE 3F-7 DATABASE NOTE
 - Production database remains read-only during audit.
 - Backup script defaults to configuration validation; restore verification refuses targets not ending `_restore_testing`.
 - Docker runtime verification initialized and migrated only the isolated `schema_admin_testing` volume. The test stack/volume was removed afterward. Production read-only counts remained employees=9, payroll_runs=0, iam_access_requests=0, workflow_instances=0, notification_deliveries=0, integration_outbound_messages=0 and audit_events=0.
+PHASE 3F-8 DATABASE NOTE
+- No migration and no reliability/SLO/incident table was added.
+- Reliability reads existing jobs, failed_jobs, workflow_outbox, notification_outbox, iam_outbox, integration_outbox, audit_outbox, integration_outbound_messages and integration_dead_letters.
+- Scheduler heartbeat and HTTP SLI counters use cache/Redis; they do not mutate domain business state.
+- Failure injection used only an isolated schema_admin_testing Docker volume and was removed after verification.
+
+PHASE 3F-8 DATABASE ENVIRONMENT MATRIX (2026-08-09)
+- schema_admin: production/read-only, 60 migrations.
+- schema_admin_development: local persistent synthetic data, 60 migrations.
+- schema_admin_testing: automated tests, 60 migrations.
+- schema_admin_browser_testing: disposable browser fixtures, 60 migrations, fixture rows cleaned to zero.
+- Physical schema drift remains: development-only composite indexes plus an equivalent attendance FK with a different constraint name. Production was not mutated.
+- Bootstrap: app:bootstrap-development-data (local + *_development only, idempotent).
+- Comparator ignores generated constraint/index names but compares ordered columns, uniqueness and FK update/delete rules. Remaining drift is genuine: production missed composite indexes because the historical migrations conditionally skipped tables that already existed.
+- Full PHPUnit: 393 tests / 4,284 assertions / 1 skipped / exit 0. Concurrency: 60 tests / 486 assertions / exit 0.
+- Canonical repair migration: 2026_08_13_000044_repair_canonical_production_indexes.php, production batch 56.
+- Final migration matrix: schema_admin/schema_admin_development/schema_admin_testing/schema_admin_browser_testing = 61/61/61/61; logical drift 0.
+- Production business counts unchanged. Final PHPUnit: 397 tests / 4,291 assertions / 1 skipped / exit 0.

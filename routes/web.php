@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\ArticleController;
 use App\Http\Controllers\Operations\HealthController;
+use App\Http\Controllers\Operations\ReliabilityController;
 use App\Http\Controllers\ProfileController;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
@@ -27,6 +28,7 @@ Route::get('/', fn () => auth()->check() ? to_route('dashboard') : to_route('log
 
 Route::get('/dashboard', DashboardController::class)->middleware(['auth', 'verified', 'can:dashboard.view'])->name('dashboard');
 Route::get('/admin', fn () => to_route('dashboard'))->middleware(['auth', 'verified', 'can:dashboard.view'])->name('admin.index');
+Route::get('/admin/operations/reliability', ReliabilityController::class)->middleware(['auth', 'verified', 'permission:operations.view'])->name('admin.operations.reliability');
 
 Route::middleware('auth')->group(function () {
     Route::get('/articles', [ArticleController::class, 'index'])->middleware('can:article.view')->name('articles.index');

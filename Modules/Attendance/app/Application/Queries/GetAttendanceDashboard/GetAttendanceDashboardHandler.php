@@ -13,7 +13,9 @@ final class GetAttendanceDashboardHandler
 
     public function handle(GetAttendanceDashboardQuery $query): AttendanceDashboard
     {
-        return $this->cache->remember($query->companyId, 'attendance', 'dashboard:'.today()->format('Y-m-d'), 60, fn (): AttendanceDashboard => $this->calculate($query));
+        $cached = $this->cache->rememberExternal($query->companyId, 'attendance', 'dashboard:'.today()->format('Y-m-d'), 60, fn (): AttendanceDashboard => $this->calculate($query));
+
+        return $cached instanceof AttendanceDashboard ? $cached : $this->calculate($query);
     }
 
     private function calculate(GetAttendanceDashboardQuery $query): AttendanceDashboard

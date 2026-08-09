@@ -63,7 +63,10 @@ final class CompanyManagementTest extends TestCase
         return $user;
     }
 
-    /** @param array<string,mixed> $override */
+    /**
+     * @param  array<string, mixed>  $override
+     * @return array<string, mixed>
+     */
     private function payload(array $override = []): array
     {
         return [...['code' => 'SCHEMA-HOLDING', 'name' => 'Schema Enterprise Holding', 'short_name' => 'Schema Holding', 'tax_code' => 'DEMO-0319999999', 'email' => 'holding@schema.demo', 'phone' => '+84 28 7300 1999', 'website' => 'https://example.com/schema-holding', 'address' => 'Thành phố Hồ Chí Minh', 'country_code' => 'VN', 'timezone' => 'Asia/Ho_Chi_Minh', 'currency_code' => 'VND', 'legal_representative' => 'Phạm Minh Anh', 'status' => 'active', 'description' => 'Dữ liệu kiểm thử Company CQRS.'], ...$override];
@@ -72,7 +75,8 @@ final class CompanyManagementTest extends TestCase
     /** @param array<string,mixed> $override */
     private function company(array $override = []): Company
     {
-        $code = (string) ($override['code'] ?? 'SCHEMA-HOLDING');
+        $codeValue = $override['code'] ?? 'SCHEMA-HOLDING';
+        $code = is_scalar($codeValue) ? (string) $codeValue : 'SCHEMA-HOLDING';
 
         return Company::query()->create([...$this->payload(), 'tax_code' => 'DEMO-'.hash('crc32b', $code), 'currency' => 'VND', 'is_active' => ($override['status'] ?? 'active') === 'active', ...$override]);
     }

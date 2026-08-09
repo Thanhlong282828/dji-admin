@@ -30,7 +30,8 @@ final class EnvironmentSafetyGuardTest extends TestCase
         EnvironmentSafetyGuard::assertSafe('production', false, 'schema_admin', ['schema_admin']);
         EnvironmentSafetyGuard::assertSafe('local', true, 'schema_admin_development', ['schema_admin']);
         EnvironmentSafetyGuard::assertSafe('testing', true, 'schema_admin_testing', ['schema_admin']);
+        EnvironmentSafetyGuard::assertSafe('testing', true, 'schema_admin_testing_workflow', ['schema_admin']);
 
-        $this->addToAssertionCount(3);
+        $this->addToAssertionCount(4);
     }
 }

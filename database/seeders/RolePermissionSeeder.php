@@ -68,6 +68,7 @@ final class RolePermissionSeeder extends Seeder
             'iam.view', 'iam.request.create', 'iam.request.review', 'iam.request.approve', 'iam.assignment.manage', 'iam.privileged.manage', 'iam.sod.manage', 'iam.review.manage', 'iam.audit.view',
             'integration.view', 'integration.connection.manage', 'integration.message.view', 'integration.retry', 'integration.deadletter.manage', 'integration.audit.view',
             'audit.view', 'audit.search', 'audit.export', 'audit.retention.manage',
+            'operations.view', 'operations.manage',
         ] as $permission) {
             Permission::findOrCreate($permission, 'web');
         }
@@ -99,6 +100,8 @@ final class RolePermissionSeeder extends Seeder
         Role::findByName('HR Manager')->givePermissionTo(['notification.view', 'notification.preference.manage']);
         Role::findByName('Super Admin')->givePermissionTo(Permission::where('name', 'like', 'iam.%')->get());
         Role::findByName('System Admin')->givePermissionTo(Permission::where('name', 'like', 'iam.%')->get());
+        Role::findByName('Super Admin')->givePermissionTo(['operations.view', 'operations.manage']);
+        Role::findByName('System Admin')->givePermissionTo(['operations.view', 'operations.manage']);
         Role::findByName('HR Admin')->givePermissionTo(Permission::whereIn('name', ['iam.view', 'iam.request.create', 'iam.request.review', 'iam.assignment.manage', 'iam.review.manage'])->get());
         Role::findByName('HR Manager')->givePermissionTo(Permission::whereIn('name', ['iam.view', 'iam.request.create'])->get());
         Role::findByName('Recruiter')->syncPermissions(Permission::where(fn ($query) => $query->where('name', 'like', 'recruitment-requisition.%')->orWhere('name', 'like', 'candidate.%')->orWhere('name', 'like', 'application.%')->orWhere('name', 'like', 'interview.%')->orWhere('name', 'like', 'candidate-offer.%'))->whereNotIn('name', ['recruitment-requisition.override-headcount', 'candidate-offer.approve', 'candidate-offer.view-salary'])->get());

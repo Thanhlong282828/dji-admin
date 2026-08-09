@@ -22,7 +22,7 @@ final readonly class EloquentCompanyReadRepository implements CompanyReadReposit
         $version = is_int($cachedVersion) ? $cachedVersion : 1;
         $key = 'schema:admin:company:list:'.hash('sha256', serialize([$version, $search, $status, $perPage, $page, $sort, $direction, $withTrashed]));
 
-        return $this->cache->remember($key, now()->addMinutes(10), function () use ($search, $status, $perPage, $page, $sort, $direction, $withTrashed): LengthAwarePaginator {
+        $load = function () use ($search, $status, $perPage, $page, $sort, $direction, $withTrashed): LengthAwarePaginator {
             return Company::query()
                 ->when($withTrashed, fn ($query) => $query->withTrashed())
                 ->when($search, fn ($query, $value) => $query->where(fn ($nested) => $nested
@@ -34,7 +34,16 @@ final readonly class EloquentCompanyReadRepository implements CompanyReadReposit
                 ->orderBy($sort, $direction)
                 ->paginate($perPage, ['*'], 'page', $page)
                 ->withQueryString();
-        });
+        };
+        $cached = $this->cache->remember($key, now()->addMinutes(10), $load);
+        if (get_debug_type($cached) === '__PHP_Incomplete_Class') {
+            // File-backed caches can retain objects from an older module autoload map.
+            $this->cache->forget($key);
+
+            return $load();
+        }
+
+        return $cached;
     }
 
     public function findOrFail(int $id, bool $withTrashed = false): Company

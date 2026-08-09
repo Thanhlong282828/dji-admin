@@ -32,7 +32,7 @@ namespace Modules\Organization\Domain\Services;
  *     allocated_fte: float,
  *     vacancy: float,
  *     detail_url: string,
- *     children: list<OrganizationTreeNode>
+ *     children: list<array<string, mixed>>
  * }
  */
 final class OrganizationTreeService

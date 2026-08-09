@@ -13,14 +13,14 @@ namespace Modules\Dashboard\Application\DTOs;
  *     draftArticles: int,
  *     featuredArticles: int,
  *     headcountByStatus: array<string, int>,
- *     recentActivities: list<array<string, mixed>>
+ *     recentActivities: list<array{description: string, subject_type: string, created_at: string|null}>
  * }
  */
 final readonly class DashboardViewModel
 {
     /**
      * @param  array<string, int>  $headcountByStatus
-     * @param  list<array<string, mixed>>  $recentActivities
+     * @param  list<array{description: string, subject_type: string, created_at: string|null}>  $recentActivities
      */
     public function __construct(public int $totalEmployees, public int $activeEmployees, public int $pendingLeaveRequests, public int $openRecruitmentRequisitions, public int $totalArticles, public int $publishedArticles, public int $draftArticles, public int $featuredArticles, public array $headcountByStatus, public array $recentActivities) {}
 
