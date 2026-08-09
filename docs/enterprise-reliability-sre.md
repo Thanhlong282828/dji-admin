@@ -36,3 +36,7 @@ Repository-wide static analysis now passes at PHPStan level 10 without a baselin
 Full PHPUnit and the complete process-concurrency suite now pass on a clean single-controller run. If a test controller is forcibly interrupted, operators must terminate orphaned `tests/Support/workforce_concurrency_worker.php` processes and run guarded fixture cleanup before retrying; running multiple controllers against the same schema is unsupported.
 
 Final evidence after canonical index repair: full PHPUnit 397 tests / 4,291 assertions / 1 skipped / exit 0; concurrency 60 tests / 486 assertions / exit 0; repository PHPStan level 10 has zero errors; Pint, Blade, Vite, Compose and browser smoke pass.
+
+## Phase 3F-9 composition
+
+Observability composes this reliability snapshot rather than duplicating its database/readiness logic. HTTP counters and cumulative histogram buckets are cache-only with bounded TTL. Alert evaluation and burn status are informational read models; they do not mutate source rows or automatically trigger external notification/incident delivery.

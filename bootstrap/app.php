@@ -29,9 +29,11 @@ return Application::configure(basePath: dirname(__DIR__))
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->report(function (Throwable $exception): void {
-            app(ErrorTrackerInterface::class)->capture($exception, [
-                'environment' => app()->environment(),
-            ]);
+            if (app()->bound(ErrorTrackerInterface::class)) {
+                app(ErrorTrackerInterface::class)->capture($exception, [
+                    'environment' => app()->environment(),
+                ]);
+            }
         });
         $exceptions->shouldRenderJsonWhen(
             fn (Request $request) => $request->is('api/*'),

@@ -68,3 +68,18 @@ Phase 3F-8 is **PARTIAL** because the explicitly required repository-wide PHPSta
 - Phase 3F-8 Overall: **COMPLETED**.
 - Canonical index repair: migration batch 56, logical drift zero, 61 migrations in every environment, production business counts unchanged.
 - Final PHPUnit: **397 tests / 4,291 assertions / 1 skipped / exit code 0**. Concurrency: **60 tests / 486 assertions / exit code 0**.
+
+## Phase 3F-9 — Enterprise Observability, Alerting & Capacity Governance
+
+| Area | Status | Evidence |
+|---|---|---|
+| Observability audit/design | COMPLETED | Existing correlation, health, reliability, Horizon and enterprise outbox signals audited before implementation |
+| Metrics foundation | COMPLETED | TTL HTTP counters, cumulative histogram and typed aggregate read model; focused/full gates passed |
+| SLO/burn rate | COMPLETED | Phase 3F-8 error budget reused with informational burn status |
+| Logging/correlation | COMPLETED | Safe HTTP context, early exception-report hardening and recursive redaction |
+| Alert foundation | COMPLETED | Environment-configured definitions and runbook links; no external delivery |
+| Capacity governance | COMPLETED | Isolated testing baseline and runtime inventory documented |
+| Security/quality | COMPLETED | Protected routes; repository PHPStan 0; final full PHPUnit 403 tests / 4,324 assertions / 1 skipped / exit 0; Pint/Blade/Vite/Compose pass |
+| UI/browser | COMPLETED | Exact 1280×800 and 390×844, no overflow or console/page problems; fixture cleanup zero |
+
+Phase 3F-9 is **COMPLETED**. Production before/after counts were identical and Phase 3F-9 added no migration or external telemetry/provider call.

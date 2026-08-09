@@ -432,6 +432,13 @@ PHASE 3F-8 — ENTERPRISE RELIABILITY & SRE
 - No migration and no business module were added.
 
 Phase 3F-8 completion hardening additions:
+
+Phase 3F-9 observability foundation:
+- `HttpMetricsRecorder` records TTL request/status/latency histogram counters after responses.
+- `ObservabilitySnapshotService` composes reliability, HTTP percentiles, error-budget burn and alert definitions.
+- `ObservabilityController` serves protected dashboard and aggregate metrics JSON under `operations.view`.
+- `SensitiveDataRedactor` provides recursive safe-context filtering; no observability migration or external provider was added.
+- Phase 3F-9 final: COMPLETED — PHPStan 0, final full PHPUnit 403 tests/4,324 assertions/1 skipped/exit 0, exact browser desktop/mobile, production unchanged.
 - app/Console/Commands/BootstrapDevelopmentDataCommand.php
 - app/Console/Commands/VerifyEnvironmentSchemaCommand.php
 - app/Support/DatabaseSchemaComparator.php

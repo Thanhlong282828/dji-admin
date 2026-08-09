@@ -27,3 +27,6 @@ Run a tabletop quarterly and an isolated restore exercise twice yearly. Load tes
 # Reliability verification addendum
 
 Redis and MySQL recovery contracts are exercised only in an isolated Docker runtime. Liveness remains available while readiness reports 503, then returns to 200 after dependency recovery. Operational response procedures are in `docs/runbooks/`.
+# Observability references
+
+Phase 3F-9 alerts link existing runbooks by component and severity. Alert snapshots are informational; they do not automatically create incidents or perform recovery. Operators must verify symptoms against health/readiness and follow the corresponding runbook before mitigation.

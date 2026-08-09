@@ -1732,6 +1732,34 @@ Scheduler tick
 → Cache key operations:scheduler:heartbeat
 → ReliabilitySnapshotService.php | stale-age evaluation.
 
+PHASE 3F-9 — ENTERPRISE OBSERVABILITY
+
+HTTP request
+→ (app/Http/Middleware/RequestCorrelationContext.php) | handle(): validates/creates request_id, adds safe correlation/component/environment log context
+→ application controller/response
+→ (app/Support/HttpMetricsRecorder.php) | record(): TTL total/status/5xx counters + cumulative latency buckets
+→ response | X-Request-ID
+
+GET /admin/operations/observability
+→ middleware | auth > verified > permission:operations.view
+→ (app/Http/Controllers/Operations/ObservabilityController.php) | index()
+→ (app/Support/ObservabilitySnapshotService.php) | snapshot()
+→ (app/Support/ReliabilitySnapshotService.php) | snapshot(): readiness/queue/outbox/integration/scheduler/SLO read model
+→ (app/Support/HistogramPercentileCalculator.php) | calculate(): p50/p95/p99
+→ (app/Support/AlertEvaluator.php) | evaluate(): environment threshold + severity + runbook
+→ (resources/views/operations/observability.blade.php) | black-gold dashboard
+
+GET /admin/operations/observability/metrics
+→ middleware | auth > verified > permission:operations.view
+→ (app/Http/Controllers/Operations/ObservabilityController.php) | metrics()
+→ aggregate safe JSON; no hostname, credential, identity, HR/Payroll payload or private path
+
+Alert path
+→ (config/operations.php) | environment-specific signal/operator/threshold/window/severity/runbook
+→ (app/Support/AlertEvaluator.php) | evaluate()
+→ dashboard/metrics aggregate only
+→ no external PagerDuty/Slack/email/webhook and no automatic production incident
+
 DEVELOPMENT DATA BOOTSTRAP
 CLI app:bootstrap-development-data
 → app/Console/Commands/BootstrapDevelopmentDataCommand.php | handle()

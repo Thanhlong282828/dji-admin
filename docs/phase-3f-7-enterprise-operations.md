@@ -54,3 +54,6 @@ No production backup, load test, external telemetry call, seed, migration, or da
 # Phase 3F-8 follow-on
 
 Phase 3F-8 adds reliability signals and failure-recovery evidence without changing the Phase 3F-7 deployment topology. The verified production-like stack remains the authoritative Docker boundary; reliability injection uses a separate Compose project and `schema_admin_testing` only.
+# Phase 3F-9 observability composition
+
+Phase 3F-9 composes the Phase 3F-7 health, Horizon, worker, scheduler, Redis and Reverb topology. It adds no new production container or published port. Metrics remain permission-protected application aggregates and no external telemetry backend is configured.
