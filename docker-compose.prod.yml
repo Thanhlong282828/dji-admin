@@ -1,12 +1,63 @@
+x-production-environment: &production-environment
+  APP_KEY: ${APP_KEY:?APP_KEY is required for production}
+  APP_ENV: production
+  APP_DEBUG: "false"
+  DB_DATABASE: ${APP_DB_DATABASE:-schema_admin}
+  DB_USERNAME: ${DB_USERNAME:?DB_USERNAME is required for production}
+  DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required for production}
+  LOG_CHANNEL: production
+  LOG_LEVEL: warning
+  REDIS_CLIENT: predis
+  SESSION_ENCRYPT: "true"
+
 services:
   app:
-    environment:
-      APP_ENV: production
-      APP_DEBUG: "false"
-      DB_DATABASE: schema_admin
+    environment: *production-environment
+    deploy:
+      resources:
+        limits: {cpus: "2.0", memory: 1024M}
+        reservations: {cpus: "0.25", memory: 256M}
   nginx:
-    ports:
-      - "80:80"
+    ports: !override
+      - "80:8080"
+    deploy:
+      resources:
+        limits: {cpus: "0.50", memory: 256M}
   mysql:
     environment:
-      MYSQL_DATABASE: schema_admin
+      MYSQL_DATABASE: ${APP_DB_DATABASE:-schema_admin}
+      MYSQL_USER: ${DB_USERNAME:?DB_USERNAME is required for production}
+      MYSQL_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required for production}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?MYSQL_ROOT_PASSWORD is required for production}
+    ports: !reset []
+    deploy:
+      resources:
+        limits: {cpus: "2.0", memory: 2048M}
+  redis:
+    ports: !reset []
+    deploy:
+      resources:
+        limits: {cpus: "1.0", memory: 512M}
+  queue:
+    environment: *production-environment
+    deploy:
+      resources:
+        limits: {cpus: "1.0", memory: 768M}
+  scheduler:
+    environment: *production-environment
+    deploy:
+      resources:
+        limits: {cpus: "0.50", memory: 384M}
+  horizon:
+    environment: *production-environment
+    deploy:
+      resources:
+        limits: {cpus: "1.0", memory: 768M}
+  reverb:
+    environment: *production-environment
+    ports: !reset []
+    deploy:
+      resources:
+        limits: {cpus: "0.50", memory: 384M}
+  mailpit:
+    profiles: [development-only]

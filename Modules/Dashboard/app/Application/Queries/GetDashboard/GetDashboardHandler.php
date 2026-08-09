@@ -6,6 +6,7 @@ use Illuminate\Contracts\Cache\Repository as CacheRepository;
 use Modules\Dashboard\Application\DTOs\DashboardViewModel;
 use Modules\Dashboard\Domain\Repositories\DashboardReadRepositoryInterface;
 
+/** @phpstan-import-type DashboardPayload from DashboardViewModel */
 final readonly class GetDashboardHandler
 {
     public function __construct(
@@ -17,10 +18,13 @@ final readonly class GetDashboardHandler
     {
         $company = $query->companyId ?? 0;
 
-        return $this->cache->remember(
+        /** @var DashboardPayload $payload */
+        $payload = $this->cache->remember(
             "schema:dashboard:{$company}:overview",
             now()->addMinutes(5),
-            fn (): DashboardViewModel => $this->dashboards->overview($query->companyId),
+            fn (): array => $this->dashboards->overview($query->companyId)->toArray(),
         );
+
+        return DashboardViewModel::fromArray($payload);
     }
 }

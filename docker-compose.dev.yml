@@ -4,4 +4,4 @@ services:
       - .:/var/www/html
   nginx:
     ports:
-      - "8001:80"
+      - "8001:8080"

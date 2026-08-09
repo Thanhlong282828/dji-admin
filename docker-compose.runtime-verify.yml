@@ -1,0 +1,22 @@
+services:
+  app:
+    environment:
+      DB_DATABASE: schema_admin_testing
+  queue:
+    environment:
+      DB_DATABASE: schema_admin_testing
+  scheduler:
+    environment:
+      DB_DATABASE: schema_admin_testing
+  horizon:
+    environment:
+      DB_DATABASE: schema_admin_testing
+  reverb:
+    environment:
+      DB_DATABASE: schema_admin_testing
+  mysql:
+    environment:
+      MYSQL_DATABASE: schema_admin_testing
+  nginx:
+    ports: !override
+      - "18081:8080"

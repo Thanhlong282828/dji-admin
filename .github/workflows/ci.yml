@@ -4,13 +4,25 @@ on:
   push:
     branches: [main, develop]
   pull_request:
+  workflow_dispatch:
+    inputs:
+      deploy_environment:
+        description: Optional deployment target
+        required: false
+        type: choice
+        options: ['', development, production]
 
 permissions:
   contents: read
   packages: write
 
+concurrency:
+  group: admin-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
 jobs:
   quality:
+    environment: testing
     runs-on: ubuntu-latest
     services:
       mysql:
@@ -18,18 +30,19 @@ jobs:
         env:
           MYSQL_DATABASE: schema_admin_testing
           MYSQL_ROOT_PASSWORD: root
-        ports: ["3306:3306"]
+        ports: ['3306:3306']
         options: >-
           --health-cmd="mysqladmin ping -h localhost -proot"
           --health-interval=5s --health-timeout=5s --health-retries=20
       redis:
         image: redis:7.4-alpine
-        ports: ["6379:6379"]
+        ports: ['6379:6379']
         options: >-
           --health-cmd="redis-cli ping" --health-interval=5s
           --health-timeout=3s --health-retries=20
     env:
       APP_ENV: testing
+      APP_DEBUG: 'false'
       DB_CONNECTION: mysql
       DB_HOST: 127.0.0.1
       DB_DATABASE: schema_admin_testing
@@ -40,87 +53,77 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: shivammathur/setup-php@v2
-        with:
-          php-version: "8.4"
-          coverage: xdebug
+        with: {php-version: '8.4', coverage: xdebug}
       - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-          cache: npm
+        with: {node-version: '22', cache: npm}
       - run: composer validate --strict
       - run: composer install --no-interaction --prefer-dist --no-progress
       - run: cp .env.example .env && php artisan key:generate
       - run: php artisan migrate --force
-      - run: npm ci
-      - run: npm run build
+      - run: npm ci && npm run build
       - run: vendor/bin/pint --test
-      - name: PHPStan application level 10
-        run: vendor/bin/phpstan analyse --memory-limit=1G
-      - name: PHPStan enterprise modules level 10
-        run: >-
-          vendor/bin/phpstan analyse
-          Modules/Workflow/app
-          Modules/Notification/app
-          Modules/Iam/app
-          Modules/Integration/app
-          Modules/Audit/app
-          tests/Unit/Architecture
-          --level=10 --memory-limit=1G
+      - run: vendor/bin/phpstan analyse --memory-limit=1G
       - run: php artisan test --coverage --min=20
-      - run: composer audit
-      - run: docker compose config --quiet
+      - run: composer audit --no-interaction
+      - run: npm audit --omit=dev --audit-level=high
+      - run: scripts/ci/scan-secrets.sh
+      - run: scripts/ci/validate-pipeline.sh
       - run: php artisan optimize
-      - name: Smoke test
-        run: php artisan serve --host=127.0.0.1 --port=8000 & sleep 2 && curl --fail http://127.0.0.1:8000/up
-        shell: bash
-        env:
-          APP_URL: http://127.0.0.1:8000
+      - name: Readiness smoke test
+        run: php artisan serve --host=127.0.0.1 --port=8000 & server=$!; trap 'kill $server' EXIT; for i in {1..12}; do curl --fail http://127.0.0.1:8000/health/ready && exit 0; sleep 2; done; exit 1
 
   docker:
-    if: github.event_name == 'push'
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     needs: quality
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+        with: {registry: ghcr.io, username: '${{ github.actor }}', password: '${{ secrets.GITHUB_TOKEN }}'}
       - uses: docker/build-push-action@v6
         with:
           context: .
           push: true
           tags: ghcr.io/${{ github.repository }}:${{ github.sha }}
       - uses: aquasecurity/trivy-action@0.31.0
-        with:
-          image-ref: ghcr.io/${{ github.repository }}:${{ github.sha }}
-          severity: CRITICAL,HIGH
-          exit-code: "1"
+        with: {image-ref: 'ghcr.io/${{ github.repository }}:${{ github.sha }}', severity: 'CRITICAL,HIGH', exit-code: '1'}
 
-  deploy-staging:
-    if: github.ref == 'refs/heads/develop'
+  deploy-development:
+    if: github.ref == 'refs/heads/develop' || inputs.deploy_environment == 'development'
     needs: docker
     runs-on: ubuntu-latest
-    environment: staging
+    environment: development
     steps:
+      - uses: actions/checkout@v4
       - uses: appleboy/ssh-action@v1.2.2
+        env:
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+          CONTAINER_IMAGE: ghcr.io/${{ github.repository }}
+          DEPLOY_HEALTH_URL: ${{ vars.DEPLOY_HEALTH_URL }}
         with:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
-          script: cd ${{ secrets.DEPLOY_PATH }} && ./deploy.sh staging ${{ github.sha }}
+          envs: DEPLOY_PATH,CONTAINER_IMAGE,DEPLOY_HEALTH_URL
+          script: cd "$DEPLOY_PATH" && scripts/deploy/release.sh development ${{ github.sha }}
 
   deploy-production:
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' || inputs.deploy_environment == 'production'
     needs: docker
     runs-on: ubuntu-latest
     environment: production
+    concurrency: production-deployment
     steps:
+      - uses: actions/checkout@v4
       - uses: appleboy/ssh-action@v1.2.2
+        env:
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+          CONTAINER_IMAGE: ghcr.io/${{ github.repository }}
+          DEPLOY_HEALTH_URL: ${{ vars.DEPLOY_HEALTH_URL }}
         with:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
-          script: cd ${{ secrets.DEPLOY_PATH }} && ./deploy.sh production ${{ github.sha }} || ./rollback.sh
+          envs: DEPLOY_PATH,CONTAINER_IMAGE,DEPLOY_HEALTH_URL
+          script: cd "$DEPLOY_PATH" && scripts/deploy/release.sh production ${{ github.sha }}

@@ -1692,3 +1692,16 @@ POST /admin/audit/retention/archive
 → AuditRetentionService::archive
 → streamed immutable JSONL + audit_archive_artifacts + AuditRangeArchived event; audit_events không bị update/delete.
 → EnterpriseAuditService append-only retention_policy_applied evidence.
+
+PHASE 3F-7 — OPERATIONAL FLOWS
+GET /health/live > routes/web.php|health.live > HealthController.php|live() > safe JSON + X-Request-ID
+GET /health/ready > routes/web.php|health.ready > HealthController.php|ready() > OperationsHealthService.php|readiness() > DB SELECT 1 + Redis PING + queue-driver check > HTTP 200/503
+HTTP request > RequestCorrelationContext.php|handle() > validate/generate request_id > Log::withContext() > response X-Request-ID
+Throwable > bootstrap/app.php|withExceptions.report > ErrorTrackerInterface.php|capture() > NullErrorTracker.php|capture() (no external delivery)
+Git push/PR > .github/workflows/ci.yml|quality > MySQL/Redis > PHPStan + Pint + PHPUnit + audits + Vite + Compose + readiness smoke test
+Approved deploy > .github/workflows/ci.yml|deploy-development/deploy-production > scripts/deploy/release.sh > immutable image > migrate --force > optimize > /health/ready
+Rollback approval > scripts/deploy/rollback.sh > PREVIOUS_APP_IMAGE > Compose up > /health/ready
+Backup validation/execution > scripts/operations/backup-database.sh > guard + mysqldump single transaction > gzip > SHA-256
+Restore drill > scripts/operations/restore-verify.sh > *_restore_testing guard > SHA-256/gzip validation > isolated MySQL import > SELECT 1
+Testing load baseline > scripts/operations/load-baseline.sh > /health/live requests > OperationsBaselineCommand.php|handle() > DB/queue dispatch timing
+Production-like runtime verify > Dockerfile|multi-stage build > `.dockerignore`|secret/private-artifact exclusion > compose.yml + docker-compose.prod.yml + docker-compose.runtime-verify.yml|schema_admin_testing isolation > app/nginx/queue/scheduler/horizon/reverb containers|non-root + resource/security controls > HealthController + OperationsHealthService|live/ready/metrics contracts > OperationsProbeJob|Redis queue worker > schedule:work|safe scheduler > compose down -v|isolated cleanup

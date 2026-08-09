@@ -2,11 +2,13 @@
 
 namespace App\Providers;
 
+use App\Contracts\ErrorTrackerInterface;
 use App\Contracts\WorkforceNotificationChannelSenderInterface;
 use App\Models\User;
 use App\Policies\Workforce\WorkforceAuthorizationPolicy;
 use App\Policies\Workforce\WorkforcePolicyGateRegistrar;
 use App\Services\LaravelWorkforceNotificationChannelSender;
+use App\Services\NullErrorTracker;
 use App\Support\EnvironmentSafetyGuard;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
@@ -36,6 +38,7 @@ class AppServiceProvider extends ServiceProvider
         );
 
         $this->app->bind(WorkforceNotificationChannelSenderInterface::class, LaravelWorkforceNotificationChannelSender::class);
+        $this->app->singleton(ErrorTrackerInterface::class, NullErrorTracker::class);
     }
 
     /**

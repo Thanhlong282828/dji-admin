@@ -26,3 +26,17 @@ Authority: this file is the canonical current-state summary. Older phase documen
 ## Governance rule
 
 Future phase completion must update this matrix in the same change as its final evidence. Historical documents must not be rewritten to imply a capability was complete before its actual completion gate.
+
+## Phase 3F-7 — Enterprise Deployment & Operations
+
+| Area | Status | Evidence |
+|---|---|---|
+| CI/CD hardening | COMPLETED | testing/development/production environments, immutable SHA image, audits, secret scan, readiness smoke test |
+| Docker production configuration | COMPLETED | non-root PHP/Nginx, healthcheck, caps, resource limits, private service ports, mandatory production secrets; Compose config passed |
+| Docker image/runtime verification | COMPLETED | Engine 29.5.3; production image build passed; isolated `schema_admin_testing` stack, non-root users, health degradation/recovery, worker/scheduler, security controls and cleanup verified |
+| Observability foundation | COMPLETED | correlation ID, structured production logs, null external tracker, live/ready/metrics-readiness, Horizon |
+| Backup/restore and DR | COMPLETED | guarded scripts and documented RPO/RTO/rollback/incident process; no production backup executed |
+| Load-test foundation | COMPLETED | testing-only API/DB/queue baseline with `*_testing` guard |
+| Security operations | COMPLETED | dependency audits clean, tracked secret scan, headers/rate limits/auth governance |
+
+Phase 3F-7 is **COMPLETED**. The production-like runtime gate used an isolated testing database and made no production mutation or external provider call.

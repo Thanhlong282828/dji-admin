@@ -558,3 +558,9 @@ Enterprise Audit batch 54: audit_correlations; audit_events; audit_event_snapsho
 Enterprise Audit production verification: all seven batch-54 tables contain 0 rows after implementation; employees=9, payroll_runs=0, erp_exports=0, government_tax_filings=0, iam_access_requests=0, integration_outbound_messages=0. Four Audit permissions are configuration metadata; no Audit business row or artifact remains.
 Enterprise Audit hardening batch 55: audit_source_checkpoints unique(source_module, source_event_id, consumer_name); audit_archive_artifacts with company/range/event_count/UUID reference/SHA-256/MIME/size/actor. Both tables are append-only evidence and never store absolute artifact paths.
 Enterprise Audit final production verification: audit_events=0, audit_exports=0, audit_archive_artifacts=0, audit_source_checkpoints=0; employees=9, payroll_runs=0, iam_access_requests=0, workflow_instances=0, notification_deliveries=0, integration_outbound_messages=0. Batches 54 and 55 are Ran.
+
+PHASE 3F-7 DATABASE NOTE
+- No migration and no new database table.
+- Production database remains read-only during audit.
+- Backup script defaults to configuration validation; restore verification refuses targets not ending `_restore_testing`.
+- Docker runtime verification initialized and migrated only the isolated `schema_admin_testing` volume. The test stack/volume was removed afterward. Production read-only counts remained employees=9, payroll_runs=0, iam_access_requests=0, workflow_instances=0, notification_deliveries=0, integration_outbound_messages=0 and audit_events=0.

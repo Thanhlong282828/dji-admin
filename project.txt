@@ -411,3 +411,12 @@ PHASE 3F-4 HARDENING: persisted ERP/Government bridges, five process-level MySQL
 PHASE 3F-4 FINAL STATUS: COMPLETED. Full PHPUnit 352 tests/2,695 assertions PASS; Integration PHPStan app/tests level 10 zero; exact Chrome 1280x800 and 390x844 PASS; production Integration/ERP/Government/Payroll/IAM business counts unchanged.
 PHASE 3F-5 ENTERPRISE AUDIT PLATFORM: COMPLETED. Modules/Audit contains typed CQRS, six concrete source consumers, DB-backed checkpoint idempotency, immutable recorder/snapshots, SHA-256 diff/redaction, streaming CSV/incremental PDF, secure download, immutable JSONL range archive, tenant-safe UI and process-race coverage. Additive batches 54-55; existing migrations unchanged. See docs/enterprise-audit-platform*.md.
 PHASE 3F-5 FINAL EVIDENCE: Audit focused/concurrency 14 tests/146 assertions; shared regressions 129/1,248; Full PHPUnit 366/2,841 exit 0; PHPStan level 10 zero; Pint/Blade/Vite/Docker PASS; exact Chrome 1280x800 and 390x844 PASS; production Audit business counts remain zero.
+
+PHASE 3F-7 — ENTERPRISE DEPLOYMENT & OPERATIONS
+- CI/CD: .github/workflows/ci.yml; scripts/ci/validate-pipeline.sh; scripts/ci/scan-secrets.sh
+- Deploy: scripts/deploy/release.sh; scripts/deploy/rollback.sh
+- Docker: Dockerfile; compose.yml; docker-compose.prod.yml; docker/nginx/default.conf
+- Observability: app/Http/Middleware/RequestCorrelationContext.php; app/Support/OperationsHealthService.php; app/Http/Controllers/Operations/HealthController.php; app/Contracts/ErrorTrackerInterface.php; app/Services/NullErrorTracker.php
+- Operations: scripts/operations/backup-database.sh; scripts/operations/restore-verify.sh; scripts/operations/load-baseline.sh
+- Documentation: docs/phase-3f-7-enterprise-operations.md; docs/backup-restore-runbook.md; docs/disaster-recovery.md; docs/enterprise-security-checklist.md
+- Runtime completion: `.dockerignore` provides a minimal secret-safe build context; `docker-compose.runtime-verify.yml` pins the verification stack to `schema_admin_testing`; Docker Engine 29.5.3 built and ran the image with non-root PHP/Nginx, private MySQL/Redis, health degradation/recovery, worker/scheduler and hardening controls verified. Phase 3F-7B and Phase 3F-7 Overall are COMPLETED.

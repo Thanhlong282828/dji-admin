@@ -1,13 +1,32 @@
 <?php
 
 use App\Http\Controllers\ArticleController;
+use App\Http\Controllers\Operations\HealthController;
 use App\Http\Controllers\ProfileController;
+use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
+use Illuminate\Cookie\Middleware\EncryptCookies;
+use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
+use Illuminate\Session\Middleware\StartSession;
 use Illuminate\Support\Facades\Route;
+use Illuminate\View\Middleware\ShareErrorsFromSession;
 use Modules\Dashboard\Presentation\Http\Controllers\DashboardController;
+
+Route::prefix('health')->withoutMiddleware([
+    EncryptCookies::class,
+    AddQueuedCookiesToResponse::class,
+    StartSession::class,
+    ShareErrorsFromSession::class,
+    PreventRequestForgery::class,
+])->group(function (): void {
+    Route::get('/live', [HealthController::class, 'live'])->name('health.live');
+    Route::get('/ready', [HealthController::class, 'ready'])->name('health.ready');
+    Route::get('/metrics-readiness', [HealthController::class, 'metricsReadiness'])->name('health.metrics-readiness');
+});
 
 Route::get('/', fn () => auth()->check() ? to_route('dashboard') : to_route('login'));
 
 Route::get('/dashboard', DashboardController::class)->middleware(['auth', 'verified', 'can:dashboard.view'])->name('dashboard');
+Route::get('/admin', fn () => to_route('dashboard'))->middleware(['auth', 'verified', 'can:dashboard.view'])->name('admin.index');
 
 Route::middleware('auth')->group(function () {
     Route::get('/articles', [ArticleController::class, 'index'])->middleware('can:article.view')->name('articles.index');
