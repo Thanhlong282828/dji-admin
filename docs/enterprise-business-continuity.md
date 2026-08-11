@@ -22,3 +22,6 @@ Certificate: `14432b506ba79994d7a7bb252442d13ade867d1b958536b6e754e7b29a34fecf`.
 Quality evidence: focused continuity/outbox 54 tests / 353 assertions; Full PHPUnit 436 tests / 4,529 assertions / one skipped / exit 0; repository and affected-test PHPStan level 10 have 0 errors; Pint, Blade, Vite, Composer/npm audit, secret scan and base/production/runtime/DR Compose validation pass. Exact browser 1280×800 and 390×844 passed with zero overflow/console/page errors and fixture cleanup zero. All `phase3f15` containers, volumes, image and disposable databases were removed. Production counts remained unchanged.
 
 Phase 3F-15 status: **COMPLETED**.
+# Phase 3F-16 security incidents
+
+Continuity response links to the account, webhook, privilege-escalation and general security runbooks. Evidence preservation precedes recovery mutation.

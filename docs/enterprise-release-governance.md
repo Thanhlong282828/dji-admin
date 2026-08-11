@@ -45,3 +45,6 @@ Phase 3F-13 adds secret-readiness schema/checksum/status metadata only; values a
 Phase 3F-14 adds data-protection schema version, deterministic policy-registry checksum and audit status. Release artifacts contain no field values, PII, secret or storage path.
 
 Phase 3F-15 reused the immutable rollback contract. The previous image started ready against the isolated forward-compatible 61-migration schema; no database down migration or production deployment occurred.
+# Phase 3F-16 release security evidence
+
+Release review includes defensive security tests, dependency audits, secret scanning and container inspection. Open critical/high findings block a security-assured release decision.

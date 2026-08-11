@@ -31,3 +31,6 @@ Phase 3F-12 does not create a second business-policy system and does not alter H
 - Migration matrix remains 61/61/61/61. Production business counts are unchanged.
 
 Data-protection classification is static governance metadata, not a mutable business policy or secret override. Runtime configuration cannot lower a restricted classification or expose a protected value.
+# Phase 3F-16 security contract
+
+Runtime flags do not bypass URL, authorization, tenant or secret boundaries. Enabling outbound delivery still requires `OutboundUrlPolicy` validation.

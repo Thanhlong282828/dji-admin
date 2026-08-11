@@ -43,3 +43,6 @@ Secret governance adds only aggregate missing/expired/rotation-due counts; no re
 Data-protection observability is limited to aggregate finding, restricted-export, redaction-failure and policy-error counts. Per-user labels and protected values are prohibited.
 
 Continuity signals are metadata-only: last backup/restore verification, last testing DR certificate, observed recovery time and gate status. Stale/failed evidence is an alert candidate; no external production alert is emitted by the exercise.
+# Phase 3F-16 logging assurance
+
+Security events retain correlation and structured fields while redaction prevents credential and restricted business data disclosure. Synthetic control characters are bounded test input only.

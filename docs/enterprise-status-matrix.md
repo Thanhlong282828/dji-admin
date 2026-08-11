@@ -135,3 +135,6 @@ Final status: **COMPLETED** — focused 47/221; Full PHPUnit 431 tests / 4,500 a
 Typed service criticality, backup inventory, guarded DR orchestration/certificate, isolated backup/restore and dependency recovery evidence, runbook coverage and read-only continuity UI are implemented without a migration or production mutation.
 
 Final status: **COMPLETED** — focused 54/353; Full PHPUnit 436 tests / 4,529 assertions / one skipped / exit 0; PHPStan 0; Pint, Blade, Vite, dependency/security scans, Docker runtime recovery, exact browser, cleanup and production safety PASS.
+# Phase 3F-16 security assurance (2026-08-11)
+
+Security audit, threat modeling, typed findings, defensive SSRF/path policies and the read-only assurance surface are implemented. Focused/full tests, PHPStan, build, exact browser, runtime inspection, migration parity and production read-only verification passed. Phase 3F-16 is COMPLETED with two documented medium residual design gaps (privileged MFA and malware scanning provider).

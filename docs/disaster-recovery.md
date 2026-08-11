@@ -44,3 +44,6 @@ Data exposure and privacy incidents use `runbooks/data-exposure.md`, `privacy-in
 ## Phase 3F-15 measured exercise
 
 An isolated testing exercise verified logical backup/restore integrity, Redis/MySQL health degradation and recovery, retained queue work, scheduler stale/fresh detection, non-critical Reverb degradation and immutable-image rollback compatibility. Testing observed RTO was 31 seconds and deterministic fixture RPO was 0 seconds; neither is an official production SLA. PITR and private-storage outage remain explicitly design-only.
+# Security evidence during recovery
+
+Preserve immutable audit/release/security evidence, rotate referenced credentials after compromise and verify tenant/authorization controls before reopening traffic.

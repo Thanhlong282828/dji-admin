@@ -28,3 +28,6 @@ Final evidence: registry 23 fields (19 restricted, 4 confidential), checksum `15
 Phase 3F-14 status: **COMPLETED**.
 
 Phase 3F-15 backup artifacts were mode 0600 and evidence contained only counts, durations and checksums. No production backup, protected value, private path or credential entered the DR certificate.
+# Phase 3F-16 regression note
+
+Threat/finding DTOs and the security dashboard contain aggregate evidence only. PII, Payroll values, credentials and private paths remain excluded.

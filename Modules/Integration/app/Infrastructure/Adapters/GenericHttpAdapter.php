@@ -4,13 +4,15 @@ namespace Modules\Integration\Infrastructure\Adapters;
 
 use App\Support\RuntimeConfiguration\FeatureFlag;
 use App\Support\RuntimeConfiguration\RuntimeConfigurationService;
+use App\Support\Security\OutboundUrlPolicy;
 use Illuminate\Validation\ValidationException;
+use InvalidArgumentException;
 use Modules\Integration\Domain\Contracts\IntegrationAdapterInterface;
 use Modules\Integration\Domain\DTOs\DeliveryResult;
 
 final class GenericHttpAdapter implements IntegrationAdapterInterface
 {
-    public function __construct(private readonly ?RuntimeConfigurationService $configuration = null) {}
+    public function __construct(private readonly ?RuntimeConfigurationService $configuration = null, private readonly ?OutboundUrlPolicy $urlPolicy = null) {}
 
     public function type(): string
     {
@@ -22,6 +24,11 @@ final class GenericHttpAdapter implements IntegrationAdapterInterface
         $url = $configuration['base_url'] ?? null;
         if (! is_string($url) || ! filter_var($url, FILTER_VALIDATE_URL)) {
             throw ValidationException::withMessages(['base_url' => 'A valid HTTPS endpoint is required.']);
+        }
+        try {
+            ($this->urlPolicy ?? app(OutboundUrlPolicy::class))->assertAllowed($url);
+        } catch (InvalidArgumentException $exception) {
+            throw ValidationException::withMessages(['base_url' => $exception->getMessage()]);
         }
     }
 

@@ -42,3 +42,6 @@ Secret certification is presence/readiness only. A PASS never exposes or fingerp
 Certification inherits the data-protection policy checksum/status from the manifest. This certifies policy metadata only and is not evidence that production PII was read or exported.
 
 DR certificates are separate testing-only artifacts. They prove isolated recovery gates and explicitly do not represent production deployment or production DR certification.
+# Phase 3F-16 certification input
+
+Security-assurance evidence is safe metadata only and does not embed credentials, PII, exploit payloads or private artifact paths.

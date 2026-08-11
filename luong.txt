@@ -1843,3 +1843,5 @@ Phase 3F-14 classifies salary, tax, bank and insurance identifiers as restricted
 Phase 3F-14 final quality: full PHPUnit 431 tests / 4,500 assertions / exit 0; production Payroll remains unchanged.
 Phase 3F-15 continuity exercises do not calculate Payroll or access production salary/tax/bank data. Synthetic DR fixture and operational probe are side-effect free.
 Phase 3F-15 final quality: Full PHPUnit 436 tests / 4,529 assertions / exit 0; production Payroll remains 0 and unchanged.
+Phase 3F-16 flow: route/config/domain audit -> threat model -> defensive policy checks -> read-only assurance command/dashboard -> testing-only adversarial evidence -> quality/runtime/production-safety gates.
+Phase 3F-16 final: focused security, cross-domain regression, full PHPUnit, static/build, exact browser and runtime image inspection all PASS; production read-only audit PASS.

@@ -596,3 +596,5 @@ Phase 3F-14: no new table or migration. Policy registry/read models are code met
 Phase 3F-14 final production audit: users/employees/roles/company access = 1/9/14/1; Payroll/IAM/Workflow/Notification/Integration/Audit target counts remain 0. Browser fixture cleanup returned zero.
 Phase 3F-15: no migration. Disposable schema_admin_testing_dr and schema_admin_testing_dr_restore_testing migrated to 61 for isolated backup/restore only and are removed after exercise. Production remains read-only.
 Phase 3F-15 final matrix: production/development/testing/browser = 61/61/61/61. Disposable DR databases and Docker volume removed; production business counts unchanged.
+Phase 3F-16: no migration planned. Security findings and threat evidence are typed read-only artifacts; production remains read-only.
+Phase 3F-16 final matrix: schema_admin, schema_admin_development, schema_admin_testing and schema_admin_browser_testing each have 61 migrations and 230 tables. Production business counts unchanged.

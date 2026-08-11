@@ -9,6 +9,7 @@ use App\Http\Controllers\Operations\ReleaseDashboardController;
 use App\Http\Controllers\Operations\ReliabilityController;
 use App\Http\Controllers\Operations\RuntimeConfigurationController;
 use App\Http\Controllers\Operations\SecretsController;
+use App\Http\Controllers\Operations\SecurityAssuranceController;
 use App\Http\Controllers\ProfileController;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
@@ -42,6 +43,7 @@ Route::get('/admin/operations/configuration', RuntimeConfigurationController::cl
 Route::get('/admin/operations/secrets', SecretsController::class)->middleware(['auth', 'verified', 'permission:operations.view'])->name('admin.operations.secrets');
 Route::get('/admin/operations/data-protection', DataProtectionController::class)->middleware(['auth', 'verified', 'permission:operations.view'])->name('admin.operations.data-protection');
 Route::get('/admin/operations/continuity', ContinuityController::class)->middleware(['auth', 'verified', 'permission:operations.view'])->name('admin.operations.continuity');
+Route::get('/admin/operations/security-assurance', SecurityAssuranceController::class)->middleware(['auth', 'verified', 'permission:operations.view'])->name('admin.operations.security-assurance');
 
 Route::middleware('auth')->group(function () {
     Route::get('/articles', [ArticleController::class, 'index'])->middleware('can:article.view')->name('articles.index');
