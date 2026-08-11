@@ -127,7 +127,7 @@
                     "content": {
                         "application/json": {
                             "schema": {
-                                "type": "object"
+                                "$ref": "#/components/schemas/CompanyCreateRequest"
                             }
                         }
                     }
@@ -729,6 +729,52 @@
                                 "type": "string"
                             }
                         }
+                    }
+                },
+                "type": "object"
+            },
+            "CompanyCreateRequest": {
+                "required": [
+                    "code",
+                    "name",
+                    "country_code",
+                    "timezone",
+                    "currency_code",
+                    "status"
+                ],
+                "properties": {
+                    "code": {
+                        "type": "string",
+                        "example": "DEMO-COMPANY",
+                        "maxLength": 30
+                    },
+                    "name": {
+                        "type": "string",
+                        "example": "Demo Company",
+                        "maxLength": 255
+                    },
+                    "country_code": {
+                        "type": "string",
+                        "example": "VN",
+                        "maxLength": 2
+                    },
+                    "timezone": {
+                        "type": "string",
+                        "example": "Asia/Ho_Chi_Minh",
+                        "maxLength": 64
+                    },
+                    "currency_code": {
+                        "type": "string",
+                        "example": "VND",
+                        "maxLength": 3
+                    },
+                    "status": {
+                        "type": "string",
+                        "example": "active",
+                        "enum": [
+                            "active",
+                            "inactive"
+                        ]
                     }
                 },
                 "type": "object"

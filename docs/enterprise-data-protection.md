@@ -1,5 +1,7 @@
 # Enterprise Data Protection
 
+OpenAPI examples are synthetic and scanned for credential-like material. Contract inventory and dashboard expose route/schema aggregates only, not production IDs, payloads, bindings, PII, Payroll values, credentials or private paths.
+
 Phase 3F-14 establishes a read-only, no-migration data-protection foundation. It does not own business data or change HR, Payroll, IAM, Integration, Notification, Workflow, or Audit lifecycle rules.
 
 ## Canonical contract

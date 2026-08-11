@@ -12,7 +12,7 @@ final class TestQualitySnapshotService
     public function snapshot(): array
     {
         $files = $this->testFiles();
-        $counts = ['unit' => 0, 'feature' => 0, 'integration' => 0, 'concurrency' => 0, 'security' => 0, 'architecture' => 0, 'browser' => 0, 'performance' => 0, 'operations' => 0];
+        $counts = ['unit' => 0, 'feature' => 0, 'contract' => 0, 'integration' => 0, 'concurrency' => 0, 'security' => 0, 'architecture' => 0, 'browser' => 0, 'performance' => 0, 'operations' => 0];
         foreach ($files as $file) {
             foreach ($this->categories($file) as $category) {
                 $counts[$category]++;
@@ -67,7 +67,7 @@ final class TestQualitySnapshotService
     private function categories(string $file): array
     {
         $categories = [];
-        foreach (['unit', 'feature', 'integration', 'concurrency', 'security', 'architecture', 'browser', 'performance', 'operations'] as $category) {
+        foreach (['unit', 'feature', 'contract', 'integration', 'concurrency', 'security', 'architecture', 'browser', 'performance', 'operations'] as $category) {
             if (stripos($file, '/'.$category.'/') !== false || stripos(basename($file), ucfirst($category)) !== false) {
                 $categories[] = $category;
             }
@@ -92,6 +92,7 @@ final class TestQualitySnapshotService
             new CriticalInvariant('INV-ARCH-001', 'Architecture', 'Module graph is acyclic and direct imports are declared.', 'high', ['tests/Unit/Architecture/EnterpriseArchitectureGovernanceTest.php'], 'ARCHITECTURE'),
             new CriticalInvariant('INV-NAV-001', 'Accessibility', 'Navigation is server-side permission filtered and keyboard operable.', 'high', ['tests/Feature/AccessibilityGovernanceTest.php', 'tests/Unit/Accessibility/AdminNavigationTest.php'], 'FEATURE/BROWSER'),
             new CriticalInvariant('INV-OPS-001', 'Operations', 'Redis telemetry failure cannot override the core health response.', 'critical', ['tests/Feature/OperationsReliabilityTest.php'], 'FEATURE'),
+            new CriticalInvariant('INV-API-001', 'API', 'Governed API routes and OpenAPI operations remain aligned, uniquely identified and safely documented.', 'critical', ['tests/Contract/ApiContractGovernanceTest.php', 'tests/Feature/ApiDocumentationTest.php'], 'CONTRACT/SECURITY'),
         ];
     }
 

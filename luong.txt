@@ -1,4 +1,7 @@
 SCHEMA ADMIN — LUỒNG KẾT NỐI FILE RUNTIME
+Phase 3F-21 reads routes/OpenAPI only and does not change Payroll/HR/Workflow/Integration business semantics or write paths.
+Phase 3F-21 full regression passed 485 tests/4,923 assertions/one skip/exit 0; no Payroll business row or schema changed.
+Phase 3F-21 browser flow: guarded Audit fixture → testing-only server on 8017 → playwright-core 1.62.1 → installed Chrome 151 → API Contracts/Swagger exact desktop/mobile → cleanup; no Payroll or production access.
 Phase 3F-20 COMPLETED without HR/payroll semantic changes. Payroll maker-checker/finalization and employee allocation remain mapped to real process-concurrency evidence using synthetic fixtures only; full regression and concurrency gates passed.
 Cập nhật: 2026-07-26
 

@@ -92,6 +92,7 @@ final class AdminNavigation
                 $this->item('performance-engineering', 'Performance', 'admin.operations.performance', ['admin.operations.performance'], 'operations.view'),
                 $this->item('architecture-governance', 'Architecture', 'admin.operations.architecture', ['admin.operations.architecture'], 'operations.view'),
                 $this->item('test-quality', 'Test Quality', 'admin.operations.test-quality', ['admin.operations.test-quality'], 'operations.view'),
+                $this->item('api-contracts', 'API Contracts', 'admin.operations.api-contracts', ['admin.operations.api-contracts'], 'operations.view'),
                 $this->item('releases', 'Releases', 'admin.operations.releases', ['admin.operations.releases'], 'operations.view'),
                 $this->item('configuration', 'Runtime Configuration', 'admin.operations.configuration', ['admin.operations.configuration'], 'operations.view'),
                 $this->item('secrets', 'Secrets', 'admin.operations.secrets', ['admin.operations.secrets'], 'operations.view'),

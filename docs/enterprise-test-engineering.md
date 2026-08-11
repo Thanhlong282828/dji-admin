@@ -1,5 +1,7 @@
 # Enterprise Test Engineering
 
+Phase 3F-21 adds a Contract suite and critical invariant `INV-API-001`. CI generates OpenAPI then fails early on invalid specs, route/spec gaps, orphan operations, duplicate IDs, security/tenant/validation/privacy findings or unapproved breaking drift.
+
 Phase 3F-20 establishes a read-only governance layer over the existing regression estate. It does not replace domain tests, weaken real MySQL races, or introduce a database table. Canonical entry points are `operations:test-readiness`, `operations:test-quality`, and `APP_ENV=testing DB_CONNECTION=mysql DB_DATABASE=schema_admin_testing php artisan test`.
 
 The quality snapshot inventories PHPUnit/browser files, maps critical invariants to executable evidence, reports known orphan workers and declares isolation contracts. `/admin/operations/test-quality` renders that snapshot for `operations.view`; it cannot launch tests or mutate state.

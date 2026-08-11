@@ -1,4 +1,7 @@
 SCHEMA ADMIN — TÀI LIỆU DATABASE THỰC TẾ
+Phase 3F-21 adds no migration/table; contract governance is a route/spec read model. Expected environment matrix remains 61 migrations and 230 tables each.
+Phase 3F-21 verified schema_admin/development/testing/browser_testing at 61 migrations and 230 tables each. Production before/after business counts were identical.
+Phase 3F-21 browser completion used only schema_admin_browser_testing; owned users/companies/audit_events returned to 0/0/0 after cleanup.
 Phase 3F-20 COMPLETED: no migration; schema matrix remains 61 migrations / 230 tables in production, development, testing and browser testing. Production remains read-only; real race workers share committed testing fixtures while controllers run serially. Browser fixture cleanup verified zero owned rows.
 Cập nhật: 2026-07-23
 Engine: MySQL; database: schema_admin; kiểm tra trực tiếp từ information_schema.

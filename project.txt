@@ -1,4 +1,5 @@
 FOUNDATION FEATURE MAP
+Phase 3F-21 API contract governance: COMPLETED — deterministic 11-path/24-operation audit, baseline/diff, CI gate, full PHPUnit 485/4,923/exit 0, local Chrome exact 1280x800 and 390x844, fixture cleanup and production safety pass.
 
 Phase 3F-20 COMPLETED: typed suite/invariant snapshot, guarded test-readiness command, known-worker CI pre/postflight, serial race governance, and read-only Test Quality operations UI. Evidence: 12/12 invariants, concurrency 60/486, full PHPUnit 477/4,881 exit 0, PHPStan 0, exact browser PASS. No business module or migration.
 

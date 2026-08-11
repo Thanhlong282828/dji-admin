@@ -1,5 +1,7 @@
 # Phase 3F-10 Enterprise Release Management
 
+Phase 3F-21 adds a pre-release API contract gate and sanitized OpenAPI checksum evidence. Breaking findings require explicit approval/version/deprecation evidence; formatting-only JSON drift is not a release blocker.
+
 ## Implemented controls
 
 - Immutable file-based release manifest and checksum.

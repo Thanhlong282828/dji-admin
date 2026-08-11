@@ -17,8 +17,8 @@ final class TestQualityGovernanceTest extends TestCase
 
         self::assertGreaterThan(100, $snapshot['phpunit_files']);
         self::assertGreaterThan(0, $snapshot['browser_files']);
-        self::assertSame(12, count($snapshot['critical_invariants']));
-        self::assertSame(12, $snapshot['critical_covered']);
+        self::assertSame(13, count($snapshot['critical_invariants']));
+        self::assertSame(13, $snapshot['critical_covered']);
         self::assertSame(0, $snapshot['critical_gaps']);
         self::assertGreaterThan(0, $snapshot['files']['unit']);
         self::assertGreaterThan(0, $snapshot['files']['feature']);

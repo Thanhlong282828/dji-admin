@@ -1,6 +1,6 @@
 # Admin Navigation Governance
 
-Phase 3F-20 adds the permission-filtered `Test Quality` child to Operations. Fully permitted Operations now has 12 children. The route requires `operations.view`, follows existing collapse/active-route behavior, and exposes no test execution action.
+Phase 3F-21 adds permission-filtered `API Contracts`. Fully permitted Operations now has 13 children. It requires `operations.view`, retains collapse/active-route behavior and exposes no mutation. API Documentation remains independently filtered by `api.documentation.view`.
 
 The canonical information architecture contains nine groups: Overview, Organization, People/HR Core, Talent, Payroll & Finance, Enterprise Automation, Access & Security, Operations/Platform and Content.
 

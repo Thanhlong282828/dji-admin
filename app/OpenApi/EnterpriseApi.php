@@ -26,6 +26,19 @@ use OpenApi\Attributes as OA;
     ],
     type: 'object',
 )]
+#[OA\Schema(
+    schema: 'CompanyCreateRequest',
+    required: ['code', 'name', 'country_code', 'timezone', 'currency_code', 'status'],
+    properties: [
+        new OA\Property(property: 'code', type: 'string', maxLength: 30, example: 'DEMO-COMPANY'),
+        new OA\Property(property: 'name', type: 'string', maxLength: 255, example: 'Demo Company'),
+        new OA\Property(property: 'country_code', type: 'string', maxLength: 2, example: 'VN'),
+        new OA\Property(property: 'timezone', type: 'string', maxLength: 64, example: 'Asia/Ho_Chi_Minh'),
+        new OA\Property(property: 'currency_code', type: 'string', maxLength: 3, example: 'VND'),
+        new OA\Property(property: 'status', type: 'string', enum: ['active', 'inactive'], example: 'active'),
+    ],
+    type: 'object',
+)]
 final class EnterpriseApi
 {
     #[OA\Get(path: '/api/v1/articles', operationId: 'articleIndex', tags: ['Content'], parameters: [new OA\Parameter(name: 'page', in: 'query', schema: new OA\Schema(type: 'integer', minimum: 1))], responses: [new OA\Response(response: 200, description: 'Paginated published articles')])]
@@ -37,7 +50,7 @@ final class EnterpriseApi
     #[OA\Get(path: '/api/v1/companies', operationId: 'companyIndex', security: [['sanctum' => []]], tags: ['Company'], parameters: [new OA\Parameter(name: 'page', in: 'query', schema: new OA\Schema(type: 'integer', minimum: 1)), new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer', minimum: 1, maximum: 100)), new OA\Parameter(name: 'search', in: 'query', schema: new OA\Schema(type: 'string')), new OA\Parameter(name: 'status', in: 'query', schema: new OA\Schema(type: 'string'))], responses: [new OA\Response(response: 200, description: 'Paginated companies'), new OA\Response(response: 401, description: 'Unauthenticated'), new OA\Response(response: 403, description: 'Forbidden')])]
     public function companyIndex(): void {}
 
-    #[OA\Post(path: '/api/v1/companies', operationId: 'companyStore', security: [['sanctum' => []]], tags: ['Company'], requestBody: new OA\RequestBody(required: true, content: new OA\JsonContent(type: 'object')), responses: [new OA\Response(response: 201, description: 'Company created'), new OA\Response(response: 401, description: 'Unauthenticated'), new OA\Response(response: 403, description: 'Forbidden'), new OA\Response(response: 422, description: 'Validation failed', content: new OA\JsonContent(ref: '#/components/schemas/ValidationError'))])]
+    #[OA\Post(path: '/api/v1/companies', operationId: 'companyStore', security: [['sanctum' => []]], tags: ['Company'], requestBody: new OA\RequestBody(required: true, content: new OA\JsonContent(ref: '#/components/schemas/CompanyCreateRequest')), responses: [new OA\Response(response: 201, description: 'Company created'), new OA\Response(response: 401, description: 'Unauthenticated'), new OA\Response(response: 403, description: 'Forbidden'), new OA\Response(response: 422, description: 'Validation failed', content: new OA\JsonContent(ref: '#/components/schemas/ValidationError'))])]
     public function companyStore(): void {}
 
     #[OA\Get(path: '/api/v1/organization/tree', operationId: 'organizationTree', security: [['sanctum' => []]], tags: ['Organization'], parameters: [new OA\Parameter(name: 'company_id', in: 'query', required: true, schema: new OA\Schema(type: 'integer', minimum: 1))], responses: [new OA\Response(response: 200, description: 'Organization tree'), new OA\Response(response: 401, description: 'Unauthenticated'), new OA\Response(response: 403, description: 'Forbidden'), new OA\Response(response: 404, description: 'Company not found'), new OA\Response(response: 422, description: 'Validation failed', content: new OA\JsonContent(ref: '#/components/schemas/ValidationError'))])]

@@ -1,5 +1,7 @@
 # API Documentation Governance
 
+Phase 3F-21 adds deterministic route-to-spec governance. `POST /api/v1/companies` now documents all six required FormRequest fields, and a normalized sanitized baseline/checksum drives the early CI contract gate. API Documentation remains Swagger UI; API Contracts is a separate read-only governance dashboard.
+
 The application uses `darkaonline/l5-swagger` 11.1.0 with `zircote/swagger-php` 6.4.0. The Swagger UI is `/api/documentation`; the generated OpenAPI JSON is `/docs`. Generate it with `php artisan l5-swagger:generate`. Both routes and all package asset routes run through `web`, `auth`, `verified` and `permission:api.documentation.view`; the specification is never left public behind a protected UI.
 
 The dedicated permission is assigned to Super Admin through the idempotent `RolePermissionSeeder`. Sidebar authorization is server-side: API Documentation is the tenth Operations child, but is removed from HTML without `api.documentation.view`. The other nine Operations pages retain `operations.view`. A documentation-only actor may see an Operations group containing only the permitted API Documentation child.

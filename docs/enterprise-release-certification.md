@@ -1,5 +1,7 @@
 # Phase 3F-11 — Production-like Release Certification
 
+Future certificates may record the normalized OpenAPI checksum, undocumented/orphan counts and approved breaking-change reference. Phase 3F-21 performs no deployment or production certification run.
+
 ## Candidate evidence
 
 - Git SHA: `280043f58be7481dedc9daa1c8927bc4bc60635e`

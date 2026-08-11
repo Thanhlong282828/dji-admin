@@ -1,5 +1,7 @@
 # Enterprise Technical Debt Register
 
+Phase 3F-21 records that representative FormRequest/response checks are intentionally targeted rather than a universal Laravel-rule-to-JSON-Schema translator. Expanding typed schemas for additional real APIs remains incremental debt, not permission to add fictional paths.
+
 ## Test engineering debt (Phase 3F-20)
 
 - TEST-001 (medium, accepted): seven browser scripts retain context-specific launch/login/fixture duplication; consolidate only after preserving all viewport contracts.
