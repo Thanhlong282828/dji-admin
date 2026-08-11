@@ -35,3 +35,6 @@ Release rollback now fails closed unless prior image, migration, config and data
 # Release certification linkage
 
 Phase 3F-11 validated an application-only green-to-blue rollback against a forward-compatible isolated schema. Shared Redis loss affected both revisions, so dependency recovery—not revision rollback—is the correct first response for that incident class.
+# Credential recovery
+
+Compromised or unavailable credentials follow the Phase 3F-13 reference cutover runbooks. APP_KEY and database credentials require explicit dual-key/least-privilege recovery plans and are never rotated automatically during disaster recovery tests.

@@ -2,6 +2,8 @@
 
 The platform now has a typed, secret-free runtime configuration foundation with deterministic resolution, safe cache fallback, operational kill switches, drift evidence and release-manifest integration.
 
+Phase 3F-13 keeps secret resolution outside this service. Runtime flags may enable a capability but can never contain its credential.
+
 ## Control plane
 
 - UI: `/admin/operations/configuration` (`auth`, `verified`, `operations.view`).

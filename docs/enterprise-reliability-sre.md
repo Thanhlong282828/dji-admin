@@ -48,3 +48,5 @@ Production-like certification initially found Redis-dependent liveness. `HttpMet
 # Runtime configuration fallback
 
 Cache/Redis failure falls back to environment-backed config. Display-only controls may fail open; side-effect and security-sensitive controls fail closed according to typed catalog policy, without turning a cache outage into an HTTP 500.
+
+Secret resolution does not depend on Redis as an authority. Missing critical credentials fail closed at side-effect boundaries while core liveness remains independent.

@@ -590,3 +590,5 @@ PHASE 3F-8 DATABASE ENVIRONMENT MATRIX (2026-08-09)
 - Production business counts unchanged. Final PHPUnit: 397 tests / 4,291 assertions / 1 skipped / exit 0.
 Phase 3F-12: no database migration/table. Runtime configuration remains config/cache read-side; canonical migration inventory stays 61 in all four environments.
 Phase 3F-12 production audit: business counts unchanged; no seed, config mutation, external traffic or schema change.
+Phase 3F-13: no new schema. Existing encrypted Integration/ERP credential fields are reused; production credential data remains untouched.
+Phase 3F-13 migration matrix remains 61/61/61/61; no secret data or business row mutation.

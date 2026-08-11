@@ -5,6 +5,7 @@ namespace App\Console\Commands;
 use App\Support\Release\ReleaseManifestData;
 use App\Support\Release\ReleaseManifestGenerator;
 use App\Support\RuntimeConfiguration\RuntimeConfigurationService;
+use App\Support\Secrets\SecretGovernanceService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
@@ -29,11 +30,13 @@ final class GenerateReleaseManifestCommand extends Command
 
     protected $description = 'Generate an immutable, secret-free release manifest without deploying';
 
-    public function handle(ReleaseManifestGenerator $generator, RuntimeConfigurationService $runtimeConfiguration): int
+    public function handle(ReleaseManifestGenerator $generator, RuntimeConfigurationService $runtimeConfiguration, SecretGovernanceService $secrets): int
     {
         try {
             $quality = $this->qualityEvidence($this->optionString('quality-evidence'));
             $runtimeSchemaVersion = config('runtime-configuration.schema_version', 1);
+            $secretSchemaVersion = config('secret-governance.schema_version', 1);
+            $secretReadiness = $secrets->readiness();
             $data = new ReleaseManifestData(
                 $this->optionString('release-id'),
                 $this->optionString('commit'),
@@ -55,6 +58,9 @@ final class GenerateReleaseManifestCommand extends Command
                 is_int($runtimeSchemaVersion) ? $runtimeSchemaVersion : 1,
                 $runtimeConfiguration->snapshotChecksum(),
                 'clean',
+                is_int($secretSchemaVersion) ? $secretSchemaVersion : 1,
+                $secretReadiness['checksum'],
+                $secretReadiness['ready'] ? 'ready' : 'missing',
             );
             $manifest = $generator->generate($data);
             if ($this->option('print-manifest')) {

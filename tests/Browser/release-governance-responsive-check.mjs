@@ -29,7 +29,7 @@ async function verify(label, width, height) {
     page.on('pageerror', error => problems.push(`pageerror: ${error.message}`));
     page.on('response', response => { if (response.status() >= 400) problems.push(`http.${response.status()}: ${response.url()}`); });
     await page.goto(`${baseUrl}/admin/audit/_fixtures/login`, { waitUntil: 'networkidle' });
-    for (const path of ['/admin/operations/configuration', '/admin/operations/observability', '/admin/operations/releases']) {
+    for (const path of ['/admin/operations/secrets', '/admin/operations/configuration', '/admin/operations/observability', '/admin/operations/releases']) {
         const response = await page.goto(`${baseUrl}${path}`, { waitUntil: 'networkidle' });
         if (!response?.ok()) throw new Error(`${label}/${path}: HTTP ${response?.status()}`);
         const viewport = await page.evaluate(() => ({ clientWidth: document.documentElement.clientWidth, scrollWidth: document.documentElement.scrollWidth }));

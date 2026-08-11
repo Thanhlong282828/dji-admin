@@ -39,3 +39,5 @@ The manifest now includes deterministic migration inventory and source-state che
 # Phase 3F-12 configuration evidence
 
 New manifests include the non-secret runtime configuration schema version, canonical snapshot checksum and drift status. Secrets and business-policy values remain excluded.
+
+Phase 3F-13 adds secret-readiness schema/checksum/status metadata only; values and ciphertext remain excluded.

@@ -10,6 +10,8 @@ use App\Policies\Workforce\WorkforcePolicyGateRegistrar;
 use App\Services\LaravelWorkforceNotificationChannelSender;
 use App\Services\NullErrorTracker;
 use App\Support\EnvironmentSafetyGuard;
+use App\Support\Secrets\ConfiguredSecretProvider;
+use App\Support\Secrets\SecretProviderInterface;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 
@@ -39,6 +41,7 @@ class AppServiceProvider extends ServiceProvider
 
         $this->app->bind(WorkforceNotificationChannelSenderInterface::class, LaravelWorkforceNotificationChannelSender::class);
         $this->app->singleton(ErrorTrackerInterface::class, NullErrorTracker::class);
+        $this->app->bind(SecretProviderInterface::class, ConfiguredSecretProvider::class);
     }
 
     /**

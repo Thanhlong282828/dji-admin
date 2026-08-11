@@ -8,6 +8,7 @@ final class SensitiveDataRedactor
     private const SENSITIVE_KEYS = [
         'password', 'password_confirmation', 'authorization', 'cookie', 'session_id',
         'token', 'access_token', 'refresh_token', 'api_key', 'secret', 'credential',
+        'api-key', 'private_key', 'access_key', 'client_secret', 'webhook_secret', 'encryption_key', 'signing_key',
         'bank_account', 'bank_account_number', 'tax_number', 'salary', 'private_path',
     ];
 
@@ -33,7 +34,7 @@ final class SensitiveDataRedactor
 
     private function sensitive(string $key): bool
     {
-        $normalized = strtolower($key);
+        $normalized = strtolower((string) preg_replace('/(?<!^)[A-Z]/', '_$0', str_replace('-', '_', $key)));
         foreach (self::SENSITIVE_KEYS as $sensitive) {
             if ($normalized === $sensitive || str_ends_with($normalized, '_'.$sensitive)) {
                 return true;

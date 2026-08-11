@@ -118,3 +118,8 @@ Phase 3F-11 is **COMPLETED**. This is production-like testing certification, not
 Enterprise Runtime Configuration, Feature Flags and Safe Change Management is **COMPLETED**: typed non-secret catalog, deterministic precedence, fail-safe cache behavior, Integration/Notification kill switches, drift command, release evidence and permission-protected responsive UI. No migration or production mutation was required.
 
 Final gate: Full PHPUnit 419 tests / 4,426 assertions / one skipped / exit 0; PHPStan 0; exact browser and production safety pass.
+# Phase 3F-13 secret governance
+
+Enterprise Secrets, Key Rotation and Credential Lifecycle Governance is implemented as a read-only typed reference/readiness foundation with recursive redaction, release evidence, existing encrypted-store reuse and responsive operations UI. No migration or production secret mutation is required.
+
+Final status: **COMPLETED** — focused 22/89; Full PHPUnit 425 tests / 4,463 assertions / exit 0; PHPStan 0; exact browser, image scan and production safety PASS.

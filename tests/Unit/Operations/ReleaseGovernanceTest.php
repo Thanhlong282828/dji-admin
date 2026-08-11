@@ -15,13 +15,15 @@ final class ReleaseGovernanceTest extends TestCase
 {
     public function test_manifest_is_deterministic_secret_free_and_immutable(): void
     {
-        $data = new ReleaseManifestData('release-1', str_repeat('a', 40), 'v1.0.0', 'working_tree', str_repeat('f', 64), 'registry/app:'.str_repeat('a', 40), 'sha256:'.str_repeat('b', 64), '2026-08-09T00:00:00+00:00', 'testing', 61, str_repeat('d', 64), '1.0.0', '8.4.23', '13.21.1', ['phpunit' => 'pass', 'phpstan' => 'pass'], 'change-123', 'registry/app:'.str_repeat('c', 40), 1, str_repeat('e', 64), 'clean');
+        $data = new ReleaseManifestData('release-1', str_repeat('a', 40), 'v1.0.0', 'working_tree', str_repeat('f', 64), 'registry/app:'.str_repeat('a', 40), 'sha256:'.str_repeat('b', 64), '2026-08-09T00:00:00+00:00', 'testing', 61, str_repeat('d', 64), '1.0.0', '8.4.23', '13.21.1', ['phpunit' => 'pass', 'phpstan' => 'pass'], 'change-123', 'registry/app:'.str_repeat('c', 40), 1, str_repeat('e', 64), 'clean', 1, str_repeat('1', 64), 'ready');
         $generator = new ReleaseManifestGenerator;
         $first = $generator->generate($data);
         self::assertSame($first, $generator->generate($data));
         self::assertArrayNotHasKey('password', $first);
         self::assertSame('working_tree', $first['source']['state']);
         self::assertSame('clean', $first['runtime_configuration']['drift_status']);
+        self::assertSame('ready', $first['secret_readiness']['status']);
+        self::assertArrayNotHasKey('value', $first['secret_readiness']);
         self::assertMatchesRegularExpression('/^[0-9a-f]{64}$/', $first['checksum']);
 
         $directory = sys_get_temp_dir().'/release-governance-'.bin2hex(random_bytes(4));

@@ -36,3 +36,5 @@ Phase 3F-11 is **COMPLETED** for production-like testing certification. A real p
 # Phase 3F-12 compatibility
 
 Certification tooling consumes runtime configuration evidence through the release manifest. A changed non-secret snapshot is traceable; environment-specific values are not required to match across production and development.
+
+Secret certification is presence/readiness only. A PASS never exposes or fingerprints the underlying value.

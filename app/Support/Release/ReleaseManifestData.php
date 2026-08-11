@@ -26,5 +26,8 @@ final readonly class ReleaseManifestData
         public int $runtimeConfigSchemaVersion = 1,
         public string $runtimeConfigChecksum = '',
         public string $runtimeConfigDriftStatus = 'unknown',
+        public int $secretSchemaVersion = 1,
+        public string $secretReadinessChecksum = '',
+        public string $secretReadinessStatus = 'unknown',
     ) {}
 }

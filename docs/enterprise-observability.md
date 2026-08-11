@@ -37,3 +37,5 @@ Healthy candidate observability and all three health endpoints passed. The Redis
 # Runtime configuration signals
 
 Phase 3F-12 defines safe aggregate signals for override/drift counts, disabled integrations and evaluation errors. The current config-only foundation has no per-user labels and emits no external alert.
+
+Secret governance adds only aggregate missing/expired/rotation-due counts; no reference-per-request or value labels.

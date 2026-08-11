@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Support\Secrets\SecretGovernanceService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -21,7 +22,7 @@ final class ReleaseCheckCommand extends Command
 
     protected $description = 'Run read-only pre-deployment release gates and report PASS or FAIL';
 
-    public function handle(): int
+    public function handle(SecretGovernanceService $secrets): int
     {
         $checks = [
             'environment_contract' => $this->environmentContract(),
@@ -36,6 +37,7 @@ final class ReleaseCheckCommand extends Command
             'rollback_target' => $this->immutableImage((string) $this->option('rollback-target')),
             'quality_evidence' => $this->safeFile((string) $this->option('quality-evidence')),
             'backup_readiness' => trim((string) $this->option('backup-reference')) !== '',
+            'required_secrets' => $secrets->readiness()['ready'],
         ];
         $passed = ! in_array(false, $checks, true);
         $this->line(json_encode(['status' => $passed ? 'pass' : 'fail', 'environment' => app()->environment(), 'database' => DB::connection()->getDatabaseName(), 'checks' => $checks], JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT));
