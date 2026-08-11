@@ -466,3 +466,5 @@ Phase 3F-14 final: COMPLETED — focused 47/221; full PHPUnit 431 tests/4,500 as
 Phase 3F-15 Enterprise Business Continuity: isolated backup/restore and dependency recovery, guarded DR certificate, RTO/RPO evidence, rollback validation, runbooks and read-only continuity UI; no migration.
 Phase 3F-15 final: COMPLETED — focused 54/353; full PHPUnit 436 tests/4,529 assertions/one skipped/exit 0; PHPStan 0; Docker recovery, exact browser, cleanup and production safety PASS.
 Phase 3F-16 Enterprise Security Assurance: COMPLETED. Full PHPUnit 440/439 passed/4,546 assertions/1 skipped/exit 0; repository PHPStan level 10 has 0 errors; no migration.
+Phase 3F-17 accessibility/frontend governance: COMPLETED. Full PHPUnit 446 tests/445 passed/4,708 assertions/1 skipped/exit 0; exact desktop/mobile browser PASS; no migration.
+Phase 3F-17 sidebar hardening: fixed the runtime CSS `[hidden]` override; server-side permission filtering removes empty/unauthorized parents, accordion state permits one group, Operations closed/open visible children = 0/8. Exact desktop/mobile and local development admin verification PASS.

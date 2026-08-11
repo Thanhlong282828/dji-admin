@@ -18,3 +18,6 @@ Accepted design gaps are not hidden: privileged MFA and a malware scanning provi
 - Runtime image `sha256:f7c5fc44f8133b83085208e5ee291dc7f3aa44a6a38b01706ef89d2a123edbe7`: `www-data` UID 82, no `.env`, tests or private evidence; reduced capabilities and `no-new-privileges` in the production-like Compose contract.
 - Schema: no migration; all four environments remain at 61 migrations / 230 tables.
 - Production counts remained unchanged and no adversarial request targeted production or an external provider.
+# Phase 3F-17 accessibility security regression
+
+Navigation labels, ARIA metadata and localStorage state contain no credentials, PII, restricted business values or permission snapshots. Backend middleware remains authoritative.

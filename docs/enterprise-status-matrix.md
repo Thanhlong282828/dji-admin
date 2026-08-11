@@ -138,3 +138,6 @@ Final status: **COMPLETED** — focused 54/353; Full PHPUnit 436 tests / 4,529 a
 # Phase 3F-16 security assurance (2026-08-11)
 
 Security audit, threat modeling, typed findings, defensive SSRF/path policies and the read-only assurance surface are implemented. Focused/full tests, PHPStan, build, exact browser, runtime inspection, migration parity and production read-only verification passed. Phase 3F-16 is COMPLETED with two documented medium residual design gaps (privileged MFA and malware scanning provider).
+# Phase 3F-17 accessibility and frontend governance (2026-08-11)
+
+The shared admin shell now uses centralized server-side permission filtering, nine genuinely collapsible groups, one-group accordion state, exact active-route behavior, accessible keyboard/mobile drawer controls, skip navigation, visible focus and reduced motion. Runtime hardening removed a CSS override of `[hidden]`; exact evidence now measures actual visibility (Dashboard 1/45 links visible, Operations closed/open 0/8 children) rather than ARIA alone. Focused/full tests, PHPStan, builds, exact browser, database parity and production read-only verification passed. Phase 3F-17 is COMPLETED as a WCAG 2.2 AA-oriented foundation, not a formal certification.

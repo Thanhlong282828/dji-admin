@@ -5,6 +5,7 @@ import '../ts/realtime/recruitment.ts';
 import '../ts/realtime/workforce.ts';
 import '../ts/schema.ts';
 import '../ts/notification-center.ts';
+import '../ts/admin-navigation.ts';
 
 window.Alpine = Alpine;
 

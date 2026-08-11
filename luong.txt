@@ -1845,3 +1845,6 @@ Phase 3F-15 continuity exercises do not calculate Payroll or access production s
 Phase 3F-15 final quality: Full PHPUnit 436 tests / 4,529 assertions / exit 0; production Payroll remains 0 and unchanged.
 Phase 3F-16 flow: route/config/domain audit -> threat model -> defensive policy checks -> read-only assurance command/dashboard -> testing-only adversarial evidence -> quality/runtime/production-safety gates.
 Phase 3F-16 final: focused security, cross-domain regression, full PHPUnit, static/build, exact browser and runtime image inspection all PASS; production read-only audit PASS.
+Phase 3F-17 flow: layout audit -> centralized permission menu -> grouped accordion -> keyboard/mobile focus governance -> representative component enhancement -> exact browser -> shared quality gates.
+Phase 3F-17 final: navigation, keyboard/focus, responsive browser, repository static/build and full regression gates PASS; production read-only safety PASS.
+Phase 3F-17 sidebar hardening: permission filtering is server-side; Operations is absent without `operations.view`; collapsed children are hidden from layout, assistive technology and Tab order; exact desktop/mobile and local admin runtime checks PASS.

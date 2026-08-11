@@ -25,3 +25,6 @@ Phase 3F-15 status: **COMPLETED**.
 # Phase 3F-16 security incidents
 
 Continuity response links to the account, webhook, privilege-escalation and general security runbooks. Evidence preservation precedes recovery mutation.
+# Phase 3F-17 navigation
+
+Business Continuity remains a read-only child of the consolidated Operations group; route authorization is unchanged.

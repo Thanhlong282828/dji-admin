@@ -46,3 +46,6 @@ Continuity signals are metadata-only: last backup/restore verification, last tes
 # Phase 3F-16 logging assurance
 
 Security events retain correlation and structured fields while redaction prevents credential and restricted business data disclosure. Synthetic control characters are bounded test input only.
+# Phase 3F-17 UI regression
+
+Observability and all Operations pages remain grouped under one permission-protected navigation section and pass exact desktop/mobile overflow and console checks.

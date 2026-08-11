@@ -31,3 +31,6 @@ Phase 3F-15 backup artifacts were mode 0600 and evidence contained only counts, 
 # Phase 3F-16 regression note
 
 Threat/finding DTOs and the security dashboard contain aggregate evidence only. PII, Payroll values, credentials and private paths remain excluded.
+# Accessible metadata boundary
+
+ARIA labels and navigation search data are treated as presentation surfaces: only safe static labels/group keys are emitted; no user, tenant, Payroll, credential or private-path value is persisted client-side.

@@ -1,0 +1,109 @@
+import { access, mkdir } from 'node:fs/promises';
+import process from 'node:process';
+import { chromium } from 'playwright-core';
+
+for (const [key, expected] of Object.entries({ APP_ENV: 'testing', DB_CONNECTION: 'mysql', DB_DATABASE: 'schema_admin_browser_testing' })) {
+    if (process.env[key] !== expected) throw new Error(`${key} must equal ${expected}`);
+}
+
+const baseUrl = process.env.ACCESSIBILITY_BROWSER_BASE_URL ?? 'http://127.0.0.1:18087';
+const chromePath = process.env.ACCESSIBILITY_CHROME_PATH ?? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+const evidenceDirectory = process.env.ACCESSIBILITY_EVIDENCE_DIR ?? 'storage/logs/phase3f17-browser-evidence';
+const companyId = process.env.ACCESSIBILITY_COMPANY_ID;
+if (!companyId || !/^\d+$/.test(companyId)) throw new Error('ACCESSIBILITY_COMPANY_ID must be a fixture company identifier');
+await access(chromePath);
+await mkdir(evidenceDirectory, { recursive: true });
+const browser = await chromium.launch({ executablePath: chromePath, headless: true });
+try {
+    const evidence = [];
+    evidence.push(await verify('desktop', 1280, 800));
+    evidence.push(await verify('mobile', 390, 844));
+    console.log(JSON.stringify({ status: 'passed', formalWcagCertification: false, evidence }, null, 2));
+} finally {
+    await browser.close();
+}
+
+async function verify(label, width, height) {
+    const context = await browser.newContext({ viewport: { width, height } });
+    const page = await context.newPage();
+    const problems = [];
+    page.on('console', message => { if (['error', 'warning'].includes(message.type())) problems.push(`console.${message.type()}: ${message.text()}`); });
+    page.on('pageerror', error => problems.push(`pageerror: ${error.message}`));
+    page.on('response', response => { if (response.status() >= 400) problems.push(`http.${response.status()}: ${response.url()}`); });
+    await page.goto(`${baseUrl}/admin/audit/_fixtures/login`, { waitUntil: 'networkidle' });
+    const tenant = `?company_id=${companyId}`;
+    const pages = ['/dashboard', `/admin/employees${tenant}`, `/admin/payroll/runs${tenant}`, `/admin/workflows${tenant}`, `/admin/iam${tenant}`, `/admin/integrations${tenant}`, `/admin/audit${tenant}`, '/admin/operations/reliability', '/admin/operations/observability', '/admin/operations/releases', '/admin/operations/configuration', '/admin/operations/secrets', '/admin/operations/data-protection', '/admin/operations/continuity', '/admin/operations/security-assurance'];
+    for (const path of pages) {
+        const response = await page.goto(`${baseUrl}${path}`, { waitUntil: 'networkidle' });
+        if (!response?.ok()) throw new Error(`${label}/${path}: HTTP ${response?.status()}`);
+        const metrics = await page.evaluate(() => ({ innerWidth, innerHeight, clientWidth: document.documentElement.clientWidth, scrollWidth: document.documentElement.scrollWidth, duplicateIds: [...document.querySelectorAll('[id]')].map(node => node.id).filter((id, index, ids) => ids.indexOf(id) !== index), unlabeledButtons: [...document.querySelectorAll('button')].filter(button => !(button.textContent?.trim() || button.getAttribute('aria-label') || button.getAttribute('title'))).length }));
+        if (metrics.innerWidth !== width || metrics.innerHeight !== height || metrics.clientWidth !== width || metrics.scrollWidth !== width || metrics.duplicateIds.length || metrics.unlabeledButtons) throw new Error(`${label}/${path}: ${JSON.stringify(metrics)}`);
+    }
+
+    await page.goto(`${baseUrl}/dashboard`, { waitUntil: 'networkidle' });
+    await page.keyboard.press('Tab');
+    if (!(await page.locator('.skip-link').evaluate(element => document.activeElement === element))) throw new Error(`${label}: skip link is not first keyboard focus target`);
+    await page.waitForTimeout(300);
+    const focusEvidence = await page.locator('.skip-link').evaluate(element => ({ top: element.getBoundingClientRect().top, outline: getComputedStyle(element).outlineStyle, width: getComputedStyle(element).outlineWidth }));
+    if (focusEvidence.top < 0 || focusEvidence.outline === 'none' || focusEvidence.width === '0px') throw new Error(`${label}: skip link/focus indicator unavailable ${JSON.stringify(focusEvidence)}`);
+
+    let initialNavigationEvidence = null;
+    if (label === 'desktop') {
+        const expandedBefore = await page.locator('[data-nav-group-toggle][aria-expanded="true"]').count();
+        const totalLinks = await page.locator('.primary-navigation .nav-item').count();
+        const initialVisibleLinks = await page.locator('.primary-navigation .nav-item:visible').count();
+        initialNavigationEvidence = { totalLinks, visibleLinks: initialVisibleLinks, expandedGroups: expandedBefore };
+        if (expandedBefore !== 1 || initialVisibleLinks !== 1) throw new Error(`desktop: initial expanded=${expandedBefore}, visible links=${initialVisibleLinks}`);
+        const operations = page.locator('[data-nav-group="operations"] [data-nav-group-toggle]');
+        const operationsItems = page.locator('#nav-group-operations');
+        if (await operationsItems.isVisible() || await operationsItems.locator('.nav-item:visible').count() !== 0) throw new Error('desktop: closed Operations children are visible');
+        await operations.focus();
+        await page.keyboard.press('Enter');
+        if (await operations.getAttribute('aria-expanded') !== 'true' || !(await operationsItems.isVisible()) || await operationsItems.locator('.nav-item:visible').count() !== 8) throw new Error('desktop: Enter did not visibly expand 8 Operations children');
+        if (await page.locator('[data-nav-group-toggle][aria-expanded="true"]').count() !== 1) throw new Error('desktop: accordion left multiple groups expanded');
+        await operations.focus();
+        await page.keyboard.press('Enter');
+        if (await operationsItems.isVisible() || await operationsItems.locator('.nav-item:visible').count() !== 0) throw new Error('desktop: second Enter did not collapse Operations');
+        await operations.focus();
+        await page.keyboard.press('Tab');
+        if (await operationsItems.evaluate(element => element.contains(document.activeElement))) throw new Error('desktop: collapsed child remained tabbable');
+        await operations.focus();
+        await page.keyboard.press('Space');
+        if (!(await operationsItems.isVisible()) || await operationsItems.locator('.nav-item:visible').count() !== 8) throw new Error('desktop: Space did not expand Operations');
+        const search = page.locator('[data-nav-search]');
+        await search.fill('security');
+        if (!(await page.getByRole('link', { name: 'Security Assurance' }).isVisible())) throw new Error('desktop: search did not expose permitted Security Assurance item');
+        await search.fill('');
+        if (!(await operationsItems.isVisible()) || await operationsItems.locator('.nav-item:visible').count() !== 8 || await page.locator('[data-nav-group-toggle][aria-expanded="true"]').count() !== 1) throw new Error('desktop: clearing search did not restore accordion state');
+        await page.getByRole('link', { name: 'Security Assurance' }).click();
+        await page.waitForLoadState('networkidle');
+        await page.reload({ waitUntil: 'networkidle' });
+        if (await page.locator('[data-nav-group="operations"] [data-nav-group-toggle]').getAttribute('aria-expanded') !== 'true') throw new Error('desktop: active Operations group did not reopen');
+        if ((await page.locator('[data-nav-group="operations"] .nav-item.active').textContent())?.trim() !== 'Security Assurance') throw new Error('desktop: active security item missing');
+    } else {
+        initialNavigationEvidence = { totalLinks: await page.locator('.primary-navigation .nav-item').count(), visibleLinks: await page.locator('.primary-navigation .nav-item:visible').count(), expandedGroups: await page.locator('[data-nav-group-toggle][aria-expanded="true"]').count() };
+        if (initialNavigationEvidence.visibleLinks !== 0) throw new Error(`mobile: closed drawer exposed ${initialNavigationEvidence.visibleLinks} links`);
+        const menu = page.locator('[data-sidebar-open]');
+        await menu.click();
+        if (await menu.getAttribute('aria-expanded') !== 'true' || !(await page.locator('[data-sidebar]').evaluate(element => element.classList.contains('is-open')))) throw new Error('mobile: drawer did not open');
+        await page.keyboard.press('Escape');
+        if (await menu.getAttribute('aria-expanded') !== 'false' || !(await menu.evaluate(element => document.activeElement === element))) throw new Error('mobile: Escape did not close/restore focus');
+        await menu.click();
+        const operations = page.locator('[data-nav-group="operations"] [data-nav-group-toggle]');
+        const operationsItems = page.locator('#nav-group-operations');
+        if (await operationsItems.isVisible()) throw new Error('mobile: Operations children visible before tap');
+        await operations.click();
+        if (!(await operationsItems.isVisible()) || await operationsItems.locator('.nav-item:visible').count() !== 8) throw new Error('mobile: Operations did not show 8 children');
+        await operations.click();
+        if (await operationsItems.isVisible() || await operationsItems.locator('.nav-item:visible').count() !== 0) throw new Error('mobile: second tap did not collapse Operations');
+        await operations.click();
+        await page.getByRole('link', { name: 'Security Assurance' }).click();
+        await page.waitForLoadState('networkidle');
+        if (await page.locator('[data-sidebar]').evaluate(element => element.classList.contains('is-open'))) throw new Error('mobile: drawer remained open after navigation');
+    }
+    if (problems.length) throw new Error(`${label}: ${problems.join(' | ')}`);
+    const navigationEvidence = { totalLinks: await page.locator('.primary-navigation .nav-item').count(), visibleLinks: await page.locator('.primary-navigation .nav-item:visible').count(), expandedGroups: await page.locator('[data-nav-group-toggle][aria-expanded="true"]').count() };
+    await page.screenshot({ path: `${evidenceDirectory}/${label}.png`, fullPage: true });
+    await context.close();
+    return { label, width, height, pages: pages.length, overflow: 0, consoleProblems: 0, duplicateIds: 0, keyboard: 'passed', focus: 'passed', sidebar: 'passed', initialNavigationEvidence, navigationEvidence };
+}

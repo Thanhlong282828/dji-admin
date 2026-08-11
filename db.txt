@@ -598,3 +598,6 @@ Phase 3F-15: no migration. Disposable schema_admin_testing_dr and schema_admin_t
 Phase 3F-15 final matrix: production/development/testing/browser = 61/61/61/61. Disposable DR databases and Docker volume removed; production business counts unchanged.
 Phase 3F-16: no migration planned. Security findings and threat evidence are typed read-only artifacts; production remains read-only.
 Phase 3F-16 final matrix: schema_admin, schema_admin_development, schema_admin_testing and schema_admin_browser_testing each have 61 migrations and 230 tables. Production business counts unchanged.
+Phase 3F-17 requires no migration or business-data mutation. Expected migration inventory remains 61 in all four environments.
+Phase 3F-17 final: schema_admin, development, testing and browser_testing each remain at 61 migrations/230 tables; production business counts unchanged.
+Phase 3F-17 sidebar hardening added no migration or data mutation. Browser fixture cleanup returned users/companies/audit_events = 0/0/0; the canonical matrix remains 61/61/61/61 and production counts remain unchanged.
