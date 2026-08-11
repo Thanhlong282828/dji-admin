@@ -159,3 +159,7 @@ Phase 3F-18 is **COMPLETED**. It added no business module or migration and made 
 # Phase 3F-18 Swagger completion hardening
 
 Phase 3F-18 remains COMPLETED. L5-Swagger 11.1.0 now exposes a generated, permission-protected UI/spec, a tenth Operations navigation child and exact desktop/mobile browser evidence. No migration or production data mutation was introduced.
+
+# Phase 3F-19 architecture governance
+
+Phase 3F-19 is **COMPLETED**. Evidence: 39 modules, 54 declared/39 observed direct dependency edges, zero cycles/undeclared/governed layer/CQRS/external-boundary violations; five real debt entries (three medium, two low) and five ADRs. Focused 43 tests/1,691 assertions/one skipped and full PHPUnit 468 tests/4,826 assertions/one skipped exited 0. Repository PHPStan level 10 is zero; exact 1280×800 and 390×844 browser, build/security/Compose, migration parity and production read-only gates pass.

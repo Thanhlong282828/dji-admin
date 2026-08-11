@@ -4,7 +4,7 @@
     "description": "Enterprise Integration Hub",
     "keywords": ["integration", "webhook", "delivery"],
     "priority": 0,
-    "requires": ["Core", "Company"],
+    "requires": ["Core", "Company", "Organization"],
     "providers": [
         "Modules\\Integration\\Providers\\IntegrationServiceProvider"
     ],

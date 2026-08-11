@@ -63,7 +63,8 @@ jobs:
       - run: npm ci && npm run build
       - run: vendor/bin/pint --test
       - run: vendor/bin/phpstan analyse app Modules --level=10 --no-progress --memory-limit=2G
-      - run: vendor/bin/phpstan analyse tests/Unit/Operations tests/Feature/ReleaseGovernanceTest.php --level=10 --no-progress --memory-limit=1G
+      - run: vendor/bin/phpstan analyse tests/Unit/Operations tests/Unit/Architecture tests/Feature/ReleaseGovernanceTest.php tests/Feature/OperationsArchitectureTest.php --level=10 --no-progress --memory-limit=1G
+      - run: php artisan test tests/Unit/Architecture tests/Feature/OperationsArchitectureTest.php
       - run: php artisan test --coverage --min=20
       - run: php artisan view:clear && php artisan view:cache && php artisan view:clear
       - run: composer audit --no-interaction

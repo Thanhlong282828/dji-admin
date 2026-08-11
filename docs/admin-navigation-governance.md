@@ -2,7 +2,7 @@
 
 The canonical information architecture contains nine groups: Overview, Organization, People/HR Core, Talent, Payroll & Finance, Enterprise Automation, Access & Security, Operations/Platform and Content.
 
-Operations owns Reliability, Observability, Performance, Releases, Runtime Configuration, Secrets, Data Protection, Business Continuity, Security Assurance and API Documentation. A page may be added only when its named route exists and permission metadata is defined. Item/group keys and named routes must remain unique.
+Operations owns Reliability, Observability, Performance, Architecture, Releases, Runtime Configuration, Secrets, Data Protection, Business Continuity, Security Assurance and API Documentation. A page may be added only when its named route exists and permission metadata is defined. Item/group keys and named routes must remain unique.
 
 The active route's group is always expanded on initial render, even when saved UI state says it was closed. Client persistence stores at most one non-sensitive group key, so the sidebar behaves as a compact accordion. Search temporarily opens matching groups and clearing it restores the active-route/saved state. Navigation generation must remain query-free beyond the already authenticated user's cached authorization model.
 
@@ -20,3 +20,5 @@ The original `.nav-group-items { display: grid }` author rule overrode the brows
 ## API documentation hardening
 
 API Documentation is the tenth Operations child. An actor with `operations.view` but without `api.documentation.view` receives no documentation link HTML. An actor with only `api.documentation.view` receives the Operations parent with that one child. Exact browser regression verifies Operations closed/open counts of 0/10 for the authorized fixture and preserves keyboard, active-route and mobile drawer behavior.
+
+Architecture is the eleventh Operations child and requires `operations.view`. It does not alter API Documentation's independent permission behavior. The active Architecture route auto-opens Operations; collapsed children remain hidden and non-tabbable.

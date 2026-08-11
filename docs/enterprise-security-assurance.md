@@ -28,3 +28,7 @@ Performance tooling is read-only, accepts no SQL, redacts sensitive filter-key c
 # API documentation boundary
 
 Swagger UI, generated JSON and package assets are protected by `web`, `auth`, `verified` and the dedicated `api.documentation.view` permission in every environment. The generated specification uses a Sanctum bearer scheme without token examples and is checked for obvious secret material. See `docs/api-documentation-governance.md`.
+
+# Phase 3F-19 architecture boundary
+
+Fitness functions verify governed Domain layers do not import HTTP/Presentation types, Spatie mutations remain in `SpatieAccessProvisioningAdapter`, external HTTP remains behind Integration policy/adapter boundaries, and Operations Architecture requires `operations.view`. No secret, PII, SQL binding or source dump enters its snapshot.

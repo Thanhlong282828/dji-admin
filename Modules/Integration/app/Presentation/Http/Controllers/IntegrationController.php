@@ -7,7 +7,6 @@ use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Routing\Controller;
-use Illuminate\Support\Facades\DB;
 use Modules\Core\Application\Buses\CommandBusInterface;
 use Modules\Core\Application\Buses\QueryBusInterface;
 use Modules\Integration\Application\Commands\ActivateIntegrationConnectionCommand;
@@ -18,10 +17,11 @@ use Modules\Integration\Application\Commands\ReplayDeadLetterCommand;
 use Modules\Integration\Application\Commands\RetryIntegrationMessageCommand;
 use Modules\Integration\Application\Queries\IntegrationPageQuery;
 use Modules\Integration\Presentation\Http\Requests\IntegrationRequest;
+use Modules\Organization\Domain\Services\TenantAccessService;
 
 final class IntegrationController extends Controller
 {
-    public function __construct(private readonly CommandBusInterface $commands, private readonly QueryBusInterface $queries) {}
+    public function __construct(private readonly CommandBusInterface $commands, private readonly QueryBusInterface $queries, private readonly TenantAccessService $tenants) {}
 
     /** @return array{int,int} */
     private function context(IntegrationRequest $r): array
@@ -29,7 +29,7 @@ final class IntegrationController extends Controller
         $u = $r->user();
         abort_unless($u instanceof User, 401);
         $c = $r->companyId();
-        abort_unless($u->can('organization.tenant-all') || DB::table('company_user_access')->where(['company_id' => $c, 'user_id' => $u->id])->exists(), 404);
+        abort_unless($this->tenants->canAccess($u, $c), 404);
 
         return [$c, (int) $u->id];
     }

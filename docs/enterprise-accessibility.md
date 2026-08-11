@@ -20,3 +20,5 @@ Runtime DOM inspection found that the group `hidden` attribute was correct but a
 Hardening gate: 15 focused/relevant tests, 14 passed, 1 skipped, 1,415 assertions; PHPStan level 10 zero errors; Pint, Blade and Vite pass. Phase 3F-18 adds Performance as the ninth Operations child; exact 1280×800 and 390×844 regression checks cover 16 pages with zero overflow, console warnings/errors or page errors.
 
 Swagger completion hardening adds API Documentation as the tenth Operations child under its own server-side `api.documentation.view` permission. Exact desktop/mobile automation verifies the 0/10 collapse cycle, Swagger UI and protected specification navigation, zero overflow and zero console/page problems.
+
+Phase 3F-19 adds Architecture as the eleventh authorized Operations child. It retains server-side filtering, hidden/non-tabbable collapse, keyboard accordion, active-group auto-open and exact desktop/mobile regression coverage.

@@ -1850,3 +1850,5 @@ Phase 3F-17 final: navigation, keyboard/focus, responsive browser, repository st
 Phase 3F-17 sidebar hardening: permission filtering is server-side; Operations is absent without `operations.view`; collapsed children are hidden from layout, assistive technology and Tab order; exact desktop/mobile and local admin runtime checks PASS.
 Phase 3F-18 flow: source audit → typed performance findings → guarded synthetic testing data → bounded query/export/DB/queue/HTTP measurements → protected Performance dashboard → exact browser → full quality/production read-only gates. Employee export now uses lazyById(500) eager-load windows; Payroll/HR semantics remain unchanged.
 Phase 3F-18 Swagger completion hardening: generated OpenAPI documentation, dedicated permission and protected navigation/routes; no payroll semantics or data changed.
+Phase 3F-19 architecture governance is read-only and does not alter Payroll calculation, maker-checker, checksum, export or accounting semantics.
+Phase 3F-19 final: COMPLETED; full PHPUnit 468 tests/4,826 assertions/one skipped/exit 0, PHPStan 0, exact browser and production safety PASS.

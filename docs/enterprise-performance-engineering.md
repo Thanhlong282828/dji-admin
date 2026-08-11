@@ -23,3 +23,5 @@ Employee list queries select only display/relation keys. Employee export changed
 - Production before/after business counts are identical. No production load, index mutation, seed or external request occurred.
 
 Phase 3F-18 status: **COMPLETED**.
+
+Phase 3F-19 keeps the Employee `lazyById(500)` export and minimized list projection intact. Architecture governance adds only read-only filesystem/route metadata analysis and does not reintroduce relationship queries or production benchmarking.

@@ -13,3 +13,5 @@ Examples must remain synthetic. Specifications must not include passwords, token
 The previous `/docs` response was 404 because the L5-Swagger generated file `storage/api-docs/api-docs.json` did not exist. `/api/documentation` was the actual UI route and was anonymously reachable under package defaults. Publishing application config, generating a real spec and applying the dedicated middleware corrected both gaps without patching vendor code or adding a dependency.
 
 Exact Chrome automation at 1280×800 and 390×844 loads the UI and protected JSON from the Operations sidebar with no HTTP 404, overflow, console warning/error or page error. Local development verification with `admin@local.test` also loads the OAS 3.0 UI successfully.
+
+Phase 3F-19 contract governance treats backward-compatible optional fields/paths as additive, and removal, required-field changes, semantic response changes or auth weakening as breaking. Breaking changes require version/deprecation evidence and a migration window. The current 11 paths/24 operations remain truthful; no v2 or fictional module API was added.

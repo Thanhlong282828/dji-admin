@@ -1,0 +1,21 @@
+@extends('layouts.admin')
+@section('title', 'Enterprise Architecture')
+@section('content')
+<style>
+.arch{--gold:#d4af37;color:#edf0f6;width:100%;max-width:1480px;min-width:0;margin:auto;overflow:hidden}.arch *{box-sizing:border-box}.arch-hero,.arch-card,.arch-panel{background:linear-gradient(145deg,#151920,#090b0f);border:1px solid #2d3139;border-radius:20px;box-shadow:0 20px 55px #0005;max-width:100%}.arch-hero{padding:28px}.arch-kicker,.arch-value{color:var(--gold)}.arch-kicker{text-transform:uppercase;letter-spacing:.16em;font-size:12px}.arch h1{font-size:clamp(30px,4vw,52px);margin:8px 0}.arch p{overflow-wrap:anywhere}.arch-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin:18px 0}.arch-card{padding:20px;min-width:0}.arch-value{display:block;font-size:28px;margin-top:8px}.arch-panel{padding:22px;margin-top:18px;overflow:hidden}.arch-table{width:100%;overflow-x:auto}.arch table{width:100%;min-width:720px;border-collapse:collapse}.arch th,.arch td{padding:12px;border-bottom:1px solid #292d34;text-align:left;vertical-align:top}.arch th{color:#d9bf67}.arch-badge{display:inline-flex;padding:5px 9px;border-radius:999px;background:#2a230e;color:#f4d978}.arch-ok{color:#9ad9b0}.arch-warn{color:#f3b59d}@media(max-width:760px){.arch-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.arch-hero,.arch-panel{padding:16px}.arch-card{padding:15px}}@media(max-width:420px){.arch-grid{grid-template-columns:1fr}}
+</style>
+<main class="arch">
+ <header class="arch-hero"><span class="arch-kicker">Modular-monolith fitness functions</span><h1>Enterprise Architecture</h1><p>Read-only dependency, layer, CQRS, ownership and technical-debt evidence. No source dump, query binding, credential, PII or business value is rendered.</p></header>
+ <section class="arch-grid">
+  <article class="arch-card"><span>Modules</span><strong class="arch-value">{{ $snapshot['modules'] }}</strong></article>
+  <article class="arch-card"><span>Declared / observed edges</span><strong class="arch-value">{{ $snapshot['declared_edges'] }} / {{ $snapshot['observed_edges'] }}</strong></article>
+  <article class="arch-card"><span>Cycles</span><strong class="arch-value">{{ count($snapshot['cycles']) }}</strong></article>
+  <article class="arch-card"><span>Undeclared edges</span><strong class="arch-value">{{ count($snapshot['undeclared_edges']) }}</strong></article>
+ </section>
+ <section class="arch-panel"><h2>Fitness status</h2><div class="arch-table"><table><thead><tr><th>Rule</th><th>Result</th><th>Count</th></tr></thead><tbody>
+  @foreach(['Dependency cycles'=>$snapshot['cycles'],'Undeclared dependencies'=>$snapshot['undeclared_edges'],'Enterprise layer violations'=>$snapshot['layer_violations'],'CQRS controller violations'=>$snapshot['cqrs_violations'],'External boundary violations'=>$snapshot['external_boundary_violations']] as $label=>$items)<tr><td>{{ $label }}</td><td class="{{ count($items)===0?'arch-ok':'arch-warn' }}">{{ count($items)===0?'PASS':'REVIEW' }}</td><td>{{ count($items) }}</td></tr>@endforeach
+ </tbody></table></div></section>
+ <section class="arch-panel"><h2>Cross-module coupling</h2><div class="arch-table"><table><thead><tr><th>Module</th><th>Incoming direct-import edges</th><th>Ownership interpretation</th></tr></thead><tbody>@foreach(array_slice($snapshot['cross_module_hotspots'],0,8) as $hotspot)<tr><td>{{ $hotspot['module'] }}</td><td>{{ $hotspot['incoming'] }}</td><td>Review against canonical module ownership before adding a new write dependency.</td></tr>@endforeach</tbody></table></div></section>
+ <section class="arch-panel"><h2>Technical debt register</h2><div class="arch-table"><table><thead><tr><th>ID</th><th>Severity</th><th>Component</th><th>Finding</th><th>Status</th></tr></thead><tbody>@foreach($snapshot['findings'] as $finding)<tr><td>{{ $finding['id'] }}</td><td><span class="arch-badge">{{ strtoupper($finding['severity']) }}</span></td><td>{{ $finding['component'] }}</td><td>{{ $finding['description'] }}</td><td>{{ strtoupper($finding['status']) }}</td></tr>@endforeach</tbody></table></div><p>Routes: {{ $snapshot['routes']['total'] }} total / {{ $snapshot['routes']['named'] }} named · Distinct route capabilities: {{ $snapshot['permissions']['route_capabilities'] }} · Snapshot checksum: {{ $snapshot['checksum'] }}</p></section>
+ </main>
+@endsection

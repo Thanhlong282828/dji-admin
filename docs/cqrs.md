@@ -210,3 +210,6 @@ IAM certification: route → Create/Start/Decide/Complete Review Command → Han
 `Workflow|Notification|IAM|Integration|Employee outbox, or Payroll activity event → concrete source consumer::consume() → source row/company lock → audit_source_checkpoints unique guard → AuditRecorderInterface::record() → EnterpriseAuditService::record() → audit_events + immutable snapshots + audit_outbox`. Retry of the same source/consumer identity is a no-op.
 
 Admin reads use `AuditPageQuery → AuditPageHandler → AuditReadRepository → AuditPageViewModel`. CSV and incremental PDF use `CreateAuditExportCommand → CreateAuditExportHandler → AuditExportService`; retention archive uses `ArchiveAuditRangeCommand → ArchiveAuditRangeHandler → AuditRetentionService::archive → audit_archive_artifacts`. Controllers never query source or Audit tables directly.
+# Phase 3F-19 architecture governance
+
+CQRS is the enterprise orchestration boundary, not a ban on domain/application services. Governed writes enter Command Bus/handlers; reads enter Query Bus/read-only snapshot services. Controllers do not mutate persistence directly. The Integration controller's duplicated `company_user_access` query was replaced by the canonical Organization `TenantAccessService`, with the dependency declared in `module.json`. Legacy Article controllers remain documented legacy-supported exceptions.
