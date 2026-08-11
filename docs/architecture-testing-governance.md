@@ -1,5 +1,7 @@
 # Architecture Testing Governance
 
+Phase 3F-20 makes architecture fitness functions an early CI gate, separate from real process concurrency. Canonical taxonomy, invariant registry, fixture rules and isolation are defined in the enterprise test-engineering documents.
+
 - Unit architecture tests: graph cycles/edges, layer direction, CQRS controller mutation, adapter boundaries, ADR presence and safe snapshot structure.
 - Feature tests: operations route auth/permission/payload and command registration/output.
 - Security tests: route/permission/tenant and controlled boundary regression.

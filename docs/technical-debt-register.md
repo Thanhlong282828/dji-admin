@@ -1,5 +1,11 @@
 # Enterprise Technical Debt Register
 
+## Test engineering debt (Phase 3F-20)
+
+- TEST-001 (medium, accepted): seven browser scripts retain context-specific launch/login/fixture duplication; consolidate only after preserving all viewport contracts.
+- TEST-002 (low, accepted): line coverage is informational and is not automatically correlated with the critical-invariant registry.
+- TEST-003 (low, accepted): legacy tests remain split between module-local and root trees; avoid mass moves without stable mapping.
+
 | ID | Severity | Component | Description/evidence | Business impact | Recommended remediation | Target | Status |
 |---|---|---|---|---|---|---|---|
 | ARCH-001 | Medium | Employee/Leave/Payroll/Recruitment | Domain services accept UploadedFile or return StreamedResponse. | Transport coupling increases change/test cost. | Introduce application DTO/artifact response boundaries when each feature is next changed. | Incremental | Accepted |

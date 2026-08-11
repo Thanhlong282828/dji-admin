@@ -1,5 +1,7 @@
 # Enterprise Architecture Governance
 
+Phase 3F-20 links architecture fitness functions to the early static test tier. The architecture service remains independent from the Test Quality snapshot to avoid an operations-support dependency cycle.
+
 Phase 3F-19 establishes machine-enforced module, layer, CQRS and controlled-side-effect boundaries for the existing modular monolith. It adds a read-only audit command and protected Operations dashboard, five ADRs and ownership/idempotency/debt registers. It adds no business module and no migration.
 
 Operational surfaces:

@@ -61,11 +61,21 @@ jobs:
       - run: cp .env.example .env && php artisan key:generate
       - run: php artisan migrate --force
       - run: npm ci && npm run build
+      - name: Test environment preflight
+        run: php artisan operations:test-readiness
+      - name: Orphan process preflight
+        run: scripts/ci/check-test-processes.sh
       - run: vendor/bin/pint --test
       - run: vendor/bin/phpstan analyse app Modules --level=10 --no-progress --memory-limit=2G
       - run: vendor/bin/phpstan analyse tests/Unit/Operations tests/Unit/Architecture tests/Feature/ReleaseGovernanceTest.php tests/Feature/OperationsArchitectureTest.php --level=10 --no-progress --memory-limit=1G
-      - run: php artisan test tests/Unit/Architecture tests/Feature/OperationsArchitectureTest.php
+      - name: Early architecture and test-governance fitness gate
+        run: php artisan test tests/Unit/Architecture tests/Unit/Operations/TestQualityGovernanceTest.php tests/Feature/OperationsArchitectureTest.php tests/Feature/OperationsTestQualityTest.php
+      - name: Serial process-concurrency gate
+        run: php artisan test tests/Concurrency
       - run: php artisan test --coverage --min=20
+      - name: Orphan process postflight
+        if: always()
+        run: scripts/ci/check-test-processes.sh
       - run: php artisan view:clear && php artisan view:cache && php artisan view:clear
       - run: composer audit --no-interaction
       - run: npm audit --omit=dev --audit-level=high

@@ -1,5 +1,7 @@
 # Phase 3F-18 Enterprise Performance Engineering
 
+Phase 3F-20 classifies performance timing as informational/local. CI hard gates continue to prefer query-count boundedness, N+1 absence, memory envelopes and index presence over flaky millisecond thresholds.
+
 The platform now has a typed, read-only performance snapshot, safe audit command and permission-protected dashboard. Phase 3F-18 adds no business module and no migration.
 
 ## Operational surfaces

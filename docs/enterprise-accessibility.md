@@ -1,5 +1,7 @@
 # Enterprise Accessibility and UX Quality
 
+Phase 3F-20 adds Test Quality to the exact-viewport navigation regression. It remains server-side permission filtered, participates in keyboard collapse/active state, and brings the fully permitted Operations group to 12 children.
+
 Phase 3F-17 replaces the flat admin menu with a permission-aware grouped navigation shell and establishes WCAG 2.2 AA-oriented frontend governance. It adds keyboard/mobile drawer behavior, skip navigation, visible focus, reduced motion, touch targets, table enhancement and exact-viewport automation.
 
 This is not a formal accessibility certification. Page-specific legacy form help/error associations, modal behavior and table captions remain governed incremental work whenever those pages are changed.

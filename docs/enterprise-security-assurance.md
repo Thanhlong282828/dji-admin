@@ -1,5 +1,7 @@
 # Enterprise Security Assurance
 
+Phase 3F-20 maps environment isolation, tenant boundaries, IAM separation and navigation authorization into the critical-invariant registry. Security fixtures remain synthetic and never target production.
+
 Phase 3F-16 establishes a shared defensive assurance layer without adding a business module or database persistence. It inventories trust boundaries, records typed findings, hardens the Integration URL boundary, validates safe filenames and exposes a permission-protected read-only operations dashboard/command.
 
 ## Operational use

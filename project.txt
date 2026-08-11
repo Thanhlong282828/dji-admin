@@ -1,5 +1,7 @@
 FOUNDATION FEATURE MAP
 
+Phase 3F-20 COMPLETED: typed suite/invariant snapshot, guarded test-readiness command, known-worker CI pre/postflight, serial race governance, and read-only Test Quality operations UI. Evidence: 12/12 invariants, concurrency 60/486, full PHPUnit 477/4,881 exit 0, PHPStan 0, exact browser PASS. No business module or migration.
+
 MySQL configuration: .env, .env.example, config/database.php
 Module runtime: config/modules.php, Modules/*/module.json, composer.json merge-plugin config
 CQRS buses: Modules/Core/app/Application/Buses/*

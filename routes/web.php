@@ -12,6 +12,7 @@ use App\Http\Controllers\Operations\ReliabilityController;
 use App\Http\Controllers\Operations\RuntimeConfigurationController;
 use App\Http\Controllers\Operations\SecretsController;
 use App\Http\Controllers\Operations\SecurityAssuranceController;
+use App\Http\Controllers\Operations\TestQualityController;
 use App\Http\Controllers\ProfileController;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
@@ -42,6 +43,7 @@ Route::get('/admin/operations/observability', [ObservabilityController::class, '
 Route::get('/admin/operations/observability/metrics', [ObservabilityController::class, 'metrics'])->middleware(['auth', 'verified', 'permission:operations.view'])->name('admin.operations.observability.metrics');
 Route::get('/admin/operations/performance', PerformanceController::class)->middleware(['auth', 'verified', 'permission:operations.view'])->name('admin.operations.performance');
 Route::get('/admin/operations/architecture', ArchitectureController::class)->middleware(['auth', 'verified', 'permission:operations.view'])->name('admin.operations.architecture');
+Route::get('/admin/operations/test-quality', TestQualityController::class)->middleware(['auth', 'verified', 'permission:operations.view'])->name('admin.operations.test-quality');
 Route::get('/admin/operations/releases', ReleaseDashboardController::class)->middleware(['auth', 'verified', 'permission:operations.view'])->name('admin.operations.releases');
 Route::get('/admin/operations/configuration', RuntimeConfigurationController::class)->middleware(['auth', 'verified', 'permission:operations.view'])->name('admin.operations.configuration');
 Route::get('/admin/operations/secrets', SecretsController::class)->middleware(['auth', 'verified', 'permission:operations.view'])->name('admin.operations.secrets');

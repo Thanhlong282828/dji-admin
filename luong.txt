@@ -1,4 +1,5 @@
 SCHEMA ADMIN — LUỒNG KẾT NỐI FILE RUNTIME
+Phase 3F-20 COMPLETED without HR/payroll semantic changes. Payroll maker-checker/finalization and employee allocation remain mapped to real process-concurrency evidence using synthetic fixtures only; full regression and concurrency gates passed.
 Cập nhật: 2026-07-26
 
 ================================================================================

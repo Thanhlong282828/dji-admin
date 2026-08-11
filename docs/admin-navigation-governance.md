@@ -1,5 +1,7 @@
 # Admin Navigation Governance
 
+Phase 3F-20 adds the permission-filtered `Test Quality` child to Operations. Fully permitted Operations now has 12 children. The route requires `operations.view`, follows existing collapse/active-route behavior, and exposes no test execution action.
+
 The canonical information architecture contains nine groups: Overview, Organization, People/HR Core, Talent, Payroll & Finance, Enterprise Automation, Access & Security, Operations/Platform and Content.
 
 Operations owns Reliability, Observability, Performance, Architecture, Releases, Runtime Configuration, Secrets, Data Protection, Business Continuity, Security Assurance and API Documentation. A page may be added only when its named route exists and permission metadata is defined. Item/group keys and named routes must remain unique.
