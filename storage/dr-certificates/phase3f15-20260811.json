@@ -1,0 +1,65 @@
+{
+    "schema_version": 1,
+    "scope": "testing_only_not_production_certification",
+    "exercise_id": "phase3f15-20260811",
+    "environment": "testing_dr_exercise",
+    "source_git_sha": "2cacdbf",
+    "started_at": "2026-08-11T02:09:00Z",
+    "completed_at": "2026-08-11T02:20:00Z",
+    "backup": {
+        "completed": true,
+        "duration_seconds": 0.57,
+        "size_bytes": 42213,
+        "mode": 600,
+        "checksum_verified": true
+    },
+    "restore": {
+        "completed": true,
+        "duration_seconds": 3.77,
+        "migration_count": 61,
+        "table_count": 230,
+        "index_entry_count": 1778,
+        "foreign_key_count": 720,
+        "fixture_checksum_equal": true,
+        "application_boot": true
+    },
+    "recovery": {
+        "redis_seconds": 6,
+        "mysql_seconds": 6,
+        "queue_seconds": 0,
+        "scheduler_seconds": 31,
+        "reverb_core_ready": true,
+        "rollback_image_ready": true,
+        "integration_notification_outbox_tests": true,
+        "storage_exercise": "design_only_no_private_fixture",
+        "pitr": "design_only_binlog_not_enabled"
+    },
+    "rto": {
+        "configured_seconds": 300,
+        "observed_seconds": 31,
+        "met": true,
+        "scope": "testing_dr_exercise"
+    },
+    "rpo": {
+        "configured_seconds": 60,
+        "observed_seconds": 0,
+        "met": true,
+        "scope": "deterministic_fixture_backup"
+    },
+    "gate_results": {
+        "backup_restore": true,
+        "restore_integrity": true,
+        "redis_recovery": true,
+        "mysql_recovery": true,
+        "queue_recovery": true,
+        "scheduler_recovery": true,
+        "reverb_degradation": true,
+        "outbox_continuity": true,
+        "integration_notification_isolation": true,
+        "release_rollback": true,
+        "data_protection": true,
+        "environment_safety": true
+    },
+    "status": "certified",
+    "checksum": "14432b506ba79994d7a7bb252442d13ade867d1b958536b6e754e7b29a34fecf"
+}

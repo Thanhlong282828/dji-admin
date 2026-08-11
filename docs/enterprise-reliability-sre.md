@@ -50,3 +50,5 @@ Production-like certification initially found Redis-dependent liveness. `HttpMet
 Cache/Redis failure falls back to environment-backed config. Display-only controls may fail open; side-effect and security-sensitive controls fail closed according to typed catalog policy, without turning a cache outage into an HTTP 500.
 
 Secret resolution does not depend on Redis as an authority. Missing critical credentials fail closed at side-effect boundaries while core liveness remains independent.
+
+Phase 3F-15 revalidated the dependency contract in a fresh isolated stack: Redis and MySQL loss kept live 200 and changed ready to 503; both recovered ready in 6 seconds. Queue work survived worker/Horizon interruption, scheduler heartbeat recovered in 31 seconds, and Reverb loss left core readiness healthy.

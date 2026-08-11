@@ -15,6 +15,8 @@
 
 Neither script was executed against production during Phase 3F-7.
 
+Phase 3F-15 made SHA-256 tooling portable: scripts use `shasum -a 256` where available and `sha256sum` on Linux containers. The isolated exercise produced a 42,213-byte mode-0600 backup in 0.57 seconds and restored it in 3.77 seconds with matching fixture checksum and 61 migrations.
+
 ## Restore verification checklist
 
 1. Create an empty disposable `*_restore_testing` database.

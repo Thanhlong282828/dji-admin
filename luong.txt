@@ -1841,3 +1841,5 @@ Phase 3F-13 does not expose Payroll salary/tax/bank values and does not alter Pa
 Phase 3F-13 final quality: 425 tests, 4,463 assertions, exit 0; production Payroll unchanged.
 Phase 3F-14 classifies salary, tax, bank and insurance identifiers as restricted. Unapproved surfaces deny/redact rather than approximate values; Payroll calculations and persisted business state are unchanged.
 Phase 3F-14 final quality: full PHPUnit 431 tests / 4,500 assertions / exit 0; production Payroll remains unchanged.
+Phase 3F-15 continuity exercises do not calculate Payroll or access production salary/tax/bank data. Synthetic DR fixture and operational probe are side-effect free.
+Phase 3F-15 final quality: Full PHPUnit 436 tests / 4,529 assertions / exit 0; production Payroll remains 0 and unchanged.

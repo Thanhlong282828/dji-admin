@@ -1,0 +1,37 @@
+services:
+  app:
+    environment:
+      APP_ENV: testing
+      APP_DEBUG: "false"
+      DB_DATABASE: schema_admin_testing_dr
+      MAIL_MAILER: array
+      RUNTIME_CONFIG_INTEGRATION_OUTBOUND_DELIVERY: "false"
+      RUNTIME_CONFIG_NOTIFICATION_EMAIL: "false"
+      RUNTIME_CONFIG_NOTIFICATION_BROADCAST: "false"
+  queue:
+    environment:
+      APP_ENV: testing
+      APP_DEBUG: "false"
+      DB_DATABASE: schema_admin_testing_dr
+      MAIL_MAILER: array
+  scheduler:
+    environment:
+      APP_ENV: testing
+      APP_DEBUG: "false"
+      DB_DATABASE: schema_admin_testing_dr
+  horizon:
+    environment:
+      APP_ENV: testing
+      APP_DEBUG: "false"
+      DB_DATABASE: schema_admin_testing_dr
+  reverb:
+    environment:
+      APP_ENV: testing
+      APP_DEBUG: "false"
+      DB_DATABASE: schema_admin_testing_dr
+  mysql:
+    environment:
+      MYSQL_DATABASE: schema_admin_testing_dr
+  nginx:
+    ports: !override
+      - "18087:8080"

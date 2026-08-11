@@ -40,3 +40,7 @@ Phase 3F-11 validated an application-only green-to-blue rollback against a forwa
 Compromised or unavailable credentials follow the Phase 3F-13 reference cutover runbooks. APP_KEY and database credentials require explicit dual-key/least-privilege recovery plans and are never rotated automatically during disaster recovery tests.
 
 Data exposure and privacy incidents use `runbooks/data-exposure.md`, `privacy-incident.md` and `encryption-key-compromise.md`. Incident records contain classification/component/correlation metadata, never leaked values.
+
+## Phase 3F-15 measured exercise
+
+An isolated testing exercise verified logical backup/restore integrity, Redis/MySQL health degradation and recovery, retained queue work, scheduler stale/fresh detection, non-critical Reverb degradation and immutable-image rollback compatibility. Testing observed RTO was 31 seconds and deterministic fixture RPO was 0 seconds; neither is an official production SLA. PITR and private-storage outage remain explicitly design-only.

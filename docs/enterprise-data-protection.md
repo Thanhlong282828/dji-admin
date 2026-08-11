@@ -26,3 +26,5 @@ Retention periods, erasure and anonymization remain policy decisions requiring l
 Final evidence: registry 23 fields (19 restricted, 4 confidential), checksum `15d28208f5f3fa97f35cd4915b833886ca06c3372f1dee0bf2526005b82b9a32`; focused 47 tests / 221 assertions; Full PHPUnit 431 tests / 4,500 assertions / one skipped / exit 0; repository PHPStan level 10 has 0 errors; Pint, Blade, Vite, Composer/npm audit, secret scan and Docker Compose pass. Chrome exact 1280×800 and 390×844 passed across data-protection/secrets/configuration/observability/releases with zero overflow, console warning/error and page error. Browser fixture cleanup returned zero. Migration inventory remains 61/61/61/61 and production counts are unchanged.
 
 Phase 3F-14 status: **COMPLETED**.
+
+Phase 3F-15 backup artifacts were mode 0600 and evidence contained only counts, durations and checksums. No production backup, protected value, private path or credential entered the DR certificate.

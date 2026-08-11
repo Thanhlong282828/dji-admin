@@ -8,6 +8,15 @@ mode="${1:---validate-only}"
 command -v mysqldump >/dev/null || { echo 'mysqldump is required.' >&2; exit 69; }
 [[ "$BACKUP_DIRECTORY" = /* ]] || { echo 'BACKUP_DIRECTORY must be absolute.' >&2; exit 64; }
 
+if command -v shasum >/dev/null; then
+    checksum_command=(shasum -a 256)
+elif command -v sha256sum >/dev/null; then
+    checksum_command=(sha256sum)
+else
+    echo 'A SHA-256 checksum tool is required.' >&2
+    exit 69
+fi
+
 if [[ "$mode" == "--validate-only" ]]; then
     echo "Backup configuration valid for database name '${DB_DATABASE}' (no connection made)."
     exit 0
@@ -24,5 +33,5 @@ mkdir -p "$BACKUP_DIRECTORY"
 timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
 target="$BACKUP_DIRECTORY/${DB_DATABASE}-${timestamp}.sql.gz"
 mysqldump --host="$DB_HOST" --user="$DB_USERNAME" --single-transaction --quick --routines --events --set-gtid-purged=OFF "$DB_DATABASE" | gzip -9 > "$target"
-shasum -a 256 "$target" > "$target.sha256"
+"${checksum_command[@]}" "$target" > "$target.sha256"
 echo "Backup artifact created: $(basename "$target")"

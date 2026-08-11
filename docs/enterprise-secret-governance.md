@@ -14,3 +14,5 @@ No migration, generic secrets table, production rotation or external request is 
 - No migration; inventory remains 61 in production, development, testing and browser testing. Production business counts unchanged.
 
 Phase 3F-14 consumes secret references as `restricted` metadata only. Credential, token, private-key and ciphertext values are denied from UI/export/notification and recursively redacted from logs/audit; cryptographic rotation remains governed and is not executed.
+
+Continuity exercises use temporary test-only credentials and never record them in certificates. Missing critical integration credentials fail closed while core liveness remains independent.

@@ -9,7 +9,14 @@ artifact="${1:-}"
 : "${DB_USERNAME:?DB_USERNAME is required}"
 : "${MYSQL_PWD:?MYSQL_PWD is required}"
 
-shasum -a 256 -c "$artifact.sha256"
+if command -v shasum >/dev/null; then
+    shasum -a 256 -c "$artifact.sha256"
+elif command -v sha256sum >/dev/null; then
+    sha256sum -c "$artifact.sha256"
+else
+    echo 'A SHA-256 checksum tool is required.' >&2
+    exit 69
+fi
 gzip -t "$artifact"
 gzip -dc "$artifact" | mysql --host="$DB_HOST" --user="$DB_USERNAME" "$DB_DATABASE"
 mysql --host="$DB_HOST" --user="$DB_USERNAME" "$DB_DATABASE" -e 'SELECT 1 AS restore_verified;'

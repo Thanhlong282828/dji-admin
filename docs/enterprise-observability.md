@@ -41,3 +41,5 @@ Phase 3F-12 defines safe aggregate signals for override/drift counts, disabled i
 Secret governance adds only aggregate missing/expired/rotation-due counts; no reference-per-request or value labels.
 
 Data-protection observability is limited to aggregate finding, restricted-export, redaction-failure and policy-error counts. Per-user labels and protected values are prohibited.
+
+Continuity signals are metadata-only: last backup/restore verification, last testing DR certificate, observed recovery time and gate status. Stale/failed evidence is an alert candidate; no external production alert is emitted by the exercise.

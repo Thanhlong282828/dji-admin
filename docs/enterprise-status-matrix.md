@@ -129,3 +129,9 @@ Final status: **COMPLETED** — focused 22/89; Full PHPUnit 425 tests / 4,463 as
 Canonical classification, typed sensitive-field registry, surface policy evaluation, masking, structured Audit redaction, cryptographic inventory, retention design, release evidence and read-only operations visibility are implemented without a migration or production data mutation.
 
 Final status: **COMPLETED** — focused 47/221; Full PHPUnit 431 tests / 4,500 assertions / one skipped / exit 0; PHPStan 0; Pint, Blade, Vite, dependency/security scans, Compose, exact browser and production safety PASS.
+
+## Phase 3F-15 Enterprise Business Continuity
+
+Typed service criticality, backup inventory, guarded DR orchestration/certificate, isolated backup/restore and dependency recovery evidence, runbook coverage and read-only continuity UI are implemented without a migration or production mutation.
+
+Final status: **COMPLETED** — focused 54/353; Full PHPUnit 436 tests / 4,529 assertions / one skipped / exit 0; PHPStan 0; Pint, Blade, Vite, dependency/security scans, Docker runtime recovery, exact browser, cleanup and production safety PASS.

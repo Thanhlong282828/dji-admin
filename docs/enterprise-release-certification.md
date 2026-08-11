@@ -40,3 +40,5 @@ Certification tooling consumes runtime configuration evidence through the releas
 Secret certification is presence/readiness only. A PASS never exposes or fingerprints the underlying value.
 
 Certification inherits the data-protection policy checksum/status from the manifest. This certifies policy metadata only and is not evidence that production PII was read or exported.
+
+DR certificates are separate testing-only artifacts. They prove isolated recovery gates and explicitly do not represent production deployment or production DR certification.

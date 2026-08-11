@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\ArticleController;
+use App\Http\Controllers\Operations\ContinuityController;
 use App\Http\Controllers\Operations\DataProtectionController;
 use App\Http\Controllers\Operations\HealthController;
 use App\Http\Controllers\Operations\ObservabilityController;
@@ -40,6 +41,7 @@ Route::get('/admin/operations/releases', ReleaseDashboardController::class)->mid
 Route::get('/admin/operations/configuration', RuntimeConfigurationController::class)->middleware(['auth', 'verified', 'permission:operations.view'])->name('admin.operations.configuration');
 Route::get('/admin/operations/secrets', SecretsController::class)->middleware(['auth', 'verified', 'permission:operations.view'])->name('admin.operations.secrets');
 Route::get('/admin/operations/data-protection', DataProtectionController::class)->middleware(['auth', 'verified', 'permission:operations.view'])->name('admin.operations.data-protection');
+Route::get('/admin/operations/continuity', ContinuityController::class)->middleware(['auth', 'verified', 'permission:operations.view'])->name('admin.operations.continuity');
 
 Route::middleware('auth')->group(function () {
     Route::get('/articles', [ArticleController::class, 'index'])->middleware('can:article.view')->name('articles.index');
