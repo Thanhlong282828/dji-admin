@@ -68,7 +68,7 @@ final class RolePermissionSeeder extends Seeder
             'iam.view', 'iam.request.create', 'iam.request.review', 'iam.request.approve', 'iam.assignment.manage', 'iam.privileged.manage', 'iam.sod.manage', 'iam.review.manage', 'iam.audit.view',
             'integration.view', 'integration.connection.manage', 'integration.message.view', 'integration.retry', 'integration.deadletter.manage', 'integration.audit.view',
             'audit.view', 'audit.search', 'audit.export', 'audit.retention.manage',
-            'operations.view', 'operations.manage',
+            'operations.view', 'operations.manage', 'api.documentation.view',
         ] as $permission) {
             Permission::findOrCreate($permission, 'web');
         }

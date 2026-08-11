@@ -601,3 +601,5 @@ Phase 3F-16 final matrix: schema_admin, schema_admin_development, schema_admin_t
 Phase 3F-17 requires no migration or business-data mutation. Expected migration inventory remains 61 in all four environments.
 Phase 3F-17 final: schema_admin, development, testing and browser_testing each remain at 61 migrations/230 tables; production business counts unchanged.
 Phase 3F-17 sidebar hardening added no migration or data mutation. Browser fixture cleanup returned users/companies/audit_events = 0/0/0; the canonical matrix remains 61/61/61/61 and production counts remain unchanged.
+Phase 3F-18: no migration/index rollout. Testing-only PERF-DATASET (5,000 employees) and browser fixture were cleaned. Final schema_admin/development/testing/browser matrix is 61 migrations / 230 tables each; production before/after counts unchanged.
+Phase 3F-18 Swagger hardening adds no migration or table. The four-environment migration/schema matrix remains unchanged; production remains read-only.

@@ -21,3 +21,10 @@ Accepted design gaps are not hidden: privileged MFA and a malware scanning provi
 # Phase 3F-17 accessibility security regression
 
 Navigation labels, ARIA metadata and localStorage state contain no credentials, PII, restricted business values or permission snapshots. Backend middleware remains authoritative.
+
+# Phase 3F-18 performance security
+
+Performance tooling is read-only, accepts no SQL, redacts sensitive filter-key classes and exposes no bindings. The dashboard requires `auth`, `verified`, `operations.view`; synthetic load is guarded to `schema_admin_testing*`, while production remains read-only.
+# API documentation boundary
+
+Swagger UI, generated JSON and package assets are protected by `web`, `auth`, `verified` and the dedicated `api.documentation.view` permission in every environment. The generated specification uses a Sanctum bearer scheme without token examples and is checked for obvious secret material. See `docs/api-documentation-governance.md`.

@@ -45,3 +45,7 @@ DR certificates are separate testing-only artifacts. They prove isolated recover
 # Phase 3F-16 certification input
 
 Security-assurance evidence is safe metadata only and does not embed credentials, PII, exploit payloads or private artifact paths.
+
+# Phase 3F-18 performance evidence
+
+Certification may reference the performance audit checksum and critical-finding count. It never embeds SQL bindings, synthetic row data or developer-laptop timing as a production acceptance promise.

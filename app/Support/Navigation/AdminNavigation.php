@@ -89,12 +89,14 @@ final class AdminNavigation
             $this->group('operations', 'Vận hành nền tảng', '◉', [
                 $this->item('reliability', 'Reliability', 'admin.operations.reliability', ['admin.operations.reliability'], 'operations.view'),
                 $this->item('observability', 'Observability', 'admin.operations.observability', ['admin.operations.observability*'], 'operations.view'),
+                $this->item('performance-engineering', 'Performance', 'admin.operations.performance', ['admin.operations.performance'], 'operations.view'),
                 $this->item('releases', 'Releases', 'admin.operations.releases', ['admin.operations.releases'], 'operations.view'),
                 $this->item('configuration', 'Runtime Configuration', 'admin.operations.configuration', ['admin.operations.configuration'], 'operations.view'),
                 $this->item('secrets', 'Secrets', 'admin.operations.secrets', ['admin.operations.secrets'], 'operations.view'),
                 $this->item('data-protection', 'Data Protection', 'admin.operations.data-protection', ['admin.operations.data-protection'], 'operations.view'),
                 $this->item('continuity', 'Business Continuity', 'admin.operations.continuity', ['admin.operations.continuity'], 'operations.view'),
                 $this->item('security-assurance', 'Security Assurance', 'admin.operations.security-assurance', ['admin.operations.security-assurance'], 'operations.view'),
+                $this->item('api-documentation', 'API Documentation', 'l5-swagger.default.api', ['l5-swagger.default.api'], 'api.documentation.view'),
             ]),
             $this->group('content', 'Nội dung', '▤', [
                 $this->item('articles', 'Kho nội dung', 'articles.index', ['articles.index', 'articles.edit'], 'article.view'),

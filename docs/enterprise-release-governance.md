@@ -48,3 +48,8 @@ Phase 3F-15 reused the immutable rollback contract. The previous image started r
 # Phase 3F-16 release security evidence
 
 Release review includes defensive security tests, dependency audits, secret scanning and container inspection. Open critical/high findings block a security-assured release decision.
+
+Phase 3F-18 contributes performance schema version, audit checksum and critical-finding count as safe evidence. Local latency is informational and does not become a production deployment threshold; verified critical query/index correctness findings may block release review.
+# API documentation release requirement
+
+Release builds must run `php artisan l5-swagger:generate` and retain the generated artifact required by `/docs`. Route/config cache checks must preserve the protected UI, spec and asset routes. Anonymous publication of either UI or JSON is prohibited.

@@ -27,7 +27,9 @@ final readonly class EloquentEmployeeReadRepository implements EmployeeReadRepos
         $sort = in_array($requestedSort, ['employee_code', 'full_name', 'join_date', 'official_date', 'employment_status', 'created_at'], true) ? $requestedSort : 'created_at';
         $direction = ($filters['direction'] ?? null) === 'asc' ? 'asc' : 'desc';
 
-        $query = Employee::query()->with(['manager:id,employee_code,full_name', 'user:id,email'])
+        $query = Employee::query()
+            ->select(['id', 'uuid', 'company_id', 'user_id', 'manager_id', 'employee_code', 'full_name', 'personal_email', 'work_email', 'join_date', 'official_date', 'employment_status', 'employment_type', 'created_at'])
+            ->with(['manager:id,employee_code,full_name', 'user:id,email'])
             ->with(['assignments' => function (Relation $relation): void {
                 if (! $relation instanceof HasMany) {
                     return;
@@ -120,8 +122,7 @@ final readonly class EloquentEmployeeReadRepository implements EmployeeReadRepos
                 'contracts' => fn (Relation $relation) => $relation->latest('starts_at')->limit(1),
                 'credentials' => fn (Relation $relation) => $relation->whereNotNull('expires_at')->oldest('expires_at')->limit(1),
             ])
-            ->where('company_id', $companyId)
-            ->orderBy('id');
+            ->where('company_id', $companyId);
         $search = $filters['search'] ?? null;
         if (is_string($search) && $search !== '') {
             $query->where(fn (Builder $builder) => $builder->where('employee_code', 'like', '%'.$search.'%')->orWhere('full_name', 'like', '%'.$search.'%'));
@@ -130,7 +131,10 @@ final readonly class EloquentEmployeeReadRepository implements EmployeeReadRepos
         if (is_string($status) && $status !== '') {
             $query->where('employment_status', $status);
         }
-        foreach ($query->cursor() as $employee) {
+        // cursor() cannot batch eager-loaded relations and causes one relationship
+        // query per employee. lazyById() keeps memory bounded while eager-loading
+        // each 500-row window in a stable order.
+        foreach ($query->lazyById(500) as $employee) {
             $assignment = $employee->assignments->first();
             $contract = $employee->contracts->first();
             $credential = $employee->credentials->first();

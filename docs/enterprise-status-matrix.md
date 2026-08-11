@@ -140,4 +140,22 @@ Final status: **COMPLETED** — focused 54/353; Full PHPUnit 436 tests / 4,529 a
 Security audit, threat modeling, typed findings, defensive SSRF/path policies and the read-only assurance surface are implemented. Focused/full tests, PHPStan, build, exact browser, runtime inspection, migration parity and production read-only verification passed. Phase 3F-16 is COMPLETED with two documented medium residual design gaps (privileged MFA and malware scanning provider).
 # Phase 3F-17 accessibility and frontend governance (2026-08-11)
 
-The shared admin shell now uses centralized server-side permission filtering, nine genuinely collapsible groups, one-group accordion state, exact active-route behavior, accessible keyboard/mobile drawer controls, skip navigation, visible focus and reduced motion. Runtime hardening removed a CSS override of `[hidden]`; exact evidence now measures actual visibility (Dashboard 1/45 links visible, Operations closed/open 0/8 children) rather than ARIA alone. Focused/full tests, PHPStan, builds, exact browser, database parity and production read-only verification passed. Phase 3F-17 is COMPLETED as a WCAG 2.2 AA-oriented foundation, not a formal certification.
+The shared admin shell now uses centralized server-side permission filtering, nine genuinely collapsible groups, one-group accordion state, exact active-route behavior, accessible keyboard/mobile drawer controls, skip navigation, visible focus and reduced motion. Runtime hardening removed a CSS override of `[hidden]`; Phase 3F-18 regression now measures Dashboard 1/46 links visible and Operations closed/open 0/9 children rather than ARIA alone. Focused/full tests, PHPStan, builds, exact browser, database parity and production read-only verification passed. Phase 3F-17 is COMPLETED as a WCAG 2.2 AA-oriented foundation, not a formal certification.
+
+# Phase 3F-18 performance engineering (2026-08-11)
+
+| Area | Status | Evidence |
+|---|---|---|
+| Performance audit | COMPLETED | 1,146 query/cache patterns classified across enabled app/modules; production metadata read-only |
+| Query/N+1 governance | COMPLETED | Employee export per-row relation hotspot replaced by 500-row eager-load windows; bounded query-growth regression |
+| Index/DB optimization | COMPLETED | 5,000-row EXPLAIN and production SHOW INDEX audited; no justified index migration |
+| Cache/memory | COMPLETED | Typed scoped cache-key policy; 5,000-row export memory delta remained 8 MiB |
+| Export/queue | COMPLETED | 5,000 Employee rows plus existing 5,000 Payroll streaming benchmark; 100/500/1,000 dispatch baseline |
+| Capacity baseline | COMPLETED | Three authenticated routes × 60 sequential requests, realistic DB operations and documented local runtime |
+| Security/quality | COMPLETED | Full PHPUnit 457/4,750/1 skipped/exit 0; repository PHPStan 0; all static/build/security gates pass |
+| UI/browser | COMPLETED | Performance dashboard, exact 1280×800 and 390×844, 16 pages, zero overflow/console/page problems |
+
+Phase 3F-18 is **COMPLETED**. It added no business module or migration and made no production business-data mutation.
+# Phase 3F-18 Swagger completion hardening
+
+Phase 3F-18 remains COMPLETED. L5-Swagger 11.1.0 now exposes a generated, permission-protected UI/spec, a tenth Operations navigation child and exact desktop/mobile browser evidence. No migration or production data mutation was introduced.

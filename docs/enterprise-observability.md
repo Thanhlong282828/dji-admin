@@ -49,3 +49,7 @@ Security events retain correlation and structured fields while redaction prevent
 # Phase 3F-17 UI regression
 
 Observability and all Operations pages remain grouped under one permission-protected navigation section and pass exact desktop/mobile overflow and console checks.
+
+## Phase 3F-18 performance composition
+
+The Performance dashboard composes aggregate HTTP percentiles and queue state from this service; it does not duplicate or mutate telemetry. It adds safe query/cache/index/export findings and a checksum, without SQL bindings or high-cardinality labels.

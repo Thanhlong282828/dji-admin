@@ -35,7 +35,25 @@ final class AccessibilityGovernanceTest extends TestCase
         $user->givePermissionTo(Permission::findOrCreate('dashboard.view', 'web'));
         $this->actingAs($user)->get('/dashboard')->assertOk()->assertDontSee('data-nav-group="operations"', false)->assertDontSee('Security Assurance');
         $user->givePermissionTo(Permission::findOrCreate('operations.view', 'web'));
-        $this->actingAs($user)->get('/admin/operations/security-assurance')->assertOk()->assertSee('Vận hành nền tảng')->assertSee('Security Assurance');
+        $this->actingAs($user)->get('/admin/operations/security-assurance')->assertOk()->assertSee('Vận hành nền tảng')->assertSee('Security Assurance')->assertDontSee('API Documentation');
+
+        $user->givePermissionTo(Permission::findOrCreate('api.documentation.view', 'web'));
+        $this->actingAs($user)->get('/dashboard')->assertOk()->assertSee('API Documentation');
+    }
+
+    public function test_api_documentation_permission_can_render_operations_with_only_its_permitted_child(): void
+    {
+        $user = User::factory()->create(['email_verified_at' => now()]);
+        $user->givePermissionTo([
+            Permission::findOrCreate('dashboard.view', 'web'),
+            Permission::findOrCreate('api.documentation.view', 'web'),
+        ]);
+
+        $this->actingAs($user)->get('/dashboard')
+            ->assertOk()
+            ->assertSee('data-nav-group="operations"', false)
+            ->assertSee('API Documentation')
+            ->assertDontSee('Security Assurance');
     }
 
     public function test_current_operations_route_expands_group_and_marks_active_item(): void

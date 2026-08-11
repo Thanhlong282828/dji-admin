@@ -1,0 +1,20 @@
+@extends('layouts.admin')
+@section('title', 'Enterprise Performance')
+@section('content')
+<style>
+.perf{--gold:#d4af37;color:#edf0f6;width:100%;max-width:1480px;min-width:0;margin:auto;overflow:hidden}.perf *{box-sizing:border-box}.perf-hero,.perf-card,.perf-panel{max-width:100%;background:linear-gradient(145deg,#151920,#090b0f);border:1px solid #2d3139;border-radius:20px;box-shadow:0 20px 55px #0005}.perf-hero{padding:28px}.perf-kicker,.perf-value{color:var(--gold)}.perf-kicker{text-transform:uppercase;letter-spacing:.16em;font-size:12px}.perf h1{font-size:clamp(30px,4vw,52px);margin:8px 0}.perf p{overflow-wrap:anywhere}.perf-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin:18px 0}.perf-card{padding:20px;min-width:0}.perf-value{display:block;font-size:28px;margin-top:8px}.perf-panel{padding:22px;margin-top:18px;overflow:hidden}.perf-table{width:100%;max-width:100%;overflow-x:auto}.perf table{width:100%;min-width:760px;border-collapse:collapse}.perf th,.perf td{padding:12px;border-bottom:1px solid #292d34;text-align:left;vertical-align:top}.perf th{color:#d9bf67}.perf-badge{display:inline-flex;padding:5px 9px;border-radius:999px;background:#2a230e;color:#f4d978}.perf-safe{color:#9ad9b0}.perf-warn{color:#f3b59d}@media(max-width:760px){.perf-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.perf-hero,.perf-panel{padding:16px}.perf-card{padding:15px}}@media(max-width:420px){.perf-grid{grid-template-columns:1fr}}
+</style>
+<main class="perf">
+ <header class="perf-hero"><span class="perf-kicker">Query and capacity governance</span><h1>Enterprise Performance</h1><p>Read-only testing/local evidence. Timing values are not production SLAs and no SQL bindings or restricted business values are exposed.</p></header>
+ <section class="perf-grid">
+  <article class="perf-card"><span>HTTP p95</span><strong class="perf-value">{{ $snapshot['http']['p95_ms'] }} ms</strong></article>
+  <article class="perf-card"><span>Estimated rows</span><strong class="perf-value">{{ number_format($snapshot['database']['estimated_rows']) }}</strong></article>
+  <article class="perf-card"><span>Index entries</span><strong class="perf-value">{{ number_format($snapshot['database']['indexes']) }}</strong></article>
+  <article class="perf-card"><span>Critical findings</span><strong class="perf-value">{{ $snapshot['critical_findings'] }}</strong></article>
+ </section>
+ <section class="perf-panel"><h2>HTTP baseline</h2><div class="perf-table"><table><thead><tr><th>Requests</th><th>p50</th><th>p95</th><th>p99</th><th>Scope</th></tr></thead><tbody><tr><td>{{ $snapshot['http']['total'] }}</td><td>{{ $snapshot['http']['p50_ms'] }} ms</td><td>{{ $snapshot['http']['p95_ms'] }} ms</td><td>{{ $snapshot['http']['p99_ms'] }} ms</td><td>Current local/testing metrics window</td></tr></tbody></table></div></section>
+ <section class="perf-panel"><h2>Query, index and memory findings</h2><div class="perf-table"><table><thead><tr><th>Severity</th><th>Component</th><th>Category</th><th>Finding</th><th>Evidence</th><th>Status</th></tr></thead><tbody>@foreach($snapshot['findings'] as $finding)<tr><td><span class="perf-badge">{{ strtoupper($finding['severity']) }}</span></td><td>{{ $finding['component'] }}</td><td>{{ $finding['category'] }}</td><td>{{ $finding['description'] }}</td><td>{{ $finding['evidence'] }}</td><td class="{{ $finding['status']==='resolved'?'perf-safe':'perf-warn' }}">{{ strtoupper($finding['status']) }}</td></tr>@endforeach</tbody></table></div></section>
+ <section class="perf-panel"><h2>Cache governance</h2><p>Strategy: {{ $snapshot['cache']['strategy'] }}</p><p>Scope: {{ $snapshot['cache']['scope'] }}</p><p>Invalidation: {{ $snapshot['cache']['invalidation'] }}</p></section>
+ <section class="perf-panel"><h2>Bounded exports and queue</h2>@foreach($snapshot['exports'] as $name=>$strategy)<p><strong>{{ ucfirst($name) }}:</strong> {{ $strategy }}</p>@endforeach<p>Queue pending: {{ $snapshot['queue']['pending'] }} · failed: {{ $snapshot['queue']['failed'] }}</p><p class="perf-safe">Snapshot checksum: {{ $snapshot['checksum'] }}</p></section>
+</main>
+@endsection
