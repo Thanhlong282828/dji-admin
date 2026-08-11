@@ -461,3 +461,5 @@ Phase 3F-12 Enterprise Runtime Configuration: COMPLETED — typed flags, fail-sa
 Phase 3F-12 final evidence: focused 26/120; full PHPUnit 419 tests, 4,426 assertions, one skipped, exit 0; PHPStan 0; exact browser and production safety PASS.
 Phase 3F-13 Enterprise Secret Governance: typed references/provider boundary, readiness, rotation design, redaction, release evidence and read-only UI; no migration.
 Phase 3F-13 final: COMPLETED — full PHPUnit 425 tests/4,463 assertions, PHPStan 0, Docker image/secret scan, browser and production safety PASS.
+Phase 3F-14 Enterprise Data Protection: typed classification/registry/policy, deterministic masking, canonical Audit redaction, crypto/retention governance, release evidence and read-only operations UI; no migration.
+Phase 3F-14 final: COMPLETED — focused 47/221; full PHPUnit 431 tests/4,500 assertions/one skipped/exit 0; PHPStan 0; exact browser and production safety PASS.

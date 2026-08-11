@@ -2,9 +2,12 @@
 
 namespace Modules\Audit\Domain\Services;
 
+use App\Support\DataProtection\DataFieldRegistry;
+use App\Support\DataProtection\ProtectedPayloadSanitizer;
+
 final class AuditRedactionService
 {
-    private const RESTRICTED = ['password', 'token', 'secret', 'private_key', 'bank_account', 'account_number', 'tax_number', 'salary', 'credential', 'storage_path'];
+    public function __construct(private ?ProtectedPayloadSanitizer $sanitizer = null) {}
 
     /**
      * @param  array<string, mixed>  $payload
@@ -12,31 +15,9 @@ final class AuditRedactionService
      */
     public function redact(array $payload): array
     {
-        $result = [];
-        foreach ($payload as $key => $value) {
-            $lower = strtolower($key);
-            $restricted = array_any(self::RESTRICTED, fn (string $needle): bool => str_contains($lower, $needle));
-            $result[$key] = $restricted ? '[REDACTED]' : (is_array($value) ? $this->redactNested($value) : $value);
-        }
+        /** @var array<string, mixed> $safe */
+        $safe = ($this->sanitizer ?? new ProtectedPayloadSanitizer(new DataFieldRegistry))->sanitize($payload);
 
-        return $result;
-    }
-
-    /**
-     * @param  array<array-key, mixed>  $payload
-     * @return array<array-key, mixed>
-     */
-    private function redactNested(array $payload): array
-    {
-        $result = [];
-        foreach ($payload as $key => $value) {
-            if (is_string($key) && array_any(self::RESTRICTED, fn (string $n): bool => str_contains(strtolower($key), $n))) {
-                $result[$key] = '[REDACTED]';
-            } else {
-                $result[$key] = is_array($value) ? $this->redactNested($value) : $value;
-            }
-        }
-
-        return $result;
+        return $safe;
     }
 }

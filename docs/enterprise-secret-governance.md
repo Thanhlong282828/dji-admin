@@ -12,3 +12,5 @@ No migration, generic secrets table, production rotation or external request is 
 - Docker image `sha256:db333647f0ddb302b80df9a4cc895e67bc38f4bd0d5e81215de8aab0c1c668ee`: `www-data`, no `.env`, tests, Docker socket or secret pattern in history.
 - Exact browser 1280×800 and 390×844: secrets/configuration/observability/releases HTTP 200; overflow, console warning/error and page error all zero; fixture cleanup pass.
 - No migration; inventory remains 61 in production, development, testing and browser testing. Production business counts unchanged.
+
+Phase 3F-14 consumes secret references as `restricted` metadata only. Credential, token, private-key and ciphertext values are denied from UI/export/notification and recursively redacted from logs/audit; cryptographic rotation remains governed and is not executed.

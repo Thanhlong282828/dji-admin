@@ -39,3 +39,5 @@ Healthy candidate observability and all three health endpoints passed. The Redis
 Phase 3F-12 defines safe aggregate signals for override/drift counts, disabled integrations and evaluation errors. The current config-only foundation has no per-user labels and emits no external alert.
 
 Secret governance adds only aggregate missing/expired/rotation-due counts; no reference-per-request or value labels.
+
+Data-protection observability is limited to aggregate finding, restricted-export, redaction-failure and policy-error counts. Per-user labels and protected values are prohibited.

@@ -28,3 +28,5 @@ Batch 47 adds company-scoped quality rules/runs/issues, append-only governance a
 - PHPStan level 10: Employee module 0 errors; governance feature/concurrency tests 0 errors. Scoped and repository-wide Pint pass; Blade cache/clear, Vite and Docker Compose config pass.
 - Production safety: source counts remained Employee/Assignment/Contract/Document/Consent = 9/9/9/9/9 and Payroll Run/Item = 0/0. An existing governance run/issue/audit row timestamped 2026-08-03 predates this completion turn and was preserved; no production fixture or source-domain mutation was performed.
 - Final PHPUnit: **288 tests, 2,422 assertions, PASS** (MySQL `schema_admin_testing`). Final status: **Phase 3E-5F COMPLETED**.
+
+Phase 3F-14 aligns HR classifications with the canonical public/internal/confidential/restricted vocabulary. Consent remains purpose evidence, histories remain append-only, and no retention period or erasure action is automated without legal/domain-owner policy.

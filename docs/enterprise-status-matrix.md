@@ -123,3 +123,9 @@ Final gate: Full PHPUnit 419 tests / 4,426 assertions / one skipped / exit 0; PH
 Enterprise Secrets, Key Rotation and Credential Lifecycle Governance is implemented as a read-only typed reference/readiness foundation with recursive redaction, release evidence, existing encrypted-store reuse and responsive operations UI. No migration or production secret mutation is required.
 
 Final status: **COMPLETED** — focused 22/89; Full PHPUnit 425 tests / 4,463 assertions / exit 0; PHPStan 0; exact browser, image scan and production safety PASS.
+
+## Phase 3F-14 Enterprise Data Protection
+
+Canonical classification, typed sensitive-field registry, surface policy evaluation, masking, structured Audit redaction, cryptographic inventory, retention design, release evidence and read-only operations visibility are implemented without a migration or production data mutation.
+
+Final status: **COMPLETED** — focused 47/221; Full PHPUnit 431 tests / 4,500 assertions / one skipped / exit 0; PHPStan 0; Pint, Blade, Vite, dependency/security scans, Compose, exact browser and production safety PASS.

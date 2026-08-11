@@ -1839,3 +1839,5 @@ Phase 3F-12 COMPLETED: runtime configuration does not own Payroll salary, tax, i
 Phase 3F-12 quality: full PHPUnit 419 tests / 4,426 assertions / exit 0; no Payroll business-semantic change.
 Phase 3F-13 does not expose Payroll salary/tax/bank values and does not alter Payroll business semantics; secret governance is infrastructure-only.
 Phase 3F-13 final quality: 425 tests, 4,463 assertions, exit 0; production Payroll unchanged.
+Phase 3F-14 classifies salary, tax, bank and insurance identifiers as restricted. Unapproved surfaces deny/redact rather than approximate values; Payroll calculations and persisted business state are unchanged.
+Phase 3F-14 final quality: full PHPUnit 431 tests / 4,500 assertions / exit 0; production Payroll remains unchanged.

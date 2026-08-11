@@ -29,5 +29,8 @@ final readonly class ReleaseManifestData
         public int $secretSchemaVersion = 1,
         public string $secretReadinessChecksum = '',
         public string $secretReadinessStatus = 'unknown',
+        public int $dataProtectionSchemaVersion = 1,
+        public string $dataProtectionPolicyChecksum = '',
+        public string $dataProtectionAuditStatus = 'unknown',
     ) {}
 }

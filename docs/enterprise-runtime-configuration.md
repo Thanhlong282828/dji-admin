@@ -29,3 +29,5 @@ Phase 3F-12 does not create a second business-policy system and does not alter H
 - `operations:config-audit --json`: schema version 1, drift 0, disabled side effects 2, evaluation failures 0, snapshot `09ba9d4f5432868f335c570d44ca48cbbe0bd986090bb42202ef4a36824f59db`.
 - Exact Chrome 1280×800 and 390×844: configuration/observability/releases HTTP 200, overflow 0, console warning/error 0, page error 0; fixture cleanup 0.
 - Migration matrix remains 61/61/61/61. Production business counts are unchanged.
+
+Data-protection classification is static governance metadata, not a mutable business policy or secret override. Runtime configuration cannot lower a restricted classification or expose a protected value.

@@ -23,9 +23,9 @@ final class AuditFoundationTest extends TestCase
     {
         $value = (new AuditRedactionService)->redact(['name' => 'Safe', 'bank_account' => '123', 'nested' => ['access_token' => 'secret']]);
         $this->assertSame('Safe', $value['name']);
-        $this->assertSame('[REDACTED]', $value['bank_account']);
+        $this->assertSame(['changed' => true, 'classification' => 'restricted', 'value' => '[REDACTED]'], $value['bank_account']);
         $nested = $value['nested'];
         $this->assertIsArray($nested);
-        $this->assertSame('[REDACTED]', $nested['access_token']);
+        $this->assertSame(['changed' => true, 'classification' => 'restricted', 'value' => '[REDACTED]'], $nested['access_token']);
     }
 }

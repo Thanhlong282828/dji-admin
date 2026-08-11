@@ -592,3 +592,5 @@ Phase 3F-12: no database migration/table. Runtime configuration remains config/c
 Phase 3F-12 production audit: business counts unchanged; no seed, config mutation, external traffic or schema change.
 Phase 3F-13: no new schema. Existing encrypted Integration/ERP credential fields are reused; production credential data remains untouched.
 Phase 3F-13 migration matrix remains 61/61/61/61; no secret data or business row mutation.
+Phase 3F-14: no new table or migration. Policy registry/read models are code metadata; Audit continues existing append-only storage with protected canonical snapshots. Expected migration matrix remains 61/61/61/61.
+Phase 3F-14 final production audit: users/employees/roles/company access = 1/9/14/1; Payroll/IAM/Workflow/Notification/Integration/Audit target counts remain 0. Browser fixture cleanup returned zero.
