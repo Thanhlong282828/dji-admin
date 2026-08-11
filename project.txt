@@ -457,3 +457,5 @@ Phase 3F-10 release governance foundation:
 - DatabaseSchemaComparator normalizes physical constraint names and verifies logical ordered index/FK contracts.
 - database/migrations/2026_08_13_000044_repair_canonical_production_indexes.php — additive, idempotent logical index repair.
 - tests/Unit/Architecture/DatabaseSchemaComparatorTest.php — generated-name normalization, missing/ordered index and repaired-parity tests.
+Phase 3F-12 Enterprise Runtime Configuration: COMPLETED — typed flags, fail-safe resolution, kill switches, drift/release evidence, read-only operations UI; no new migration.
+Phase 3F-12 final evidence: focused 26/120; full PHPUnit 419 tests, 4,426 assertions, one skipped, exit 0; PHPStan 0; exact browser and production safety PASS.

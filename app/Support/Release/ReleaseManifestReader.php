@@ -4,7 +4,7 @@ namespace App\Support\Release;
 
 final class ReleaseManifestReader
 {
-    /** @return array{available:bool,integrity:bool,release_id:string,git_commit:string,git_tag:string,source_state:string,source_checksum:string,image_reference:string,image_digest:string,environment:string,migration_count:int,quality_gates:array<string,string>,rollback_target:string,created_at:string} */
+    /** @return array{available:bool,integrity:bool,release_id:string,git_commit:string,git_tag:string,source_state:string,source_checksum:string,image_reference:string,image_digest:string,environment:string,migration_count:int,runtime_config_schema_version:int,runtime_config_checksum:string,runtime_config_drift_status:string,quality_gates:array<string,string>,rollback_target:string,created_at:string} */
     public function current(): array
     {
         $directory = config('release.manifest_directory');
@@ -23,6 +23,7 @@ final class ReleaseManifestReader
         $image = is_array($decoded['image'] ?? null) ? $decoded['image'] : [];
         $source = is_array($decoded['source'] ?? null) ? $decoded['source'] : [];
         $migration = is_array($decoded['migration_inventory'] ?? null) ? $decoded['migration_inventory'] : [];
+        $runtimeConfiguration = is_array($decoded['runtime_configuration'] ?? null) ? $decoded['runtime_configuration'] : [];
         $quality = [];
         foreach (is_array($decoded['quality_gates'] ?? null) ? $decoded['quality_gates'] : [] as $gate => $status) {
             if (is_string($gate) && is_string($status)) {
@@ -42,16 +43,19 @@ final class ReleaseManifestReader
             'image_digest' => $this->text($image['digest'] ?? null),
             'environment' => $this->text($decoded['environment'] ?? null),
             'migration_count' => is_numeric($migration['count'] ?? null) ? (int) $migration['count'] : 0,
+            'runtime_config_schema_version' => is_numeric($runtimeConfiguration['schema_version'] ?? null) ? (int) $runtimeConfiguration['schema_version'] : 0,
+            'runtime_config_checksum' => $this->text($runtimeConfiguration['snapshot_checksum'] ?? null),
+            'runtime_config_drift_status' => $this->text($runtimeConfiguration['drift_status'] ?? null),
             'quality_gates' => $quality,
             'rollback_target' => $this->text($decoded['rollback_target'] ?? null),
             'created_at' => $this->text($decoded['created_at'] ?? null),
         ];
     }
 
-    /** @return array{available:bool,integrity:bool,release_id:string,git_commit:string,git_tag:string,source_state:string,source_checksum:string,image_reference:string,image_digest:string,environment:string,migration_count:int,quality_gates:array<string,string>,rollback_target:string,created_at:string} */
+    /** @return array{available:bool,integrity:bool,release_id:string,git_commit:string,git_tag:string,source_state:string,source_checksum:string,image_reference:string,image_digest:string,environment:string,migration_count:int,runtime_config_schema_version:int,runtime_config_checksum:string,runtime_config_drift_status:string,quality_gates:array<string,string>,rollback_target:string,created_at:string} */
     private function empty(): array
     {
-        return ['available' => false, 'integrity' => false, 'release_id' => '', 'git_commit' => '', 'git_tag' => '', 'source_state' => '', 'source_checksum' => '', 'image_reference' => '', 'image_digest' => '', 'environment' => '', 'migration_count' => 0, 'quality_gates' => [], 'rollback_target' => '', 'created_at' => ''];
+        return ['available' => false, 'integrity' => false, 'release_id' => '', 'git_commit' => '', 'git_tag' => '', 'source_state' => '', 'source_checksum' => '', 'image_reference' => '', 'image_digest' => '', 'environment' => '', 'migration_count' => 0, 'runtime_config_schema_version' => 0, 'runtime_config_checksum' => '', 'runtime_config_drift_status' => '', 'quality_gates' => [], 'rollback_target' => '', 'created_at' => ''];
     }
 
     private function text(mixed $value): string

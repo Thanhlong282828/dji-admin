@@ -34,3 +34,6 @@ Phase 3F-10 consumes this dashboard's aggregate availability, 5xx, p95, queue, s
 # Phase 3F-11 certification note
 
 Healthy candidate observability and all three health endpoints passed. The Redis-dependent liveness regression was fixed with an explicit fail-open metric-recording boundary; application exceptions remain visible. Redis-down final contract is live 200, ready/metrics-readiness 503, with safe payloads and full recovery.
+# Runtime configuration signals
+
+Phase 3F-12 defines safe aggregate signals for override/drift counts, disabled integrations and evaluation errors. The current config-only foundation has no per-user labels and emits no external alert.

@@ -33,3 +33,6 @@ The first immutable failed certificate remains in storage and was not overwritte
 No production deployment, migration, backup, rollback, load, fixture, external traffic or business mutation occurred.
 
 Phase 3F-11 is **COMPLETED** for production-like testing certification. A real production release still requires committing the working tree and generating a committed-source manifest/image.
+# Phase 3F-12 compatibility
+
+Certification tooling consumes runtime configuration evidence through the release manifest. A changed non-secret snapshot is traceable; environment-specific values are not required to match across production and development.

@@ -36,3 +36,6 @@ Phase 3F-10 adds zero migrations and performs no production deployment, rollback
 ## Phase 3F-11 certification result
 
 The manifest now includes deterministic migration inventory and source-state checksums, and the dashboard reads immutable release certificates. The original failed certificate is retained. Corrected candidate `280043f...` plus working-tree checksum passed Redis failure/recovery, queue/scheduler, blue/green, rollback, security, browser and quality gates. Production tooling requires `source_state=committed`; see `enterprise-release-certification.md`.
+# Phase 3F-12 configuration evidence
+
+New manifests include the non-secret runtime configuration schema version, canonical snapshot checksum and drift status. Secrets and business-policy values remain excluded.

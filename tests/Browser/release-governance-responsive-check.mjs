@@ -29,8 +29,12 @@ async function verify(label, width, height) {
     page.on('pageerror', error => problems.push(`pageerror: ${error.message}`));
     page.on('response', response => { if (response.status() >= 400) problems.push(`http.${response.status()}: ${response.url()}`); });
     await page.goto(`${baseUrl}/admin/audit/_fixtures/login`, { waitUntil: 'networkidle' });
-    const response = await page.goto(`${baseUrl}/admin/operations/releases`, { waitUntil: 'networkidle' });
-    if (!response?.ok()) throw new Error(`${label}: HTTP ${response?.status()}`);
+    for (const path of ['/admin/operations/configuration', '/admin/operations/observability', '/admin/operations/releases']) {
+        const response = await page.goto(`${baseUrl}${path}`, { waitUntil: 'networkidle' });
+        if (!response?.ok()) throw new Error(`${label}/${path}: HTTP ${response?.status()}`);
+        const viewport = await page.evaluate(() => ({ clientWidth: document.documentElement.clientWidth, scrollWidth: document.documentElement.scrollWidth }));
+        if (viewport.clientWidth !== width || viewport.scrollWidth !== viewport.clientWidth) throw new Error(`${label}/${path}: document overflow ${JSON.stringify(viewport)}`);
+    }
     const metrics = await page.evaluate(() => ({
         innerWidth,
         innerHeight,
@@ -41,8 +45,9 @@ async function verify(label, width, height) {
             && document.body.textContent.includes('280043f58be7481dedc9daa1c8927bc4bc60635e')
             && document.body.textContent.includes('CERTIFIED'),
         workingTreeSource: document.body.textContent?.includes('working_tree') === true,
+        runtimeConfiguration: document.body.textContent?.includes('Runtime configuration evidence') === true,
     }));
-    if (metrics.innerWidth !== width || metrics.innerHeight !== height || metrics.clientWidth !== width || metrics.scrollWidth !== metrics.clientWidth || !metrics.dashboard || !metrics.certification || !metrics.workingTreeSource) throw new Error(`${label}: ${JSON.stringify(metrics)}`);
+    if (metrics.innerWidth !== width || metrics.innerHeight !== height || metrics.clientWidth !== width || metrics.scrollWidth !== metrics.clientWidth || !metrics.dashboard || !metrics.certification || !metrics.workingTreeSource || !metrics.runtimeConfiguration) throw new Error(`${label}: ${JSON.stringify(metrics)}`);
     if (problems.length) throw new Error(`${label}: ${problems.join(' | ')}`);
     await page.screenshot({ path: `${evidenceDirectory}/${label}.png`, fullPage: true });
     await context.close();

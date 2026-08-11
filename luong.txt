@@ -95,7 +95,7 @@ Modules/Core/app/Application/Buses/LaravelQueryBus.php | ask(object $query)
 2. DASHBOARD
 Modules/Dashboard/routes/web.php | GET `/dashboard`
 → Modules/Dashboard/app/Presentation/Http/Controllers/DashboardController.php | __invoke(Request $request)
-→ `$companyId = $request->integer('company_id') ?: null`
+→ `$companyId = $request->integer('company11_id') ?: null`
 → Modules/Dashboard/app/Application/Queries/GetDashboard/GetDashboardQuery.php | __construct($companyId)
 → QueryBus | ask($query)
 → Modules/Dashboard/app/Application/Queries/GetDashboard/GetDashboardHandler.php | handle(GetDashboardQuery $query)
@@ -1835,3 +1835,5 @@ Git SHA image + digest
 → Redis down: live 200, ready 503, metrics-readiness 503
 → Redis recovery: 200 / 200 / 200
 → new working-tree manifest + immutable certified certificate
+Phase 3F-12 COMPLETED: runtime configuration does not own Payroll salary, tax, insurance or calculation policy. Integration/Notification side-effect switches operate only at adapter/channel boundaries.
+Phase 3F-12 quality: full PHPUnit 419 tests / 4,426 assertions / exit 0; no Payroll business-semantic change.

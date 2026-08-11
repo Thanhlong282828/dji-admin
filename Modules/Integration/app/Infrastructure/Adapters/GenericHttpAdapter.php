@@ -2,12 +2,16 @@
 
 namespace Modules\Integration\Infrastructure\Adapters;
 
+use App\Support\RuntimeConfiguration\FeatureFlag;
+use App\Support\RuntimeConfiguration\RuntimeConfigurationService;
 use Illuminate\Validation\ValidationException;
 use Modules\Integration\Domain\Contracts\IntegrationAdapterInterface;
 use Modules\Integration\Domain\DTOs\DeliveryResult;
 
 final class GenericHttpAdapter implements IntegrationAdapterInterface
 {
+    public function __construct(private readonly ?RuntimeConfigurationService $configuration = null) {}
+
     public function type(): string
     {
         return 'http_api';
@@ -27,6 +31,10 @@ final class GenericHttpAdapter implements IntegrationAdapterInterface
      */
     public function send(array $configuration, array $payload, string $idempotencyKey): DeliveryResult
     {
+        $runtime = $this->configuration ?? app(RuntimeConfigurationService::class);
+        if (! $runtime->enabled(FeatureFlag::IntegrationOutboundDelivery)) {
+            return new DeliveryResult(false, null, 'controlled_disabled', 'Outbound delivery is disabled by runtime configuration.');
+        }
         $this->validateConfiguration($configuration);
         $mode = $configuration['mode'] ?? null;
         if ($mode === 'mock_timeout') {

@@ -35,6 +35,13 @@ final class IntegrationFoundationTest extends TestCase
     #[DataProvider('safeFailureModes')]
     public function test_http_adapter_models_failure_without_external_io(string $mode, string $code): void
     {
+        $flags = config('runtime-configuration.flags');
+        self::assertIsArray($flags);
+        $entry = $flags['integration.outbound_delivery'] ?? [];
+        self::assertIsArray($entry);
+        $entry['enabled'] = true;
+        $flags['integration.outbound_delivery'] = $entry;
+        config()->set('runtime-configuration.flags', $flags);
         $result = (new GenericHttpAdapter)->send(['base_url' => 'https://example.invalid', 'mode' => $mode], ['safe' => true], 'reliability-test');
         self::assertFalse($result->delivered);
         self::assertSame($code, $result->responseCode);

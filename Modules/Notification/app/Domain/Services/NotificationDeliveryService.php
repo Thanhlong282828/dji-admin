@@ -3,6 +3,8 @@
 namespace Modules\Notification\Domain\Services;
 
 use App\Models\User;
+use App\Support\RuntimeConfiguration\FeatureFlag;
+use App\Support\RuntimeConfiguration\RuntimeConfigurationService;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -19,6 +21,7 @@ final readonly class NotificationDeliveryService
         private DatabaseNotificationSender $database,
         private BroadcastNotificationSender $broadcast,
         private MailNotificationSender $mail,
+        private RuntimeConfigurationService $configuration,
     ) {}
 
     public function queue(QueueNotificationData $data): int
@@ -40,7 +43,7 @@ final readonly class NotificationDeliveryService
                 }
                 DB::table('notification_recipients')->insertOrIgnore(['company_id' => $data->companyId, 'notification_message_id' => $messageId, 'user_id' => $userId, 'resolution_source' => 'resolved', 'created_at' => now(), 'updated_at' => now()]);
                 foreach (array_values(array_unique($data->channels)) as $channel) {
-                    if (! $this->enabled($data->companyId, $userId, $data->category, $channel)) {
+                    if (! $this->preferenceEnabled($data->companyId, $userId, $data->category, $channel)) {
                         continue;
                     }
                     $key = "notification:{$messageId}:{$userId}:{$channel}";
@@ -82,6 +85,12 @@ final readonly class NotificationDeliveryService
             if ($this->text($deliveryData, 'status') === 'sent') {
                 return;
             }
+            $channel = $this->text($deliveryData, 'channel');
+            if (! $this->channelEnabled($channel)) {
+                DB::table('notification_deliveries')->where('id', $deliveryId)->update(['status' => 'failed', 'failure_message' => 'controlled_disabled', 'updated_at' => now()]);
+
+                return;
+            }
             $attempts = $this->integer($deliveryData, 'attempts');
             abort_if($attempts >= 3, 409, 'Notification retry limit reached.');
             $message = DB::table('notification_messages')->where('company_id', $companyId)->where('id', $this->integer($deliveryData, 'notification_message_id'))->first();
@@ -93,7 +102,7 @@ final readonly class NotificationDeliveryService
             $payload = ['uuid' => $this->text($messageData, 'uuid'), 'title' => $this->text($messageData, 'title'), 'body' => $this->text($messageData, 'body'), 'category' => $this->text($messageData, 'category'), 'entity_type' => $this->text($messageData, 'entity_type'), 'entity_id' => $this->integer($messageData, 'entity_id'), 'action' => $this->text($messageData, 'action'), 'navigation_reference' => is_string($navigation) ? $navigation : null, 'checksum' => $this->text($messageData, 'payload_checksum')];
             $attempt = $attempts + 1;
             try {
-                $this->sender($this->text($deliveryData, 'channel'))->send($this->text($deliveryData, 'artifact_uuid'), $user, $payload);
+                $this->sender($channel)->send($this->text($deliveryData, 'artifact_uuid'), $user, $payload);
                 $result = 'success';
                 $code = null;
                 $failure = null;
@@ -128,7 +137,7 @@ final readonly class NotificationDeliveryService
         return (int) $id;
     }
 
-    private function enabled(int $companyId, int $userId, string $category, string $channel): bool
+    private function preferenceEnabled(int $companyId, int $userId, string $category, string $channel): bool
     {
         $preference = DB::table('notification_preferences')->where('company_id', $companyId)->where('user_id', $userId)->whereIn('category', [$category, '*'])->orderByRaw('category = ? desc', [$category])->first();
         if ($preference === null) {
@@ -136,6 +145,15 @@ final readonly class NotificationDeliveryService
         }
 
         return (bool) ($preference->{$channel.'_enabled'} ?? false);
+    }
+
+    private function channelEnabled(string $channel): bool
+    {
+        return match ($channel) {
+            'email' => $this->configuration->enabled(FeatureFlag::NotificationEmail),
+            'broadcast' => $this->configuration->enabled(FeatureFlag::NotificationBroadcast),
+            default => true,
+        };
     }
 
     /** @return array<string, scalar|null> */

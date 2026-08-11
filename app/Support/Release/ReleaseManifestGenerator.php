@@ -6,7 +6,7 @@ use RuntimeException;
 
 final class ReleaseManifestGenerator
 {
-    /** @return array{schema_version:int,release_id:string,git_commit:string,git_tag:string,source:array{state:string,checksum:string},image:array{reference:string,digest:string},created_at:string,environment:string,migration_inventory:array{count:int,checksum:string},application_version:string,runtime:array{php:string,laravel:string},quality_gates:array<string,string>,approval_reference:string,rollback_target:string,checksum:string} */
+    /** @return array{schema_version:int,release_id:string,git_commit:string,git_tag:string,source:array{state:string,checksum:string},image:array{reference:string,digest:string},created_at:string,environment:string,migration_inventory:array{count:int,checksum:string},runtime_configuration:array{schema_version:int,snapshot_checksum:string,drift_status:string},application_version:string,runtime:array{php:string,laravel:string},quality_gates:array<string,string>,approval_reference:string,rollback_target:string,checksum:string} */
     public function generate(ReleaseManifestData $data): array
     {
         $this->validate($data);
@@ -20,6 +20,7 @@ final class ReleaseManifestGenerator
             'created_at' => $data->createdAt,
             'environment' => $data->environment,
             'migration_inventory' => ['count' => $data->migrationCount, 'checksum' => $data->migrationInventoryChecksum],
+            'runtime_configuration' => ['schema_version' => $data->runtimeConfigSchemaVersion, 'snapshot_checksum' => $data->runtimeConfigChecksum, 'drift_status' => $data->runtimeConfigDriftStatus],
             'application_version' => $data->applicationVersion,
             'runtime' => ['php' => $data->phpVersion, 'laravel' => $data->laravelVersion],
             'quality_gates' => $data->qualityGates,
@@ -75,6 +76,9 @@ final class ReleaseManifestGenerator
         }
         if (preg_match('/^[0-9a-f]{64}$/', $data->migrationInventoryChecksum) !== 1) {
             throw new RuntimeException('Migration inventory checksum is required.');
+        }
+        if ($data->runtimeConfigSchemaVersion < 1 || preg_match('/^[0-9a-f]{64}$/', $data->runtimeConfigChecksum) !== 1 || ! in_array($data->runtimeConfigDriftStatus, ['clean', 'intentional', 'drift'], true)) {
+            throw new RuntimeException('Valid non-secret runtime configuration evidence is required.');
         }
         foreach ($data->qualityGates as $gate => $status) {
             if ($gate === '' || ! in_array($status, ['pass', 'not_applicable'], true)) {

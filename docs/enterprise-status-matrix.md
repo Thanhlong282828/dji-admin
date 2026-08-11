@@ -113,3 +113,8 @@ Phase 3F-10 is **COMPLETED**. No production deployment/rollback/backup, business
 | UI/browser | COMPLETED | Exact 1280×800 and 390×844, latest certification/source state visible, zero overflow/console/page problems |
 
 Phase 3F-11 is **COMPLETED**. This is production-like testing certification, not a production deployment. The candidate is explicitly marked `working_tree`; production release governance still requires a committed source artifact.
+# Phase 3F-12 runtime configuration
+
+Enterprise Runtime Configuration, Feature Flags and Safe Change Management is **COMPLETED**: typed non-secret catalog, deterministic precedence, fail-safe cache behavior, Integration/Notification kill switches, drift command, release evidence and permission-protected responsive UI. No migration or production mutation was required.
+
+Final gate: Full PHPUnit 419 tests / 4,426 assertions / one skipped / exit 0; PHPStan 0; exact browser and production safety pass.

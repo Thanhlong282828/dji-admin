@@ -3,6 +3,7 @@
 namespace Tests\Feature\Notification;
 
 use App\Models\User;
+use App\Support\RuntimeConfiguration\FeatureFlag;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
@@ -57,6 +58,33 @@ final class EnterpriseNotificationCenterTest extends TestCase
         self::assertSame(1, DB::table('notification_deliveries')->where('channel', 'database')->value('attempts'));
         self::assertSame(2, DB::table('notification_deliveries')->where('channel', 'broadcast')->value('attempts'));
         self::assertSame('sent', DB::table('notification_deliveries')->where('id', $broadcast)->value('status'));
+    }
+
+    public function test_broadcast_kill_switch_preserves_intent_and_retry_is_idempotent(): void
+    {
+        [$company, $user] = $this->context([]);
+        $flags = config('runtime-configuration.flags');
+        self::assertIsArray($flags);
+        $broadcast = $flags[FeatureFlag::NotificationBroadcast->value] ?? [];
+        self::assertIsArray($broadcast);
+        $broadcast['enabled'] = false;
+        $flags[FeatureFlag::NotificationBroadcast->value] = $broadcast;
+        config()->set('runtime-configuration.flags', $flags);
+
+        $message = app(NotificationDeliveryService::class)->queue($this->data((int) $company->id, (int) $user->id, null, 'broadcast-switch'));
+        self::assertSame(1, DB::table('notifications')->where('notifiable_id', $user->id)->count());
+        self::assertSame('failed', DB::table('notification_deliveries')->where('notification_message_id', $message)->where('channel', 'broadcast')->value('status'));
+        self::assertSame(0, DB::table('notification_deliveries')->where('notification_message_id', $message)->where('channel', 'broadcast')->value('attempts'));
+
+        $broadcast['enabled'] = true;
+        $flags[FeatureFlag::NotificationBroadcast->value] = $broadcast;
+        config()->set('runtime-configuration.flags', $flags);
+        app(NotificationDeliveryService::class)->queue($this->data((int) $company->id, (int) $user->id, null, 'broadcast-switch'));
+        app(NotificationDeliveryService::class)->queue($this->data((int) $company->id, (int) $user->id, null, 'broadcast-switch'));
+
+        self::assertSame(2, DB::table('notification_deliveries')->where('notification_message_id', $message)->count());
+        self::assertSame(1, DB::table('notification_deliveries')->where('notification_message_id', $message)->where('channel', 'broadcast')->value('attempts'));
+        self::assertSame(1, DB::table('notifications')->where('notifiable_id', $user->id)->count());
     }
 
     public function test_inbox_read_state_is_owned_by_recipient_and_idempotent(): void

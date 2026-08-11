@@ -38,7 +38,7 @@ final class AuditBrowserFixtureCommand extends Command
         $user = User::query()->create(['name' => 'Audit Browser', 'email' => 'audit.browser@schema.test', 'password' => Hash::make('fixture-password'), 'email_verified_at' => now()]);
         $user->forceFill(['email_verified_at' => now()])->save();
         DB::table('company_user_access')->insert(['company_id' => $company, 'user_id' => $user->id, 'created_at' => now(), 'updated_at' => now()]);
-        foreach (['audit.view', 'audit.search', 'audit.export', 'audit.retention.manage'] as $permission) {
+        foreach (['audit.view', 'audit.search', 'audit.export', 'audit.retention.manage', 'operations.view'] as $permission) {
             $user->givePermissionTo(Permission::findOrCreate($permission, 'web'));
         }
         foreach ([['created', 'Workflow', 'workflow_instance', '1001'], ['approved', 'IAM', 'access_request', '2001'], ['exported', 'Integration', 'outbound_message', '3001']] as $index => $event) {

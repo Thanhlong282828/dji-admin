@@ -45,3 +45,6 @@ Phase 3F-10 release acceptance reuses live/ready contracts, queue/outbox lag and
 # Phase 3F-11 regression evidence
 
 Production-like certification initially found Redis-dependent liveness. `HttpMetricsRecorder::recordSafely()` now isolates telemetry failure after the response, while health decisions remain explicit. Final Redis-down contract is 200/503/503; recovery is 200/200/200. The failed artifact remains historical and the corrected certificate is certified.
+# Runtime configuration fallback
+
+Cache/Redis failure falls back to environment-backed config. Display-only controls may fail open; side-effect and security-sensitive controls fail closed according to typed catalog policy, without turning a cache outage into an HTTP 500.

@@ -23,5 +23,8 @@ final readonly class ReleaseManifestData
         public array $qualityGates,
         public string $approvalReference,
         public string $rollbackTarget,
+        public int $runtimeConfigSchemaVersion = 1,
+        public string $runtimeConfigChecksum = '',
+        public string $runtimeConfigDriftStatus = 'unknown',
     ) {}
 }
