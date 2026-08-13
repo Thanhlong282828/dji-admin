@@ -2,22 +2,20 @@
 
 ## Environment ownership
 
-- `schema_admin`: production, read-only during development and verification.
-- `schema_admin_development`: persistent local development data.
+- `schema_admin`: writable Mac local-main/manual/demo database.
+- `schema_admin_development`: **REMOVED / NO LONGER EXISTS**; local demo data now belongs only to writable `schema_admin`.
 - `schema_admin_testing`: destructive automated PHPUnit/concurrency tests only.
 - `schema_admin_browser_testing`: disposable browser fixtures; verified empty after cleanup.
 
-All four databases currently contain the same 60 migration names. The read-only schema comparator reports a remaining physical-index drift between production and development: development has composite indexes on analytics runs, career history, leave policy assignments and payroll input issues that production does not have. The attendance adjustment actor foreign key has the same columns/reference but a different constraint name. Production was not altered.
+The three active local databases contain the same 61 migrations and 230 tables. VPS production is a separate environment-defined database and was not accessed during local consolidation.
 
 ## Local bootstrap
 
 ```bash
-php artisan app:bootstrap-development-admin --password='LocalAdmin123!'
-php artisan app:bootstrap-development-data
-php artisan app:verify-environment-schema
+php artisan app:bootstrap-local-demo
 ```
 
-Both bootstrap commands are idempotent. The data command only accepts `APP_ENV=local` with a database ending in `_development`; production and both testing suffixes are refused.
+The canonical command is idempotent and only accepts `APP_ENV=local` with `schema_admin`; production and testing/browser databases are refused. The older development-named commands remain internal backward-compatible aliases for the same guarded local-main semantics.
 
 Local login:
 
@@ -40,6 +38,6 @@ Other bounded contexts remain intentionally empty where no safe idempotent devel
 - Browser fixture database: zero users, companies, employees, workflow, IAM, integration and audit rows after cleanup.
 - Production baseline remained users 1, employees 9, roles 14, company access 1, payroll runs 0; IAM/workflow/notification/integration/audit business tables remained 0.
 
-The canonical index repair migration was applied without changing business rows. All four environments now contain 61 migrations and have logical schema parity. Constraint/index generated names may differ, but ordered index columns, uniqueness, type and FK semantics match.
+The canonical index repair migration was applied historically without changing business rows. The current local trio contains 61 migrations / 230 tables each; the removed database is not part of the active matrix.
 
 The final full suite passes with 397 tests, 4,291 assertions, one skipped and exit code 0. The complete concurrency directory passes with 60 tests and 486 assertions. Phase 3F-8 is complete.

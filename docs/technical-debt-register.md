@@ -23,3 +23,9 @@ No critical or high debt was found. Historical Article CQRS and dynamic action r
 - Persistent legal-hold lifecycle and maker-checker enforcement are deferred until mutation is authorized.
 - Provider-specific orphan private-object detection needs an owning storage adapter.
 - Irreversible anonymization rules are intentionally absent pending field-level authority.
+
+# Phase 3F-23 functionality assurance gaps
+
+- FUNC-001 (medium, open): ClamAV remains `NOT_CONNECTED`; private upload scanning is fail-closed and no file is falsely marked clean.
+- FUNC-002 (low, accepted): live two-browser Reverb delivery is not certified on an external realtime topology; authorized channel/fallback tests remain the current evidence.
+- FUNC-003 (low, accepted): disabled legacy/skeleton modules and historical import ideas remain intentionally unavailable; they must not gain UI actions until a real owned implementation exists.

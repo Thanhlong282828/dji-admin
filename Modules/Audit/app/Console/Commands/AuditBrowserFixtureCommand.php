@@ -3,6 +3,7 @@
 namespace Modules\Audit\Console\Commands;
 
 use App\Models\User;
+use App\Support\Navigation\AdminNavigation;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -38,7 +39,12 @@ final class AuditBrowserFixtureCommand extends Command
         $user = User::query()->create(['name' => 'Audit Browser', 'email' => 'audit.browser@schema.test', 'password' => Hash::make('fixture-password'), 'email_verified_at' => now()]);
         $user->forceFill(['email_verified_at' => now()])->save();
         DB::table('company_user_access')->insert(['company_id' => $company, 'user_id' => $user->id, 'created_at' => now(), 'updated_at' => now()]);
-        foreach (['dashboard.view', 'employee.view', 'payroll.run.view', 'workflow.view', 'notification.view', 'iam.view', 'integration.view', 'audit.view', 'audit.search', 'audit.export', 'audit.retention.manage', 'operations.view', 'api.documentation.view'] as $permission) {
+        $navigationPermissions = array_merge(...array_map(
+            static fn (array $group): array => array_column($group['items'], 'permission'),
+            app(AdminNavigation::class)->definitions($company),
+        ));
+        $permissions = array_unique([...$navigationPermissions, 'audit.search', 'audit.export', 'audit.retention.manage']);
+        foreach ($permissions as $permission) {
             $user->givePermissionTo(Permission::findOrCreate($permission, 'web'));
         }
         foreach ([['created', 'Workflow', 'workflow_instance', '1001'], ['approved', 'IAM', 'access_request', '2001'], ['exported', 'Integration', 'outbound_message', '3001']] as $index => $event) {
@@ -57,6 +63,7 @@ final class AuditBrowserFixtureCommand extends Command
             foreach (['audit_access_logs', 'audit_outbox', 'audit_source_checkpoints', 'audit_event_snapshots', 'audit_archive_artifacts', 'audit_exports', 'audit_retention_policies', 'audit_events', 'audit_correlations'] as $table) {
                 DB::table($table)->where('company_id', (int) $company)->delete();
             }
+            DB::table('hr_governance_audit_events')->where('company_id', (int) $company)->delete();
             DB::table('workflow_outbox')->where('company_id', (int) $company)->delete();
             DB::table('workflow_instances')->where('company_id', (int) $company)->delete();
             $this->deleteFixtureArtifacts((int) $company);

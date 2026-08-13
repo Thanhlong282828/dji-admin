@@ -1,5 +1,7 @@
 # Enterprise Security Assurance
 
+Environment isolation treats writable `schema_admin` as Mac local-main only, `schema_admin_testing*` as PHPUnit/integration only, and `schema_admin_browser_testing` as browser-fixture only. VPS production must use an environment-defined database. The former fourth local database is removed; no active code/config/test dependency remains.
+
 API contract governance confirms Sanctum bearer documentation for protected APIs, explicit public Content routes, protected Swagger UI/spec routes and secret-free synthetic examples. It does not weaken controller middleware or tenant isolation.
 
 Phase 3F-20 maps environment isolation, tenant boundaries, IAM separation and navigation authorization into the critical-invariant registry. Security fixtures remain synthetic and never target production.

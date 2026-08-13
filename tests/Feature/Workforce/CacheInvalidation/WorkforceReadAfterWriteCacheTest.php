@@ -5,6 +5,7 @@ namespace Tests\Feature\Workforce\CacheInvalidation;
 use App\Models\User;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Modules\Attendance\Application\Commands\ManageOvertimeCommand;
@@ -67,6 +68,20 @@ final class WorkforceReadAfterWriteCacheTest extends TestCase
         app(OvertimeManagementService::class)->execute(new ManageOvertimeCommand('request.submit', $company->id, $overtimeRequest, $user->id, 1, (string) Str::uuid(), []));
         self::assertSame('submitted', $overtime->management($company->id)->requests[0]['status']);
         self::assertGreaterThan(0, $overtimePolicy);
+    }
+
+    public function test_workforce_management_replaces_legacy_object_cache_with_serialization_safe_json(): void
+    {
+        [$company] = $this->context('CACHE-LEGACY');
+        DB::table('work_shifts')->insert(['company_id' => $company->id, 'code' => 'DAY', 'name' => 'Day shift', 'timezone' => 'Asia/Ho_Chi_Minh', 'starts_at' => '08:00:00', 'ends_at' => '17:00:00', 'crosses_midnight' => false, 'planned_work_minutes' => 480, 'grace_in_minutes' => 0, 'grace_out_minutes' => 0, 'rounding_rule' => 'none', 'minimum_half_day_minutes' => 240, 'minimum_full_day_minutes' => 480, 'status' => 'active', 'version' => 1, 'rules' => '{}', 'created_at' => now(), 'updated_at' => now()]);
+        $filterHash = hash('sha256', "shifts\0");
+        $legacyKey = "schema:workforce:{$company->id}:workforce:v0:management:{$filterHash}";
+        Cache::put($legacyKey, new \stdClass, 300);
+
+        $result = app(WorkforceReadRepositoryInterface::class)->management($company->id, 'shifts', null);
+
+        self::assertSame('Day shift', $result->rows[0]['name']);
+        self::assertIsString(Cache::get("schema:workforce:{$company->id}:workforce:v1:management:{$filterHash}"));
     }
 
     /** @return array{Company,Employee,User} */

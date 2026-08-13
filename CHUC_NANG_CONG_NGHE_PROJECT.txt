@@ -124,10 +124,17 @@ APP_ENV=testing DB_DATABASE=schema_admin_testing php artisan migrate:status
 APP_ENV=testing DB_DATABASE=schema_admin_testing php artisan test tests/Concurrency
 
 Database contract:
-- schema_admin                  = production, read only khi audit
-- schema_admin_development      = local demo data
-- schema_admin_testing          = PHPUnit/concurrency
-- schema_admin_browser_testing  = browser fixture disposable
+- schema_admin                  = Mac local main/manual/demo, writable qua business boundary
+- schema_admin_testing          = PHPUnit/integration/concurrency only
+- schema_admin_browser_testing  = browser fixture disposable only
+- VPS production               = database riêng do environment cung cấp
+- schema_admin_development      = REMOVED / NO LONGER EXISTS
+
+Luồng database/environment:
+- LOCAL USER -> Laravel APP_ENV=local -> EnvironmentSafetyGuard -> schema_admin -> manual/demo CRUD.
+- PHPUNIT -> APP_ENV=testing -> EnvironmentSafetyGuard -> schema_admin_testing[_scope] -> fixtures/assertions/cleanup.
+- PLAYWRIGHT -> isolated testing process -> EnvironmentSafetyGuard -> schema_admin_browser_testing -> fixture create -> browser assertions -> fixture cleanup.
+- VPS -> APP_ENV=production -> EnvironmentSafetyGuard -> environment-defined database; không dùng database Mac local/testing.
 
 
 5. REDIS CACHE
@@ -640,11 +647,13 @@ File chính:
 - tests/Unit/Architecture/EnvironmentSafetyGuardTest.php
 
 Contract:
-- local + schema_admin                  = BLOCK
-- local + schema_admin_development      = ALLOW
-- testing + schema_admin_testing...     = ALLOW
-- testing + schema_admin                = BLOCK
-- production + schema_admin + debug off = ALLOW
+- local + schema_admin                      = ALLOW
+- testing + schema_admin_testing...         = ALLOW
+- browser + schema_admin_browser_testing    = ALLOW trong isolated testing process
+- testing + schema_admin                    = BLOCK
+- production + các database local/testing  = BLOCK
+- production + environment-defined VPS DB  = ALLOW khi debug off
+- schema_admin_development                  = REMOVED / NO LONGER EXISTS
 
 
 26. OBSERVABILITY / RELIABILITY / SLO
@@ -765,13 +774,12 @@ npm ci
 cp .env.example .env
 php artisan key:generate
 
-# Chỉ trỏ local tới database development:
+# Chỉ trỏ local tới database main/manual/demo:
 # APP_ENV=local
-# DB_DATABASE=schema_admin_development
+# DB_DATABASE=schema_admin
 
 php artisan migrate
-php artisan app:bootstrap-development-admin
-php artisan app:bootstrap-development-data
+php artisan app:bootstrap-local-demo
 npm run build
 php artisan serve --host=127.0.0.1 --port=8001
 

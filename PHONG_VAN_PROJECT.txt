@@ -495,7 +495,7 @@ A: Observability trả lời hệ thống có khỏe/nhanh không bằng aggrega
 Development demo login:
 - Email: admin@local.test
 - Password: LocalAdmin123!
-- Database: schema_admin_development
+- Database local hiện tại: schema_admin (`schema_admin_development` đã REMOVED / NO LONGER EXISTS)
 - Chỉ dùng local development, không phải production credential.
 
 19. CÂU KẾT THÚC KHI PHỎNG VẤN

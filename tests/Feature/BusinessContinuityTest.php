@@ -18,7 +18,7 @@ final class BusinessContinuityTest extends TestCase
         $user = User::factory()->create(['email_verified_at' => now()]);
         $this->actingAs($user)->get('/admin/operations/continuity')->assertForbidden();
         $user->givePermissionTo(Permission::findOrCreate('operations.view', 'web'));
-        $this->actingAs($user)->get('/admin/operations/continuity')->assertOk()->assertSee('Business Continuity')->assertSee('Service recovery contract')->assertDontSee('DB_PASSWORD')->assertDontSee('schema_admin_development');
+        $this->actingAs($user)->get('/admin/operations/continuity')->assertOk()->assertSee('Business Continuity')->assertSee('Service recovery contract')->assertDontSee('DB_PASSWORD');
     }
 
     public function test_dr_command_refuses_normal_testing_database(): void

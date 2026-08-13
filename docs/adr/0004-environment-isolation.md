@@ -6,7 +6,7 @@ Status: Accepted
 Production, local demo, automated tests and browser fixtures have different data purposes.
 
 ## Decision
-Use `schema_admin`, `_development`, `_testing` and `_browser_testing` contracts enforced by EnvironmentSafetyGuard.
+Use `schema_admin` for Mac local manual/demo work, `_testing` namespaces for PHPUnit/integration, and `_browser_testing` for browser fixtures. VPS production supplies a separate database through its environment. The former development-only database is removed.
 
 ## Consequences
-Production is read-only during governance/testing phases; demo and fixture data are never copied to production.
+Automated tests never target the writable Mac local-main database. Demo and fixture data are never copied to VPS production.

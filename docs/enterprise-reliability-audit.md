@@ -18,7 +18,7 @@ Date: 2026-08-09. Scope: reliability only; production database read-only.
 2. No scheduler heartbeat/staleness signal.
 3. No unified queue, failed-job, outbox-lag and integration-dead-letter read model.
 4. No permission-protected operations UI.
-5. Failure/recovery evidence must remain isolated from `schema_admin` and `schema_admin_development`.
+5. Failure/recovery evidence must remain isolated from writable local-main `schema_admin`; the historical `schema_admin_development` database is **REMOVED / NO LONGER EXISTS**.
 
 No reliability database migration is justified: configuration, cache heartbeat and existing operational tables are sufficient.
 

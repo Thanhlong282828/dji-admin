@@ -7,7 +7,7 @@ This phase adds no business feature and no migration.
 - `schema_admin` is a protected database name and is allowed only with `APP_ENV=production`.
 - Production rejects `APP_DEBUG=true`.
 - Testing requires a database ending in `_testing`.
-- `.env.example` and the base Compose stack use `schema_admin_development` for local development.
+- Historical note: `schema_admin_development` is **REMOVED / NO LONGER EXISTS**. Current Mac local runtime uses `schema_admin`; VPS production uses an environment-defined database.
 - Production Compose explicitly selects `schema_admin` with debug disabled.
 - Browser fixture login routes are registered only in local/testing and retain the `*_testing` runtime guard.
 

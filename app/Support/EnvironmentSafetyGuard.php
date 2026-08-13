@@ -18,7 +18,7 @@ final class EnvironmentSafetyGuard
             throw new RuntimeException(sprintf('Unsafe environment: APP_ENV=%s cannot connect to protected database %s.', $environment, $database));
         }
 
-        $localDatabases = ['schema_admin', 'schema_admin_development'];
+        $localDatabases = ['schema_admin'];
         $testingDatabase = str_ends_with($database, '_testing')
             || preg_match('/^schema_admin_testing_[a-z0-9_]+$/', $database) === 1;
 

@@ -12,7 +12,6 @@ final class EnvironmentSafetyGuardTest extends TestCase
     /** @return iterable<string, array{string, bool, string}> */
     public static function unsafeConfigurations(): iterable
     {
-        yield 'local cannot use deprecated development database' => ['local', false, 'schema_admin_development'];
         yield 'testing cannot use production database' => ['testing', false, 'schema_admin'];
         yield 'production cannot use Mac local database' => ['production', false, 'schema_admin'];
         yield 'production debug is forbidden' => ['production', true, 'vps_admin_live'];

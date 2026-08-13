@@ -1,5 +1,11 @@
 # Phase 3F-8 Enterprise Reliability & SRE
 
+## Non-critical realtime broadcast boundary
+
+Realtime UI broadcasting through Reverb is non-critical to core HTTP and committed business state. Laravel `ShouldBroadcastNow` events are delivered through `FailOpenRealtimeBroadcaster`: only `BroadcastException` transport failures are isolated and recorded with safe component/correlation/event metadata. Domain, validation, programming and database exceptions continue to propagate. When Reverb is disabled by the existing `realtime.reverb` flag, transport delivery is skipped; Notification channel delivery retains separate retry/idempotency governance.
+
+Local outage evidence with Reverb stopped: `/health/live`, `/health/ready` and Dashboard remained HTTP 200; Company, Employee, Organization, Attendance and Payroll mutations returned success and were applied exactly once. Recovery evidence confirmed subsequent broadcasting without fail-open warnings after Reverb restarted.
+
 ## Operations flow
 
 `GET /admin/operations/reliability` → authentication → verified email → `operations.view` → `ReliabilityController` → `ReliabilitySnapshotService` → safe dependency/queue/outbox read model → Blade dashboard.

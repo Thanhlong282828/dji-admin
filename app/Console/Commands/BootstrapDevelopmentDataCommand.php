@@ -15,7 +15,7 @@ final class BootstrapDevelopmentDataCommand extends Command
 {
     protected $signature = 'app:bootstrap-development-data';
 
-    protected $description = 'Idempotently create safe synthetic data for the local development database';
+    protected $description = 'Deprecated alias: idempotently create safe synthetic data for the local main database';
 
     public function handle(): int
     {
@@ -23,12 +23,6 @@ final class BootstrapDevelopmentDataCommand extends Command
 
         if (! app()->environment('local') || $database !== 'schema_admin') {
             $this->components->error('Refusing to bootstrap outside APP_ENV=local and schema_admin.');
-
-            return self::FAILURE;
-        }
-
-        if (str_contains($database, '_testing') || str_ends_with($database, '_development')) {
-            $this->components->error('Refusing to bootstrap a deprecated development or disposable testing database.');
 
             return self::FAILURE;
         }

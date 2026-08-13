@@ -6,7 +6,7 @@ set -euo pipefail
 
 [[ "$APP_ENV" == "testing" ]] || { echo 'DR exercise requires APP_ENV=testing.' >&2; exit 64; }
 [[ "$DB_DATABASE" =~ ^schema_admin_testing_[a-z0-9_]*dr$ ]] || { echo 'DR exercise requires an isolated schema_admin_testing_*dr database.' >&2; exit 64; }
-[[ "$DB_DATABASE" != "schema_admin" && "$DB_DATABASE" != "schema_admin_development" ]] || { echo 'Protected database refused.' >&2; exit 64; }
+[[ "$DB_DATABASE" != "schema_admin" ]] || { echo 'Protected database refused.' >&2; exit 64; }
 
 mode="${1:---validate-only}"
 if [[ "$mode" == "--validate-only" ]]; then

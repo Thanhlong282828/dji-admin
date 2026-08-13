@@ -572,7 +572,7 @@ PHASE 3F-8 DATABASE NOTE
 - No migration and no reliability/SLO/incident table was added.
 - Reliability reads existing jobs, failed_jobs, workflow_outbox, notification_outbox, iam_outbox, integration_outbox, audit_outbox, integration_outbound_messages and integration_dead_letters.
 - Phase 3F-9 adds no table or migration. HTTP telemetry is bounded-TTL cache data; observability reads existing reliability/outbox/integration tables without processing or updating them.
-- Final migration matrix remains 61/61/61/61 for schema_admin, schema_admin_development, schema_admin_testing and schema_admin_browser_testing. Production business counts were unchanged before/after.
+- Historical Phase 3F-9 evidence used four databases; `schema_admin_development` is now **REMOVED / NO LONGER EXISTS**. The active local matrix is schema_admin/schema_admin_testing/schema_admin_browser_testing.
 - Phase 3F-10 stores release evidence as immutable files/CI artifacts, not database rows. It creates no migration and never bootstraps development data in production.
 - Final canonical migration inventory remains 61/61/61/61; production business counts remained unchanged before/after Phase 3F-10.
 - Phase 3F-11 added no migration. Disposable `schema_admin_testing_release` migrated all 61 files, then its exact Compose volumes/network were removed. Production counts remained unchanged.
@@ -582,15 +582,15 @@ PHASE 3F-8 DATABASE NOTE
 
 PHASE 3F-8 DATABASE ENVIRONMENT MATRIX (2026-08-09)
 - schema_admin: production/read-only, 60 migrations.
-- schema_admin_development: local persistent synthetic data, 60 migrations.
+- Historical Phase 3F-8 entry: schema_admin_development formerly held local data; it is now **REMOVED / NO LONGER EXISTS**.
 - schema_admin_testing: automated tests, 60 migrations.
 - schema_admin_browser_testing: disposable browser fixtures, 60 migrations, fixture rows cleaned to zero.
 - Physical schema drift remains: development-only composite indexes plus an equivalent attendance FK with a different constraint name. Production was not mutated.
-- Bootstrap: app:bootstrap-development-data (local + *_development only, idempotent).
+- Historical bootstrap note: the old command name is retained only as a guarded alias; canonical bootstrap is `app:bootstrap-local-demo` on local + schema_admin.
 - Comparator ignores generated constraint/index names but compares ordered columns, uniqueness and FK update/delete rules. Remaining drift is genuine: production missed composite indexes because the historical migrations conditionally skipped tables that already existed.
 - Full PHPUnit: 393 tests / 4,284 assertions / 1 skipped / exit 0. Concurrency: 60 tests / 486 assertions / exit 0.
 - Canonical repair migration: 2026_08_13_000044_repair_canonical_production_indexes.php, production batch 56.
-- Final migration matrix: schema_admin/schema_admin_development/schema_admin_testing/schema_admin_browser_testing = 61/61/61/61; logical drift 0.
+- Historical four-database parity was 61/61/61/61; `schema_admin_development` is now **REMOVED / NO LONGER EXISTS** and the remaining local trio retains 61 migrations / 230 tables each.
 - Production business counts unchanged. Final PHPUnit: 397 tests / 4,291 assertions / 1 skipped / exit 0.
 Phase 3F-12: no database migration/table. Runtime configuration remains config/cache read-side; canonical migration inventory stays 61 in all four environments.
 Phase 3F-12 production audit: business counts unchanged; no seed, config mutation, external traffic or schema change.
@@ -601,23 +601,30 @@ Phase 3F-14 final production audit: users/employees/roles/company access = 1/9/1
 Phase 3F-15: no migration. Disposable schema_admin_testing_dr and schema_admin_testing_dr_restore_testing migrated to 61 for isolated backup/restore only and are removed after exercise. Production remains read-only.
 Phase 3F-15 final matrix: production/development/testing/browser = 61/61/61/61. Disposable DR databases and Docker volume removed; production business counts unchanged.
 Phase 3F-16: no migration planned. Security findings and threat evidence are typed read-only artifacts; production remains read-only.
-Phase 3F-16 final matrix: schema_admin, schema_admin_development, schema_admin_testing and schema_admin_browser_testing each have 61 migrations and 230 tables. Production business counts unchanged.
+Historical Phase 3F-16 matrix had four databases; `schema_admin_development` is now **REMOVED / NO LONGER EXISTS**. Active local databases are schema_admin, schema_admin_testing and schema_admin_browser_testing.
 Phase 3F-17 requires no migration or business-data mutation. Expected migration inventory remains 61 in all four environments.
 Phase 3F-17 final: schema_admin, development, testing and browser_testing each remain at 61 migrations/230 tables; production business counts unchanged.
 Phase 3F-17 sidebar hardening added no migration or data mutation. Browser fixture cleanup returned users/companies/audit_events = 0/0/0; the canonical matrix remains 61/61/61/61 and production counts remain unchanged.
 Phase 3F-18: no migration/index rollout. Testing-only PERF-DATASET (5,000 employees) and browser fixture were cleaned. Final schema_admin/development/testing/browser matrix is 61 migrations / 230 tables each; production before/after counts unchanged.
 Phase 3F-18 Swagger hardening adds no migration or table. The four-environment migration/schema matrix remains unchanged; production remains read-only.
 Phase 3F-19 architecture governance adds no table or migration. Database write ownership is documented by bounded context; cross-module writes require command/service/outbox boundaries.
-Phase 3F-19 final matrix: schema_admin/schema_admin_development/schema_admin_testing/schema_admin_browser_testing each 61 migrations and 230 tables. Production counts unchanged.
-Phase 3F-22: NO MIGRATION. Data Lifecycle is a read-only policy/evaluation boundary. Existing Audit archive artifact tables remain Audit-owned. Matrix stays schema_admin/schema_admin_development/schema_admin_testing/schema_admin_browser_testing = 61 migrations / 230 tables. `schema_admin` is now the writable Mac local-main database; future VPS production is separately environment-defined. `schema_admin_development` is deprecated but retained pending explicit unique-data/reference review.
+Historical Phase 3F-19 evidence used four databases; `schema_admin_development` is now **REMOVED / NO LONGER EXISTS**.
+Phase 3F-22: NO MIGRATION. Data Lifecycle is a read-only policy/evaluation boundary. Existing Audit archive artifact tables remain Audit-owned. `schema_admin` is the writable Mac local-main database; VPS production is separately environment-defined. `schema_admin_development` is **REMOVED / NO LONGER EXISTS** after explicit unique-data/reference review.
 ================================================================================
 CANONICAL DATABASE OWNERSHIP / ENVIRONMENT MAP (2026-08-13)
 ================================================================================
+
+Phase 3F-23 adds no table or migration. It verifies existing module-owned writes,
+tenant relationships, idempotency and lifecycle rules against testing fixtures;
+the workforce cache repair stores JSON read-model payloads only and does not
+alter business rows or ownership.
 
 Environment ownership: `schema_admin` = writable Mac local main;
 `schema_admin_testing*` = automated PHPUnit/integration; browser fixtures =
 `schema_admin_browser_testing`; VPS production = separate environment-defined DB.
 All current databases have 61 migrations / 230 tables; no Phase 3F-22 migration.
+
+Phase 3F-23 local consolidation final matrix: schema_admin = 61 migrations / 230 tables (writable manual/demo); schema_admin_testing = 61 / 230 (PHPUnit/integration only); schema_admin_browser_testing = 61 / 230 (Playwright fixtures only). The former fourth local database is REMOVED / NO LONGER EXISTS after comparison proved no unique required data. No migration and no raw record copy were used; VPS remains environment-defined and untouched.
 
 Company owns companies/company_user_access; Organization owns cost_centers,
 organization_units/job_positions; Employee owns employees, assignments,

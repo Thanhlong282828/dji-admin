@@ -479,10 +479,31 @@ PHASE 3F-22 — DATA LIFECYCLE: COMPLETED. Typed retention policy registry, dete
 CANONICAL PROJECT MAP — CURRENT LOCAL CONTRACT (2026-08-13)
 ================================================================================
 
+Phase 3F-23 functionality assurance: 39 declared modules (16 enabled/23
+disabled), 507 routes, 51 permission-filtered primary sidebar destinations and
+14 Operations children. Every Super Admin destination passed local and isolated
+desktop/mobile HTTP/browser walking. Existing business write paths remain owned
+by their modules; no module, fake route or migration was added. Full evidence:
+`docs/enterprise-functionality-audit.md`.
+Final hardening gate: 498 PHPUnit tests / 4,981 assertions / one skipped / exit 0;
+repository PHPStan level 10 = 0.
+
 Environment: Mac local uses writable `schema_admin`; PHPUnit uses
 `schema_admin_testing*`; Playwright uses `schema_admin_browser_testing`; VPS
 production uses a separate environment-defined database. See
 `docs/local-environment-and-demo-data.md`.
+
+Database consolidation: the historical `schema_admin_development` database is
+REMOVED / NO LONGER EXISTS. Active routing is deterministic: local/manual/demo
+uses `schema_admin`; PHPUnit/integration uses `schema_admin_testing*`; browser
+automation uses `schema_admin_browser_testing`; VPS uses only its environment-
+defined database. No automated suite may target the local-main database.
+
+Realtime reliability boundary: `app/Support/Broadcasting/FailOpenRealtimeBroadcaster.php`
+decorates the Laravel Reverb transport. `ShouldBroadcastNow` remains the event
+contract, but Reverb `BroadcastException` is a non-critical fail-open side
+effect; domain/database/programming exceptions are not swallowed. Runtime flag:
+`realtime.reverb`; safe logs contain event/failure metadata only.
 
 Enabled business/platform map (16/16 documented): Core (auth, health, buses),
 Company, Organization, Employee, Attendance, Leave, Recruitment, Onboarding,

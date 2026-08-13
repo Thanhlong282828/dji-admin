@@ -13,14 +13,6 @@ final class DevelopmentDataBootstrapCommandTest extends TestCase
         self::assertSame(Command::FAILURE, Artisan::call('app:bootstrap-development-data'));
     }
 
-    public function test_command_refuses_deprecated_development_database(): void
-    {
-        config()->set('app.env', 'local');
-        config()->set('database.connections.mysql.database', 'schema_admin_development');
-
-        self::assertSame(Command::FAILURE, Artisan::call('app:bootstrap-development-data'));
-    }
-
     public function test_command_refuses_browser_testing_database(): void
     {
         config()->set('app.env', 'local');

@@ -37,7 +37,6 @@ final class TestQualityGovernanceTest extends TestCase
         self::assertTrue($guard->allows('testing', 'schema_admin_testing_workflow'));
         self::assertTrue($guard->allows('testing', 'schema_admin_browser_testing'));
         self::assertFalse($guard->allows('testing', 'schema_admin'));
-        self::assertFalse($guard->allows('testing', 'schema_admin_development'));
         self::assertFalse($guard->allows('production', 'schema_admin_testing'));
     }
 

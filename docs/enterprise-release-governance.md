@@ -1,5 +1,7 @@
 # Phase 3F-10 Enterprise Release Management
 
+Database routing is environment-owned: Mac local manual/demo uses `schema_admin`; automated testing uses testing-only namespaces; VPS production must supply a separate `DB_DATABASE` through deployment configuration. Release tooling must not default production to any Mac local or testing database. The former fourth local database is removed.
+
 Phase 3F-21 adds a pre-release API contract gate and sanitized OpenAPI checksum evidence. Breaking findings require explicit approval/version/deprecation evidence; formatting-only JSON drift is not a release blocker.
 
 ## Implemented controls

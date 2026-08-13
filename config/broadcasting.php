@@ -31,6 +31,10 @@ return [
     'connections' => [
 
         'reverb' => [
+            'driver' => 'fail-open-reverb',
+        ],
+
+        'reverb_transport' => [
             'driver' => 'reverb',
             'key' => env('REVERB_APP_KEY'),
             'secret' => env('REVERB_APP_SECRET'),

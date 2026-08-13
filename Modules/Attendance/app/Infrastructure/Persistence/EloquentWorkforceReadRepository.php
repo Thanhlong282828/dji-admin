@@ -15,8 +15,17 @@ final readonly class EloquentWorkforceReadRepository implements WorkforceReadRep
     public function management(int $companyId, string $section, ?string $search): WorkforceManagementViewModel
     {
         $filterHash = hash('sha256', $section."\0".($search ?? ''));
+        $readModel = 'management:'.$filterHash;
+        $cached = $this->cache->rememberExternal($companyId, 'workforce', $readModel, 300, fn (): string => $this->managementUncached($companyId, $section, $search)->toJson());
+        if (is_string($cached)) {
+            return WorkforceManagementViewModel::fromJson($cached);
+        }
 
-        return $this->cache->remember($companyId, 'workforce', 'management:'.$filterHash, 300, fn (): WorkforceManagementViewModel => $this->managementUncached($companyId, $section, $search));
+        $this->cache->invalidate($companyId, 'workforce');
+        $fresh = $this->managementUncached($companyId, $section, $search);
+        $this->cache->rememberExternal($companyId, 'workforce', $readModel, 300, fn (): string => $fresh->toJson());
+
+        return $fresh;
     }
 
     private function managementUncached(int $companyId, string $section, ?string $search): WorkforceManagementViewModel

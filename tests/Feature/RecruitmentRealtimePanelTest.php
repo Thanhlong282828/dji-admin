@@ -183,7 +183,10 @@ final class RecruitmentRealtimePanelTest extends TestCase
         $approver = $this->user($company, ['candidate-offer.approve']);
         [$foreignCompany] = $this->application('APPROVER-OTHER');
         $foreignApprover = $this->user($foreignCompany, ['candidate-offer.approve']);
-        $position = $application->requisition->jobPosition;
+        $requisition = $application->requisition;
+        self::assertInstanceOf(RecruitmentRequisition::class, $requisition);
+        $position = $requisition->jobPosition;
+        self::assertInstanceOf(JobPosition::class, $position);
         $offer = CandidateOffer::query()->create([
             'company_id' => $company->id,
             'application_id' => $application->id,

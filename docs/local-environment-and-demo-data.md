@@ -9,7 +9,7 @@
 | Browser automation | `schema_admin_browser_testing` | Playwright fixtures only | Disposable fixtures and cleanup |
 | VPS production | Environment-defined (`VPS_PRODUCTION_DATABASE`) | Future production | Never inferred to be the Mac database |
 
-`schema_admin_development` is deprecated and is not referenced by runtime configuration. It is retained for now because it contains historical local data and the repository still has historical evidence documents referring to it. It must not be dropped until those references and unique data have been reviewed explicitly.
+`schema_admin_development` is **REMOVED / NO LONGER EXISTS**. Its schema and synthetic rows were audited against the richer `schema_admin` dataset before removal; no raw records were copied. It is not an active runtime, test, browser or configuration target.
 
 The safety guard allows `local + schema_admin`, allows scoped testing databases only in `testing`, blocks `testing + schema_admin`, and blocks `production + schema_admin`. Production must name a separate environment-defined database and keep debug disabled.
 
@@ -45,4 +45,3 @@ All personal identities, monetary ranges and operational states are synthetic. T
 - Lifecycle disposal/archive simulations remain testing-only even though the local main database is writable for normal CRUD.
 - Demo bootstrap does not copy real people, password hashes, tax IDs, bank data, credentials, private files or production artifacts.
 - Deploying to VPS transfers code, migrations and configuration; it does not copy local data unless a separate, explicitly authorized import is performed.
-

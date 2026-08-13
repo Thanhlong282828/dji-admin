@@ -1797,10 +1797,10 @@ Rollback request
 → compatible | scripts/deploy/rollback.sh application image only
 → incompatible | forward-fix; never automatic production down migration
 
-DEVELOPMENT DATA BOOTSTRAP
-CLI app:bootstrap-development-data
-→ app/Console/Commands/BootstrapDevelopmentDataCommand.php | handle()
-→ guard APP_ENV=local + DB suffix _development
+LOCAL DEMO DATA BOOTSTRAP
+CLI app:bootstrap-local-demo (canonical)
+→ BootstrapLocalDemoCommand -> guarded backward-compatible admin/data aliases
+→ guard APP_ENV=local + exact DB schema_admin
 → CompanyDatabaseSeeder::run()
 → OrganizationDatabaseSeeder::run()
 → EmployeeDatabaseSeeder::run()
@@ -1867,10 +1867,24 @@ Phase 3F-19 architecture governance is read-only and does not alter Payroll calc
 Phase 3F-19 final: COMPLETED; full PHPUnit 468 tests/4,826 assertions/one skipped/exit 0, PHPStan 0, exact browser and production safety PASS.
 Phase 3F-22 không thay đổi nghiệp vụ Payroll, công thức, checksum hay dữ liệu lương. Payroll retention là policy Restricted, chưa gán số năm giả; disposal bị BLOCK cho tới khi có nguồn pháp lý được phê duyệt và adapter do Payroll sở hữu.
 
-Phase 3F-22 supplemental local flow: APP_ENV=local + schema_admin -> app:bootstrap-local-demo -> guarded admin bootstrap -> ordered Company/Organization/Employee/Recruitment/Onboarding seeders -> local operational seeder -> WorkflowDefinitionService/WorkflowExecutionService -> AuditRecorderInterface -> cache clear. APP_ENV=testing/production hoặc database testing/browser/deprecated development đều bị từ chối. Local manual Company create/update/soft-delete chạy qua controller -> validated request -> CommandBus -> handler/repository/transaction; diagnostic row được cleanup sau evidence.
+Phase 3F-22 supplemental local flow: APP_ENV=local + schema_admin -> app:bootstrap-local-demo -> guarded admin bootstrap -> ordered Company/Organization/Employee/Recruitment/Onboarding seeders -> local operational seeder -> WorkflowDefinitionService/WorkflowExecutionService -> AuditRecorderInterface -> cache clear. APP_ENV=testing/production hoặc database testing/browser đều bị từ chối. Local manual Company create/update/soft-delete chạy qua controller -> validated request -> CommandBus -> handler/repository/transaction; diagnostic row được cleanup sau evidence.
+
+CANONICAL DATABASE / ENVIRONMENT FLOW (Phase 3F-23 consolidation)
+LOCAL USER -> APP_ENV=local -> EnvironmentSafetyGuard -> schema_admin -> manual/demo CRUD.
+PHPUNIT -> APP_ENV=testing -> EnvironmentSafetyGuard -> schema_admin_testing[_scope] -> fixtures/assertions/cleanup.
+PLAYWRIGHT -> isolated testing process -> EnvironmentSafetyGuard -> schema_admin_browser_testing -> fixture create -> browser assertions -> fixture cleanup.
+VPS -> APP_ENV=production -> EnvironmentSafetyGuard -> environment-defined database; Mac local/test database names are refused.
+Historical schema_admin_development -> REMOVED / NO LONGER EXISTS; zero active runtime/test/browser/config dependency.
 ================================================================================
 CANONICAL ENABLED-MODULE FLOW INDEX (2026-08-13)
 ================================================================================
+
+Phase 3F-23 verified the concrete flow across all 16 enabled modules. Runtime
+cache correction: Workforce management QueryBus ->
+EloquentWorkforceReadRepository -> DB read -> typed WorkforceManagementViewModel
+now stores deterministic JSON at the cache boundary and validates/reconstructs
+the DTO. Legacy serialized objects invalidate the scoped cache version and are
+replaced; they can no longer surface as __PHP_Incomplete_Class HTTP 500 errors.
 
 Core/Dashboard: web middleware (auth, verified, company context, correlation)
 -> named route -> controller -> QueryBus/read services -> cache-safe typed arrays
@@ -1921,3 +1935,9 @@ hold overrides disposal; no local-main physical disposal is performed.
 
 Historical detailed flows below remain evidence. This index covers all 16 enabled
 modules; disabled skeleton modules have no invented flow.
+
+REALTIME FAIL-OPEN FLOW
+HTTP write -> Controller -> CommandBus -> Handler/Domain Service -> DB transaction commit -> domain event (`ShouldBroadcastNow`) -> Laravel BroadcastManager -> FailOpenRealtimeBroadcaster -> Reverb transport.
+Reverb healthy -> event delivered -> original response.
+Reverb unavailable -> catch only BroadcastException -> safe warning (component/correlation/event/failure category) -> preserve original response.
+Validation/domain/database/programming exception -> propagate normally; never swallowed by the realtime boundary.
