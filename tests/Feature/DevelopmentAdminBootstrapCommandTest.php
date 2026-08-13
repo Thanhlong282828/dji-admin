@@ -18,10 +18,10 @@ final class DevelopmentAdminBootstrapCommandTest extends TestCase
         self::assertSame(Command::FAILURE, $exitCode);
     }
 
-    public function test_command_refuses_protected_database_even_when_environment_is_local(): void
+    public function test_command_refuses_deprecated_database_even_when_environment_is_local(): void
     {
         config()->set('app.env', 'local');
-        config()->set('database.connections.mysql.database', 'schema_admin');
+        config()->set('database.connections.mysql.database', 'schema_admin_development');
 
         $exitCode = Artisan::call('app:bootstrap-development-admin', [
             '--email' => 'admin@local.test',

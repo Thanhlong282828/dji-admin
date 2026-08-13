@@ -36,3 +36,6 @@ Phase 3F-5F Export/Retention: COMPLETED
 Phase 3F-5G Concurrency: COMPLETED  
 Phase 3F-5H UI/Browser: COMPLETED  
 Phase 3F-5 Overall: COMPLETED
+# Phase 3F-22 lifecycle integration
+
+Audit events remain append-only. Existing `audit_archive_artifacts` supply Audit-owned SHA-256/size/MIME/source-range evidence; generic lifecycle governance neither deletes Audit events nor stores other modules' archives in Audit by default.

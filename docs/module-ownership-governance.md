@@ -13,3 +13,6 @@
 | Audit event/snapshot/export | Audit | Source modules emit events and never write Audit tables directly |
 
 Cross-module reads require company scope and a documented contract. Cross-module writes require a command/service contract or outbox consumer; direct mutation of another owner's aggregate is forbidden.
+# Lifecycle boundary
+
+Lifecycle policy is cross-cutting read-only governance. Employee, Payroll, Workflow, Notification, IAM, Integration and Audit retain their business writers and invariants. No ownership is transferred to `App\Support\DataLifecycle`.

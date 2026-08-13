@@ -311,19 +311,21 @@ LeaveManagementController.php | execute → ManageLeaveRequest → ManageLeaveCo
 LeaveAttachmentController.php | upload/mutate → ManageLeaveAttachmentCommand → Handler → private storage/scanner.
 LeaveAttachmentController.php | download → DownloadLeaveAttachmentQuery → Handler → BinaryFileResponse.
 
-10. PAYROLL
+======================================================================
+10. PAYROLL Runs
+======================================================================
 Modules/Payroll/routes/web.php | GET `/admin/payroll/delivery`
 → PayrollDeliveryController.php | index(Request $r)
 → `$c = company($r, 'payroll.component.view')`
 → GetPayrollDeliveryQuery($c) → GetPayrollDeliveryHandler.php | handle($query)
 → PayrollDeliveryReadRepositoryInterface/EloquentPayrollDeliveryReadRepository | dashboard($companyId)
 → PayrollDeliveryViewModel `$vm`
-→ payroll::delivery | `$viewModel`, `$companyId`.
+→ payroll::delivery | `$viewModel`, `$companyId`.      <
 GET `/admin/payroll/runs/{run}`
 → PayrollDeliveryController.php | show(Request $r, int $run)
 → GetPayrollRunDetailQuery($c, $run) → GetPayrollRunDetailHandler
 → PayrollDeliveryReadRepositoryInterface | runDetail($companyId, $runId)
-→ PayrollRunDetailViewModel → payroll::run-detail.
+→ PayrollRunDetailViewModel → payroll::run-detail.     <
 GET `/admin/payroll/runs`
 → Modules/Payroll/routes/web.php | route `admin.payroll.runs.index`, middleware auth + verified + permission:payroll.run.view
 → PayrollDeliveryController.php | runs(Request `$request`): authorize Company + `payroll-run.view-any`
@@ -333,45 +335,45 @@ GET `/admin/payroll/runs`
 → PayrollDeliveryReadRepositoryInterface.php | runList(int `$company`, array `$filters`)
 → EloquentPayrollDeliveryReadRepository.php | runList(): tenant scope + whitelist filters + stable pagination + Period/Snapshot joins
 → PayrollRunListViewModel.php | `$runs`, `$page`, `$hasMore`
-→ resources/views/runs/index.blade.php | foundation totals + exact snapshot version + actions.
+→ resources/views/runs/index.blade.php | foundation totals + exact snapshot version + actions.     <
 GET `/admin/payroll/runs/{run}/items/{item}`
 → Modules/Payroll/routes/web.php | route `admin.payroll.runs.items.show`, permission:payroll.item.view
-→ PayrollDeliveryController.php | item(Request `$request`, int `$run`, int `$item`): Company + parent Run Policy
+→ PayrollDeliveryController.php | item(Request `$request`, int `$run`, int `$item`): Company + parent Run Policy    <
 → GetPayrollItemDetailQuery.php | `$companyId`, `$runId`, `$itemId`
 → QueryBusInterface.php | ask() → GetPayrollItemDetailHandler.php | handle()
 → PayrollDeliveryReadRepositoryInterface.php | itemDetail()
 → EloquentPayrollDeliveryReadRepository.php | itemDetail(): item scoped to Company + Run; component/issue read models
 → PayrollItemDetailViewModel.php | `$summary`, `$components`, `$issues`
-→ resources/views/items/show.blade.php | immutable calculation result.
+→ resources/views/items/show.blade.php | immutable calculation result.     <
 GET `/admin/payroll/runs/{run}/export.csv`
-→ PayrollExportController.php | items(Request $request, int $run)
+→ PayrollExportController.php | items(Request $request, int $run)    <
 → workforce.company(`payroll.export`) + PayrollRunPolicy::export
 → GetPayrollRunCsvExportQuery(`$companyId`, `$run`, `$filters`)
 → GetPayrollRunCsvExportHandler.php | handle($query)
 → PayrollExportReadRepositoryInterface::payrollItems → EloquentPayrollExportReadRepository::payrollItems
 → cursor ordered by employee number/id → StreamingCsvResponseFactory → UTF-8 BOM + formula-safe CSV.
 GET `/admin/payroll/runs/{run}/components-export.csv`
-→ PayrollExportController.php | components(Request $request, int $run)
+→ PayrollExportController.php | components(Request $request, int $run)     <
 → GetPayrollComponentBreakdownCsvExportQuery → Handler
 → PayrollExportReadRepositoryInterface::components → cursor ordered by employee/calculation order/id
 → StreamingCsvResponseFactory → formula-safe CSV.
 POST/PUT component
 → PayrollConfigurationRequest.php | rules() theo `$action`
-→ SalaryComponentController.php | execute($r, string $action, ?int $component)
+→ SalaryComponentController.php | execute($r, string $action, ?int $component)     <
 → CreateSalaryComponentCommand/UpdateSalaryComponentCommand/ChangeSalaryComponentStatusCommand
 → matching Handler | handle($command)
 → PayrollConfigurationService.php | createComponent/updateComponent/statusComponent
 → SalaryComponent → PayrollConfigurationChanged
 → InvalidateWorkforceReadModels.php | handle($event) + private company broadcast.
 POST assignment
-→ PayrollConfigurationRequest → SalaryComponentAssignmentController.php | execute(...)
+→ PayrollConfigurationRequest → SalaryComponentAssignmentController.php | execute(...)     <
 → AssignSalaryComponentCommand/EndSalaryComponentAssignmentCommand
 → Handler → PayrollConfigurationService.php | assign/endAssignment
 → EmployeeSalaryComponentAssignment → PayrollConfigurationChanged.
 POST `/admin/payroll/runs/store`
 → Modules/Payroll/routes/web.php | route `admin.payroll.runs.store`
 → PayrollRunMutationRequest.php | rules(): company/period/snapshot/run number/currency/idempotency
-→ PayrollRunController.php | store(PayrollRunMutationRequest `$request`, string `$action`)
+→ PayrollRunController.php | store(PayrollRunMutationRequest `$request`, string `$action`)      <
 → Gate | workforce.company(`payroll.run.create`) + PayrollRunPolicy create-record
 → CreatePayrollRunCommand.php | typed IDs, run number, currency, key, actor
 → CommandBusInterface.php | dispatch(CreatePayrollRunCommand)
@@ -380,7 +382,7 @@ POST `/admin/payroll/runs/store`
 → PayrollRunChanged.php → cache invalidation/broadcast → redirect + flash.
 POST `/admin/payroll/runs/{run}/calculate|recalculate`
 → PayrollRunMutationRequest.php | rules(): company_id/version/idempotency_key
-→ PayrollRunController.php | mutate(Request, int `$run`, string `$action`)
+→ PayrollRunController.php | mutate(Request, int `$run`, string `$action`)      <
 → Gate | permission `payroll.run.calculate` + record Policy
 → CalculatePayrollRunCommand.php → CommandBusInterface::dispatch()
 → CalculatePayrollRunHandler.php | handle()
@@ -389,24 +391,24 @@ POST `/admin/payroll/runs/{run}/calculate|recalculate`
 → payroll_items + payroll_item_components current `calculation_version` + aggregate totals
 → payroll_run_histories(`calculated`) + PayrollRunChanged → fragments/cache/notification → redirect.
 POST `/admin/payroll/runs/{run}/submit`
-→ PayrollRunController.php | mutate() → SubmitPayrollRunCommand.php
+→ PayrollRunController.php | mutate() → SubmitPayrollRunCommand.php      <
 → SubmitPayrollRunHandler.php | handle() → PayrollRunService.php | transition(`submit`)
 → PayrollRunService.php | assertConsistent(): employee/item/current-version/aggregate/blocking-issue checks
 → submitted_by/submitted_at + one history/event/approver notification → redirect.
 POST `/admin/payroll/runs/{run}/approve|reject`
 → PayrollRunMutationRequest.php | reject requires `$reason`
-→ PayrollRunController.php | mutate() → ApprovePayrollRunCommand.php hoặc RejectPayrollRunCommand.php
+→ PayrollRunController.php | mutate() → ApprovePayrollRunCommand.php hoặc RejectPayrollRunCommand.php     <
 → matching Handler | handle() → PayrollRunService.php | transition()
 → PayrollRunStateMachine.php | submitted-only; Approve maker-checker; optimistic version/row lock
 → approved/rejected actor + timestamp/reason + history/event/notification → redirect.
 POST `/admin/payroll/runs/{run}/finalize`
-→ PayrollRunController.php | mutate() → FinalizePayrollRunCommand.php
+→ PayrollRunController.php | mutate() → FinalizePayrollRunCommand.php      <
 → FinalizePayrollRunHandler.php | handle() → PayrollRunService.php | transition(`finalize`)
 → approved state + exact calculation-version aggregate consistency + row lock
 → payroll_runs.finalized_by/finalized_at/status=finalized + one history/event/notification
 → PayrollRunDetailViewModel.php | actions=[] → finalized UI view-only.
 GET `/admin/payroll/runs/{run}/fragments/{summary|readiness|items|validation|history|actions}`
-→ PayrollFragmentController.php | show(): Company + PayrollRunPolicy + fragment allowlist
+→ PayrollFragmentController.php | show(): Company + PayrollRunPolicy + fragment allowlist      <      ( views/partials )
 → GetPayrollRunDetailQuery.php → QueryBus → Handler → EloquentPayrollDeliveryReadRepository.php | runDetail()
 → PayrollRunDetailViewModel.php → resources/views/partials/run-*.blade.php
 → resources/ts/realtime/workforce.ts | company/run/version filter + debounce 250 ms + AbortController DOM replacement.
@@ -461,6 +463,7 @@ tests/Concurrency/Payroll/PayrollProcessConcurrencyTest.php | fixture()
 → final database invariant assertions → cleanup company-scoped fixture and barrier directory.
 Scenarios đã có process test thật: assignment overlap, same-period create, calculate/calculate,
 submit/recalculate, approve/reject, finalize/recalculate, finalize/finalize và payroll notification delivery.
+
 ================================================================================
 PHASE 3B-2A — PAYROLL INPUT OPERATIONS (FILE → METHOD → FILE)
 ================================================================================
@@ -474,11 +477,11 @@ GET /admin/payroll/inputs
 → PayrollInputOperationsReadRepositoryInterface.php | listing()
 → EloquentPayrollInputOperationsReadRepository.php | listing()
 → PayrollInputOperationsViewModel.php | snapshots, periods
-→ resources/views/inputs/index.blade.php.
+→ resources/views/inputs/index.blade.php. <
 
 POST /admin/payroll/inputs
 → PayrollInputOperationRequest.php | rules()
-→ PayrollController.php | store()
+→ PayrollController.php | store()        <
 → CapturePayrollInputSnapshotCommand.php
 → CommandBusInterface.php | dispatch()
 → CapturePayrollInputSnapshotHandler.php | handle()
@@ -497,7 +500,14 @@ GET /admin/payroll/inputs/{snapshot}
 → GetPayrollInputDetailHandler.php | handle()
 → EloquentPayrollInputOperationsReadRepository.php | detail()
 → PayrollInputOperationsViewModel.php | summary/employees/issues/history
-→ resources/views/inputs/show.blade.php.
+→ resources/views/inputs/show.blade.php.  <
+
+GET /admin/payroll/inputs/create
+→ PayrollController.php | create()
+→ GetPayrollInputCreateOptionsQuery.php → QueryBus → Handler
+→ EloquentPayrollInputOperationsReadRepository.php | periods(): same Company + collecting/review
+→ inputs/create.blade.php | dropdown hoặc empty state + Create Period link.      <
+
 
 GET /admin/payroll/inputs/{snapshot}/employees
 → Modules/Payroll/routes/web.php | route admin.payroll.inputs.employees.index
@@ -509,7 +519,7 @@ GET /admin/payroll/inputs/{snapshot}/employees
 → PayrollInputOperationsReadRepositoryInterface::employeeList()
 → EloquentPayrollInputOperationsReadRepository.php | employeeList() company scope + stable server pagination
 → PayrollInputEmployeeViewModel.php | items/page/hasMore
-→ inputs/employees.blade.php
+→ inputs/employees.blade.php   <
 
 GET /admin/payroll/inputs/{snapshot}/employees/{employeeInput}
 → Modules/Payroll/routes/web.php | route admin.payroll.inputs.employees.show
@@ -521,7 +531,7 @@ GET /admin/payroll/inputs/{snapshot}/employees/{employeeInput}
 → EloquentPayrollInputOperationsReadRepository.php | employeeDetail()
 → payroll_employee_inputs + payroll_input_source_records + validation issues (all company/snapshot scoped)
 → PayrollInputEmployeeViewModel.php
-→ inputs/employee.blade.php
+→ inputs/employee.blade.php   <
 
 POST payroll input capture — source accuracy sub-flow
 → PayrollInputGenerationService.php | generate()
@@ -562,18 +572,18 @@ PHASE 3B-2B — PAYROLL PERIOD OPERATIONS (FILE → METHOD → FILE)
 
 GET /admin/payroll/periods
 → Modules/Payroll/routes/web.php | admin.payroll.periods.index
-→ PayrollPeriodController.php | index(Request)
+→ PayrollPeriodController.php | index(Request)      <
 → GetPayrollPeriodListQuery.php | companyId + search/status/year/page
 → QueryBusInterface.php | ask()
 → GetPayrollPeriodListHandler.php | handle()
 → PayrollPeriodReadRepositoryInterface.php | listing()
 → EloquentPayrollPeriodReadRepository.php | listing(): tenant scope + counts + pagination
 → PayrollPeriodViewModel.php | items/page/hasMore
-→ resources/views/periods/index.blade.php.
+→ resources/views/periods/index.blade.php.     <
 
 POST /admin/payroll/periods
 → PayrollPeriodRequest.php | rules()
-→ PayrollPeriodController.php | store()
+→ PayrollPeriodController.php | store()      <
 → CreatePayrollPeriodCommand.php → CommandBusInterface.php | dispatch()
 → CreatePayrollPeriodHandler.php | handle()
 → PayrollPeriodOperationsService.php | create()
@@ -582,37 +592,34 @@ POST /admin/payroll/periods
 → redirect Period detail hoặc Payroll Input create.
 
 GET /admin/payroll/periods/{period}
-→ PayrollPeriodController.php | show()
+→ PayrollPeriodController.php | show()      <
 → GetPayrollPeriodDetailQuery.php → QueryBus → Handler
 → EloquentPayrollPeriodReadRepository.php | detail()
 → PayrollPeriodViewModel.php | detail/history/counts
-→ resources/views/periods/show.blade.php.
+→ resources/views/periods/show.blade.php.      <
 
 PUT /admin/payroll/periods/{period}
-→ PayrollPeriodRequest.php → PayrollPeriodController.php | update()
+→ PayrollPeriodRequest.php → PayrollPeriodController.php | update()     <     ( views/periods/show )
 → UpdatePayrollPeriodCommand.php → Handler
 → PayrollPeriodOperationsService.php | update(): draft + no dependency only
 → history/activity/event → detail redirect.
 
 POST /admin/payroll/periods/{period}/open|lock|close
-→ PayrollPeriodController.php | open()/lock()/close()
+→ PayrollPeriodController.php | open()/lock()/close()     <
 → matching Command → matching Handler
 → PayrollPeriodOperationsService.php | transition()
 → PayrollPeriodStateMachine.php | assertCanTransition()
 → PayrollPeriod + history/activity + PayrollPeriodChanged → redirect.
 
 DELETE /admin/payroll/periods/{period}
-→ PayrollPeriodController.php | destroy()
+→ PayrollPeriodController.php | destroy()        <       ( views/periods/index )
 → DeletePayrollPeriodCommand.php → Handler
 → PayrollPeriodOperationsService.php | delete(): draft + no Snapshot/Run only
 → activity log → list redirect.
 
-GET /admin/payroll/inputs/create
-→ PayrollController.php | create()
-→ GetPayrollInputCreateOptionsQuery.php → QueryBus → Handler
-→ EloquentPayrollInputOperationsReadRepository.php | periods(): same Company + collecting/review
-→ inputs/create.blade.php | dropdown hoặc empty state + Create Period link.
+================================================================================
 PHASE 3C-1 — INSURANCE POLICY WRITE
+================================================================================
 POST /admin/payroll/insurance/policies
 → InsuranceAdministrationRequest.php | rules()
 → InsuranceAdministrationController.php | savePolicy()
@@ -890,15 +897,17 @@ ACCOUNT / POLICY / MAPPING WRITE
 → AccountingAdministrationService.php | saveAccount/savePolicy/saveMapping
 → tenant, effective overlap, active/postable/currency validation
 → activity log + redirect
-PHASE 3E-1 — PAYROLL ADJUSTMENT FILE/FUNCTION FLOW
 
-GET /admin/payroll/adjustments → Modules/Payroll/routes/web.php | admin.payroll.adjustments.index → PayrollAdjustmentController.php | index() → QueryBusInterface.php | ask(GetPayrollAdjustmentQuery) → GetPayrollAdjustmentHandler.php | handle() → EloquentPayrollAdjustmentReadRepository.php | listing() → PayrollAdjustmentViewModel.php | data → adjustments/index.blade.php.
+======================================================================
+PHASE 3E-1 — PAYROLL ADJUSTMENT FILE/FUNCTION FLOW    |     Điều chỉnh lương
+======================================================================
+GET /admin/payroll/adjustments → Modules/Payroll/routes/web.php | admin.payroll.adjustments.index → PayrollAdjustmentController.php | index() → QueryBusInterface.php | ask(GetPayrollAdjustmentQuery) → GetPayrollAdjustmentHandler.php | handle() → EloquentPayrollAdjustmentReadRepository.php | listing() → PayrollAdjustmentViewModel.php | data → adjustments/index.blade.php.       <
 
-GET /admin/payroll/adjustments/create → PayrollAdjustmentController.php | create() → GetPayrollAdjustmentQuery(view=create) → GetPayrollAdjustmentHandler.php | handle() → EloquentPayrollAdjustmentReadRepository.php | createContext() → adjustments/create.blade.php.
+GET /admin/payroll/adjustments/create → PayrollAdjustmentController.php | create() → GetPayrollAdjustmentQuery(view=create) → GetPayrollAdjustmentHandler.php | handle() → EloquentPayrollAdjustmentReadRepository.php | createContext() → adjustments/create.blade.php.      <
 
 POST /admin/payroll/adjustments → PayrollAdjustmentRequest.php | rules() → PayrollAdjustmentController.php | store() → CommandBusInterface.php | dispatch(CreatePayrollAdjustmentCommand) → CreatePayrollAdjustmentHandler.php | handle() → PayrollAdjustmentManagementService.php | create() → payroll_items/payroll_runs finalized lock → historicalPayload() → snapshot() → payroll_adjustment_requests + payroll_adjustment_snapshots + payroll_adjustment_histories → PayrollAdjustmentChanged.php | broadcastOn()/broadcastWith() → redirect show.
 
-GET /admin/payroll/adjustments/{adjustment} → PayrollAdjustmentController.php | show() → QueryBusInterface | GetPayrollAdjustmentQuery(view=detail) → EloquentPayrollAdjustmentReadRepository.php | detail() → PayrollAdjustmentViewModel → adjustments/show.blade.php.
+GET /admin/payroll/adjustments/{adjustment} → PayrollAdjustmentController.php | show() → QueryBusInterface | GetPayrollAdjustmentQuery(view=detail) → EloquentPayrollAdjustmentReadRepository.php | detail() → PayrollAdjustmentViewModel → adjustments/show.blade.php.       <
 
 POST /admin/payroll/adjustments/{adjustment}/calculate → PayrollAdjustmentRequest.php | corrected integer totals → PayrollAdjustmentController.php | mutate() → ProcessPayrollAdjustmentCommand.php | corrected* → ProcessPayrollAdjustmentHandler.php | handle() → PayrollAdjustmentManagementService.php | calculate() → snapshotPayload(historical) → effectiveTotals(historical + SUM applied runs) → delta() → correction snapshot/checksum + components/issues/history/event.
 
@@ -933,7 +942,7 @@ PHASE 3E-1C2 — RETROACTIVE ADJUSTMENT DOWNSTREAM FILE/FUNCTION FLOW
 POST /admin/payroll/adjustments/{adjustment}/downstream/payment
 → Modules/Payroll/routes/web.php | admin.payroll.adjustments.downstream.execute
 → PayrollAdjustmentRequest.php | rules()/validatedCompanyId()
-→ PayrollAdjustmentController.php | downstream(type=payment)
+→ PayrollAdjustmentController.php | downstream(type=payment)                    <
 → Gate | payroll.adjustment.payment.create + workforce.company
 → CommandBusInterface.php | dispatch(CreateAdjustmentPaymentInstructionCommand)
 → CreateAdjustmentPaymentInstructionHandler.php | handle()
@@ -946,7 +955,7 @@ POST /admin/payroll/adjustments/{adjustment}/downstream/payment
 → PayrollAdjustmentController.php | redirect + flash.
 
 POST /admin/payroll/adjustments/{adjustment}/downstream/accounting
-→ PayrollAdjustmentController.php | downstream(type=accounting)
+→ PayrollAdjustmentController.php | downstream(type=accounting)                  <
 → Gate | payroll.adjustment.accounting.create + workforce.company
 → CommandBusInterface.php | dispatch(CreateAdjustmentAccountingJournalCommand)
 → CreateAdjustmentAccountingJournalHandler.php | handle()
@@ -959,7 +968,7 @@ POST /admin/payroll/adjustments/{adjustment}/downstream/accounting
 → redirect + flash.
 
 POST /admin/payroll/adjustments/{adjustment}/downstream/statement
-→ PayrollAdjustmentController.php | downstream(type=statement)
+→ PayrollAdjustmentController.php | downstream(type=statement)                 <
 → Gate | payroll.adjustment.statement.generate + workforce.company
 → CommandBusInterface.php | dispatch(GenerateAdjustmentStatementCommand)
 → GenerateAdjustmentStatementHandler.php | handle()
@@ -973,7 +982,7 @@ POST /admin/payroll/adjustments/{adjustment}/downstream/statement
 → redirect + flash.
 
 POST /admin/payroll/adjustments/{adjustment}/downstream/{type}/retry
-→ PayrollAdjustmentController.php | retry()
+→ PayrollAdjustmentController.php | retry()                                    <
 → Gate | payroll.adjustment.downstream.retry + artifact-specific permission
 → CommandBusInterface.php | dispatch(RetryAdjustmentDownstreamCommand)
 → RetryAdjustmentDownstreamHandler.php | handle()
@@ -984,7 +993,7 @@ POST /admin/payroll/adjustments/{adjustment}/downstream/{type}/retry
 → redirect + flash.
 
 GET /admin/payroll/adjustments/{adjustment}/statement/download
-→ PayrollAdjustmentController.php | downloadStatement()
+→ PayrollAdjustmentController.php | downloadStatement()                <
 → Gate | payroll.adjustment.statement.download + workforce.company
 → QueryBusInterface.php | ask(DownloadAdjustmentStatementQuery)
 → DownloadAdjustmentStatementHandler.php | handle()
@@ -994,11 +1003,11 @@ GET /admin/payroll/adjustments/{adjustment}/statement/download
 → StreamedResponse | private, no-store attachment.
 
 GET /admin/payroll/adjustments/{adjustment}
-→ PayrollAdjustmentController.php | show()
+→ PayrollAdjustmentController.php | show()                  <
 → GetPayrollAdjustmentHandler.php | handle()
 → EloquentPayrollAdjustmentReadRepository.php | detail()
 → PayrollAdjustmentViewModel.php | intents + Payment/Journal/Statement artifact data
-→ resources/views/adjustments/show.blade.php | artifact status, failure, execute/retry/download links, maker-checker warning.
+→ resources/views/adjustments/show.blade.php | artifact status, failure, execute/retry/download links, maker-checker warning.          <
 
 PHASE 3E-1C3 — CONCURRENCY + GUARDED BROWSER FIXTURE
 
@@ -1157,22 +1166,22 @@ POST /admin/payroll/erp/exports
 → redirect detail
 
 ============================================================
-PHASE 3E-4 — GOVERNMENT FILING FOUNDATION
+PHASE 3E-4 — GOVERNMENT-FILING FOUNDATION         | thiếu luồng create , show
 ============================================================
 
 GET /admin/payroll/government-filings
-→ GovernmentFilingController.php | index()
+→ GovernmentFilingController.php | index()      <
 → GetGovernmentFilingListQuery.php | companyId/status/year/search
 → QueryBus.php | ask()
 → GetGovernmentFilingListHandler.php | handle()
 → GovernmentFilingReadRepositoryInterface.php | list()
 → EloquentGovernmentFilingReadRepository.php | company-scoped projection
 → GovernmentFilingViewModel.php | filings
-→ government-filing/index.blade.php
+→ government-filing/index.blade.php        <
 
 POST /admin/payroll/government-filings
 → GovernmentFilingRequest.php | rules()
-→ GovernmentFilingController.php | store()
+→ GovernmentFilingController.php | store()      <
 → CreateGovernmentFilingCommand.php
 → CommandBus.php | dispatch()
 → CreateGovernmentFilingHandler.php | handle()
@@ -1182,7 +1191,7 @@ POST /admin/payroll/government-filings
 → redirect detail
 
 POST /admin/payroll/government-filings/{filing}/{generate|validate|approve|submit|retry|reject}
-→ GovernmentFilingController.php | mutate()
+→ GovernmentFilingController.php | mutate()      <
 → action-specific typed Command
 → matching Handler.php | handle()
 → GovernmentTaxFilingService.php | generate()/validate()/approve()/submit()/retry()/reject()
@@ -1192,7 +1201,7 @@ POST /admin/payroll/government-filings/{filing}/{generate|validate|approve|submi
 → redirect detail
 
 GET /admin/payroll/government-filings/{filing}/documents/{document}
-→ GovernmentFilingController.php | download()
+→ GovernmentFilingController.php | download()       <
 → DownloadGovernmentDocumentQuery.php
 → QueryBus.php | ask()
 → DownloadGovernmentDocumentHandler.php | handle()
@@ -1856,3 +1865,59 @@ Phase 3F-18 flow: source audit → typed performance findings → guarded synthe
 Phase 3F-18 Swagger completion hardening: generated OpenAPI documentation, dedicated permission and protected navigation/routes; no payroll semantics or data changed.
 Phase 3F-19 architecture governance is read-only and does not alter Payroll calculation, maker-checker, checksum, export or accounting semantics.
 Phase 3F-19 final: COMPLETED; full PHPUnit 468 tests/4,826 assertions/one skipped/exit 0, PHPStan 0, exact browser and production safety PASS.
+Phase 3F-22 không thay đổi nghiệp vụ Payroll, công thức, checksum hay dữ liệu lương. Payroll retention là policy Restricted, chưa gán số năm giả; disposal bị BLOCK cho tới khi có nguồn pháp lý được phê duyệt và adapter do Payroll sở hữu.
+
+Phase 3F-22 supplemental local flow: APP_ENV=local + schema_admin -> app:bootstrap-local-demo -> guarded admin bootstrap -> ordered Company/Organization/Employee/Recruitment/Onboarding seeders -> local operational seeder -> WorkflowDefinitionService/WorkflowExecutionService -> AuditRecorderInterface -> cache clear. APP_ENV=testing/production hoặc database testing/browser/deprecated development đều bị từ chối. Local manual Company create/update/soft-delete chạy qua controller -> validated request -> CommandBus -> handler/repository/transaction; diagnostic row được cleanup sau evidence.
+================================================================================
+CANONICAL ENABLED-MODULE FLOW INDEX (2026-08-13)
+================================================================================
+
+Core/Dashboard: web middleware (auth, verified, company context, correlation)
+-> named route -> controller -> QueryBus/read services -> cache-safe typed arrays
+-> Blade. Health and metrics remain read-only and telemetry fails open.
+
+Company/Organization: admin list/form -> module controller/FormRequest -> DTO or
+command/domain service -> owned repository/transaction -> companies,
+cost_centers, organization_units and job_positions -> scoped read model -> view.
+
+Employee: employee Blade/FormRequest -> EmployeeController -> employee command
+or query through the application bus -> handler/domain service -> repository and
+transaction -> employee/assignment/contract/history evidence -> query DTO -> view.
+
+Attendance/Leave: scoped UI -> validated controller action -> owned attendance or
+leave service/state transition -> transaction/idempotency -> record/balance/policy
+read model -> table/dashboard. Approval state is never forged by the UI.
+
+Recruitment/Onboarding: dashboard/list/form -> validated module controller ->
+requisition/candidate/application or onboarding service -> owned aggregate tables
+and state history -> read model -> Blade.
+
+Payroll: period/input/run/adjustment UI -> maker/checker authorization and typed
+commands -> payroll services/transactions -> immutable snapshot/calculation and
+checksum evidence -> read repositories -> governed exports/views. No local demo
+calls bank, ERP or government endpoints.
+
+Performance/Career/Analytics: scoped dashboard -> query/service -> company-owned
+goals/reviews/career/readiness/snapshot data -> bounded read model -> Blade.
+
+Workflow: WorkflowDefinitionService creates/publishes definitions;
+WorkflowExecutionService starts instances -> tasks/history/outbox -> consumers.
+
+Notification: safe message intent -> channel-specific delivery boundary ->
+idempotent delivery/retry state. Local demo uses database-only delivery.
+
+IAM: authenticated company-scoped request -> policy/permission -> governed access
+request/review or Spatie mutation adapter -> maker-checker/history/audit evidence.
+
+Integration: logical outbound intent -> connection adapter -> bounded retry/dead
+letter/checkpoint. Local demo uses LOCAL-NULL and performs no HTTP request.
+
+Audit: domain/application source -> AuditRecorderInterface -> append-only event,
+checksum/correlation/redaction -> dashboard/export read model.
+
+Operations/Data Lifecycle: operations.view route -> read-only controller -> typed
+policy registry/resolver/decision engine -> safe aggregate dashboard/CLI. Legal
+hold overrides disposal; no local-main physical disposal is performed.
+
+Historical detailed flows below remain evidence. This index covers all 16 enabled
+modules; disabled skeleton modules have no invented flow.

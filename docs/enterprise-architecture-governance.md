@@ -25,3 +25,6 @@ The status matrix is canonical. Older documents may retain intermediate PARTIAL 
 - No migration. All four databases remain 61 migrations/230 tables. Production business counts are unchanged.
 
 Phase 3F-19 status: **COMPLETED**.
+# Phase 3F-22 boundary
+
+`App\Support\DataLifecycle` is cross-cutting read-only policy. It does not bypass module writers. Future lifecycle mutation requires an owned adapter/contract from the source bounded context.

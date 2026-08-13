@@ -609,3 +609,32 @@ Phase 3F-18: no migration/index rollout. Testing-only PERF-DATASET (5,000 employ
 Phase 3F-18 Swagger hardening adds no migration or table. The four-environment migration/schema matrix remains unchanged; production remains read-only.
 Phase 3F-19 architecture governance adds no table or migration. Database write ownership is documented by bounded context; cross-module writes require command/service/outbox boundaries.
 Phase 3F-19 final matrix: schema_admin/schema_admin_development/schema_admin_testing/schema_admin_browser_testing each 61 migrations and 230 tables. Production counts unchanged.
+Phase 3F-22: NO MIGRATION. Data Lifecycle is a read-only policy/evaluation boundary. Existing Audit archive artifact tables remain Audit-owned. Matrix stays schema_admin/schema_admin_development/schema_admin_testing/schema_admin_browser_testing = 61 migrations / 230 tables. `schema_admin` is now the writable Mac local-main database; future VPS production is separately environment-defined. `schema_admin_development` is deprecated but retained pending explicit unique-data/reference review.
+================================================================================
+CANONICAL DATABASE OWNERSHIP / ENVIRONMENT MAP (2026-08-13)
+================================================================================
+
+Environment ownership: `schema_admin` = writable Mac local main;
+`schema_admin_testing*` = automated PHPUnit/integration; browser fixtures =
+`schema_admin_browser_testing`; VPS production = separate environment-defined DB.
+All current databases have 61 migrations / 230 tables; no Phase 3F-22 migration.
+
+Company owns companies/company_user_access; Organization owns cost_centers,
+organization_units/job_positions; Employee owns employees, assignments,
+employment_contracts, credentials, consents and histories; Attendance/Leave own
+work calendars/shifts/profiles, attendance_records, leave policies/balances/
+requests; Recruitment/Onboarding own requisitions, candidates, applications,
+interviews/offers and onboarding cases/items; Payroll owns periods, inputs,
+snapshots, runs/items, adjustments, payslips/payment/accounting/export evidence;
+Workflow owns definitions/versions/steps/instances/tasks/history/outbox;
+Notification owns messages/recipients/deliveries; IAM owns access requests,
+reviews, SoD/privileged evidence while Spatie owns roles/permissions pivots;
+Integration owns connections, outbound messages, attempts/dead letters/checkpoints;
+Audit owns append-only events/archive artifacts. Operations lifecycle remains a
+cross-cutting read-only policy and does not take ownership of module tables.
+
+Tenant-owned tables use company_id. Composite unique/idempotency keys preserve
+logical identity for retries. Lifecycle decisions must respect owner dependencies,
+classification and legal hold; Phase 3F-22 performs no physical disposal.
+
+Historical detailed schema evidence follows; this header is canonical.

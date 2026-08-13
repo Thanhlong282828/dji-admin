@@ -31,14 +31,8 @@ final class BootstrapDevelopmentAdminCommand extends Command
             return self::FAILURE;
         }
 
-        if (! app()->environment('local') || ! str_ends_with($database, '_development')) {
-            $this->components->error('Refusing to bootstrap outside APP_ENV=local and a *_development database.');
-
-            return self::FAILURE;
-        }
-
-        if ($database === 'schema_admin') {
-            $this->components->error('Refusing to bootstrap the protected production database.');
+        if (! app()->environment('local') || $database !== 'schema_admin') {
+            $this->components->error('Refusing to bootstrap outside APP_ENV=local and schema_admin.');
 
             return self::FAILURE;
         }
@@ -79,21 +73,21 @@ final class BootstrapDevelopmentAdminCommand extends Command
 
             $company = Company::withTrashed()->firstOrNew(['code' => 'SCHEMA-LOCAL']);
             $company->fill([
-                'name' => 'Schema Local Development',
-                'short_name' => 'Schema Local',
+                'name' => 'Công ty Cổ phần Công nghệ Minh Long',
+                'short_name' => 'Minh Long Tech',
                 'tax_code' => null,
                 'email' => 'company@local.test',
                 'phone' => null,
                 'website' => 'http://127.0.0.1:8001',
-                'address' => 'Local development environment',
+                'address' => '123 Nguyễn Văn Linh, Phường Tân Phong, Thành phố Hồ Chí Minh',
                 'country_code' => 'VN',
                 'currency' => 'VND',
                 'currency_code' => 'VND',
                 'timezone' => 'Asia/Ho_Chi_Minh',
-                'legal_representative' => 'Local Development Only',
+                'legal_representative' => 'Nguyễn Minh Long (Synthetic Demo)',
                 'status' => 'active',
                 'is_active' => true,
-                'description' => 'Development-only company. This is not production business data.',
+                'description' => 'SYNTHETIC LOCAL DEMO DATA — không phải dữ liệu doanh nghiệp thật.',
                 'created_by' => $user->id,
                 'updated_by' => $user->id,
             ]);
@@ -110,7 +104,7 @@ final class BootstrapDevelopmentAdminCommand extends Command
         $this->line("Database: {$database}");
         $this->line("Email: {$email}");
         $this->line('Role: Super Admin');
-        $this->line('Company: Schema Local Development (SCHEMA-LOCAL)');
+        $this->line('Company: Công ty Cổ phần Công nghệ Minh Long (SCHEMA-LOCAL)');
 
         return self::SUCCESS;
     }

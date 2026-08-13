@@ -1,0 +1,854 @@
+SCHEMA ENTERPRISE HRM — CHỨC NĂNG, THƯ VIỆN, LỆNH CÀI VÀ FILE ĐANG DÙNG
+===============================================================================
+
+MỤC ĐÍCH
+--------
+File này trả lời nhanh 4 câu hỏi cho từng công nghệ:
+1. Chức năng dùng để làm gì?
+2. Thư viện/package nào đang dùng?
+3. Nếu setup thủ công thì gõ lệnh Terminal nào?
+4. Cấu hình và code thật nằm ở file nào?
+
+LƯU Ý:
+- Project đã có composer.lock và package-lock.json. Khi clone project, ưu tiên:
+  composer install
+  npm ci
+- Các lệnh `composer require` / `npm install` bên dưới chỉ để giải thích cách cài
+  riêng từng thư viện, KHÔNG cần chạy lại trên working tree hiện tại.
+- Không chạy migrate/seed lên schema_admin production.
+
+
+1. LARAVEL FRAMEWORK
+--------------------
+Chức năng:
+- Web framework, routing, middleware, validation, Eloquent ORM, queue, cache,
+  event, scheduler, Blade, service container và Artisan CLI.
+
+Package:
+- laravel/framework ^13.8
+- PHP ^8.3
+
+Lệnh cài tay:
+composer create-project laravel/laravel admin
+# Hoặc trong project có sẵn:
+composer require laravel/framework:^13.8
+
+File chính:
+- composer.json
+- bootstrap/app.php
+- config/app.php
+- routes/web.php
+- routes/api.php
+- app/Providers/AppServiceProvider.php
+
+Lệnh chạy/kiểm tra:
+php artisan about
+php artisan route:list
+php artisan serve --host=127.0.0.1 --port=8001
+
+
+2. MODULAR MONOLITH
+-------------------
+Chức năng:
+- Chia Company, Organization, Employee, Payroll, Workflow, Notification, IAM,
+  Integration, Audit... thành bounded context/module nhưng vẫn deploy một app.
+
+Package:
+- nwidart/laravel-modules ^13.0
+
+Lệnh cài tay:
+composer require nwidart/laravel-modules:^13.0
+php artisan vendor:publish --provider="Nwidart\Modules\LaravelModulesServiceProvider"
+
+File chính:
+- Modules/*/module.json
+- Modules/*/app
+- Modules/*/routes
+- Modules/*/database
+- config/modules.php
+- modules_statuses.json
+
+Lệnh dùng:
+php artisan module:list
+php artisan module:make TenModule
+
+
+3. CQRS — COMMAND BUS / QUERY BUS
+--------------------------------
+Chức năng:
+- Write đi qua Command → Handler → Domain Service/Write Repository.
+- Read đi qua Query → Handler → Read Repository → DTO/ViewModel.
+- Giữ Controller mỏng và tách business mutation khỏi query tối ưu.
+
+Package:
+- Không dùng package CQRS ngoài; implementation nội bộ.
+
+Lệnh cài:
+- Không cần cài thư viện.
+
+File chính:
+- Modules/Core/app/Application/Buses/CommandBusInterface.php
+- Modules/Core/app/Application/Buses/QueryBusInterface.php
+- Modules/Core/app/Application/Buses/LaravelCommandBus.php
+- Modules/Core/app/Application/Buses/LaravelQueryBus.php
+- Modules/Core/app/Providers/CoreServiceProvider.php
+- Modules/*/app/Application/Commands
+- Modules/*/app/Application/Queries
+- Modules/*/app/Application/Handlers
+
+
+4. MYSQL DATABASE / TRANSACTION / CONCURRENCY
+---------------------------------------------
+Chức năng:
+- Lưu business state, transaction, row lock, unique constraint, foreign key.
+- Process-level race tests kiểm tra one logical winner và chống duplicate mutation.
+
+Thư viện:
+- Laravel PDO MySQL driver; MySQL 8.x qua Docker/local service.
+
+Lệnh Docker:
+docker compose up -d mysql
+docker compose ps
+
+File chính:
+- config/database.php
+- database/migrations
+- Modules/*/database/migrations
+- compose.yml
+- docker-compose.prod.yml
+- tests/Support/MysqlProcessRaceRunner.php
+- tests/Concurrency
+
+Lệnh an toàn theo environment:
+APP_ENV=testing DB_DATABASE=schema_admin_testing php artisan migrate:status
+APP_ENV=testing DB_DATABASE=schema_admin_testing php artisan test tests/Concurrency
+
+Database contract:
+- schema_admin                  = production, read only khi audit
+- schema_admin_development      = local demo data
+- schema_admin_testing          = PHPUnit/concurrency
+- schema_admin_browser_testing  = browser fixture disposable
+
+
+5. REDIS CACHE
+--------------
+Chức năng:
+- Cache read model theo company/version/filter.
+- Scheduler heartbeat, HTTP metrics/SLO snapshot.
+- Distributed lock cho scheduled jobs.
+- Queue/cache dependency readiness.
+
+Package:
+- predis/predis ^3.5
+
+Lệnh cài tay:
+composer require predis/predis:^3.5
+
+Lệnh chạy Redis:
+docker compose up -d redis
+redis-cli ping
+
+Environment thường dùng:
+REDIS_CLIENT=predis
+CACHE_STORE=redis
+
+File cấu hình/code:
+- config/cache.php
+- config/database.php (redis connections)
+- app/Support/OperationsHealthService.php
+- app/Support/HttpMetricsRecorder.php
+- app/Support/ReliabilitySnapshotService.php
+- Modules/Organization/app/Infrastructure/Persistence/Repositories/EloquentOrganizationReadRepository.php
+- Modules/Organization/app/Application/Listeners/OrganizationChangeListener.php
+- Modules/Employee/app/Application/Listeners/*ChangeListener.php
+
+Ví dụ flow cache:
+Query company-scoped
+→ build key có company/version/filter hash
+→ Cache::remember(...)
+→ domain mutation phát event
+→ listener tăng version
+→ lần đọc sau lấy dữ liệu mới
+
+
+6. REDIS QUEUE + LARAVEL HORIZON
+--------------------------------
+Chức năng:
+- Xử lý job/outbox/notification bất đồng bộ.
+- Horizon theo dõi queue, failed job, throughput và worker.
+
+Package:
+- laravel/horizon ^5.48
+- predis/predis ^3.5
+
+Lệnh cài tay:
+composer require laravel/horizon:^5.48 predis/predis:^3.5
+php artisan horizon:install
+
+File cấu hình:
+- config/queue.php
+- config/horizon.php (nếu publish theo environment)
+- compose.yml
+- docker-compose.prod.yml
+- Modules/*/app/Application/Jobs
+- Modules/*/app/Console/Commands/Consume*OutboxCommand.php
+
+Lệnh chạy:
+php artisan queue:work redis --tries=3
+php artisan horizon
+php artisan queue:failed
+php artisan queue:retry all
+
+
+7. REALTIME — REVERB + ECHO
+---------------------------
+Chức năng:
+- Private company channel và browser refresh event.
+- Payload chỉ chứa identifier/status/version, không chứa salary/token/secret.
+
+Package PHP:
+- laravel/reverb ^1.11
+
+Package JavaScript:
+- laravel-echo ^2.4.0
+- pusher-js ^8.6.0
+
+Lệnh cài tay:
+composer require laravel/reverb:^1.11
+php artisan reverb:install
+npm install laravel-echo@^2.4.0 pusher-js@^8.6.0
+
+File chính:
+- config/reverb.php
+- config/broadcasting.php
+- routes/channels.php
+- resources/ts
+- resources/js (nếu có bootstrap Echo)
+- app/Support/RuntimeConfiguration/FeatureFlag.php
+
+Lệnh chạy:
+php artisan reverb:start
+
+
+8. AUTHENTICATION — LARAVEL BREEZE
+----------------------------------
+Chức năng:
+- Login, logout, password/reset và verified email web flow.
+
+Package:
+- laravel/breeze ^2.4 (dev scaffolding)
+
+Lệnh cài tay:
+composer require laravel/breeze:^2.4 --dev
+php artisan breeze:install blade
+npm install
+npm run build
+
+File chính:
+- routes/auth.php
+- app/Http/Controllers/Auth
+- app/Http/Requests/Auth/LoginRequest.php
+- resources/views/auth
+- config/auth.php
+
+
+9. API AUTH — LARAVEL SANCTUM
+-----------------------------
+Chức năng:
+- API token/Bearer authentication cho enterprise APIs.
+- OpenAPI security scheme khớp Sanctum Bearer thật.
+
+Package:
+- laravel/sanctum ^4.3
+
+Lệnh cài tay:
+composer require laravel/sanctum:^4.3
+php artisan vendor:publish --provider="Laravel\Sanctum\SanctumServiceProvider"
+
+File chính:
+- app/Models/User.php (HasApiTokens)
+- config/sanctum.php nếu được publish
+- routes/api.php
+- Modules/*/routes/api.php
+- app/OpenApi/EnterpriseApi.php
+
+
+10. ROLE / PERMISSION — SPATIE PERMISSION
+-----------------------------------------
+Chức năng:
+- Role, permission, route middleware và server-side navigation filtering.
+- Ví dụ: operations.view, api.documentation.view, payroll.run.view.
+
+Package:
+- spatie/laravel-permission ^8.3
+
+Lệnh cài tay:
+composer require spatie/laravel-permission:^8.3
+php artisan vendor:publish --provider="Spatie\Permission\PermissionServiceProvider"
+php artisan migrate
+
+File chính:
+- config/permission.php
+- app/Models/User.php (HasRoles)
+- bootstrap/app.php (permission middleware aliases)
+- database/seeders/RolePermissionSeeder.php
+- app/Support/Navigation/AdminNavigation.php
+- Modules/Iam/app/Infrastructure/Persistence/SpatieAccessProvisioningAdapter.php
+
+Lệnh seed chỉ đúng môi trường:
+php artisan db:seed --class=RolePermissionSeeder
+
+
+11. ACTIVITY LOG
+----------------
+Chức năng:
+- Ghi actor/action/model activity cho các model/module legacy cần activity trail.
+- Enterprise Audit Platform riêng dùng immutable audit event/checksum/outbox.
+
+Package:
+- spatie/laravel-activitylog ^5.0
+
+Lệnh cài tay:
+composer require spatie/laravel-activitylog:^5.0
+php artisan vendor:publish --provider="Spatie\Activitylog\ActivitylogServiceProvider"
+
+File chính:
+- config/activitylog.php
+- Modules/Company/app/Domain/Models/Company.php
+- Modules/Company/app/Application/Listeners/WriteCompanyActivityLog.php
+- Modules/Audit
+
+
+12. PDF — DOMPDF
+----------------
+Chức năng:
+- Sinh Payslip PDF/compliance PDF private.
+- Lưu MIME, size, SHA-256 checksum; remote resources bị hạn chế.
+
+Package:
+- barryvdh/laravel-dompdf ^3.1
+
+Lệnh cài tay:
+composer require barryvdh/laravel-dompdf:^3.1
+
+File chính:
+- Modules/Payroll/app (search: Pdf, Payslip, Dompdf)
+- Modules/Audit/app (streaming compliance PDF)
+- storage/app/private
+- config/filesystems.php
+
+Lệnh tìm implementation:
+rg -n "Dompdf|PDF::|loadView" Modules app
+
+
+13. EXCEL / CSV EXPORT
+----------------------
+Chức năng:
+- Export spreadsheet/CSV cho Employee, Payroll, Audit, ERP/Government foundation.
+- Streaming/chunk/cursor để bounded memory.
+- Chống spreadsheet formula injection.
+
+Package:
+- maatwebsite/excel ^3.1
+
+Lệnh cài tay:
+composer require maatwebsite/excel:^3.1
+
+File chính:
+- Modules/Employee/app/Presentation/Http/Controllers/EmployeeExportController.php
+- Modules/Recruitment/app/Presentation/Http/Controllers/RecruitmentExportController.php
+- Modules/Organization/app/Domain/Services/SpreadsheetFormulaSanitizer.php
+- Modules/Payroll/app
+- Modules/Audit/app
+
+
+14. PRIVATE STORAGE / S3 / CLOUDFLARE R2 FOUNDATION
+--------------------------------------------------
+Chức năng:
+- Private file abstraction cho Payslip, Audit export, payment artifact.
+- Có thể dùng S3-compatible storage như Cloudflare R2 qua config; không hard-code secret.
+
+Package:
+- league/flysystem-aws-s3-v3 ^3.35
+
+Lệnh cài tay:
+composer require league/flysystem-aws-s3-v3:^3.35
+
+File chính:
+- config/filesystems.php
+- config/services.php
+- storage/app/private
+- .env.example (chỉ tên biến, không lưu credential thật)
+
+Lệnh kiểm tra symbolic link public (không dùng cho private artifact):
+php artisan storage:link
+
+
+15. SWAGGER / OPENAPI
+---------------------
+Chức năng:
+- Swagger UI, OpenAPI JSON và API contract governance.
+- Route thật so với docs, operationId unique, tenant/security/validation checks.
+
+Package:
+- darkaonline/l5-swagger ^11.1
+- swagger-php được kéo theo dependency.
+
+Lệnh cài tay:
+composer require darkaonline/l5-swagger:^11.1
+php artisan vendor:publish --provider="L5Swagger\L5SwaggerServiceProvider"
+php artisan l5-swagger:generate
+
+File chính:
+- config/l5-swagger.php
+- app/OpenApi/EnterpriseApi.php
+- app/Support/ApiContract
+- app/Console/Commands/ApiContractAuditCommand.php
+- storage/api-docs/api-docs.json
+- storage/api-docs/api-contract-baseline.json
+- tests/Contract
+
+URL:
+- /api/documentation = Swagger UI
+- /docs = protected OpenAPI JSON
+- /admin/operations/api-contracts = governance dashboard
+
+Lệnh audit:
+php artisan l5-swagger:generate
+php artisan operations:api-contract-audit
+
+
+16. PLAYWRIGHT-CORE + GOOGLE CHROME LOCAL
+-----------------------------------------
+Chức năng:
+- Browser test exact 1280×800 và 390×844.
+- Kiểm tra HTTP, overflow, console warning/error, mobile drawer và Swagger.
+- Không download Chromium; dùng Google Chrome đã cài trên macOS.
+
+Package:
+- playwright-core ^1.62.1
+
+Lệnh cài tay:
+npm install --save-dev playwright-core@^1.62.1
+
+Chrome executable:
+/Applications/Google Chrome.app/Contents/MacOS/Google Chrome
+
+File chính:
+- tests/Browser/*.mjs
+- tests/Browser/api-contract-governance-check.mjs
+- tests/Browser/accessibility-governance-check.mjs
+
+Lệnh kiểm tra version:
+node -e "console.log(require('playwright-core/package.json').version)"
+"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --version
+
+
+17. FRONTEND — VITE / TYPESCRIPT / ALPINE / TAILWIND
+----------------------------------------------------
+Chức năng:
+- Build CSS/TypeScript, responsive admin UI, interactive sidebar/drawer.
+
+Package:
+- vite ^8.0.0
+- laravel-vite-plugin ^3.1
+- typescript ^7.0.2
+- alpinejs ^3.4.2
+- tailwindcss ^3.1.0
+- @tailwindcss/forms ^0.5.2
+- postcss, autoprefixer
+
+Lệnh cài tay:
+npm install --save-dev vite laravel-vite-plugin typescript alpinejs tailwindcss @tailwindcss/forms postcss autoprefixer
+
+File chính:
+- package.json
+- vite.config.js / vite.config.ts
+- resources/css/app.css
+- resources/ts/admin-navigation.ts
+- resources/views/layouts/admin.blade.php
+- public/build (generated)
+
+Lệnh chạy:
+npm run dev
+npm run build
+
+
+18. PHPUNIT / FEATURE / CONCURRENCY / CONTRACT TEST
+--------------------------------------------------
+Chức năng:
+- Unit, Feature, Security, Integration, Contract và process-level concurrency.
+
+Package:
+- phpunit/phpunit ^12.5.12
+- mockery/mockery ^1.6
+- fakerphp/faker ^1.23
+- nunomaduro/collision ^8.6
+
+Lệnh cài tay:
+composer require --dev phpunit/phpunit:^12.5.12 mockery/mockery:^1.6 fakerphp/faker:^1.23 nunomaduro/collision:^8.6
+
+File chính:
+- phpunit.xml
+- tests/Unit
+- tests/Feature
+- tests/Contract
+- tests/Concurrency
+- tests/Security
+- Modules/*/tests
+
+Lệnh chạy an toàn:
+APP_ENV=testing DB_CONNECTION=mysql DB_DATABASE=schema_admin_testing php artisan test
+APP_ENV=testing DB_DATABASE=schema_admin_testing php artisan test tests/Contract
+
+
+19. PHPSTAN LEVEL 10 — LARASTAN
+-------------------------------
+Chức năng:
+- Static analysis cho PHP/Laravel/Eloquent ở level 10.
+- Kiểm tra generic collection, nullable, DTO, Builder, return type.
+
+Package:
+- larastan/larastan ^3.10
+
+Lệnh cài tay:
+composer require --dev larastan/larastan:^3.10
+
+File chính:
+- phpstan.neon / phpstan.neon.dist nếu có
+- composer.json
+
+Lệnh chạy:
+./vendor/bin/phpstan analyse app Modules --level=10 --no-progress --memory-limit=2G
+
+
+20. PINT — CODE STYLE
+---------------------
+Chức năng:
+- Format và kiểm tra coding style PHP.
+
+Package:
+- laravel/pint ^1.27
+
+Lệnh cài tay:
+composer require --dev laravel/pint:^1.27
+
+Lệnh chạy:
+./vendor/bin/pint --test
+./vendor/bin/pint
+
+
+21. LOG VIEWER — LARAVEL PAIL
+-----------------------------
+Chức năng:
+- Theo dõi application log trong Terminal khi development.
+
+Package:
+- laravel/pail ^1.2.5
+
+Lệnh cài tay:
+composer require --dev laravel/pail:^1.2.5
+
+File chính:
+- config/logging.php
+- storage/logs/laravel.log
+
+Lệnh chạy:
+php artisan pail
+tail -n 150 storage/logs/laravel.log
+
+
+22. DEBUGBAR — LOCAL ONLY
+-------------------------
+Chức năng:
+- Debug request/query/view trong local; phải tắt ở production/testing browser gate.
+
+Package:
+- barryvdh/laravel-debugbar ^4.4
+
+Lệnh cài tay:
+composer require --dev barryvdh/laravel-debugbar:^4.4
+
+Environment:
+APP_DEBUG=true
+DEBUGBAR_ENABLED=true
+
+Production/testing browser:
+APP_DEBUG=false
+DEBUGBAR_ENABLED=false
+
+
+23. DOCKER / PRODUCTION RUNTIME
+-------------------------------
+Chức năng:
+- Nginx, PHP-FPM, MySQL, Redis, worker, scheduler, Reverb/Horizon runtime.
+- Non-root, healthcheck, cap_drop, no-new-privileges, resource limits.
+
+Không phải Composer package.
+
+File chính:
+- Dockerfile
+- compose.yml
+- docker-compose.prod.yml
+- docker-compose.runtime-verify.yml
+- docker/nginx
+- scripts/deploy
+- scripts/operations
+
+Lệnh kiểm tra:
+docker compose -f compose.yml config --quiet
+APP_KEY=base64:TEST_ONLY_KEY DB_USERNAME=test DB_PASSWORD=test MYSQL_ROOT_PASSWORD=test APP_DB_DATABASE=schema_admin_testing \
+docker compose -f compose.yml -f docker-compose.prod.yml -f docker-compose.runtime-verify.yml config --quiet
+
+
+24. GITHUB ACTIONS / CI-CD
+--------------------------
+Chức năng:
+- Composer/npm install, migration, Vite, Pint, PHPStan, architecture/API contract,
+  concurrency, full PHPUnit, audits, secret scan, Docker image và deploy gates.
+
+File chính:
+- .github/workflows/ci.yml
+- scripts/ci/check-test-processes.sh
+- scripts/ci/scan-secrets.sh
+- scripts/ci/validate-pipeline.sh
+- scripts/deploy/release.sh
+- scripts/deploy/rollback.sh
+
+Lệnh chạy local tương ứng:
+composer validate --strict
+composer audit --no-interaction
+npm audit --omit=dev --audit-level=high
+scripts/ci/scan-secrets.sh
+scripts/ci/validate-pipeline.sh
+
+
+25. ENVIRONMENT SAFETY GUARD
+----------------------------
+Chức năng:
+- Chặn APP_ENV=local/testing kết nối schema_admin production.
+- Chặn APP_DEBUG=true ở production.
+- Chỉ cho fixture/benchmark chạy database có suffix an toàn.
+
+Package:
+- Implementation nội bộ, không cần thư viện.
+
+File chính:
+- app/Support/EnvironmentSafetyGuard.php
+- app/Providers/AppServiceProvider.php
+- config/environment-safety.php
+- tests/Unit/Architecture/EnvironmentSafetyGuardTest.php
+
+Contract:
+- local + schema_admin                  = BLOCK
+- local + schema_admin_development      = ALLOW
+- testing + schema_admin_testing...     = ALLOW
+- testing + schema_admin                = BLOCK
+- production + schema_admin + debug off = ALLOW
+
+
+26. OBSERVABILITY / RELIABILITY / SLO
+-------------------------------------
+Chức năng:
+- Correlation ID, structured logs, HTTP counters/latency percentiles.
+- Live/ready/metrics-readiness.
+- SLO, error budget, burn rate, alert definitions, queue/outbox lag.
+- Telemetry failure fail-open, không phá response nghiệp vụ.
+
+Package:
+- Chủ yếu implementation nội bộ, dùng Laravel Cache/Redis.
+
+File chính:
+- app/Http/Middleware/RequestCorrelationContext.php
+- app/Support/HttpMetricsRecorder.php
+- app/Support/OperationsHealthService.php
+- app/Support/ObservabilitySnapshotService.php
+- app/Support/ReliabilitySnapshotService.php
+- app/Support/SloCalculator.php
+- config/operations.php
+- routes/web.php (/health/*, /admin/operations/*)
+- resources/views/operations
+
+Lệnh kiểm tra:
+php artisan operations:health-check
+php artisan operations:heartbeat
+curl http://127.0.0.1:8001/health/live
+curl http://127.0.0.1:8001/health/ready
+curl http://127.0.0.1:8001/health/metrics-readiness
+
+
+27. RUNTIME FEATURE FLAGS / KILL SWITCH
+---------------------------------------
+Chức năng:
+- Typed flag, precedence, safe fallback và kill switch cho external side effect.
+- Ví dụ tắt Integration outbound/email/broadcast/Reverb nhưng giữ logical intent.
+
+Package:
+- Implementation nội bộ.
+
+File chính:
+- config/runtime-configuration.php
+- app/Support/RuntimeConfiguration/FeatureFlag.php
+- app/Support/RuntimeConfiguration
+- Modules/Integration/app/Infrastructure/Adapters/GenericHttpAdapter.php
+- Modules/Notification/app/Domain/Services/NotificationDeliveryService.php
+
+Lệnh audit:
+php artisan operations:config-audit
+
+
+28. WORKFLOW / NOTIFICATION / IAM / INTEGRATION / AUDIT OUTBOX
+-------------------------------------------------------------
+Chức năng:
+- Durable cross-module delivery, retry, checkpoint và idempotency.
+
+Package:
+- Business/platform implementation nội bộ; queue/cache dùng Laravel + Redis.
+
+File chính:
+- Modules/Workflow
+- Modules/Notification
+- Modules/Iam
+- Modules/Integration
+- Modules/Audit
+- */app/Console/Commands/Consume*Command.php
+- */app/Domain/Services/*Outbox*.php
+- Modules/Audit/app/Infrastructure/Ingestion/DomainOutboxAuditConsumer.php
+
+Luồng:
+Domain transaction
+→ outbox row
+→ consumer command/job
+→ checkpoint/idempotency guard
+→ target adapter/service
+→ attempt/history
+→ success, retry hoặc dead letter
+
+
+29. ENCRYPTION / SECRET / DATA PROTECTION
+-----------------------------------------
+Chức năng:
+- Laravel Crypt mã hóa account/credential boundary.
+- Masking/redaction/classification; không log token, salary, bank, tax, private path.
+- Integration secret chỉ lưu encrypted reference, không plaintext.
+
+Package:
+- Laravel encryption + implementation governance nội bộ.
+
+File chính:
+- config/secret-governance.php
+- app/Support/Secrets
+- app/Support/DataProtection
+- app/Support/SensitiveDataRedactor.php
+- Modules/Integration/app/Infrastructure/Security/EncryptedCredentialProvider.php
+- Modules/Integration/app/Domain/Contracts/IntegrationCredentialProviderInterface.php
+- Modules/Payroll/app (payment account/payslip boundaries)
+
+Lệnh scan:
+scripts/ci/scan-secrets.sh
+
+
+30. CÀI TOÀN BỘ PROJECT TỪ ĐẦU
+------------------------------
+Yêu cầu:
+- PHP 8.3+
+- Composer
+- Node/npm
+- MySQL 8.x
+- Redis hoặc Docker Desktop
+- Google Chrome local nếu chạy browser tests
+
+Lệnh chuẩn:
+cd /Users/lahoathanh/Desktop/laraveldji/admin
+composer install
+npm ci
+cp .env.example .env
+php artisan key:generate
+
+# Chỉ trỏ local tới database development:
+# APP_ENV=local
+# DB_DATABASE=schema_admin_development
+
+php artisan migrate
+php artisan app:bootstrap-development-admin
+php artisan app:bootstrap-development-data
+npm run build
+php artisan serve --host=127.0.0.1 --port=8001
+
+Chạy nhiều process development bằng Composer script:
+composer run dev
+
+
+31. QUALITY GATE NHANH
+----------------------
+php artisan l5-swagger:generate
+php artisan operations:api-contract-audit
+./vendor/bin/phpstan analyse app Modules --level=10 --no-progress --memory-limit=2G
+./vendor/bin/pint --test
+APP_ENV=testing DB_DATABASE=schema_admin_testing php artisan test tests/Contract
+php artisan view:clear
+php artisan view:cache
+php artisan view:clear
+npm run build
+composer audit --no-interaction
+npm audit --omit=dev --audit-level=high
+scripts/ci/scan-secrets.sh
+docker compose -f compose.yml config --quiet
+
+
+32. FULL QUALITY GATE
+---------------------
+APP_ENV=testing \
+DB_CONNECTION=mysql \
+DB_DATABASE=schema_admin_testing \
+php artisan test
+
+Không chạy test/fixture/load test trên schema_admin production.
+
+
+33. LỆNH TÌM NHANH KHI PHỎNG VẤN / DEBUG
+----------------------------------------
+# Xem route:
+php artisan route:list
+php artisan route:list --path=api
+
+# Xem migration:
+php artisan migrate:status
+
+# Xem module:
+php artisan module:list
+
+# Xem environment:
+php artisan about --only=environment
+
+# Xóa cache an toàn local:
+php artisan optimize:clear
+
+# Xem log:
+tail -n 150 storage/logs/laravel.log
+
+# Tìm code:
+rg -n "Cache::remember" app Modules
+rg -n "CommandBusInterface|QueryBusInterface" app Modules
+rg -n "lockForUpdate|Cache::lock" app Modules
+rg -n "outbox|idempotency|dead_letter" app Modules
+
+
+KẾT LUẬN
+--------
+Khi giải thích một chức năng, dùng công thức:
+
+CHỨC NĂNG
+→ PACKAGE/INFRASTRUCTURE
+→ LỆNH CÀI
+→ CONFIG FILE
+→ IMPLEMENTATION FILE
+→ LỆNH CHẠY/TEST
+
+Ví dụ Redis Cache:
+Cache Organization theo company/version
+→ predis/predis
+→ composer require predis/predis:^3.5
+→ config/cache.php + config/database.php
+→ EloquentOrganizationReadRepository.php + OrganizationChangeListener.php
+→ docker compose up -d redis + redis-cli ping

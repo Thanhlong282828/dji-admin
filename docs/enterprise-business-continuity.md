@@ -28,3 +28,6 @@ Continuity response links to the account, webhook, privilege-escalation and gene
 # Phase 3F-17 navigation
 
 Business Continuity remains a read-only child of the consolidated Operations group; route authorization is unchanged.
+# Phase 3F-22 archive distinction
+
+Backup remains recovery material and is not classified as lifecycle archive. Archive eligibility and disposal decisions require separate policy, integrity and ownership evidence.

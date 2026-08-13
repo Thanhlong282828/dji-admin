@@ -12,5 +12,7 @@ return [
         'realtime.reverb' => ['enabled' => (bool) env('FEATURE_REALTIME_REVERB', true), 'owner' => 'realtime', 'risk' => 'medium', 'failure' => 'closed', 'remove_when' => 'realtime is mandatory'],
         'audit.export' => ['enabled' => (bool) env('FEATURE_AUDIT_EXPORT', true), 'owner' => 'audit', 'risk' => 'high', 'failure' => 'closed', 'remove_when' => 'export policy moves to a dedicated governance service'],
         'iam.privileged_access' => ['enabled' => (bool) env('FEATURE_IAM_PRIVILEGED_ACCESS', true), 'owner' => 'iam', 'risk' => 'high', 'failure' => 'closed', 'remove_when' => 'privileged access is mandatory'],
+        'data_lifecycle.dry_run' => ['enabled' => (bool) env('DATA_LIFECYCLE_DRY_RUN_ENABLED', true), 'owner' => 'data-governance', 'risk' => 'medium', 'failure' => 'closed', 'remove_when' => 'retention evaluation is governed by an external control plane'],
+        'data_lifecycle.disposal' => ['enabled' => (bool) env('DATA_DISPOSAL_ENABLED', false), 'owner' => 'data-governance', 'risk' => 'high', 'failure' => 'closed', 'remove_when' => 'approved disposal orchestration owns this control'],
     ],
 ];

@@ -76,7 +76,7 @@ async function verify(label, width, height) {
     const operationItems = page.locator('#nav-group-operations');
     if (await operations.getAttribute('aria-expanded') !== 'true') throw new Error(`${label}: active Operations group is not open`);
     const openChildren = await operationItems.locator('.nav-item:visible').count();
-    if (openChildren !== 13 || !(await page.getByRole('link', { name: 'API Contracts', exact: true }).evaluate(element => element.classList.contains('active')))) throw new Error(`${label}: Operations active/count regression (${openChildren})`);
+    if (openChildren !== 14 || !(await page.getByRole('link', { name: 'API Contracts', exact: true }).evaluate(element => element.classList.contains('active')))) throw new Error(`${label}: Operations active/count regression (${openChildren})`);
     for (const linkName of ['API Contracts', 'API Documentation', 'Architecture', 'Test Quality']) {
         if (!(await page.getByRole('link', { name: linkName, exact: true }).isVisible())) throw new Error(`${label}: ${linkName} is not visible in Operations`);
     }

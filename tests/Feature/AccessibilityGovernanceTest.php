@@ -36,6 +36,7 @@ final class AccessibilityGovernanceTest extends TestCase
         $this->actingAs($user)->get('/dashboard')->assertOk()->assertDontSee('data-nav-group="operations"', false)->assertDontSee('Security Assurance');
         $user->givePermissionTo(Permission::findOrCreate('operations.view', 'web'));
         $this->actingAs($user)->get('/admin/operations/security-assurance')->assertOk()->assertSee('Vận hành nền tảng')->assertSee('Security Assurance')->assertDontSee('API Documentation');
+        $this->actingAs($user)->get('/admin/operations/data-lifecycle')->assertOk()->assertSee('Data Lifecycle');
 
         $user->givePermissionTo(Permission::findOrCreate('api.documentation.view', 'web'));
         $this->actingAs($user)->get('/dashboard')->assertOk()->assertSee('API Documentation');

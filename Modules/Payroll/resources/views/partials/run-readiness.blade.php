@@ -1,3 +1,30 @@
-<section class="rounded-xl border border-zinc-800 p-4" data-workforce-region data-refresh-scope="payroll-run-readiness" data-refresh-url="{{ route('admin.payroll.runs.fragments.show', ['run' => $viewModel->summary['id'], 'fragment' => 'readiness', 'company_id' => $companyId]) }}" data-company-id="{{ $companyId }}" data-entity-id="{{ $viewModel->summary['id'] }}" data-record-version="{{ $viewModel->summary['version'] }}" data-calculation-version="{{ $viewModel->summary['calculation_version'] }}">
-    <h2 class="text-lg font-semibold">Readiness</h2><p class="mt-2 text-zinc-400">{{ count($viewModel->issues) === 0 ? 'Không có lỗi validation đang hiển thị.' : count($viewModel->issues).' vấn đề cần xử lý.' }}</p>
+<section
+    class="rounded-xl border border-zinc-800 p-4"
+    data-workforce-region
+    data-refresh-scope="payroll-run-readiness"
+    data-refresh-url="{{ route('admin.payroll.runs.fragments.show', [
+        'run' => $viewModel->summary['id'],
+        'fragment' => 'readiness',
+        'company_id' => $companyId,
+    ]) }}"
+    data-company-id="{{ $companyId }}"
+    data-entity-id="{{ $viewModel->summary['id'] }}"
+    data-record-version="{{ $viewModel->summary['version'] }}"
+    data-calculation-version="{{ $viewModel->summary['calculation_version'] }}"
+>
+
+    {{-- ================================================================
+        PAYROLL RUN READINESS
+    ================================================================ --}}
+    <h2 class="text-lg font-semibold">
+        Readiness
+    </h2>
+
+    <p class="mt-2 text-zinc-400">
+        {{ count($viewModel->issues) === 0
+            ? 'Không có lỗi validation đang hiển thị.'
+            : count($viewModel->issues) . ' vấn đề cần xử lý.'
+        }}
+    </p>
+
 </section>

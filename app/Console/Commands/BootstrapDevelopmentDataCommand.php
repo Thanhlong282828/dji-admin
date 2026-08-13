@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use Database\Seeders\LocalDemoOperationalSeeder;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Artisan;
 use Modules\Company\Database\Seeders\CompanyDatabaseSeeder;
@@ -20,14 +21,14 @@ final class BootstrapDevelopmentDataCommand extends Command
     {
         $database = $this->databaseName();
 
-        if (! app()->environment('local') || ! str_ends_with($database, '_development')) {
-            $this->components->error('Refusing to bootstrap outside APP_ENV=local and a *_development database.');
+        if (! app()->environment('local') || $database !== 'schema_admin') {
+            $this->components->error('Refusing to bootstrap outside APP_ENV=local and schema_admin.');
 
             return self::FAILURE;
         }
 
-        if ($database === 'schema_admin' || str_ends_with($database, '_testing') || str_ends_with($database, '_browser_testing')) {
-            $this->components->error('Refusing to bootstrap a production or disposable testing database.');
+        if (str_contains($database, '_testing') || str_ends_with($database, '_development')) {
+            $this->components->error('Refusing to bootstrap a deprecated development or disposable testing database.');
 
             return self::FAILURE;
         }
@@ -38,6 +39,7 @@ final class BootstrapDevelopmentDataCommand extends Command
             EmployeeDatabaseSeeder::class,
             RecruitmentDatabaseSeeder::class,
             OnboardingDatabaseSeeder::class,
+            LocalDemoOperationalSeeder::class,
         ] as $seeder) {
             $exitCode = Artisan::call('db:seed', ['--class' => $seeder, '--force' => true]);
             if ($exitCode !== self::SUCCESS) {

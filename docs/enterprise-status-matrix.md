@@ -167,3 +167,6 @@ Phase 3F-18 remains COMPLETED. L5-Swagger 11.1.0 now exposes a generated, permis
 # Phase 3F-19 architecture governance
 
 Phase 3F-19 is **COMPLETED**. Evidence: 39 modules, 54 declared/39 observed direct dependency edges, zero cycles/undeclared/governed layer/CQRS/external-boundary violations; five real debt entries (three medium, two low) and five ADRs. Focused 43 tests/1,691 assertions/one skipped and full PHPUnit 468 tests/4,826 assertions/one skipped exited 0. Repository PHPStan level 10 is zero; exact 1280×800 and 390×844 browser, build/security/Compose, migration parity and production read-only gates pass.
+# Phase 3F-22 Data Lifecycle Governance
+
+Status: COMPLETED. Read-only retention registry/decision engine, legal-hold precedence, archive-integrity metadata, fail-closed disposal switch, CLI and Operations dashboard are implemented without migration or destructive local-main action. The supplemental local contract is also verified: writable Mac `schema_admin`, isolated PHPUnit/browser databases, idempotent synthetic dataset, IAM/sidebar regression and 16/16 enabled-module flow documentation. Full PHPUnit: 497 tests / 4,970 assertions / 1 skipped / exit 0. Completion evidence is recorded in `enterprise-data-lifecycle-governance.md` and `local-environment-and-demo-data.md`.

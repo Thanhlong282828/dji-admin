@@ -19,3 +19,6 @@ Release gates are tiered: static and architecture checks first, focused applicat
 - Browser: 18 pages at 1280×800 and 390×844, zero document overflow, console warnings/errors or page errors; Operations contains 12 permitted children.
 - Repository PHPStan level 10: zero errors. Affected-test PHPStan, Pint, Blade, Vite, Composer validate/audit/autoload, npm runtime audit, secret scan, Swagger generation, CI static validation and Docker config: PASS.
 - No migration. All four canonical databases remain 61 migrations / 230 tables. Production business counts are unchanged and browser fixture cleanup returned zero owned rows.
+# Phase 3F-22 critical invariant
+
+`INV-DLC-001` maps legal-hold precedence and fail-closed destructive disposal to focused unit/feature tests. Decision-only fixtures avoid destructive shared-database tests.

@@ -9,3 +9,6 @@ Every future retention rule must name classification, data owner, retention basi
 - Data-subject access should return category inventory for the authorized employee/company only, excluding secrets, other employees and internal security metadata.
 
 No production record is deleted, anonymized, exported or re-encrypted by this phase.
+# Phase 3F-22 executable governance
+
+The typed registry and deterministic decision engine are documented in `enterprise-data-lifecycle-governance.md`. All legal periods remain unconfigured pending an authoritative source; this blocks disposal. Legal hold precedes retention and disposal. The only runtime surfaces are a read-only CLI and aggregate dashboard; destructive disposal remains disabled.

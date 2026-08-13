@@ -50,8 +50,8 @@ final class ReleaseCheckCommand extends Command
         $database = DB::connection()->getDatabaseName();
 
         return match (app()->environment()) {
-            'production' => $database === 'schema_admin',
-            'local' => str_ends_with($database, '_development'),
+            'production' => is_string(config('release.production_database')) && config('release.production_database') !== '' && $database === config('release.production_database'),
+            'local' => $database === 'schema_admin',
             'testing' => str_contains($database, '_testing'),
             default => false,
         };

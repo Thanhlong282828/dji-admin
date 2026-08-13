@@ -36,3 +36,6 @@ Threat/finding DTOs and the security dashboard contain aggregate evidence only. 
 # Accessible metadata boundary
 
 ARIA labels and navigation search data are treated as presentation surfaces: only safe static labels/group keys are emitted; no user, tenant, Payroll, credential or private-path value is persisted client-side.
+# Phase 3F-22 lifecycle integration
+
+Retention decisions reuse Public/Internal/Confidential/Restricted classifications. Policy evidence contains aggregate metadata only; no protected field values, private paths or resource identifiers are emitted. Unapproved retention periods fail closed.

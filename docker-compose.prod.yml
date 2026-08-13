@@ -2,7 +2,7 @@ x-production-environment: &production-environment
   APP_KEY: ${APP_KEY:?APP_KEY is required for production}
   APP_ENV: production
   APP_DEBUG: "false"
-  DB_DATABASE: ${APP_DB_DATABASE:-schema_admin}
+  DB_DATABASE: ${APP_DB_DATABASE:?APP_DB_DATABASE must name the separate VPS production database}
   DB_USERNAME: ${DB_USERNAME:?DB_USERNAME is required for production}
   DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required for production}
   LOG_CHANNEL: production
@@ -25,7 +25,7 @@ services:
         limits: {cpus: "0.50", memory: 256M}
   mysql:
     environment:
-      MYSQL_DATABASE: ${APP_DB_DATABASE:-schema_admin}
+      MYSQL_DATABASE: ${APP_DB_DATABASE:?APP_DB_DATABASE must name the separate VPS production database}
       MYSQL_USER: ${DB_USERNAME:?DB_USERNAME is required for production}
       MYSQL_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required for production}
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?MYSQL_ROOT_PASSWORD is required for production}

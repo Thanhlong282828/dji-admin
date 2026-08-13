@@ -12,4 +12,6 @@ enum FeatureFlag: string
     case RealtimeReverb = 'realtime.reverb';
     case AuditExport = 'audit.export';
     case IamPrivilegedAccess = 'iam.privileged_access';
+    case DataLifecycleDryRun = 'data_lifecycle.dry_run';
+    case DataDisposal = 'data_lifecycle.disposal';
 }

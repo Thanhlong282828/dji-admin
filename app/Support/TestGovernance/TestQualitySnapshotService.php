@@ -80,7 +80,7 @@ final class TestQualitySnapshotService
     private function invariants(): array
     {
         return [
-            new CriticalInvariant('INV-ENV-001', 'Platform', 'Unsafe non-production connection to schema_admin is blocked.', 'critical', ['tests/Unit/Architecture/EnvironmentSafetyGuardTest.php'], 'SECURITY'),
+            new CriticalInvariant('INV-ENV-001', 'Platform', 'Local main and automation databases cannot be crossed between local, testing and production environments.', 'critical', ['tests/Unit/Architecture/EnvironmentSafetyGuardTest.php'], 'SECURITY'),
             new CriticalInvariant('INV-EMP-001', 'Employee', 'Concurrent assignment allocation cannot create overlapping active allocations.', 'critical', ['tests/Concurrency/Workforce/CriticalWorkflowProcessConcurrencyTest.php'], 'CONCURRENCY'),
             new CriticalInvariant('INV-PAY-001', 'Payroll', 'Payroll approval/finalization preserves maker-checker and idempotency.', 'critical', ['tests/Concurrency/Payroll/PayrollProcessConcurrencyTest.php'], 'CONCURRENCY'),
             new CriticalInvariant('INV-WFL-001', 'Workflow', 'Workflow transitions have one winner and immutable history/outbox.', 'critical', ['tests/Concurrency/Workflow/EnterpriseWorkflowProcessConcurrencyTest.php'], 'CONCURRENCY'),
@@ -93,6 +93,7 @@ final class TestQualitySnapshotService
             new CriticalInvariant('INV-NAV-001', 'Accessibility', 'Navigation is server-side permission filtered and keyboard operable.', 'high', ['tests/Feature/AccessibilityGovernanceTest.php', 'tests/Unit/Accessibility/AdminNavigationTest.php'], 'FEATURE/BROWSER'),
             new CriticalInvariant('INV-OPS-001', 'Operations', 'Redis telemetry failure cannot override the core health response.', 'critical', ['tests/Feature/OperationsReliabilityTest.php'], 'FEATURE'),
             new CriticalInvariant('INV-API-001', 'API', 'Governed API routes and OpenAPI operations remain aligned, uniquely identified and safely documented.', 'critical', ['tests/Contract/ApiContractGovernanceTest.php', 'tests/Feature/ApiDocumentationTest.php'], 'CONTRACT/SECURITY'),
+            new CriticalInvariant('INV-DLC-001', 'Data Lifecycle', 'Legal hold overrides retention eligibility and destructive disposal remains disabled by default.', 'critical', ['tests/Unit/DataLifecycle/DataLifecycleGovernanceTest.php', 'tests/Feature/OperationsDataLifecycleTest.php'], 'UNIT/FEATURE'),
         ];
     }
 

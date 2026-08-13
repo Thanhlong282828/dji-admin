@@ -474,3 +474,31 @@ Phase 3F-17 sidebar hardening: fixed the runtime CSS `[hidden]` override; server
 Phase 3F-18 Enterprise Performance Engineering: COMPLETED — typed performance findings/snapshot/audit command, protected dashboard, explicit query/cache/index governance and Employee list/export hardening. Synthetic 5,000-row export is chunk-eager-loaded and memory bounded; no migration or production load/mutation. Full PHPUnit 457 tests/4,750 assertions/1 skipped/exit 0; PHPStan 0; exact browser PASS.
 Phase 3F-18 Swagger hardening: L5-Swagger 11.1.0 restored at `/api/documentation` with protected JSON `/docs`, `api.documentation.view`, ten Operations children, real 11-path API inventory and exact desktop/mobile browser PASS; no migration.
 Phase 3F-19 Enterprise Architecture Governance: COMPLETED — 39 modules, 54 declared/39 observed edges, 0 cycles/undeclared/governed boundary violations; ownership/idempotency/debt registers, five ADRs and protected Architecture surface. Focused 43/1,691/1 skipped; full PHPUnit 468/4,826/1 skipped/exit 0; PHPStan 0; exact browser/build/production safety PASS; no migration.
+PHASE 3F-22 — DATA LIFECYCLE: COMPLETED. Typed retention policy registry, deterministic effective dating, legal-hold precedence, read-only dry-run CLI and aggregate Operations dashboard. Destructive disposal defaults disabled; no fake legal duration or migration. Supplemental local-main environment, idempotent synthetic dataset, IAM/sidebar and 16/16 enabled-module flow gates pass. Full PHPUnit 497 tests / 4,970 assertions / 1 skipped / exit 0; PHPStan level 10 = 0.
+================================================================================
+CANONICAL PROJECT MAP — CURRENT LOCAL CONTRACT (2026-08-13)
+================================================================================
+
+Environment: Mac local uses writable `schema_admin`; PHPUnit uses
+`schema_admin_testing*`; Playwright uses `schema_admin_browser_testing`; VPS
+production uses a separate environment-defined database. See
+`docs/local-environment-and-demo-data.md`.
+
+Enabled business/platform map (16/16 documented): Core (auth, health, buses),
+Company, Organization, Employee, Attendance, Leave, Recruitment, Onboarding,
+Payroll, Performance/Career/Analytics, Workflow, Notification, IAM, Integration,
+Audit and Dashboard. Operations governance layers provide Reliability,
+Observability, Performance, Release, Runtime Configuration, Secrets, Data
+Protection, Data Lifecycle, Business Continuity, Security Assurance, Swagger,
+Architecture, Test Quality and API Contracts.
+
+Entry flow: centralized permission-filtered sidebar -> named list/dashboard
+route -> controller -> validated Request/DTO -> CommandBus or module service for
+writes -> owned repository/transaction -> domain event/outbox/audit where the
+module defines it. Reads use QueryBus/read repository/read model -> safe ViewModel
+or typed array -> Blade. Business invariants (tenant scope, maker-checker,
+idempotency, immutable payroll/audit evidence) remain owned by their modules.
+
+Detailed class/file flows are in `luong.txt`; table ownership, relationships,
+indexes and lifecycle relevance are in `db.txt`. Historical sections below are
+retained as phase evidence; this header is the current canonical contract.

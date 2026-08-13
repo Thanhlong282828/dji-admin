@@ -12,9 +12,10 @@ final class EnvironmentSafetyGuardTest extends TestCase
     /** @return iterable<string, array{string, bool, string}> */
     public static function unsafeConfigurations(): iterable
     {
-        yield 'local cannot use production database' => ['local', false, 'schema_admin'];
+        yield 'local cannot use deprecated development database' => ['local', false, 'schema_admin_development'];
         yield 'testing cannot use production database' => ['testing', false, 'schema_admin'];
-        yield 'production debug is forbidden' => ['production', true, 'schema_admin'];
+        yield 'production cannot use Mac local database' => ['production', false, 'schema_admin'];
+        yield 'production debug is forbidden' => ['production', true, 'vps_admin_live'];
         yield 'testing database requires suffix' => ['testing', false, 'schema_admin_test'];
     }
 
@@ -22,15 +23,15 @@ final class EnvironmentSafetyGuardTest extends TestCase
     public function test_it_rejects_unsafe_environment_database_combinations(string $environment, bool $debug, string $database): void
     {
         $this->expectException(RuntimeException::class);
-        EnvironmentSafetyGuard::assertSafe($environment, $debug, $database, ['schema_admin']);
+        EnvironmentSafetyGuard::assertSafe($environment, $debug, $database, []);
     }
 
-    public function test_it_accepts_production_and_isolated_development_or_testing_databases(): void
+    public function test_it_accepts_local_main_vps_production_and_isolated_testing_databases(): void
     {
-        EnvironmentSafetyGuard::assertSafe('production', false, 'schema_admin', ['schema_admin']);
-        EnvironmentSafetyGuard::assertSafe('local', true, 'schema_admin_development', ['schema_admin']);
-        EnvironmentSafetyGuard::assertSafe('testing', true, 'schema_admin_testing', ['schema_admin']);
-        EnvironmentSafetyGuard::assertSafe('testing', true, 'schema_admin_testing_workflow', ['schema_admin']);
+        EnvironmentSafetyGuard::assertSafe('production', false, 'vps_admin_live', []);
+        EnvironmentSafetyGuard::assertSafe('local', true, 'schema_admin', []);
+        EnvironmentSafetyGuard::assertSafe('testing', true, 'schema_admin_testing', []);
+        EnvironmentSafetyGuard::assertSafe('testing', true, 'schema_admin_testing_workflow', []);
 
         $this->addToAssertionCount(4);
     }

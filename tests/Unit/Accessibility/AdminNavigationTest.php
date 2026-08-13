@@ -35,10 +35,10 @@ final class AdminNavigationTest extends TestCase
     {
         $groups = (new AdminNavigation)->definitions();
         $operations = array_values(array_filter($groups, static fn (array $group): bool => $group['key'] === 'operations'))[0];
-        self::assertSame(['Reliability', 'Observability', 'Performance', 'Architecture', 'Test Quality', 'API Contracts', 'Releases', 'Runtime Configuration', 'Secrets', 'Data Protection', 'Business Continuity', 'Security Assurance', 'API Documentation'], array_column($operations['items'], 'label'));
+        self::assertSame(['Reliability', 'Observability', 'Performance', 'Architecture', 'Test Quality', 'API Contracts', 'Releases', 'Runtime Configuration', 'Secrets', 'Data Protection', 'Data Lifecycle', 'Business Continuity', 'Security Assurance', 'API Documentation'], array_column($operations['items'], 'label'));
     }
 
-    public function test_fully_permitted_user_receives_nine_groups_and_thirteen_operations_children(): void
+    public function test_fully_permitted_user_receives_nine_groups_and_fourteen_operations_children(): void
     {
         $navigation = new AdminNavigation;
         $user = User::factory()->create();
@@ -50,7 +50,7 @@ final class AdminNavigationTest extends TestCase
         $groups = $navigation->for($user, Request::create('/dashboard'), 1);
         self::assertCount(9, $groups);
         $operations = array_values(array_filter($groups, static fn (array $group): bool => $group['key'] === 'operations'))[0];
-        self::assertCount(13, $operations['items']);
+        self::assertCount(14, $operations['items']);
     }
 
     public function test_group_without_any_permitted_child_is_absent(): void

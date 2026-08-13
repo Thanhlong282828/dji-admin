@@ -36,3 +36,6 @@ Swagger UI, generated JSON and package assets are protected by `web`, `auth`, `v
 # Phase 3F-19 architecture boundary
 
 Fitness functions verify governed Domain layers do not import HTTP/Presentation types, Spatie mutations remain in `SpatieAccessProvisioningAdapter`, external HTTP remains behind Integration policy/adapter boundaries, and Operations Architecture requires `operations.view`. No secret, PII, SQL binding or source dump enters its snapshot.
+# Phase 3F-22 lifecycle assurance
+
+Destructive disposal is a high-risk fail-closed runtime flag and defaults disabled. CLI/UI are read-only, permission protected and contain no PII, secret, private storage path or mutation controls.

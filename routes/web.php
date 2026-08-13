@@ -4,6 +4,7 @@ use App\Http\Controllers\ArticleController;
 use App\Http\Controllers\Operations\ApiContractsController;
 use App\Http\Controllers\Operations\ArchitectureController;
 use App\Http\Controllers\Operations\ContinuityController;
+use App\Http\Controllers\Operations\DataLifecycleController;
 use App\Http\Controllers\Operations\DataProtectionController;
 use App\Http\Controllers\Operations\HealthController;
 use App\Http\Controllers\Operations\ObservabilityController;
@@ -50,6 +51,7 @@ Route::get('/admin/operations/releases', ReleaseDashboardController::class)->mid
 Route::get('/admin/operations/configuration', RuntimeConfigurationController::class)->middleware(['auth', 'verified', 'permission:operations.view'])->name('admin.operations.configuration');
 Route::get('/admin/operations/secrets', SecretsController::class)->middleware(['auth', 'verified', 'permission:operations.view'])->name('admin.operations.secrets');
 Route::get('/admin/operations/data-protection', DataProtectionController::class)->middleware(['auth', 'verified', 'permission:operations.view'])->name('admin.operations.data-protection');
+Route::get('/admin/operations/data-lifecycle', DataLifecycleController::class)->middleware(['auth', 'verified', 'permission:operations.view'])->name('admin.operations.data-lifecycle');
 Route::get('/admin/operations/continuity', ContinuityController::class)->middleware(['auth', 'verified', 'permission:operations.view'])->name('admin.operations.continuity');
 Route::get('/admin/operations/security-assurance', SecurityAssuranceController::class)->middleware(['auth', 'verified', 'permission:operations.view'])->name('admin.operations.security-assurance');
 

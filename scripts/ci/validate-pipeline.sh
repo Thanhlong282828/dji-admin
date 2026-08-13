@@ -36,6 +36,7 @@ grep -q 'concurrency: production-deployment' "$workflow" || { echo 'Production d
 
 docker compose -f "$root_dir/compose.yml" config --quiet
 APP_KEY='base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=' \
+APP_DB_DATABASE='vps_ci_validation' \
 DB_USERNAME='ci_validation' \
 DB_PASSWORD='ci-validation-not-a-secret' \
 MYSQL_ROOT_PASSWORD='ci-validation-not-a-secret' \

@@ -13,3 +13,6 @@ The protected read-only dashboard is `/admin/operations/api-contracts` under `au
 Focused contract/navigation/security tests pass, and full PHPUnit completed with 485 tests, 484 passed, 4,923 assertions, one documented skip and exit 0. Repository and affected-test PHPStan level 10 report zero errors; Pint, Blade, Vite, Composer audit, npm runtime audit, secret scan, CI static validation and both Compose configurations pass. Production before/after counts are identical and no migration was added.
 
 The initial browser-tooling blocker is retained as historical evidence. It was resolved without Computer Use or a downloaded browser: `playwright-core` 1.62.1 launched the installed Google Chrome 151.0.7922.77 directly. Exact 1280×800 and 390×844 runs passed six admin pages plus Swagger/spec, 13/0 visible Operations children when open/closed, zero document overflow, console warnings/errors, page errors, 403/404/500 responses, and fixture cleanup 0/0/0. Phase 3F-21H and Phase 3F-21 Overall are COMPLETED.
+# Phase 3F-22 API posture
+
+No lifecycle mutation API was introduced. The Operations lifecycle surface is authenticated, verified, permission-protected HTML and exposes only aggregate read-only evidence.

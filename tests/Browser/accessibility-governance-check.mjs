@@ -31,6 +31,18 @@ async function verify(label, width, height) {
     page.on('pageerror', error => problems.push(`pageerror: ${error.message}`));
     page.on('response', response => { if (response.status() >= 400) problems.push(`http.${response.status()}: ${response.url()}`); });
     await page.goto(`${baseUrl}/admin/audit/_fixtures/login`, { waitUntil: 'networkidle' });
+    await page.goto(`${baseUrl}/dashboard`, { waitUntil: 'networkidle' });
+    const primaryNavigationUrls = [...new Set(await page.locator('.primary-navigation .nav-item').evaluateAll(links => links.map(link => link.href)))];
+    const primaryNavigationResults = [];
+    for (const rawUrl of primaryNavigationUrls) {
+        const navigationUrl = new URL(rawUrl);
+        if (navigationUrl.searchParams.has('company_id')) navigationUrl.searchParams.set('company_id', companyId);
+        const url = navigationUrl.toString();
+        const response = await page.goto(url, { waitUntil: 'networkidle' });
+        const layout = await page.evaluate(() => ({ clientWidth: document.documentElement.clientWidth, scrollWidth: document.documentElement.scrollWidth }));
+        if (response?.status() !== 200 || layout.scrollWidth !== layout.clientWidth) throw new Error(`${label}/primary-navigation: ${JSON.stringify({ url, status: response?.status(), ...layout })}`);
+        primaryNavigationResults.push({ url: new URL(url).pathname, status: response.status(), overflow: 0 });
+    }
     const tenant = `?company_id=${companyId}`;
     const pages = ['/dashboard', `/admin/employees${tenant}`, `/admin/payroll/runs${tenant}`, `/admin/workflows${tenant}`, `/admin/iam${tenant}`, `/admin/integrations${tenant}`, `/admin/audit${tenant}`, '/admin/operations/reliability', '/admin/operations/observability', '/admin/operations/performance', '/admin/operations/architecture', '/admin/operations/test-quality', '/admin/operations/api-contracts', '/admin/operations/releases', '/admin/operations/configuration', '/admin/operations/secrets', '/admin/operations/data-protection', '/admin/operations/continuity', '/admin/operations/security-assurance'];
     for (const path of pages) {
@@ -43,6 +55,7 @@ async function verify(label, width, height) {
     const dashboardResponse = await page.goto(`${baseUrl}/dashboard`, { waitUntil: 'networkidle' });
     if (!dashboardResponse?.ok()) throw new Error(`${label}: dashboard keyboard-check HTTP ${dashboardResponse?.status()} at ${page.url()}`);
     if (page.url() !== `${baseUrl}/dashboard`) throw new Error(`${label}: dashboard keyboard-check redirected to ${page.url()}`);
+    if (await page.locator('.skip-link').count() !== 1) throw new Error(`${label}: dashboard has no admin skip link; title=${await page.title()} body=${(await page.locator('body').innerText()).slice(0, 160)}`);
     await page.keyboard.press('Tab');
     if (!(await page.locator('.skip-link').evaluate(element => document.activeElement === element))) throw new Error(`${label}: skip link is not first keyboard focus target`);
     await page.waitForTimeout(300);
@@ -61,7 +74,8 @@ async function verify(label, width, height) {
         if (await operationsItems.isVisible() || await operationsItems.locator('.nav-item:visible').count() !== 0) throw new Error('desktop: closed Operations children are visible');
         await operations.focus();
         await page.keyboard.press('Enter');
-        if (await operations.getAttribute('aria-expanded') !== 'true' || !(await operationsItems.isVisible()) || await operationsItems.locator('.nav-item:visible').count() !== 13) throw new Error('desktop: Enter did not visibly expand 13 Operations children');
+        const visibleOperationsAfterEnter = await operationsItems.locator('.nav-item:visible').count();
+        if (await operations.getAttribute('aria-expanded') !== 'true' || !(await operationsItems.isVisible()) || visibleOperationsAfterEnter !== 14) throw new Error(`desktop: Enter exposed ${visibleOperationsAfterEnter} Operations children instead of 14`);
         if (await page.locator('[data-nav-group-toggle][aria-expanded="true"]').count() !== 1) throw new Error('desktop: accordion left multiple groups expanded');
         await operations.focus();
         await page.keyboard.press('Enter');
@@ -71,12 +85,12 @@ async function verify(label, width, height) {
         if (await operationsItems.evaluate(element => element.contains(document.activeElement))) throw new Error('desktop: collapsed child remained tabbable');
         await operations.focus();
         await page.keyboard.press('Space');
-        if (!(await operationsItems.isVisible()) || await operationsItems.locator('.nav-item:visible').count() !== 13) throw new Error('desktop: Space did not expand Operations');
+        if (!(await operationsItems.isVisible()) || await operationsItems.locator('.nav-item:visible').count() !== 14) throw new Error('desktop: Space did not expand Operations');
         const search = page.locator('[data-nav-search]');
         await search.fill('security');
         if (!(await page.getByRole('link', { name: 'Security Assurance' }).isVisible())) throw new Error('desktop: search did not expose permitted Security Assurance item');
         await search.fill('');
-        if (!(await operationsItems.isVisible()) || await operationsItems.locator('.nav-item:visible').count() !== 13 || await page.locator('[data-nav-group-toggle][aria-expanded="true"]').count() !== 1) throw new Error('desktop: clearing search did not restore accordion state');
+        if (!(await operationsItems.isVisible()) || await operationsItems.locator('.nav-item:visible').count() !== 14 || await page.locator('[data-nav-group-toggle][aria-expanded="true"]').count() !== 1) throw new Error('desktop: clearing search did not restore accordion state');
         await page.getByRole('link', { name: 'Security Assurance' }).click();
         await page.waitForLoadState('networkidle');
         await page.reload({ waitUntil: 'networkidle' });
@@ -95,7 +109,7 @@ async function verify(label, width, height) {
         const operationsItems = page.locator('#nav-group-operations');
         if (await operationsItems.isVisible()) throw new Error('mobile: Operations children visible before tap');
         await operations.click();
-        if (!(await operationsItems.isVisible()) || await operationsItems.locator('.nav-item:visible').count() !== 13) throw new Error('mobile: Operations did not show 13 children');
+        if (!(await operationsItems.isVisible()) || await operationsItems.locator('.nav-item:visible').count() !== 14) throw new Error('mobile: Operations did not show 14 children');
         await operations.click();
         if (await operationsItems.isVisible() || await operationsItems.locator('.nav-item:visible').count() !== 0) throw new Error('mobile: second tap did not collapse Operations');
         await operations.click();
@@ -120,5 +134,5 @@ async function verify(label, width, height) {
     const navigationEvidence = { totalLinks: await page.locator('.primary-navigation .nav-item').count(), visibleLinks: await page.locator('.primary-navigation .nav-item:visible').count(), expandedGroups: await page.locator('[data-nav-group-toggle][aria-expanded="true"]').count() };
     await page.screenshot({ path: `${evidenceDirectory}/${label}.png`, fullPage: true });
     await context.close();
-    return { label, width, height, pages: pages.length, overflow: 0, consoleProblems: 0, duplicateIds: 0, keyboard: 'passed', focus: 'passed', sidebar: 'passed', initialNavigationEvidence, navigationEvidence };
+    return { label, width, height, pages: pages.length, primaryNavigation: primaryNavigationResults, overflow: 0, consoleProblems: 0, duplicateIds: 0, keyboard: 'passed', focus: 'passed', sidebar: 'passed', initialNavigationEvidence, navigationEvidence };
 }

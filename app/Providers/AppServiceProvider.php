@@ -26,10 +26,10 @@ class AppServiceProvider extends ServiceProvider
         $connection = is_string($connectionValue) ? $connectionValue : '';
         $databaseValue = config('database.connections.'.$connection.'.database');
         $database = is_string($databaseValue) ? $databaseValue : '';
-        $protectedValue = config('environment-safety.protected_databases', ['schema_admin']);
+        $protectedValue = config('environment-safety.protected_databases', []);
         $protectedDatabases = is_array($protectedValue)
             ? array_values(array_filter($protectedValue, static fn (mixed $name): bool => is_string($name)))
-            : ['schema_admin'];
+            : [];
         $environmentValue = config('app.env');
         EnvironmentSafetyGuard::assertSafe(
             is_string($environmentValue) ? $environmentValue : 'production',

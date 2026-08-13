@@ -83,8 +83,8 @@ final class AdminNavigation
             ]),
             $this->group('access', 'Truy cập và bảo mật', '◆', [
                 $this->item('iam', 'IAM Governance', 'admin.iam.dashboard', ['admin.iam.dashboard', 'admin.iam.requests.*', 'admin.iam.roles', 'admin.iam.access-360'], 'iam.view', $company),
-                $this->item('privileged', 'Privileged Access', 'admin.iam.privileged', ['admin.iam.privileged', 'admin.iam.sod'], 'iam.view', $company),
-                $this->item('access-reviews', 'Access Reviews', 'admin.iam.reviews', ['admin.iam.reviews*'], 'iam.view', $company),
+                $this->item('privileged', 'Privileged Access', 'admin.iam.privileged', ['admin.iam.privileged', 'admin.iam.sod'], 'iam.privileged.manage', $company),
+                $this->item('access-reviews', 'Access Reviews', 'admin.iam.reviews', ['admin.iam.reviews*'], 'iam.review.manage', $company),
             ]),
             $this->group('operations', 'Vận hành nền tảng', '◉', [
                 $this->item('reliability', 'Reliability', 'admin.operations.reliability', ['admin.operations.reliability'], 'operations.view'),
@@ -97,6 +97,7 @@ final class AdminNavigation
                 $this->item('configuration', 'Runtime Configuration', 'admin.operations.configuration', ['admin.operations.configuration'], 'operations.view'),
                 $this->item('secrets', 'Secrets', 'admin.operations.secrets', ['admin.operations.secrets'], 'operations.view'),
                 $this->item('data-protection', 'Data Protection', 'admin.operations.data-protection', ['admin.operations.data-protection'], 'operations.view'),
+                $this->item('data-lifecycle', 'Data Lifecycle', 'admin.operations.data-lifecycle', ['admin.operations.data-lifecycle'], 'operations.view'),
                 $this->item('continuity', 'Business Continuity', 'admin.operations.continuity', ['admin.operations.continuity'], 'operations.view'),
                 $this->item('security-assurance', 'Security Assurance', 'admin.operations.security-assurance', ['admin.operations.security-assurance'], 'operations.view'),
                 $this->item('api-documentation', 'API Documentation', 'l5-swagger.default.api', ['l5-swagger.default.api'], 'api.documentation.view'),

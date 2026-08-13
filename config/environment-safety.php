@@ -3,7 +3,9 @@
 return [
     'protected_databases' => array_values(array_filter(array_map(
         static fn (string $name): string => trim($name),
-        explode(',', (string) env('PROTECTED_DATABASE_NAMES', 'schema_admin')),
+        explode(',', (string) env('PROTECTED_DATABASE_NAMES', '')),
     ))),
+    'local_database' => env('LOCAL_MAIN_DATABASE', 'schema_admin'),
+    'deprecated_development_database' => 'schema_admin_development',
     'require_testing_suffix' => (bool) env('REQUIRE_TESTING_DATABASE_SUFFIX', true),
 ];

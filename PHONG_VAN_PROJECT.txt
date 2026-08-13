@@ -3,7 +3,54 @@ SCHEMA ENTERPRISE HRM — TÀI LIỆU TRÌNH BÀY PROJECT KHI PHỎNG VẤN
 
 1. ELEVATOR PITCH — GIỚI THIỆU TRONG 60 GIÂY
 ------------------------------------------------
-“Schema Enterprise HRM là hệ thống quản trị nhân sự và nội dung doanh nghiệp xây bằng Laravel theo Modular Monolith, MVC kết hợp CQRS. Hệ thống quản lý company, organization, employee, recruitment, onboarding, attendance, leave, overtime và payroll end-to-end. Payroll dùng immutable input snapshot, calculation version, maker-checker, insurance, personal income tax, Payslip PDF private và Bank Payment Batch. Tôi tập trung vào tenant isolation, authorization, idempotency, concurrency, auditability và không dùng float cho dữ liệu tiền. Controller không truy cập database trực tiếp; write đi qua Command Bus, read đi qua Query Bus. Project chạy MySQL, Redis, queue, Reverb, Docker, PHPStan level 10, PHPUnit và Vite.”
+“Schema Enterprise HRM không chỉ là CRUD nhân sự mà là một Enterprise Platform xây bằng Laravel Modular Monolith, MVC kết hợp CQRS. Hệ thống có HR, Organization, Recruitment, Onboarding, Attendance, Leave và Payroll end-to-end; phía platform có Workflow Engine, Notification Center, IAM Governance, Integration Hub, Audit Platform, Observability, SRE, release certification, runtime feature flags, security/data protection, architecture governance và API contract governance. Tôi tập trung vào tính đúng đắn của nghiệp vụ nhạy cảm: tenant isolation, immutable snapshot, integer money, maker-checker, idempotency, concurrency, append-only audit và private artifact integrity. Controller mỏng; write đi qua Command Bus, read đi qua Query Bus. Project chạy MySQL, Redis, queue, Horizon, Reverb, Docker, PHPStan level 10, PHPUnit, Playwright với Chrome local và CI quality gates.”
+
+1A. PROJECT NÀY CÓ GÌ “HAY” ĐỂ PR
+----------------------------------
+1. Đây là Modular Monolith có boundary thật, không phải chia folder cho đẹp:
+   - Module sở hữu business state và write model của chính nó.
+   - Cross-module đi qua Command/Query Bus, service contract, event hoặc outbox.
+   - Có architecture test kiểm tra dependency graph, cycle và undeclared dependency.
+
+2. Payroll được thiết kế như hệ thống tài chính nhỏ:
+   - Input snapshot bất biến, calculation version và integer minor units.
+   - Maker-checker chống người tạo tự duyệt.
+   - Payslip PDF/private download có SHA-256 integrity.
+   - Payment Batch có idempotency, row lock và unique logical intent.
+   - “Released” chỉ là phát hành payment instruction, không nói sai rằng đã Paid.
+
+3. Có shared Enterprise Platform thay vì mỗi module tự làm lại:
+   - Workflow Engine điều phối approval nhưng không sở hữu state của HR/Payroll.
+   - Notification Center xử lý từng channel, retry và idempotency.
+   - IAM Governance quản lý access request/review, SoD và privileged access.
+   - Integration Hub quản lý connector, outbound/inbound, webhook, retry và dead letter.
+   - Audit Platform nhận event, lưu immutable timeline/checksum và compliance export.
+
+4. Reliability và production readiness được chứng minh bằng failure test:
+   - Redis down: live vẫn 200, ready/metrics-readiness trả 503 an toàn.
+   - Telemetry là side effect fail-open, không được làm hỏng response nghiệp vụ.
+   - Queue/worker restart không làm mất logical job hoặc duplicate mutation.
+   - Release candidate có manifest, image digest, release check, certificate và rollback simulation.
+
+5. Security/privacy không chỉ nằm ở middleware:
+   - Tenant isolation chống IDOR ở repository/service boundary.
+   - Secret reference không lộ plaintext; sensitive log context được redact.
+   - Salary, tax, bank, token và private path không xuất hiện trong operations UI/metrics.
+   - Swagger UI và OpenAPI JSON đều có auth + verified + permission riêng.
+
+6. Quality governance có evidence mạnh:
+   - Repository-wide PHPStan level 10 = 0.
+   - Full PHPUnit hiện tại: 485 tests, 4.923 assertions, exit code 0.
+   - Contract gate: 11 API paths, 24 documented operations, 0 orphan/undocumented.
+   - Exact browser 1280×800 và 390×844 bằng playwright-core + Google Chrome local.
+   - Bốn database environment tách biệt, cùng 61 migrations/230 tables.
+
+1B. CÁCH PR PROJECT NGẮN GỌN
+----------------------------
+Không nên nói: “Em làm một website quản lý nhân sự có nhiều màn hình.”
+
+Nên nói:
+“Em xây một enterprise HR/payroll platform theo Modular Monolith. Phần khó không phải CRUD mà là bảo toàn invariant khi có retry, concurrent request, approval nhiều bước, dữ liệu đa tenant và tích hợp ngoài. Em dùng CQRS cho read/write boundary, immutable snapshot cho Payroll, outbox cho cross-module delivery, idempotency và database constraint cho duplicate prevention, append-only audit cho compliance, sau đó chứng minh bằng process-level MySQL concurrency tests, failure recovery và release certification.”
 
 2. BÀI TOÁN PROJECT GIẢI QUYẾT
 ------------------------------
@@ -66,6 +113,74 @@ Nguyên tắc:
 - Payroll: period, immutable input, run, calculation, insurance, tax, Payslip, Payment Batch.
 - CMS/Article: nội dung website doanh nghiệp.
 - Core: Command Bus, Query Bus, shared security và notification foundation.
+- Workflow Engine: definition/version, instance, task, decision, history và outbox.
+- Notification Center: template, recipient, database/email/broadcast channel, retry và delivery audit.
+- IAM Governance: access request, SoD, privileged access, review/certification và Access 360.
+- Integration Hub: connector configuration, credential reference, outbound/inbound message, webhook, retry, dead letter.
+- Enterprise Audit: immutable event/snapshot, correlation, source checkpoint, compliance export và retention/archive foundation.
+- Operations Platform: health, reliability, observability, SLO/error budget, alerts, capacity và performance audit.
+- Release Governance: manifest, migration risk scan, release-check, certification, blue/green và rollback simulation.
+- Runtime Governance: typed feature flags, kill switch, safe fallback, config drift và release evidence.
+- Security/Data Protection: secret boundary, classification, masking/redaction, assurance dashboard và runbooks.
+- Engineering Governance: centralized accessible navigation, module dependency graph, test quality và API contract dashboard.
+
+4A. BẢN ĐỒ LUỒNG ENTERPRISE
+---------------------------
+Business intent luôn do domain quyết định:
+
+User/API
+→ Auth + Verified + Permission + Company Scope
+→ FormRequest validation
+→ Command Bus
+→ Domain Handler/Service
+→ MySQL transaction + invariant + lock/unique constraint
+→ Domain Outbox
+→ Workflow/Notification/Integration/Audit consumers
+→ Retry/checkpoint/idempotency
+→ Observability metrics + correlation ID
+
+Điểm quan trọng:
+- Workflow không tự đổi Payroll/Employee state; domain command mới quyết định state.
+- Integration Hub chỉ vận chuyển message, không sở hữu ERP/Government semantics.
+- Audit chỉ nhận event, không query/write trực tiếp business aggregate.
+- Notification retry theo channel, không tạo lại logical notification.
+- Mỗi consumer có checkpoint/idempotency để retry không duplicate mutation.
+
+4B. LUỒNG API CONTRACT
+----------------------
+Laravel routes
+→ deterministic route inventory
+→ OpenAPI annotations/attributes
+→ l5-swagger generate
+→ compare actual operations với documented operations
+→ kiểm tra operationId/security/tenant/pagination/validation/privacy
+→ normalized SHA-256 snapshot
+→ breaking-change classifier
+→ CI contract gate
+→ read-only API Contracts dashboard
+
+Evidence hiện tại:
+- 11 actual API paths.
+- 21 Laravel route records.
+- 24 actual/documented HTTP operations.
+- 0 undocumented, 0 orphan, 0 duplicate operationId.
+- Sanctum Bearer scheme khớp auth thật.
+- Swagger UI và `/docs` đều được bảo vệ.
+
+4C. LUỒNG RELEASE / PRODUCTION-LIKE CERTIFICATION
+------------------------------------------------
+Git SHA
+→ immutable Docker image tag + digest
+→ release manifest + migration inventory/checksum
+→ pre-deploy release-check
+→ isolated testing database migrate
+→ health/queue/scheduler/observability acceptance
+→ blue → green traffic switch simulation
+→ application rollback green → blue
+→ immutable certification artifact
+→ cleanup isolated runtime
+
+Không tuyên bố deploy production thật. Production database chỉ read-only audit trong các phase governance.
 
 5. DATABASE VÀ TENANT ISOLATION
 -------------------------------
@@ -191,6 +306,18 @@ Generic CSV:
 - UI reload fragment phù hợp, không cần full page reload.
 - Live two-browser chỉ được gọi VERIFIED sau kiểm tra bằng hai session thực.
 
+Luồng durable async:
+Domain transaction
+→ append Outbox record
+→ queue consumer đọc pending event
+→ idempotency/checkpoint guard
+→ xử lý channel/adapter
+→ append delivery attempt/history
+→ success hoặc bounded retry
+→ dead-letter khi hết retry
+
+Correlation ID đi xuyên HTTP → Command → Queue → Outbox → Integration/Notification → Audit để tra cứu sự cố end-to-end.
+
 12. CACHE VÀ PERFORMANCE
 -----------------------
 - Redis cache theo prefix company/entity/filter hash.
@@ -210,6 +337,17 @@ Generic CSV:
 - Aggregate consistency: run/item/component và batch/item totals phải khớp.
 - Real file integration: PDF/CSV bytes, checksum, MIME, size, private storage.
 - PHPStan level 10 và Pint là quality gate.
+- Contract: route thật phải khớp OpenAPI, operationId unique, không orphan documentation.
+- Architecture: module graph không cycle và dependency phải được khai báo.
+- Failure recovery: Redis/MySQL/worker outage chỉ chạy isolated testing runtime.
+- Browser: exact viewport, overflow, console error/warning, keyboard, mobile drawer và permission-filtered sidebar.
+
+Current evidence nổi bật:
+- Full PHPUnit: 485 tests, 4.923 assertions, 1 skip có tài liệu, exit 0.
+- PHPStan toàn app + Modules level 10: 0 errors.
+- Concurrency dùng process thật + MySQL, không giả race bằng hai function call tuần tự.
+- API Contract: 11 paths/24 operations, coverage complete.
+- Browser: Google Chrome local, 1280×800 và 390×844 exact.
 
 14. DEVOPS
 ----------
@@ -218,18 +356,43 @@ Generic CSV:
 - Vite frontend build.
 - CI/CD định hướng: Composer validate/install/audit, npm ci/build, Pint, PHPStan, PHPUnit, security scan, Docker validation/build, staging/production deploy.
 
-15. KỊCH BẢN DEMO 10 PHÚT
+Operations/SRE hiện có:
+- `/health/live`: process sống; không biến Redis thành liveness dependency.
+- `/health/ready`: dependency chưa sẵn sàng trả safe 503.
+- `/health/metrics-readiness`: metrics dependency contract an toàn.
+- Structured logging + correlation ID + sensitive-data redaction.
+- SLI/SLO, error budget, burn-rate và alert definition foundation.
+- Queue/outbox backlog, oldest age, dead letter và scheduler heartbeat.
+- Backup/restore guard, DR runbook, RTO/RPO và rollback policy.
+- Release manifest/certificate không chứa secret hay production PII.
+
+15. KỊCH BẢN DEMO 10 PHÚT — BUSINESS + ENGINEERING
 -------------------------
-1. Đăng nhập Admin và chỉ ra permission-aware sidebar.
-2. Company → Organization Tree → Job Position/Headcount.
-3. Employee → Assignment và tenant boundary.
-4. Recruitment pipeline → Offer → Onboarding.
-5. Attendance/Leave/Overtime approval.
-6. Payroll Period → Input Snapshot → Run detail.
-7. Calculate → Submit → checker Approve → Finalize.
-8. Payslip detail: exact calculation version, private PDF metadata.
-9. Payment Account: masked account và verification.
-10. Payment Batch: exact net-after-tax, maker-checker, release file; nhấn mạnh Released != Paid.
+1. Dashboard: giới thiệu centralized sidebar, permission filtering và multi-company context.
+2. Company → Organization Tree → Job Position/Headcount: chứng minh tenant-scoped organization.
+3. Employee → Assignment → Lifecycle: giải thích immutable history và cross-module event.
+4. Recruitment pipeline → Offer → Onboarding: kể luồng từ candidate thành employee.
+5. Payroll Period → immutable Input Snapshot → Calculate → Submit → Checker Approve → Finalize.
+6. Payslip/Payment Batch: private checksum, masked account, maker-checker; nhấn mạnh Released != Paid.
+7. Workflow/Notification: domain intent → outbox → consumer → retry/idempotency.
+8. Integration/Audit: webhook dedupe, dead letter và correlation timeline.
+9. Operations → Reliability/Observability/Performance/Security Assurance: cho thấy production engineering.
+10. API Documentation + API Contracts: Swagger thật, route/spec coverage và breaking-change gate.
+
+Nếu chỉ có 5 phút:
+- 1 phút architecture + boundary.
+- 2 phút Payroll invariant.
+- 1 phút Integration/Audit/outbox.
+- 1 phút tests, SRE và release evidence.
+
+Nếu phỏng vấn Backend:
+- Tập trung CQRS, transaction, lock, idempotency, outbox, concurrency và query governance.
+
+Nếu phỏng vấn DevOps/SRE:
+- Tập trung Docker non-root, health contracts, Redis failure recovery, observability, release certificate, backup/DR.
+
+Nếu phỏng vấn Security:
+- Tập trung tenant IDOR, maker-checker/SoD, encryption/masking, safe logs, protected Swagger và secret scan.
 
 16. CÂU HỎI PHỎNG VẤN VÀ CÁCH TRẢ LỜI
 --------------------------------------
@@ -266,17 +429,40 @@ A: Không. Payload chỉ identifier, status, version, count và refresh scopes. 
 Q: Khi nào sẽ tách Payroll thành microservice?
 A: Khi có independent deploy/scale/team ownership, integration bank/accounting phức tạp hoặc transaction volume đủ lớn. Trước đó module boundaries và outbox/event contract phải được chuẩn hóa.
 
+Q: Outbox giải quyết vấn đề gì?
+A: Transaction business state và việc gửi external message không thể commit nguyên tử nếu gọi HTTP trực tiếp. Domain ghi state + outbox trong cùng transaction. Consumer xử lý sau, có retry/idempotency/checkpoint; vì vậy không mất intent và không cần giữ DB transaction trong lúc gọi provider.
+
+Q: Vì sao Integration Hub không chứa nghiệp vụ ERP/Government?
+A: Hub chỉ sở hữu connection, message, attempt, retry, external reference và dead letter. Payroll/ERP/Government domain vẫn quyết định nội dung, lifecycle và rule pháp lý. Như vậy adapter thay đổi không làm business semantic bị dồn vào infrastructure.
+
+Q: Audit immutable được bảo đảm thế nào?
+A: Event/snapshot append-only, có SHA-256 checksum, correlation/causation và source checkpoint. Correction tạo event mới thay vì update event cũ. Export/download kiểm tra integrity và không lộ storage path.
+
+Q: Redis chết thì hệ thống phản ứng ra sao?
+A: Liveness vẫn 200 vì PHP process còn sống; readiness trả 503 vì dependency chưa sẵn sàng. Metrics recorder là non-critical side effect nên fail-open và không override response gốc. Khi Redis phục hồi, health trở lại 200 mà không mutate business state.
+
+Q: Làm sao biết Swagger không bị lệch code?
+A: CI generate OpenAPI rồi so route inventory theo method/path với documented operations, kiểm tra orphan, operationId, security, tenant, pagination và representative FormRequest. Snapshot được normalize trước khi checksum để whitespace không tạo false positive.
+
+Q: Project chứng minh concurrency bằng gì?
+A: Process-level tests dùng hai PHP process và MySQL thật, barrier để tạo contention, sau đó kiểm tra one logical winner, immutable history/outbox và không duplicate intent. Không dùng SQLite hay gọi hai closure tuần tự để giả race.
+
+Q: Có gì khác giữa observability và audit?
+A: Observability trả lời hệ thống có khỏe/nhanh không bằng aggregate metrics, log, SLO và alert. Audit trả lời ai làm gì trên resource nào, trước/sau ra sao và correlation nào. Metrics không chứa PII; audit có authorization/redaction riêng.
+
 17. TRADE-OFF VÀ HẠN CHẾ CẦN NÓI THẬT
 --------------------------------------
 - Full Payroll Platform vẫn PARTIAL.
 - Direct Bank Integration: NOT_CONNECTED.
 - Accounting Posting: NOT_CONNECTED.
-- Government Filing: NOT_CONNECTED.
-- Annual Tax Reconciliation: NOT_STARTED.
-- Retroactive/Off-cycle Adjustment: NOT_STARTED.
+- Government/ERP: đã có domain/integration foundation nhưng provider production thật chưa kết nối.
+- Annual Tax/Adjustment: đã có foundation và concurrency evidence; không tự tuyên bố compliant với mọi thay đổi pháp luật/quốc gia.
 - Payment CSV là generic foundation, không tự nhận là format chính thức mọi ngân hàng.
 - Manual reconciliation chỉ là foundation, không phải bank-confirmed payment.
-- Live two-browser realtime cần test thực trước khi gọi VERIFIED.
+- Canary/blue-green mới được chứng minh trong isolated Docker simulation, không tuyên bố hạ tầng production multi-instance.
+- Alert/incident foundation chưa tự gửi PagerDuty/Slack/email production nếu chưa cấu hình provider.
+- Local capacity benchmark chỉ là baseline trên máy development, không phải production SLA.
+- API hiện có 11 paths/24 operations; module chỉ có admin web route không được viết Swagger giả để tăng coverage.
 
 18. URL DEMO CHÍNH
 ------------------
@@ -289,8 +475,32 @@ A: Khi có independent deploy/scale/team ownership, integration bank/accounting 
 - Payslips: /admin/payroll/payslips?company_id=1
 - Payment Accounts: /admin/payroll/payment-accounts?company_id=1
 - Payment Batches: /admin/payroll/payment-batches?company_id=1
+- Workflow: /admin/workflows?company_id=1
+- Notification Center: /admin/notifications?company_id=1
+- IAM Governance: /admin/iam?company_id=1
+- Integration Hub: /admin/integrations?company_id=1
+- Audit Platform: /admin/audit?company_id=1
+- Reliability: /admin/operations/reliability
+- Observability: /admin/operations/observability
+- Performance: /admin/operations/performance
+- Releases: /admin/operations/releases
+- Runtime Configuration: /admin/operations/configuration
+- Security Assurance: /admin/operations/security-assurance
+- Architecture: /admin/operations/architecture
+- Test Quality: /admin/operations/test-quality
+- API Contracts: /admin/operations/api-contracts
+- Swagger UI: /api/documentation
+- OpenAPI JSON: /docs
+
+Development demo login:
+- Email: admin@local.test
+- Password: LocalAdmin123!
+- Database: schema_admin_development
+- Chỉ dùng local development, không phải production credential.
 
 19. CÂU KẾT THÚC KHI PHỎNG VẤN
 ------------------------------
 “Điểm tôi muốn thể hiện qua project không chỉ là số lượng module, mà là cách bảo vệ tính đúng đắn của nghiệp vụ nhạy cảm: immutable snapshot, versioning, integer money, maker-checker, tenant isolation, idempotency, database constraint, private file integrity và automated quality gate. Tôi cũng phân biệt rõ foundation với integration thật, ví dụ Released không đồng nghĩa Paid.”
 
+Phiên bản nhấn mạnh Engineering:
+“Project này thể hiện cách tôi đưa một Laravel Modular Monolith từ business application thành enterprise platform có reliability, observability, security, release và contract governance. Mỗi claim đều có evidence: process-level concurrency, failure recovery, PHPStan level 10, full regression, exact browser và production read-only safety audit.”

@@ -17,3 +17,9 @@ Phase 3F-21 records that representative FormRequest/response checks are intentio
 | ARCH-005 | Low | Permissions | Large catalog retains disabled-module metadata. | Entitlement review overhead. | Add owner/removal lifecycle; avoid in-place production renames. | Security governance | Open |
 
 No critical or high debt was found. Historical Article CQRS and dynamic action routing remain documented legacy exceptions rather than Phase 3F-19 rewrites.
+# Phase 3F-22 governed gaps
+
+- Approved jurisdiction/owner retention sources and durations are not yet supplied.
+- Persistent legal-hold lifecycle and maker-checker enforcement are deferred until mutation is authorized.
+- Provider-specific orphan private-object detection needs an owning storage adapter.
+- Irreversible anonymization rules are intentionally absent pending field-level authority.
