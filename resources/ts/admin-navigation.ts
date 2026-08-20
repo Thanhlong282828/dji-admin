@@ -100,3 +100,113 @@ document.querySelectorAll<HTMLElement>('.table-scroll').forEach(container => {
     if (!container.hasAttribute('role')) container.setAttribute('role', 'region');
     if (!container.hasAttribute('aria-label')) container.setAttribute('aria-label', 'Bảng dữ liệu có thể cuộn ngang');
 });
+
+document.querySelectorAll<HTMLSelectElement>('[data-position-select]').forEach(select => {
+    const form = select.closest('form');
+    const unit = form?.querySelector<HTMLInputElement>('[data-position-unit]');
+    const synchronize = () => { if (unit) unit.value = select.selectedOptions.item(0)?.dataset.unit ?? ''; };
+    select.addEventListener('change', synchronize);
+    synchronize();
+});
+
+document.querySelectorAll<HTMLFormElement>('[data-career-form]').forEach(form => {
+    const unit = form.querySelector<HTMLSelectElement>('[data-career-unit]');
+    const position = form.querySelector<HTMLSelectElement>('[data-career-position]');
+    if (!unit || !position) return;
+    const synchronize = () => {
+        Array.from(position.options).forEach(option => {
+            if (option.value === '') return;
+            const visible = unit.value !== '' && option.dataset.unit === unit.value;
+            option.hidden = !visible;
+            option.disabled = !visible;
+        });
+        if (position.selectedOptions.item(0)?.disabled) position.value = '';
+    };
+    unit.addEventListener('change', synchronize);
+    synchronize();
+});
+
+document.querySelectorAll<HTMLSelectElement>('[data-employee-unit]').forEach(unit => {
+    const form = unit.closest('form');
+    const position = form?.querySelector<HTMLSelectElement>('[data-employee-position]');
+    if (!position) return;
+    const synchronize = () => {
+        const selectedUnit = unit.value;
+        Array.from(position.options).forEach(option => {
+            if (option.value === '') return;
+            option.hidden = selectedUnit !== '' && option.dataset.unit !== selectedUnit;
+            option.disabled = option.hidden;
+        });
+        if (position.selectedOptions.item(0)?.disabled) position.value = '';
+    };
+    unit.addEventListener('change', synchronize);
+    synchronize();
+});
+
+document.querySelectorAll<HTMLElement>('[data-avatar-preview-root]').forEach(root => {
+    const input = root.querySelector<HTMLInputElement>('[data-avatar-input]');
+    const preview = root.querySelector<HTMLImageElement>('[data-avatar-preview]');
+    const fallback = root.querySelector<HTMLElement>('[data-avatar-fallback]');
+    if (!input || !preview || !fallback) return;
+    const existing = root.dataset.existingAvatar ?? '';
+    let objectUrl: string | null = null;
+    const reset = () => {
+        if (objectUrl) URL.revokeObjectURL(objectUrl);
+        objectUrl = null;
+        preview.src = existing;
+        preview.hidden = existing === '';
+        fallback.hidden = existing !== '';
+    };
+    input.addEventListener('change', () => {
+        const file = input.files?.item(0);
+        if (!file || !['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+            reset();
+            return;
+        }
+        if (objectUrl) URL.revokeObjectURL(objectUrl);
+        objectUrl = URL.createObjectURL(file);
+        preview.src = objectUrl;
+        preview.hidden = false;
+        fallback.hidden = true;
+    });
+    window.addEventListener('pagehide', () => { if (objectUrl) URL.revokeObjectURL(objectUrl); }, { once: true });
+});
+
+const compensationMoney = (value: unknown): string => `${new Intl.NumberFormat('vi-VN').format(Number(value) || 0)} ₫`;
+document.querySelectorAll<HTMLSelectElement>('[data-career-position]').forEach(select => {
+    select.addEventListener('change', () => {
+        const panel = select.closest('form')?.querySelector<HTMLElement>('[data-projected-compensation]');
+        const raw = select.selectedOptions.item(0)?.dataset.compensation;
+        if (!panel || !raw) { if (panel) panel.hidden = true; return; }
+        try {
+            const value = JSON.parse(raw) as Record<string, unknown>;
+            const set = (selector: string, label: string, key: string) => { const node = panel.querySelector<HTMLElement>(selector); if (node) node.textContent = `${label} ${compensationMoney(value[key])}`; };
+            set('[data-projected-base]', 'Base', 'base_salary_minor');
+            set('[data-projected-kpi]', 'KPI', 'kpi_target_minor');
+            set('[data-projected-allowance]', 'Phụ cấp', 'fixed_allowance_minor');
+            set('[data-projected-target]', 'Target', 'target_gross_minor');
+            panel.hidden = false;
+        } catch { panel.hidden = true; }
+    });
+});
+
+const wireDialog = (triggerSelector: string, dialogSelector: string, beforeOpen?: () => Promise<void>): void => {
+    const trigger = document.querySelector<HTMLButtonElement>(triggerSelector);
+    const dialog = document.querySelector<HTMLDialogElement>(dialogSelector);
+    if (!trigger || !dialog) return;
+    trigger.addEventListener('click', async () => { if (beforeOpen) await beforeOpen(); dialog.showModal(); });
+    dialog.querySelectorAll<HTMLButtonElement>('[data-dialog-close]').forEach(button => button.addEventListener('click', () => dialog.close()));
+    dialog.addEventListener('close', () => trigger.focus());
+};
+let compensationLoaded = false;
+wireDialog('[data-compensation-reference-open]', '[data-compensation-reference-dialog]', async () => {
+    if (compensationLoaded) return;
+    const trigger = document.querySelector<HTMLButtonElement>('[data-compensation-reference-open]');
+    const body = document.querySelector<HTMLElement>('[data-compensation-reference-body]');
+    if (!trigger?.dataset.url || !body) return;
+    const response = await fetch(trigger.dataset.url, { headers: { Accept: 'text/html' }, credentials: 'same-origin' });
+    if (!response.ok) throw new Error(`Compensation reference failed (${response.status})`);
+    body.innerHTML = await response.text();
+    compensationLoaded = true;
+});
+wireDialog('[data-admin-help-open]', '[data-admin-help-dialog]');

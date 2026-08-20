@@ -5,6 +5,11 @@
     @if(session('success'))<div class="flash success">{{ session('success') }}</div>@endif
     @if($errors->any())<div class="flash error">{{ $errors->first() }}</div>@endif
     <header class="profile-header">
+        @if(!empty($item['avatar_storage_key']))
+            <img class="avatar" src="{{ route('admin.employees.avatar.show',['employee'=>$item['id'],'company_id'=>$companyId]) }}" alt="Avatar của {{ $item['full_name'] }}">
+        @else
+            <span class="avatar" aria-hidden="true">{{ mb_strtoupper(mb_substr($item['full_name'],0,1)) }}</span>
+        @endif
         <div>
             <small>{{ $item['employee_code'] }}</small>
             <h2>{{ $item['full_name'] }}</h2>
@@ -13,6 +18,15 @@
         @can('employee.update')
             <a href="{{ route('admin.employees.edit', ['employee' => $item['id'], 'company_id' => $companyId]) }}">Chỉnh sửa</a>
         @endcan
+        @if(!empty($item['avatar_storage_key']))
+            @can('employee.manage-avatar')
+                <form method="POST" action="{{ route('admin.employees.avatar.destroy', ['employee' => $item['id']]) }}">
+                    @csrf @method('DELETE')
+                    <input type="hidden" name="company_id" value="{{ $companyId }}">
+                    <button type="submit">Gỡ avatar</button>
+                </form>
+            @endcan
+        @endif
     </header>
 
     <nav class="tabs" aria-label="Hồ sơ nhân viên">
@@ -27,7 +41,7 @@
         @can('employee-user.view')<a href="#account">Tài khoản</a>@endcan
     </nav>
 
-    <article id="overview"><h3>Tổng quan</h3><p>Trạng thái: {{ $item['employment_status'] }}</p><p>Định danh: {{ $item['identity_number'] ?: 'Chưa cập nhật' }}</p></article>
+    <article id="overview"><h3>Tổng quan</h3><p>Trạng thái: {{ $item['employment_status'] }}</p><p>Ngày sinh: {{ !empty($item['date_of_birth']) ? \Carbon\CarbonImmutable::parse($item['date_of_birth'])->format('d/m/Y').' · '.\Carbon\CarbonImmutable::parse($item['date_of_birth'])->age.' tuổi' : '—' }}</p><p>Giới tính: {{ $item['gender'] ?? '—' }}</p><p>Định danh: {{ $item['identity_number'] ?: 'Chưa cập nhật' }}</p></article>
     <article id="work"><h3>Công việc</h3><p>Ngày vào làm: {{ $item['join_date'] }}</p><p>Loại hình: {{ $item['employment_type'] }}</p></article>
 
     @can('employee-assignment.view')
@@ -87,7 +101,10 @@
     @endcan
 
     @can('employee-user.view')
-    <article id="account"><h3>Tài khoản</h3><p>{{ $item['user_id'] ? 'Đã liên kết tài khoản' : 'Chưa liên kết tài khoản' }}</p></article>
+    <article id="account"><h3>Tài khoản đăng nhập</h3><p>{{ $item['user_id'] ? 'Đã liên kết' : 'Chưa liên kết' }} · {{ data_get($item,'user.access_enabled',false) ? 'ACTIVE' : 'DISABLED/CHƯA CÓ' }}</p>
+    @can('employee-user.link')<form method="POST" action="{{ route('admin.employees.account.save',['employee'=>$item['id']]) }}">@csrf<input type="hidden" name="company_id" value="{{ $companyId }}"><label>Email đăng nhập<input type="email" name="account_email" required value="{{ old('account_email',data_get($item,'user.email',$item['work_email']??'')) }}"></label><label>Mật khẩu mới<input type="password" name="account_password" autocomplete="new-password" minlength="12"><small>Để trống khi chỉnh sửa nếu không đổi.</small></label><label>Xác nhận mật khẩu<input type="password" name="account_password_confirmation" autocomplete="new-password"></label><label>Vai trò<select name="role" required>@foreach(\Spatie\Permission\Models\Role::query()->where('guard_name','web')->orderBy('name')->pluck('name') as $role)<option value="{{ $role }}" @selected(data_get($item,'user.roles.0.name')===$role)>{{ $role }}</option>@endforeach</select></label><input type="hidden" name="access_enabled" value="0"><label><input type="checkbox" name="access_enabled" value="1" @checked((bool)data_get($item,'user.access_enabled',true))> Cho phép đăng nhập</label><input type="hidden" name="verified" value="0"><label><input type="checkbox" name="verified" value="1" @checked((bool)data_get($item,'user.email_verified_at',true))> Email đã xác minh</label><button type="submit">Lưu tài khoản</button></form>@endcan
+    @if($item['user_id']) @can('employee-user.unlink')<form method="POST" action="{{ route('admin.employees.account.access',['employee'=>$item['id'],'state'=>data_get($item,'user.access_enabled',true)?'disable':'enable']) }}">@csrf<input type="hidden" name="company_id" value="{{ $companyId }}"><button type="submit">{{ data_get($item,'user.access_enabled',true)?'Vô hiệu hóa đăng nhập':'Mở lại đăng nhập' }}</button></form>@endcan @endif
+    </article>
     @endcan
 </section>
 @endsection

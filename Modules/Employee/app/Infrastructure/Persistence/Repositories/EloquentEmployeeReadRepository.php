@@ -28,14 +28,15 @@ final readonly class EloquentEmployeeReadRepository implements EmployeeReadRepos
         $direction = ($filters['direction'] ?? null) === 'asc' ? 'asc' : 'desc';
 
         $query = Employee::query()
-            ->select(['id', 'uuid', 'company_id', 'user_id', 'manager_id', 'employee_code', 'full_name', 'personal_email', 'work_email', 'join_date', 'official_date', 'employment_status', 'employment_type', 'created_at'])
-            ->with(['manager:id,employee_code,full_name', 'user:id,email'])
+            ->select(['id', 'uuid', 'company_id', 'user_id', 'manager_id', 'employee_code', 'full_name', 'date_of_birth', 'gender', 'avatar_storage_key', 'avatar_url', 'personal_email', 'work_email', 'join_date', 'official_date', 'employment_status', 'employment_type', 'created_at'])
+            ->with(['manager:id,employee_code,full_name', 'user:id,email,access_enabled', 'user.roles:id,name'])
             ->with(['assignments' => function (Relation $relation): void {
                 if (! $relation instanceof HasMany) {
                     return;
                 }
                 $assignments = $relation;
-                $assignments->with(['organizationUnit:id,code,name', 'jobPosition:id,code,title'])
+                $assignments->with(['organizationUnit:id,code,name', 'jobPosition:id,code,title,career_level'])
+                    ->where('assignment_type', 'primary')
                     ->whereDate('effective_from', '<=', today())
                     ->where(function (Builder $active): void {
                         $active->whereNull('effective_to')->orWhereDate('effective_to', '>=', today());
@@ -72,7 +73,7 @@ final readonly class EloquentEmployeeReadRepository implements EmployeeReadRepos
 
     public function detail(int $companyId, int $id, bool $sensitive = false): array
     {
-        $employee = Employee::query()->with(['company:id,code,name', 'manager:id,employee_code,full_name', 'directReports:id,manager_id,employee_code,full_name', 'assignments.organizationUnit', 'assignments.jobPosition', 'histories', 'credentials', 'contracts', 'consents', 'documents'])->where('company_id', $companyId)->findOrFail($id);
+        $employee = Employee::query()->with(['company:id,code,name', 'user.roles:id,name', 'manager:id,employee_code,full_name', 'directReports:id,manager_id,employee_code,full_name', 'assignments.organizationUnit', 'assignments.jobPosition', 'histories', 'credentials', 'contracts', 'consents', 'documents'])->where('company_id', $companyId)->findOrFail($id);
         $data = $this->normalizeArray($employee->toArray());
         $data['identity_number'] = $sensitive ? $employee->identity_number : $this->identity->mask($employee->identity_number);
 
@@ -83,6 +84,9 @@ final readonly class EloquentEmployeeReadRepository implements EmployeeReadRepos
     private function map(Employee $employee): array
     {
         $data = $this->normalizeArray($employee->toArray());
+        $data['has_avatar'] = is_string($employee->avatar_storage_key) && $employee->avatar_storage_key !== '';
+        $data['avatar_url'] = is_string($employee->avatar_url) && $employee->avatar_url !== '' ? $employee->avatar_url : null;
+        unset($data['avatar_storage_key']);
         unset($data['identity_number'],$data['identity_number_hash']);
 
         return $data;

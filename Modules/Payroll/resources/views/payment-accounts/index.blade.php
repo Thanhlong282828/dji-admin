@@ -9,7 +9,11 @@
 @endsection
 
 @section('content')
-    <nav class="breadcrumb" aria-label="Breadcrumb"><a href="{{ route('admin.payroll.runs.index', ['company_id' => $c]) }}">Payroll</a><i>/</i><span>Payment Accounts</span></nav>
+    <nav class="breadcrumb" aria-label="Breadcrumb"><a href="{{ route('admin.payroll.runs.index', ['company_id' => $c]) }}">Payroll</a><i>/</i><span>Payment Accounts</span>           <i>/</i>
+
+         <span>
+            Payroll/resources/views/payment-accounts/index
+        </span> </nav>
     <section class="panel page-hero">
         <span class="eyebrow">Secure beneficiary vault</span>
         <h2>Tài khoản nhận lương</h2>

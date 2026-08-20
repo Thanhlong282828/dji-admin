@@ -3,6 +3,8 @@
 namespace Database\Seeders;
 
 use App\Models\User;
+use App\Support\Compensation\PositionCompensationReference;
+use Carbon\CarbonImmutable;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -10,6 +12,29 @@ use Modules\Audit\Application\DTOs\AuditEventData;
 use Modules\Audit\Domain\Contracts\AuditRecorderInterface;
 use Modules\Company\Domain\Models\Company;
 use Modules\Employee\Domain\Models\Employee;
+use Modules\Payroll\Application\Commands\CreateAnnualTaxReconciliation\CreateAnnualTaxReconciliationCommand;
+use Modules\Payroll\Application\Commands\CreatePayrollAdjustment\CreatePayrollAdjustmentCommand;
+use Modules\Payroll\Application\DTOs\ErpAdministrationData;
+use Modules\Payroll\Domain\Enums\PayrollRunStatus;
+use Modules\Payroll\Domain\Models\PayrollInputSnapshot;
+use Modules\Payroll\Domain\Models\PayrollPeriod;
+use Modules\Payroll\Domain\Models\PayrollRun;
+use Modules\Payroll\Domain\Services\AccountingAdministrationService;
+use Modules\Payroll\Domain\Services\EmployeePaymentAccountService;
+use Modules\Payroll\Domain\Services\ErpAdministrationService;
+use Modules\Payroll\Domain\Services\ErpExportService;
+use Modules\Payroll\Domain\Services\GovernmentTaxFilingService;
+use Modules\Payroll\Domain\Services\PayrollAccountingJournalService;
+use Modules\Payroll\Domain\Services\PayrollAdjustmentManagementService;
+use Modules\Payroll\Domain\Services\PayrollAnnualTaxLifecycleService;
+use Modules\Payroll\Domain\Services\PayrollAnnualTaxOperationsService;
+use Modules\Payroll\Domain\Services\PayrollAnnualTaxReconciliationService;
+use Modules\Payroll\Domain\Services\PayrollInputOperationsService;
+use Modules\Payroll\Domain\Services\PayrollPaymentBatchService;
+use Modules\Payroll\Domain\Services\PayrollPeriodOperationsService;
+use Modules\Payroll\Domain\Services\PayrollRunService;
+use Modules\Payroll\Domain\Services\PayslipGenerationService;
+use Modules\Payroll\Domain\Services\TaxManagementService;
 use Modules\Workflow\Application\DTOs\StartWorkflowData;
 use Modules\Workflow\Application\DTOs\WorkflowDefinitionData;
 use Modules\Workflow\Domain\Services\WorkflowDefinitionService;
@@ -23,14 +48,259 @@ final class LocalDemoOperationalSeeder extends Seeder
         $company = Company::query()->where('code', 'SCHEMA-TECH-VN')->firstOrFail();
         $admin = User::query()->where('email', 'admin@local.test')->firstOrFail();
         $this->actors($company->id);
+        $this->positionLevels($company->id);
         $employees = Employee::query()->where('company_id', $company->id)->whereIn('employment_status', ['active', 'probation', 'leave'])->orderBy('employee_code')->limit(18)->get();
         $employeeIds = array_values($employees->pluck('id')->map(fn (mixed $id): int => $this->requiredId($id, 'employee'))->all());
         $this->workforce($company->id, $employeeIds, $admin->id);
+        $this->payroll($company->id, $employeeIds, $admin->id);
         $this->notifications($company->id, $admin->id);
         $this->integration($company->id, $admin->id);
         $this->iam($company->id, $admin->id);
         $this->workflow($company->id, $admin->id);
         app(AuditRecorderInterface::class)->record(new AuditEventData($company->id, 'user', $admin->id, 'bootstrap', 'LocalDemo', 'LocalDemoBootstrapCompleted', 'local_demo_dataset', 'SCHEMA-LOCAL-DEMO', [], ['status' => 'ready'], ['synthetic_demo' => true, 'external_delivery' => false], 'local-demo-bootstrap-v1', $this->uuid(701)));
+    }
+
+    /** @param list<int> $employeeIds */
+    private function payroll(int $companyId, array $employeeIds, int $actorId): void
+    {
+        $componentDefinitions = [
+            'BASE-SALARY-DEMO' => ['name' => 'Lương cơ bản synthetic', 'display_order' => 10],
+            'KPI-TARGET-DEMO' => ['name' => 'KPI mục tiêu synthetic', 'display_order' => 20],
+            'FIXED-ALLOWANCE-DEMO' => ['name' => 'Phụ cấp cố định synthetic', 'display_order' => 30],
+        ];
+        foreach ($componentDefinitions as $code => $definition) {
+            DB::table('salary_components')->updateOrInsert(
+                ['company_id' => $companyId, 'code' => $code],
+                ['name' => $definition['name'], 'description' => 'LOCAL SYNTHETIC DEMO ONLY — không phải dữ liệu luật định hoặc Net Pay.', 'category' => 'earning', 'calculation_type' => 'fixed', 'value_type' => 'money', 'default_value_minor' => 0, 'currency_code' => 'VND', 'taxable_status' => 'not_configured', 'insurance_status' => 'not_configured', 'affects_gross' => true, 'affects_net' => true, 'display_order' => $definition['display_order'], 'effective_from' => '2026-01-01', 'status' => 'active', 'is_system' => false, 'version' => 1, 'created_by' => $actorId, 'updated_by' => $actorId, 'created_at' => now(), 'updated_at' => now()],
+            );
+        }
+        $components = DB::table('salary_components')->where('company_id', $companyId)->whereIn('code', array_keys($componentDefinitions))->pluck('id', 'code');
+        $references = app(PositionCompensationReference::class);
+        foreach ($employeeIds as $employeeId) {
+            $position = DB::table('employee_assignments as a')->join('job_positions as p', 'p.id', '=', 'a.job_position_id')->join('organization_units as u', 'u.id', '=', 'a.organization_unit_id')->where('a.employee_id', $employeeId)->where('a.assignment_type', 'primary')->whereNull('a.effective_to')->latest('a.effective_from')->first(['p.career_level', 'p.title', 'u.name as unit_name']);
+            if ($position === null) {
+                continue;
+            }
+            $reference = $references->resolve((int) $position->career_level, (string) $position->unit_name, (string) $position->title, '2026-01-01');
+            foreach ([['BASE-SALARY-DEMO', $reference->baseSalaryMinor, 800], ['KPI-TARGET-DEMO', $reference->kpiTargetMinor, 1800], ['FIXED-ALLOWANCE-DEMO', $reference->fixedAllowanceMinor, 2800]] as [$code, $amount, $offset]) {
+                DB::table('employee_salary_component_assignments')->updateOrInsert(
+                    ['company_id' => $companyId, 'idempotency_key' => $this->uuid($offset + $employeeId)],
+                    ['employee_id' => $employeeId, 'salary_component_id' => $this->requiredId($components[$code] ?? null, $code), 'amount_minor' => $amount, 'currency_code' => 'VND', 'effective_from' => '2026-01-01', 'source' => 'local_demo', 'status' => 'active', 'version' => 1, 'created_by' => $actorId, 'updated_by' => $actorId, 'created_at' => now(), 'updated_at' => now()],
+                );
+            }
+        }
+
+        $makerId = $this->requiredId(User::query()->where('email', 'payroll.manager@local.test')->value('id'), 'payroll manager');
+        foreach ([3 => PayrollRunStatus::Finalized, 4 => PayrollRunStatus::Approved, 5 => PayrollRunStatus::Submitted, 6 => PayrollRunStatus::Calculated, 8 => PayrollRunStatus::Calculated] as $month => $target) {
+            $this->payrollMonth($companyId, $month, $makerId, $actorId, $target);
+        }
+        $this->payrollDelivery($companyId, $makerId, $actorId);
+    }
+
+    private function payrollDelivery(int $companyId, int $makerId, int $checkerId): void
+    {
+        $run = PayrollRun::query()->where('company_id', $companyId)->where('status', PayrollRunStatus::Finalized)->orderBy('id')->first();
+        if (! $run instanceof PayrollRun) {
+            return;
+        }
+        $employees = DB::table('payroll_items')->where('company_id', $companyId)->where('payroll_run_id', $run->id)->get(['employee_id', 'employee_name_snapshot']);
+        $accounts = app(EmployeePaymentAccountService::class);
+        foreach ($employees as $index => $employee) {
+            $employeeId = is_numeric($employee->employee_id ?? null) ? (int) $employee->employee_id : 0;
+            if ($employeeId < 1 || DB::table('employee_payment_accounts')->where('company_id', $companyId)->where('employee_id', $employeeId)->exists()) {
+                continue;
+            }
+            $accountId = $accounts->save($companyId, null, ['employee_id' => $employeeId, 'payment_method' => 'bank_transfer', 'bank_code' => 'DEMO', 'bank_name' => 'Ngân hàng Synthetic Việt Nam', 'branch_code' => 'HCM', 'account_number' => '9900'.str_pad((string) ($index + 1), 8, '0', STR_PAD_LEFT), 'account_holder_name' => is_string($employee->employee_name_snapshot ?? null) ? mb_strtoupper($employee->employee_name_snapshot) : 'NHAN VIEN DEMO', 'currency' => 'VND', 'is_primary' => true, 'effective_from' => '2026-01-01', 'effective_to' => null, 'status' => 'active'], $makerId);
+            $accounts->verify($companyId, $accountId, $checkerId);
+        }
+        $payslips = app(PayslipGenerationService::class);
+        foreach (DB::table('payroll_items')->where('company_id', $companyId)->where('payroll_run_id', $run->id)->orderBy('id')->limit(2)->pluck('id') as $index => $itemId) {
+            if (is_numeric($itemId) && ! DB::table('payroll_payslips')->where('company_id', $companyId)->where('payroll_item_id', $itemId)->exists()) {
+                $payslips->requestItem($companyId, $run->id, (int) $itemId, $makerId, $this->uuid(1101 + $index));
+            }
+        }
+        foreach (DB::table('payroll_payslips')->where('company_id', $companyId)->where('payroll_run_id', $run->id)->whereIn('status', ['pending', 'generating'])->orderBy('id')->limit(2)->pluck('id') as $payslipId) {
+            if (is_numeric($payslipId)) {
+                $payslips->generate((int) $payslipId);
+            }
+        }
+        $payments = app(PayrollPaymentBatchService::class);
+        $batchId = $payments->create($companyId, $run->id, $makerId, $this->uuid(1110));
+        $batchStatus = DB::table('payroll_payment_batches')->where('id', $batchId)->value('status');
+        if ($batchStatus === 'draft') {
+            $payments->validate($companyId, $batchId, $makerId);
+            $payments->review($companyId, $batchId, $makerId);
+            $payments->approve($companyId, $batchId, $checkerId);
+            $payments->release($companyId, $batchId, $makerId);
+        }
+        $journalId = $this->payrollAccounting($companyId, $run->id, $makerId, $checkerId);
+        $this->payrollErp($companyId, $journalId, $makerId, $checkerId);
+        $this->payrollAdjustment($companyId, $run->id, $makerId);
+        $this->payrollAnnualTaxAndGovernment($companyId, $run->id, $makerId, $checkerId);
+    }
+
+    private function payrollAccounting(int $companyId, int $runId, int $makerId, int $checkerId): int
+    {
+        $admin = app(AccountingAdministrationService::class);
+        $expense = DB::table('accounting_accounts')->where('company_id', $companyId)->where('code', '6421-DEMO')->value('id');
+        $expenseId = is_numeric($expense) ? (int) $expense : $admin->saveAccount($companyId, null, ['code' => '6421-DEMO', 'name' => 'Chi phí lương synthetic', 'account_type' => 'expense', 'normal_balance' => 'debit', 'currency' => 'VND', 'allow_posting' => true, 'status' => 'active', 'effective_from' => '2026-01-01', 'effective_to' => null, 'parent_id' => null], $makerId);
+        $payable = DB::table('accounting_accounts')->where('company_id', $companyId)->where('code', '3341-DEMO')->value('id');
+        $payableId = is_numeric($payable) ? (int) $payable : $admin->saveAccount($companyId, null, ['code' => '3341-DEMO', 'name' => 'Phải trả nhân viên synthetic', 'account_type' => 'liability', 'normal_balance' => 'credit', 'currency' => 'VND', 'allow_posting' => true, 'status' => 'active', 'effective_from' => '2026-01-01', 'effective_to' => null, 'parent_id' => null], $makerId);
+        $policy = DB::table('payroll_accounting_policies')->where('company_id', $companyId)->where('code', 'LOCAL-PAYROLL-DEMO')->value('id');
+        $policyId = is_numeric($policy) ? (int) $policy : $admin->savePolicy($companyId, null, ['code' => 'LOCAL-PAYROLL-DEMO', 'name' => 'Chính sách kế toán lương synthetic', 'version' => 1, 'currency' => 'VND', 'aggregation_strategy' => 'company', 'effective_from' => '2026-01-01', 'effective_to' => null, 'rounding_rule' => 'minor_unit', 'status' => 'active', 'note' => 'LOCAL DEMO ONLY'], $makerId);
+        foreach ([['earning_component', 'BASE-SALARY-DEMO', $expenseId, null], ['net_pay', 'NET_PAY', null, $payableId]] as [$type, $code, $debit, $credit]) {
+            if (! DB::table('payroll_accounting_mappings')->where('company_id', $companyId)->where('accounting_policy_id', $policyId)->where('source_type', $type)->where('source_code', $code)->exists()) {
+                $admin->saveMapping($companyId, null, ['accounting_policy_id' => $policyId, 'source_type' => $type, 'source_code' => $code, 'debit_account_id' => $debit, 'credit_account_id' => $credit, 'cost_center_id' => null, 'organization_unit_id' => null, 'priority' => 100, 'effective_from' => '2026-01-01', 'effective_to' => null, 'status' => 'active'], $makerId);
+            }
+        }
+        $journals = app(PayrollAccountingJournalService::class);
+        $id = $journals->create($companyId, $runId, '2026-04-03', $makerId, $this->uuid(1120));
+        $status = DB::table('payroll_accounting_journals')->where('id', $id)->value('status');
+        if ($status === 'draft') {
+            $journals->validate($companyId, $id, $makerId);
+            $journals->review($companyId, $id, $makerId);
+            $journals->approve($companyId, $id, $checkerId);
+            $journals->post($companyId, $id, $makerId);
+        }
+
+        return $id;
+    }
+
+    private function payrollErp(int $companyId, int $journalId, int $makerId, int $checkerId): void
+    {
+        $admin = app(ErpAdministrationService::class);
+        $connection = DB::table('erp_connections')->where('company_id', $companyId)->where('name', 'ERP Generic CSV Synthetic')->value('id');
+        $connectionId = is_numeric($connection) ? (int) $connection : $admin->execute(new ErpAdministrationData($companyId, 'connection', 'create', null, $makerId, ['name' => 'ERP Generic CSV Synthetic', 'provider' => 'generic_csv', 'endpoint_reference' => null, 'credential_reference' => null, 'status' => 'active']));
+        foreach (DB::table('payroll_accounting_journal_lines')->where('company_id', $companyId)->where('journal_id', $journalId)->pluck('account_code_snapshot')->unique() as $code) {
+            if (! is_string($code) || DB::table('erp_mapping_rules')->where('company_id', $companyId)->where('erp_connection_id', $connectionId)->where('source_account_code', $code)->exists()) {
+                continue;
+            }
+            $admin->execute(new ErpAdministrationData($companyId, 'mapping', 'create', null, $makerId, ['erp_connection_id' => $connectionId, 'source_account_code' => $code, 'external_account_code' => 'ERP-'.$code, 'effective_from' => '2026-01-01', 'effective_to' => null, 'status' => 'active']));
+        }
+        $exports = app(ErpExportService::class);
+        $result = $exports->create($companyId, $connectionId, $journalId, $makerId, $this->uuid(1130));
+        if ($result->status === 'draft') {
+            $exports->validate($companyId, $result->exportId, $checkerId);
+            $exports->execute($companyId, $result->exportId, $makerId);
+        }
+    }
+
+    private function payrollAdjustment(int $companyId, int $runId, int $actorId): void
+    {
+        DB::table('payroll_adjustment_reasons')->updateOrInsert(['company_id' => $companyId, 'code' => 'LOCAL-OT-CORRECTION'], ['uuid' => $this->uuid(1140), 'name' => 'Điều chỉnh tăng ca synthetic', 'category' => 'earning_correction', 'created_by' => $actorId, 'created_at' => now(), 'updated_at' => now()]);
+        $reason = $this->requiredId(DB::table('payroll_adjustment_reasons')->where('company_id', $companyId)->where('code', 'LOCAL-OT-CORRECTION')->value('id'), 'adjustment reason');
+        $item = $this->requiredId(DB::table('payroll_items')->where('company_id', $companyId)->where('payroll_run_id', $runId)->orderBy('id')->value('id'), 'payroll item');
+        if (! DB::table('payroll_adjustment_requests')->where('company_id', $companyId)->where('idempotency_key', $this->uuid(1141))->exists()) {
+            app(PayrollAdjustmentManagementService::class)->create(new CreatePayrollAdjustmentCommand($companyId, $item, $reason, 'earning_correction', '2026-04-05', null, 'Synthetic overtime correction; no external delivery.', null, $this->uuid(1141), $actorId));
+        }
+    }
+
+    private function payrollAnnualTaxAndGovernment(int $companyId, int $runId, int $makerId, int $checkerId): void
+    {
+        $employeeId = $this->requiredId(DB::table('payroll_items')->where('company_id', $companyId)->where('payroll_run_id', $runId)->orderBy('id')->value('employee_id'), 'annual tax employee');
+        $tax = app(TaxManagementService::class);
+        $policy = DB::table('tax_policies')->where('company_id', $companyId)->where('code', 'LOCAL-PIT-DEMO')->value('id');
+        $policyId = is_numeric($policy) ? (int) $policy : $tax->savePolicy($companyId, null, ['code' => 'LOCAL-PIT-DEMO', 'name' => 'Thuế TNCN synthetic local', 'version' => 1, 'effective_from' => '2026-01-01', 'effective_to' => null, 'currency_code' => 'VND', 'tax_method' => 'progressive', 'residency_group' => 'resident', 'rounding_rule' => 'half_up', 'floor_taxable_income_at_zero' => true, 'flat_rate_basis_points' => null, 'status' => 'active', 'note' => 'Synthetic governance example only', 'brackets' => [['lower_bound_minor' => 0, 'upper_bound_minor' => null, 'rate_basis_points' => 1000]], 'deductions' => []], $makerId);
+        if (! DB::table('employee_tax_profiles')->where('company_id', $companyId)->where('employee_id', $employeeId)->exists()) {
+            $tax->saveProfile($companyId, $employeeId, null, ['tax_policy_id' => $policyId, 'tax_status' => 'taxable', 'residency_status' => 'resident', 'effective_from' => '2026-01-01', 'effective_to' => null, 'tax_identification_number' => 'SYNTHETIC-TAX-ID', 'personal_deduction_eligible' => true, 'withholding_method' => 'policy', 'base_override_minor' => null, 'exemption_reason' => null], $makerId);
+        }
+        $annual = app(PayrollAnnualTaxReconciliationService::class);
+        $existing = DB::table('payroll_annual_tax_reconciliations')->where('company_id', $companyId)->where('idempotency_key', $this->uuid(1150))->value('id');
+        $annualId = is_numeric($existing) ? (int) $existing : $annual->create(new CreateAnnualTaxReconciliationCommand($companyId, $employeeId, 2026, 'VN', 'VND', $this->uuid(1150), $makerId))->id;
+        $status = DB::table('payroll_annual_tax_reconciliations')->where('id', $annualId)->value('status');
+        if ($status === 'draft') {
+            $annual->collect($companyId, $annualId, $makerId);
+            app(PayrollAnnualTaxOperationsService::class)->calculate($companyId, $annualId, $makerId);
+            app(PayrollAnnualTaxOperationsService::class)->validate($companyId, $annualId, $makerId);
+        }
+        $lifecycle = app(PayrollAnnualTaxLifecycleService::class);
+        foreach ([['validated', 'submit', $makerId], ['submitted', 'review', $checkerId]] as [$from, $action, $actor]) {
+            if (DB::table('payroll_annual_tax_reconciliations')->where('id', $annualId)->value('status') === $from) {
+                $lifecycle->transition($companyId, $annualId, $action, $actor);
+            }
+        }
+        $reviewerId = $this->requiredId(User::query()->where('email', 'hr.manager@local.test')->value('id'), 'annual tax reviewer');
+        if (DB::table('payroll_annual_tax_reconciliations')->where('id', $annualId)->value('status') === 'reviewed') {
+            $lifecycle->transition($companyId, $annualId, 'approve', $reviewerId);
+        }
+        if (DB::table('payroll_annual_tax_reconciliations')->where('id', $annualId)->value('status') === 'approved') {
+            $lifecycle->transition($companyId, $annualId, 'finalize', $makerId);
+        }
+        if (! DB::table('government_tax_filings')->where('company_id', $companyId)->where('annual_tax_reconciliation_id', $annualId)->exists()) {
+            $filings = app(GovernmentTaxFilingService::class);
+            $filing = $filings->create($companyId, $annualId, 'annual_pit_employer_declaration', $makerId, $this->uuid(1160));
+            $filings->generate($companyId, $filing->filingId, $makerId);
+            $filings->validate($companyId, $filing->filingId, $makerId);
+            $filings->approve($companyId, $filing->filingId, $checkerId);
+        }
+    }
+
+    private function payrollMonth(int $companyId, int $month, int $makerId, int $checkerId, PayrollRunStatus $target): void
+    {
+        $start = new CarbonImmutable(sprintf('2026-%02d-01', $month));
+        $end = $month === 8 ? new CarbonImmutable('2026-08-12') : $start->endOfMonth();
+        $code = sprintf('LOCAL-2026-%02d', $month);
+        $base = 900 + ($month * 10);
+        $period = PayrollPeriod::query()->where('company_id', $companyId)->where('code', $code)->first();
+        if (! $period instanceof PayrollPeriod) {
+            $period = app(PayrollPeriodOperationsService::class)->create($companyId, [
+                'code' => $code,
+                'name' => 'Kỳ lương synthetic tháng '.sprintf('%02d/2026', $month),
+                'start' => $start->toDateString(),
+                'end' => $end->toDateString(),
+                'pay_date' => $end->addDays(3)->toDateString(),
+                'status' => 'collecting',
+                'note' => 'LOCAL DEMO ONLY — no external payment, ERP, government, or bank traffic.',
+            ], $makerId, $this->uuid($base + 1));
+        }
+        $existingRun = PayrollRun::query()->where('company_id', $companyId)->where('payroll_period_id', $period->id)->first();
+        $snapshot = $existingRun instanceof PayrollRun
+            ? PayrollInputSnapshot::query()->where('company_id', $companyId)->find($existingRun->payroll_input_snapshot_id)
+            : PayrollInputSnapshot::query()->where('company_id', $companyId)->where('payroll_period_id', $period->id)->where('idempotency_key', $this->uuid($base + 2))->first();
+        if (! $snapshot instanceof PayrollInputSnapshot) {
+            $snapshot = app(PayrollInputOperationsService::class)->capture($companyId, $period->id, $makerId, $this->uuid($base + 2), 'Synthetic local workforce snapshot.');
+        }
+        if ($snapshot->status !== 'ready') {
+            $snapshot = app(PayrollInputOperationsService::class)->validate($companyId, $snapshot->id, $makerId, $this->uuid($base + 3));
+        }
+        if ($snapshot->status !== 'ready') {
+            return;
+        }
+        $run = PayrollRun::query()->where('company_id', $companyId)->where('payroll_period_id', $period->id)->first();
+        if (! $run instanceof PayrollRun) {
+            $run = app(PayrollInputOperationsService::class)->createRun($companyId, $snapshot->id, $makerId, $this->uuid($base + 4));
+        }
+        $run->refresh();
+        if ((int) $run->calculation_version === 0) {
+            $run = app(PayrollRunService::class)->calculate($companyId, $run->id, $run->version, $this->uuid($base + 5), $makerId);
+        }
+        $transitions = match ($target) {
+            PayrollRunStatus::Submitted => [PayrollRunStatus::Submitted],
+            PayrollRunStatus::Approved => [PayrollRunStatus::Submitted, PayrollRunStatus::Approved],
+            PayrollRunStatus::Finalized => [PayrollRunStatus::Submitted, PayrollRunStatus::Approved, PayrollRunStatus::Finalized],
+            default => [],
+        };
+        foreach ($transitions as $index => $status) {
+            $run->refresh();
+            if ($run->status === $status || $run->status === PayrollRunStatus::Finalized) {
+                continue;
+            }
+            if (($status === PayrollRunStatus::Submitted && $run->status !== PayrollRunStatus::Calculated)
+                || ($status === PayrollRunStatus::Approved && $run->status !== PayrollRunStatus::Submitted)
+                || ($status === PayrollRunStatus::Finalized && $run->status !== PayrollRunStatus::Approved)) {
+                continue;
+            }
+            $actor = $status === PayrollRunStatus::Submitted ? $makerId : $checkerId;
+            $run = app(PayrollRunService::class)->transition($companyId, $run->id, $status, $run->version, $this->uuid($base + 6 + $index), $actor);
+        }
+    }
+
+    private function positionLevels(int $companyId): void
+    {
+        $levels = ['DEPT-MGR' => 6, 'BE-DEV' => 3, 'FE-DEV' => 3, 'MOB-DEV' => 3, 'DEVOPS-ENG' => 4, 'HR-SPEC' => 3, 'ACCOUNTANT' => 3, 'SALES-EXEC' => 2, 'MKT-SPEC' => 3];
+        foreach ($levels as $code => $level) {
+            DB::table('job_positions')->where('company_id', $companyId)->where('code', $code)->update(['career_level' => $level]);
+        }
     }
 
     private function actors(int $companyId): void

@@ -5,6 +5,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 use Modules\Employee\Presentation\Http\Controllers\DataConsentController;
+use Modules\Employee\Presentation\Http\Controllers\EmployeeAccountController;
 use Modules\Employee\Presentation\Http\Controllers\EmployeeAssignmentController;
 use Modules\Employee\Presentation\Http\Controllers\EmployeeAvatarController;
 use Modules\Employee\Presentation\Http\Controllers\EmployeeController;
@@ -33,6 +34,7 @@ Route::middleware(['auth', 'verified'])->prefix('admin')->name('admin.')->group(
     Route::post('employee-lifecycle/{employee}/complete-onboarding', [EmployeeLifecycleController::class, 'completeOnboarding'])->middleware('permission:hr.lifecycle.onboarding')->name('employee-lifecycle.complete-onboarding');
     Route::post('employee-lifecycle/{employee}/transfer', [EmployeeLifecycleController::class, 'transfer'])->middleware('permission:hr.lifecycle.transfer')->name('employee-lifecycle.transfer');
     Route::post('employee-lifecycle/{employee}/promote', [EmployeeLifecycleController::class, 'promote'])->middleware('permission:hr.lifecycle.promote')->name('employee-lifecycle.promote');
+    Route::post('employee-lifecycle/{employee}/demote', [EmployeeLifecycleController::class, 'demote'])->middleware('permission:hr.lifecycle.promote')->name('employee-lifecycle.demote');
     Route::post('employee-lifecycle/{employee}/terminate', [EmployeeLifecycleController::class, 'terminate'])->middleware('permission:hr.lifecycle.terminate')->name('employee-lifecycle.terminate');
     Route::get('employees-export', EmployeeExportController::class)->middleware('permission:employee.export')->name('employees.export');
     Route::post('employees/{employee}/documents', [EmployeeDocumentController::class, 'store'])->middleware('permission:employee-document.upload')->name('employees.documents.store');
@@ -52,8 +54,11 @@ Route::middleware(['auth', 'verified'])->prefix('admin')->name('admin.')->group(
     Route::post('employees/{employee}/consents', [DataConsentController::class, 'grant'])->middleware('permission:data-consent.grant')->name('employees.consents.grant');
     Route::post('data-consents/{consent}/withdraw', [DataConsentController::class, 'withdraw'])->middleware('permission:data-consent.withdraw')->name('data-consents.withdraw');
     Route::post('employees/{employee}/avatar', [EmployeeAvatarController::class, 'store'])->middleware('permission:employee.manage-avatar')->name('employees.avatar.store');
+    Route::get('employees/{employee}/avatar', [EmployeeAvatarController::class, 'show'])->middleware('permission:employee.view')->name('employees.avatar.show');
     Route::delete('employees/{employee}/avatar', [EmployeeAvatarController::class, 'destroy'])->middleware('permission:employee.manage-avatar')->name('employees.avatar.destroy');
     Route::post('employees/{employee}/user-link', [EmployeeUserLinkController::class, 'store'])->middleware('permission:employee-user.link')->name('employees.user-link.store');
+    Route::post('employees/{employee}/account', [EmployeeAccountController::class, 'save'])->middleware('permission:employee-user.link')->name('employees.account.save');
+    Route::post('employees/{employee}/account/{state}', [EmployeeAccountController::class, 'access'])->whereIn('state', ['enable', 'disable'])->middleware('permission:employee-user.unlink')->name('employees.account.access');
     Route::delete('employees/{employee}/user-link', [EmployeeUserLinkController::class, 'destroy'])->middleware('permission:employee-user.unlink')->name('employees.user-link.destroy');
     Route::post('employees/{employee}/user-invite', [EmployeeUserLinkController::class, 'invite'])->middleware('permission:employee-user.invite')->name('employees.user.invite');
     Route::get('employees/{employee}/assignments', [EmployeeAssignmentController::class, 'index'])->middleware('permission:employee-assignment.view')->name('employees.assignments.index');

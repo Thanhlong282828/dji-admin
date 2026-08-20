@@ -11,12 +11,14 @@ use Modules\Employee\Application\DTOs\EmployeeAssignmentData;
 use Modules\Employee\Application\DTOs\LifecycleTransitionData;
 use Modules\Employee\Domain\Enums\AssignmentType;
 use Modules\Employee\Domain\Enums\EmployeeLifecycleState;
+use Modules\Employee\Domain\Events\EmployeeDemoted;
 use Modules\Employee\Domain\Events\EmployeeHired;
 use Modules\Employee\Domain\Events\EmployeeOnboarded;
 use Modules\Employee\Domain\Events\EmployeePromoted;
 use Modules\Employee\Domain\Events\EmployeeTerminated;
 use Modules\Employee\Domain\Events\EmployeeTransferred;
 use Modules\Employee\Domain\Models\Employee;
+use Modules\Employee\Domain\Models\EmployeeAssignment;
 use Modules\Employee\Domain\Models\EmployeeLifecycleEvent;
 use Modules\Employee\Domain\Models\EmployeeManagerHistory;
 use Modules\Employee\Domain\Models\EmployeePositionHistory;
@@ -28,7 +30,36 @@ final readonly class EmployeeLifecycleService
 
     public function create(LifecycleTransitionData $data): EmployeeLifecycleEvent
     {
-        return $this->transition($data, EmployeeLifecycleState::OfferCreated, EmployeeLifecycleState::Hired, 'employee.hired');
+        return DB::transaction(function () use ($data): EmployeeLifecycleEvent {
+            $latest = EmployeeLifecycleEvent::query()
+                ->where('company_id', $data->companyId)
+                ->where('employee_id', $data->employeeId)
+                ->latest('id')
+                ->lockForUpdate()
+                ->first();
+            if ($latest !== null) {
+                $existing = EmployeeLifecycleEvent::query()
+                    ->where('company_id', $data->companyId)
+                    ->where('idempotency_key', $data->idempotencyKey)
+                    ->first();
+                if ($existing !== null) {
+                    return $existing;
+                }
+                if ($data->organizationUnitId !== null && $data->positionId !== null) {
+                    $this->initializeAssignment($data);
+
+                    return $latest;
+                }
+
+                throw ValidationException::withMessages(['state' => 'Employee Lifecycle đã được khởi tạo.']);
+            }
+            $event = $this->transition($data, EmployeeLifecycleState::OfferCreated, EmployeeLifecycleState::Hired, 'employee.hired');
+            if ($data->organizationUnitId !== null && $data->positionId !== null) {
+                $this->initializeAssignment($data);
+            }
+
+            return $event;
+        }, 3);
     }
 
     public function startOnboarding(LifecycleTransitionData $data): EmployeeLifecycleEvent
@@ -68,12 +99,18 @@ final readonly class EmployeeLifecycleService
                 $data->organizationUnitId, $data->positionId, $data->managerId,
                 AssignmentType::Primary, '100.00', null, $data->effectiveAt, null,
             );
-            $assignment = $this->assignments->transfer($data->companyId, $data->employeeId, $data->currentAssignmentId, $assignmentData, $data->reason ?? '', $data->actorId, $data->promotion);
+            $assignment = $this->assignments->transfer($data->companyId, $data->employeeId, $data->currentAssignmentId, $assignmentData, $data->reason ?? '', $data->actorId, $data->promotion, $data->demotion);
             $payload = ['assignment_id' => (int) $assignment->id, 'position_id' => $data->positionId, 'organization_unit_id' => $data->organizationUnitId, 'manager_id' => $data->managerId];
-            $event = $this->append($data, $state, $state, $data->promotion ? 'employee.promoted' : 'employee.transferred', $payload);
+            $eventType = $data->promotion ? 'employee.promoted' : ($data->demotion ? 'employee.demoted' : 'employee.transferred');
+            $event = $this->append($data, $state, $state, $eventType, $payload);
             EmployeePositionHistory::query()->create(['company_id' => $data->companyId, 'employee_id' => $data->employeeId, 'position_id' => $data->positionId, 'organization_unit_id' => $data->organizationUnitId, 'effective_from' => $data->effectiveAt->toDateString(), 'checksum' => $this->checksum($payload)]);
             EmployeeManagerHistory::query()->create(['company_id' => $data->companyId, 'employee_id' => $data->employeeId, 'manager_id' => $data->managerId, 'effective_from' => $data->effectiveAt->toDateString(), 'checksum' => $this->checksum(['manager_id' => $data->managerId, 'effective_from' => $data->effectiveAt->toDateString()])]);
-            $this->events->dispatch($data->promotion ? new EmployeePromoted($data->companyId, $data->employeeId, (int) $event->id) : new EmployeeTransferred($data->companyId, $data->employeeId, (int) $event->id));
+            $domainEvent = match (true) {
+                $data->promotion => new EmployeePromoted($data->companyId, $data->employeeId, (int) $event->id),
+                $data->demotion => new EmployeeDemoted($data->companyId, $data->employeeId, (int) $event->id),
+                default => new EmployeeTransferred($data->companyId, $data->employeeId, (int) $event->id),
+            };
+            $this->events->dispatch($domainEvent);
 
             return $event;
         }, 3);
@@ -135,6 +172,49 @@ final readonly class EmployeeLifecycleService
         }
 
         return EmployeeLifecycleState::from($value);
+    }
+
+    private function initializeAssignment(LifecycleTransitionData $data): void
+    {
+        DB::transaction(function () use ($data): void {
+            $exists = EmployeeAssignment::query()
+                ->where('employee_id', $data->employeeId)
+                ->where('assignment_type', AssignmentType::Primary->value)
+                ->whereDate('effective_from', '<=', $data->effectiveAt->toDateString())
+                ->where(fn ($query) => $query->whereNull('effective_to')->orWhereDate('effective_to', '>=', $data->effectiveAt->toDateString()))
+                ->exists();
+            if ($exists) {
+                return;
+            }
+            $assignment = $this->assignments->create($data->companyId, $data->employeeId, new EmployeeAssignmentData(
+                $data->organizationUnitId ?? 0,
+                $data->positionId ?? 0,
+                $data->managerId,
+                AssignmentType::Primary,
+                '100.00',
+                null,
+                $data->effectiveAt->startOfDay(),
+                null,
+            ), $data->actorId);
+            $payload = ['assignment_id' => (int) $assignment->id, 'position_id' => $data->positionId, 'organization_unit_id' => $data->organizationUnitId];
+            EmployeePositionHistory::query()->create([
+                'company_id' => $data->companyId,
+                'employee_id' => $data->employeeId,
+                'position_id' => $data->positionId,
+                'organization_unit_id' => $data->organizationUnitId,
+                'effective_from' => $data->effectiveAt->toDateString(),
+                'checksum' => $this->checksum($payload),
+            ]);
+            if ($data->managerId !== null) {
+                EmployeeManagerHistory::query()->create([
+                    'company_id' => $data->companyId,
+                    'employee_id' => $data->employeeId,
+                    'manager_id' => $data->managerId,
+                    'effective_from' => $data->effectiveAt->toDateString(),
+                    'checksum' => $this->checksum(['manager_id' => $data->managerId, 'effective_from' => $data->effectiveAt->toDateString()]),
+                ]);
+            }
+        }, 3);
     }
 
     /** @param array<string, mixed> $payload */

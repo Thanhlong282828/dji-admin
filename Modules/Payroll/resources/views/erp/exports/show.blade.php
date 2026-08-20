@@ -15,6 +15,8 @@
         <a href="{{ route('admin.payroll.erp.exports.index', ['company_id' => $c]) }}">ERP Exports</a>
         <i>/</i>
         <span>{{ $e['journal_number'] }}</span>
+         <i>/</i>
+         <span>Payroll/resources/views/erp/exports/show</span>
     </nav>
 
     <section class="panel page-hero">

@@ -150,7 +150,8 @@ V. HỒ SƠ NHÂN SỰ VÀ HỢP ĐỒNG
 - employee_code varchar(255) UQ; full_name varchar(255)
 - date_of_birth date NULL; gender varchar(20) NULL
 - personal_email, work_email varchar(255) NULL; phone varchar(30) NULL
-- avatar_url varchar(255) NULL; nationality varchar(2) default VN
+- avatar_url varchar(255) NULL; avatar_storage_key varchar(255) NULL; nationality varchar(2) default VN
+- avatar_storage_key is an opaque Cloudflare Images/local-media reference only; API token and temporary path are never persisted.
 - identity_number varchar(255) NULL; identity_number_hash varchar(255) NULL IDX
 - identity_expires_at date NULL IDX
 - addresses, emergency_contacts, dependants json NULL
@@ -170,7 +171,7 @@ V. HỒ SƠ NHÂN SỰ VÀ HỢP ĐỒNG
 
 23. employee_histories — lịch sử điều chuyển/thăng chức/lương/kỷ luật
 - id PK; employee_id FK -> employees.id
-- event_type enum(transfer, promotion, salary_change, discipline, award, status_change)
+- event_type enum(transfer, promotion, demotion, salary_change, discipline, award, status_change)
 - before json NULL; after json; reason text NULL
 - approved_by bigint unsigned NULL FK -> users.id; effective_at timestamp
 - created_at, updated_at
@@ -610,6 +611,25 @@ Phase 3F-18 Swagger hardening adds no migration or table. The four-environment m
 Phase 3F-19 architecture governance adds no table or migration. Database write ownership is documented by bounded context; cross-module writes require command/service/outbox boundaries.
 Historical Phase 3F-19 evidence used four databases; `schema_admin_development` is now **REMOVED / NO LONGER EXISTS**.
 Phase 3F-22: NO MIGRATION. Data Lifecycle is a read-only policy/evaluation boundary. Existing Audit archive artifact tables remain Audit-owned. `schema_admin` is the writable Mac local-main database; VPS production is separately environment-defined. `schema_admin_development` is **REMOVED / NO LONGER EXISTS** after explicit unique-data/reference review.
+
+Phase 3F-24: two additive migrations, bringing the canonical local trio to 63 migrations / 230 tables. `users.access_enabled` controls authentication access; `job_positions.career_level` provides typed promotion/demotion ordering; employee history enum adds the forward-only `demotion` event. No table or business row is dropped. Data Quality reads module-owned relations and reports 13 aggregate rules; age remains derived from `employees.date_of_birth`.
+
+Career/avatar ownership hardening: `job_positions.career_level` is the single
+level field and active positions must be 1..6; no level is duplicated onto
+`organization_units`. Employee owns `avatar_storage_key`/`avatar_url`; linked
+users do not receive a copied reference. A soft-deleted Employee retains that
+private evidence. Explicit avatar removal clears the Employee reference in the
+business transaction, then deletes the unshared provider object after commit.
+
+Phase 3F-24 local synthetic Payroll uses six immutable input snapshots (180 employee inputs), five runs (150 items), plus governed adjustment, payslip, payment batch, accounting journal, local ERP export, annual-tax reconciliation and Government filing examples. Values are synthetic VND; external bank/ERP/Government adapters are not invoked.
+
+Compensation lifecycle hardening adds no table or migration. Payroll continues
+to own `salary_components` and `employee_salary_component_assignments` with
+integer minor units, currency, effective dates, version and idempotency.
+Employee Lifecycle reads them in one batch; position compensation is a typed
+synthetic code reference, not a duplicate salary table. Finalized payroll item
+snapshots remain immutable. Local bootstrap idempotently adds BASE/KPI/FIXED-
+ALLOWANCE assignments only to its selected synthetic payroll Employees.
 ================================================================================
 CANONICAL DATABASE OWNERSHIP / ENVIRONMENT MAP (2026-08-13)
 ================================================================================
@@ -622,7 +642,9 @@ alter business rows or ownership.
 Environment ownership: `schema_admin` = writable Mac local main;
 `schema_admin_testing*` = automated PHPUnit/integration; browser fixtures =
 `schema_admin_browser_testing`; VPS production = separate environment-defined DB.
-All current databases have 61 migrations / 230 tables; no Phase 3F-22 migration.
+The Phase 3F-22 baseline had 61 migrations / 230 tables; Phase 3F-24 adds two
+forward-only migrations, so the canonical local trio now has 63 migrations /
+230 tables each.
 
 Phase 3F-23 local consolidation final matrix: schema_admin = 61 migrations / 230 tables (writable manual/demo); schema_admin_testing = 61 / 230 (PHPUnit/integration only); schema_admin_browser_testing = 61 / 230 (Playwright fixtures only). The former fourth local database is REMOVED / NO LONGER EXISTS after comparison proved no unique required data. No migration and no raw record copy were used; VPS remains environment-defined and untouched.
 

@@ -1,5 +1,9 @@
 SCHEMA ADMIN — LUỒNG KẾT NỐI FILE RUNTIME
 Phase 3F-21 reads routes/OpenAPI only and does not change Payroll/HR/Workflow/Integration business semantics or write paths.
+Phase 3F-24 account flow: Employee create/detail form → ManageEmployeeAccountRequest → EmployeeAccountController/EmployeeAccountService → DB transaction → users (Hash + access_enabled) + Spatie role + company_user_access + employees.user_id. LoginRequest includes access_enabled=true; blank edit password leaves the hash unchanged.
+Phase 3F-24 career flow: Employee Lifecycle UI → PromoteEmployee/DemoteEmployee command → handler → EmployeeLifecycleService → EmployeeAssignmentService validates target career_level direction and assignment overlap → assignment/history/lifecycle event.
+Phase 3F-24 Attendance read/export: route → AttendanceController/AttendanceXlsxExportController → AttendanceOperationsReadService or AttendanceXlsxExport → tenant-scoped joins, filters, day/week aggregates, streaming XLSX with formula-prefix protection.
+Phase 3F-24 local Payroll bootstrap: LocalDemoOperationalSeeder → PayrollPeriodOperationsService → PayrollInputOperationsService/PayrollInputGenerationService → immutable snapshot → PayrollRunService calculate → persisted items; all external delivery remains disabled.
 Phase 3F-21 full regression passed 485 tests/4,923 assertions/one skip/exit 0; no Payroll business row or schema changed.
 Phase 3F-21 browser flow: guarded Audit fixture → testing-only server on 8017 → playwright-core 1.62.1 → installed Chrome 151 → API Contracts/Swagger exact desktop/mobile → cleanup; no Payroll or production access.
 Phase 3F-20 COMPLETED without HR/payroll semantic changes. Payroll maker-checker/finalization and employee allocation remain mapped to real process-concurrency evidence using synthetic fixtures only; full regression and concurrency gates passed.
@@ -232,6 +236,20 @@ EmployeeAssignmentController.php | store/update
 transfer/promote → TransferEmployeeCommand(`$promotion=false/true`) → Handler → EmployeeAssignmentService.
 end → EndEmployeeAssignmentRequest → EndEmployeeAssignmentCommand → Handler → service/history/event.
 
+5.2 EMPLOYEE — ACCOUNT / CONTRACT / CREDENTIAL / CONSENT / DOCUMENT / AVATAR
+Employee detail action → EmployeeUserLinkController.php | invite/store/destroy
+→ tenant/account validation → Employee account/link service → users + company_user_access + employees.user_id → Audit/event → redirect. Disable/unlink login does not delete the Employee-owned avatar.
+Employee detail contract form → EmploymentContractController.php | store/submit/return/approve/activate/terminate/cancel
+→ contract FormRequest → contract command/handler → EmploymentContractService state machine → employment_contracts + history/event. Approved/activated history is not edited directly.
+Employee detail credential action → EmployeeCredentialController.php | store/update/archive/restore
+→ credential request → command/handler → private metadata repository/history → redirect.
+Employee detail consent action → DataConsentController.php | grant/withdraw
+→ consent request → command/handler → append-only consent history → redirect.
+Employee detail document action → EmployeeDocumentController.php | store/archive/download
+→ MIME/size/checksum/scan gate → private storage + metadata repository → authorized download; no public object path.
+Employee avatar action → EmployeeAvatarController.php | store/show/destroy
+→ EmployeeAvatarService → configured EmployeeAvatarStorageInterface → DB reference/compensation cleanup boundary → protected local stream or Cloudflare delivery redirect.
+
 6. RECRUITMENT — REQUISITION/CANDIDATE/APPLICATION
 Modules/Recruitment/routes/web.php | GET requisitions/dashboard/candidates/pipeline
 → RecruitmentController.php | requisitions/dashboard/candidates/pipeline
@@ -266,6 +284,8 @@ CandidateOfferController.php | hire(HireCandidateRequest $request, int $candidat
 → CandidateHireCompleted
 → HandleCandidateHireCompleted.php | handle($event)
 → RecruitmentWorkflowChanged + cache/notification/realtime.
+Recruitment CSV action → RecruitmentExportController.php | interviews/offers
+→ tenant/permission-scoped query → formula-safe streamed CSV; private evaluation/document content is excluded.
 
 7. ONBOARDING
 Modules/Onboarding/routes/web.php | GET dashboard/cases
@@ -294,6 +314,14 @@ AttendanceWorkflowController.php | show/readiness
 AttendanceWorkflowController.php | adjustment/attendance/lock
 → AttendanceWorkflowRequest → ProcessAttendanceWorkflowCommand(`$action`, `$companyId`, `$record`, `$actorId`, `$version`, `$data`)
 → ProcessAttendanceWorkflowHandler → AttendanceWorkflowService → row locks/model/history → WorkforceAttendanceChanged.
+Work calendar detail → ScheduleRuleController.php | calendar/shift
+→ company-scoped query → calendar day rules hoặc shift break rules → Blade.
+Calendar/shift rule mutation → ScheduleRuleController.php | execute
+→ validated action allowlist → workforce command/service → effective schedule rows → cache/event → redirect.
+GET `/admin/overtime` → OvertimeController.php | index
+→ GetOvertimeManagementQuery → QueryBus → overtime read repository → policy/assignment/request ViewModel → overtime.blade.php.
+POST/PUT overtime action → OvertimeController.php | execute
+→ action allowlist + permission/tenant/version validation → ManageOvertimeCommand → handler/service → policy/assignment/request state/history → WorkforceOvertimeChanged → Attendance reconciliation/Payroll Input downstream when approved.
 
 9. LEAVE
 Modules/Leave/routes/web.php | POST `/admin/leave`
@@ -312,7 +340,7 @@ LeaveAttachmentController.php | upload/mutate → ManageLeaveAttachmentCommand �
 LeaveAttachmentController.php | download → DownloadLeaveAttachmentQuery → Handler → BinaryFileResponse.
 
 ======================================================================
-10. PAYROLL Runs
+10. MENU: PAYROLL Runs
 ======================================================================
 Modules/Payroll/routes/web.php | GET `/admin/payroll/delivery`
 → PayrollDeliveryController.php | index(Request $r)
@@ -335,7 +363,7 @@ GET `/admin/payroll/runs`
 → PayrollDeliveryReadRepositoryInterface.php | runList(int `$company`, array `$filters`)
 → EloquentPayrollDeliveryReadRepository.php | runList(): tenant scope + whitelist filters + stable pagination + Period/Snapshot joins
 → PayrollRunListViewModel.php | `$runs`, `$page`, `$hasMore`
-→ resources/views/runs/index.blade.php | foundation totals + exact snapshot version + actions.     <
+→ resources/views/runs/index.blade.php | foundation totals + exact snapshot version + actions.        <       > ( nút: admin/payroll/inputs ) , ( bảng: Payroll/resources/views/run-detail )
 GET `/admin/payroll/runs/{run}/items/{item}`
 → Modules/Payroll/routes/web.php | route `admin.payroll.runs.items.show`, permission:payroll.item.view
 → PayrollDeliveryController.php | item(Request `$request`, int `$run`, int `$item`): Company + parent Run Policy    <
@@ -418,6 +446,33 @@ PayrollRunChanged
 → WorkforceNotificationDeliveryService::deliver($recipient, 'payroll_run', `$safePayload`)
 → independent database/broadcast delivery markers; payload contains state signal only, never salary amounts.
 
+PHASE 3C-1 — PAYROLL CALCULATION
+POST /admin/payroll/runs/{run}/calculate
+→ PayrollRunController.php                    <
+→ CalculatePayrollRunCommand/Handler
+→ PayrollRunService.php | calculate()
+→ PayrollInsuranceIntegrator.php | context() batch effective policy/profile/rates
+→ InsuranceContributionBaseResolver.php | resolve()
+→ StatutoryInsuranceCalculationService.php | calculate()
+→ InsuranceRoundingService.php | percentage() integer basis points
+→ payroll_items insurance aggregates + payroll_item_components immutable contribution lines
+→ payroll_validation_issues or calculated Run totals → History/Event/Response
+POST /admin/payroll/runs/{run}/calculate
+→ PayrollRunController.php | mutate(calculate)                <
+→ CalculatePayrollRunCommand.php
+→ CommandBusInterface::dispatch()
+→ CalculatePayrollRunHandler.php
+→ PayrollRunService.php | calculate()
+→ PayrollInsuranceIntegrator.php | context()/calculate()
+→ PayrollTaxIntegrator.php | context() batch preload + calculate()
+→ PersonalIncomeTaxCalculationService.php | progressive/flat integer calculation
+→ TaxRoundingService.php | percentage()
+→ payroll_items | policy/version, taxable income, PIT, net-before/after-tax
+→ payroll_item_components | taxable summary, configured deductions, bracket lines
+→ payroll_validation_issues | safe blocking codes
+→ payroll_runs | Tax total + net-after-tax aggregate
+→ PayrollRunChanged.php | identifier-only realtime refresh
+
 PHASE 3B-3 VERIFIED HTTP CHAIN
 PayrollEndToEndOperationalFlowTest.php | test_admin_can_complete_the_full_payroll_workflow_through_http()
 → POST Period store/open → POST Input capture/validate/create-run
@@ -465,7 +520,7 @@ Scenarios đã có process test thật: assignment overlap, same-period create, 
 submit/recalculate, approve/reject, finalize/recalculate, finalize/finalize và payroll notification delivery.
 
 ================================================================================
-PHASE 3B-2A — PAYROLL INPUT OPERATIONS (FILE → METHOD → FILE)
+PHASE 3B-2A — PAYROLL INPUT OPERATIONS (FILE → METHOD → FILE)   MENU: Payroll Inputs
 ================================================================================
 
 GET /admin/payroll/inputs
@@ -477,11 +532,11 @@ GET /admin/payroll/inputs
 → PayrollInputOperationsReadRepositoryInterface.php | listing()
 → EloquentPayrollInputOperationsReadRepository.php | listing()
 → PayrollInputOperationsViewModel.php | snapshots, periods
-→ resources/views/inputs/index.blade.php. <
+→ resources/views/inputs/index.blade.php.            <
 
 POST /admin/payroll/inputs
 → PayrollInputOperationRequest.php | rules()
-→ PayrollController.php | store()        <
+→ PayrollController.php | store()                <
 → CapturePayrollInputSnapshotCommand.php
 → CommandBusInterface.php | dispatch()
 → CapturePayrollInputSnapshotHandler.php | handle()
@@ -500,13 +555,17 @@ GET /admin/payroll/inputs/{snapshot}
 → GetPayrollInputDetailHandler.php | handle()
 → EloquentPayrollInputOperationsReadRepository.php | detail()
 → PayrollInputOperationsViewModel.php | summary/employees/issues/history
-→ resources/views/inputs/show.blade.php.  <
+→ resources/views/inputs/show.blade.php.          <
+                nối vào    ^
+→ resources/views/inputs/employees.blade.php.          <
+                nối vào    ^
+→ resources/views/inputs/employee.blade.php.          <
 
 GET /admin/payroll/inputs/create
 → PayrollController.php | create()
 → GetPayrollInputCreateOptionsQuery.php → QueryBus → Handler
 → EloquentPayrollInputOperationsReadRepository.php | periods(): same Company + collecting/review
-→ inputs/create.blade.php | dropdown hoặc empty state + Create Period link.      <
+→ inputs/create.blade.php | dropdown hoặc empty state + Create Period link.             <
 
 
 GET /admin/payroll/inputs/{snapshot}/employees
@@ -531,7 +590,7 @@ GET /admin/payroll/inputs/{snapshot}/employees/{employeeInput}
 → EloquentPayrollInputOperationsReadRepository.php | employeeDetail()
 → payroll_employee_inputs + payroll_input_source_records + validation issues (all company/snapshot scoped)
 → PayrollInputEmployeeViewModel.php
-→ inputs/employee.blade.php   <
+→ inputs/employee.blade.php           <
 
 POST payroll input capture — source accuracy sub-flow
 → PayrollInputGenerationService.php | generate()
@@ -544,21 +603,21 @@ POST payroll input capture — source accuracy sub-flow
 → PayrollRunService.php | calculate() reads exact snapshot and preserves categories in payroll_items
 
 POST /admin/payroll/inputs/{snapshot}/validate
-→ PayrollController.php | validateSnapshot()
+→ PayrollController.php | validateSnapshot()        <
 → ValidatePayrollInputSnapshotCommand.php
 → ValidatePayrollInputSnapshotHandler.php
 → PayrollInputOperationsService.php | validate()
 → persisted rows only; no live-source recapture.
 
 POST /admin/payroll/inputs/{snapshot}/versions
-→ PayrollController.php | createVersion()
+→ PayrollController.php | createVersion()          <
 → CreatePayrollInputSnapshotVersionCommand.php
 → CreatePayrollInputSnapshotVersionHandler.php
 → PayrollInputOperationsService.php | capture()
 → locked next version + supersede previous snapshot.
 
 POST /admin/payroll/inputs/{snapshot}/create-run
-→ PayrollController.php | createRun()
+→ PayrollController.php | createRun()             <
 → CreatePayrollRunFromInputSnapshotCommand.php
 → CreatePayrollRunFromInputSnapshotHandler.php
 → PayrollInputOperationsService.php | createRun()
@@ -567,7 +626,7 @@ POST /admin/payroll/inputs/{snapshot}/create-run
 → redirect admin.payroll.runs.show.
 
 ================================================================================
-PHASE 3B-2B — PAYROLL PERIOD OPERATIONS (FILE → METHOD → FILE)
+PHASE 3B-2B — PAYROLL PERIOD OPERATIONS (FILE → METHOD → FILE) MENU: Kỳ lương
 ================================================================================
 
 GET /admin/payroll/periods
@@ -617,74 +676,68 @@ DELETE /admin/payroll/periods/{period}
 → PayrollPeriodOperationsService.php | delete(): draft + no Snapshot/Run only
 → activity log → list redirect.
 
+ Payroll/resources/views/periods/partials-form  nối vào Payroll/resources/views/periods/create
+
+
 ================================================================================
-PHASE 3C-1 — INSURANCE POLICY WRITE
+PHASE 3C-1 — INSURANCE POLICY WRITE           ?  ( cái luồng này chạy đi đâu ) ( không có trong MENU )
 ================================================================================
 POST /admin/payroll/insurance/policies
 → InsuranceAdministrationRequest.php | rules()
-→ InsuranceAdministrationController.php | savePolicy()
+→ InsuranceAdministrationController.php | savePolicy()       <
 → SaveInsurancePolicyCommand.php
 → CommandBusInterface::dispatch()
 → SaveInsurancePolicyHandler.php | handle()
 → InsuranceManagementService.php | savePolicy() transaction + overlap/usage validation
 → insurance_policies + insurance_policy_rates
 → Activity Log → Redirect policy detail
-
-PHASE 3C-1 — EMPLOYEE PROFILE WRITE
+================================================================================
+PHASE 3C-1 — EMPLOYEE PROFILE WRITE           ?  ( cái luồng này chạy đi đâu ) ( không có trong MENU )
+================================================================================
 POST /admin/payroll/insurance/employees/{employee}/profiles
 → InsuranceAdministrationRequest.php
-→ InsuranceAdministrationController.php | saveProfile()
+→ InsuranceAdministrationController.php | saveProfile()      <
 → SaveEmployeeInsuranceProfileCommand → Command Bus → Handler
 → InsuranceManagementService.php | saveProfile() company/policy/effective overlap validation
 → employee_insurance_profiles → masked Activity Log → Redirect
-
-PHASE 3C-1 — PAYROLL CALCULATION
-POST /admin/payroll/runs/{run}/calculate
-→ PayrollRunController.php → CalculatePayrollRunCommand/Handler
-→ PayrollRunService.php | calculate()
-→ PayrollInsuranceIntegrator.php | context() batch effective policy/profile/rates
-→ InsuranceContributionBaseResolver.php | resolve()
-→ StatutoryInsuranceCalculationService.php | calculate()
-→ InsuranceRoundingService.php | percentage() integer basis points
-→ payroll_items insurance aggregates + payroll_item_components immutable contribution lines
-→ payroll_validation_issues or calculated Run totals → History/Event/Response
-PHASE 3C-2 — PERSONAL INCOME TAX FOUNDATION
-
+================================================================================
+PHASE 3C-2 — PERSONAL INCOME TAX FOUNDATION                  ?  ( cái luồng này chạy đi đâu ) ( không có trong MENU )
+================================================================================
 GET /admin/payroll/tax/policies
 → Modules/Payroll/routes/web.php | admin.payroll.tax.policies.index
-→ TaxAdministrationController.php | policies(Request)
+→ TaxAdministrationController.php | policies(Request)                 <
 → GetTaxPolicyListQuery.php | companyId + typed filters
 → QueryBusInterface::ask()
 → GetTaxPolicyListHandler.php | handle()
 → TaxAdministrationReadRepositoryInterface.php | policies()
 → EloquentTaxAdministrationReadRepository.php | policies()
 → TaxAdministrationViewModel.php | items/page/hasMore
-→ tax/policies/index.blade.php
+→ tax/policies/index.blade.php               <
 
 POST /admin/payroll/tax/policies
 → TaxAdministrationRequest.php | rules()/validated()
-→ TaxAdministrationController.php | savePolicy()
+→ TaxAdministrationController.php | savePolicy()               <
 → SaveTaxPolicyCommand.php | companyId/policyId/data/actorId
 → CommandBusInterface::dispatch()
 → SaveTaxPolicyHandler.php | handle()
 → TaxManagementService.php | savePolicy()
 → tax_policies + tax_policy_brackets + tax_policy_deductions
 → activity(payroll-tax)
-→ admin.payroll.tax.policies.show
+→ admin.payroll.tax.policies.show           <
 
 GET /admin/payroll/tax/employees/{employee}
-→ TaxAdministrationController.php | employee()
+→ TaxAdministrationController.php | employee()            <
 → GetEmployeeTaxProfileDetailQuery.php
 → QueryBusInterface::ask()
 → GetEmployeeTaxProfileDetailHandler.php | handle()
 → TaxAdministrationReadRepositoryInterface.php | employee()
 → EloquentTaxAdministrationReadRepository.php | employee() + masked Tax ID
 → TaxAdministrationViewModel.php
-→ tax/employees/show.blade.php
+→ tax/employees/show.blade.php            <
 
 POST /admin/payroll/tax/employees/{employee}/profiles
 → TaxAdministrationRequest.php | profile rules
-→ TaxAdministrationController.php | saveProfile()
+→ TaxAdministrationController.php | saveProfile()             <
 → SaveEmployeeTaxProfileCommand.php
 → CommandBusInterface::dispatch()
 → SaveEmployeeTaxProfileHandler.php
@@ -692,27 +745,14 @@ POST /admin/payroll/tax/employees/{employee}/profiles
 → employee_tax_profiles + activity log
 → redirect back
 
-POST /admin/payroll/runs/{run}/calculate
-→ PayrollRunController.php | mutate(calculate)
-→ CalculatePayrollRunCommand.php
-→ CommandBusInterface::dispatch()
-→ CalculatePayrollRunHandler.php
-→ PayrollRunService.php | calculate()
-→ PayrollInsuranceIntegrator.php | context()/calculate()
-→ PayrollTaxIntegrator.php | context() batch preload + calculate()
-→ PersonalIncomeTaxCalculationService.php | progressive/flat integer calculation
-→ TaxRoundingService.php | percentage()
-→ payroll_items | policy/version, taxable income, PIT, net-before/after-tax
-→ payroll_item_components | taxable summary, configured deductions, bracket lines
-→ payroll_validation_issues | safe blocking codes
-→ payroll_runs | Tax total + net-after-tax aggregate
-→ PayrollRunChanged.php | identifier-only realtime refresh
-
+======================================================================
+MENU: Phiếu lương
+======================================================================
 PHASE 3D-1 — PAYSLIP FILE FLOWS
 
 POST /admin/payroll/runs/{run}/items/{item}/payslips/generate
 → PayslipActionRequest.php | rules(): UUID idempotency_key
-→ PayslipController.php | generateItem(): authorize workforce.company/payroll.payslip.generate
+→ PayslipController.php | generateItem(): authorize workforce.company/payroll.payslip.generate               <
 → GeneratePayrollItemPayslipCommand.php | companyId/runId/itemId/actorId/idempotencyKey
 → CommandBusInterface.php | dispatch()
 → GeneratePayrollItemPayslipHandler.php | handle()
@@ -728,7 +768,7 @@ POST /admin/payroll/runs/{run}/items/{item}/payslips/generate
 
 POST /admin/payroll/runs/{run}/payslips/generate
 → PayslipActionRequest.php | rules()
-→ PayslipController.php | generateRun()
+→ PayslipController.php | generateRun()               <
 → GeneratePayrollRunPayslipsCommand.php
 → CommandBusInterface.php | dispatch()
 → GeneratePayrollRunPayslipsHandler.php | handle()
@@ -737,26 +777,26 @@ POST /admin/payroll/runs/{run}/payslips/generate
 → payroll_payslip_batches progress
 
 GET /admin/payroll/payslips
-→ PayslipController.php | index(): permission + company Gate + filter normalization
+→ PayslipController.php | index(): permission + company Gate + filter normalization               <
 → GetPayslipListQuery.php
 → QueryBusInterface.php | ask()
 → GetPayslipListHandler.php | handle()
 → PayslipReadRepositoryInterface.php | list()
 → EloquentPayslipReadRepository.php | company-scoped stable page query
 → PayslipViewModel.php
-→ payslips/index.blade.php
-
+→ payslips/index.blade.php             <
+           nối    v
 GET /admin/payroll/payslips/{payslip}
-→ PayslipController.php | show()
+→ PayslipController.php | show()             <
 → GetPayslipDetailQuery.php
 → QueryBusInterface.php | ask()
 → GetPayslipDetailHandler.php | handle()
 → EloquentPayslipReadRepository.php | detail(): tenant + immutable snapshot
 → PayslipViewModel.php
-→ payslips/show.blade.php
+→ payslips/show.blade.php           <
 
 GET /admin/payroll/payslips/{payslip}/download
-→ PayslipController.php | download(): permission + company Gate
+→ PayslipController.php | download(): permission + company Gate           <
 → DownloadPayslipQuery.php
 → QueryBusInterface.php | ask()
 → DownloadPayslipHandler.php | handle()
@@ -765,7 +805,7 @@ GET /admin/payroll/payslips/{payslip}/download
 → private Storage::download() | no-store/nosniff
 
 POST /admin/payroll/payslips/{payslip}/publish
-→ PayslipController.php | publish()
+→ PayslipController.php | publish()                 <
 → PublishPayslipCommand.php
 → PublishPayslipHandler.php | handle()
 → PayslipGenerationService.php | publish(): lock + integrity + idempotent transition
@@ -775,31 +815,47 @@ POST /admin/payroll/payslips/{payslip}/publish
 
 POST /admin/payroll/payslips/{payslip}/revoke
 → PayslipActionRequest.php | required reason
-→ PayslipController.php | revoke()
+→ PayslipController.php | revoke()                <
 → RevokePayslipCommand.php → RevokePayslipHandler.php
 → PayslipGenerationService.php | revoke(): tenant lock + reason + immutable retention
 → payroll_payslip_access_logs + PayslipChanged.php
 
 POST /admin/payroll/payslips/{payslip}/regenerate
-→ PayslipController.php | regenerate()
+→ PayslipController.php | regenerate()               <
 → RegeneratePayslipCommand.php → RegeneratePayslipHandler.php
 → PayslipGenerationService.php | regenerate(): block published/revoked, same snapshot
 → GeneratePayslipPdfJob.php
 
+======================================================================
+MENU: Thanh toán
+======================================================================
 PHASE 3D-2 — BANK PAYMENT FILE FLOWS
 
 POST /admin/payroll/payment-accounts/{employee}
 → PaymentAccountRequest.php | validate bank_transfer/account/effective/currency
-→ PaymentAccountController.php | store()/save() + company Gate
+→ PaymentAccountController.php | store()/save() + company Gate                    <
 → SavePaymentAccountCommand.php → CommandBusInterface::dispatch()
 → SavePaymentAccountHandler.php | handle()
 → EmployeePaymentAccountService.php | save(): tenant/overlap/encrypt/last4
 → employee_payment_accounts + safe activity log
 → Payment Account detail (masked only)
 
+GET payroll/payment-batches
+PaymentBatchController.php index()                   <
+> GetPaymentBatchListQuery.php
+> GetPaymentBatchListHandler.php | handle()
+> PaymentReadRepositoryInterface.php | batches()
+> EloquentPaymentReadRepository | batches()
+> PaymentBatchViewModel (DTO (__construct))
+> view: payroll::payment-batches.index              <
+
+GET admin//payroll/payment-batches/create
+PaymentBatchController.php create()
+> view: payroll::payment-batches.create             <
+
 POST /admin/payroll/payment-batches
 → PaymentBatchRequest.php | run_id/idempotency_key
-→ PaymentBatchController.php | store() + company Gate
+→ PaymentBatchController.php | store() + company Gate        return redirect()->route('admin.payroll.payment-batches.show')         <
 → CreatePaymentBatchCommand.php → CommandBusInterface::dispatch()
 → CreatePaymentBatchHandler.php
 → PayrollPaymentBatchService.php | create(): finalized Run lock
@@ -810,7 +866,7 @@ POST /admin/payroll/payment-batches
 → PaymentBatchChanged.php | safe realtime identifiers
 
 POST /admin/payroll/payment-batches/{batch}/approve
-→ PaymentBatchController.php | approve() + permission/company Gate
+→ PaymentBatchController.php | approve() + permission/company Gate                <
 → ApprovePaymentBatchCommand.php → Handler
 → PayrollPaymentBatchService.php | approve(): reviewed state lock + maker != checker
 → approved_by/approved_at + activity + safe event
@@ -826,28 +882,33 @@ POST /admin/payroll/payment-batches/{batch}/release
 → access/activity log + safe event
 
 GET /admin/payroll/payment-batches/{batch}/download
-→ PaymentBatchController.php | download() + company Gate
+→ PaymentBatchController.php | download() + company Gate              <
 → DownloadPaymentBatchFileQuery.php → QueryBusInterface::ask()
 → DownloadPaymentBatchFileHandler.php
 → PayrollPaymentBatchService.php | released + checksum verification
 → payroll_payment_access_logs
 → private no-store StreamedResponse
+======================================================================
+MENU: Kế toán và bút toán
+======================================================================
 PHASE 3D-3 — PAYROLL ACCOUNTING POSTING FILE FLOW
 
 GET /admin/payroll/accounting/journals
 → Modules/Payroll/routes/web.php | route admin.payroll.accounting.journals.index
-→ AccountingJournalController.php | index(Request)
+→ AccountingJournalController.php | index(Request)                     <
 → GetAccountingViewQuery.php | view="journals", companyId, filters
 → QueryBusInterface::ask()
 → GetAccountingViewHandler.php | handle()
 → AccountingReadRepositoryInterface.php | journals()
 → EloquentAccountingReadRepository.php | journals()
-→ AccountingViewModel.php | items/page/hasMore
-→ accounting/journals/index.blade.php
-
+→ AccountingViewModel.php | items/page/hasMore                                                   (nút tạo) accounting/policies/from ( create )                                                      accounting/mappings/form ( create - edit )
+→ accounting/journals/index.blade.php                      <                                                             ^                                                                                       ^
+              nối vào   v         > () journals.create , () runs/index ,  (AccountingPolicyController.php) accounting/policies/index  >  (nút:Accounting mappings)(AccountingMappingController.php) accounting/mappings/index
+→ accounting/journals/show.blade.php                      <                                                              v                                                                                       v
+                        v                                                                       accounting/policies/show > accounting/policies/from( edit )
 POST /admin/payroll/accounting/journals
 → AccountingJournalRequest.php | rules(): company_id, run_id, posting_date, idempotency_key
-→ AccountingJournalController.php | store()
+→ AccountingJournalController.php | store()                              <
 → Gate workforce.company(payroll.accounting.journal.create, companyId)
 → ExecuteAccountingJournalCommand.php | action=create
 → CommandBusInterface::dispatch()
@@ -862,7 +923,7 @@ POST /admin/payroll/accounting/journals
 
 POST /admin/payroll/accounting/journals/{journal}/{action}
 → AccountingJournalRequest.php
-→ AccountingJournalController.php | mutate()
+→ AccountingJournalController.php | mutate()                 <
 → permission map + workforce.company Gate
 → ExecuteAccountingJournalCommand.php
 → ExecuteAccountingJournalHandler.php
@@ -872,7 +933,7 @@ POST /admin/payroll/accounting/journals/{journal}/{action}
 → redirect back with flash message
 
 GET /admin/payroll/accounting/journals/{journal}/download
-→ AccountingJournalController.php | download()
+→ AccountingJournalController.php | download()                 <
 → DownloadAccountingJournalQuery.php
 → QueryBusInterface::ask()
 → DownloadAccountingJournalHandler.php
@@ -882,7 +943,7 @@ GET /admin/payroll/accounting/journals/{journal}/download
 
 POST /admin/payroll/accounting/journals/{journal}/reverse
 → AccountingJournalRequest.php | reason + idempotency_key
-→ AccountingJournalController.php | reverse()
+→ AccountingJournalController.php | reverse()                  <
 → ReverseAccountingJournalCommand.php
 → ReverseAccountingJournalHandler.php
 → PayrollAccountingJournalService.php | reverse()
@@ -891,7 +952,7 @@ POST /admin/payroll/accounting/journals/{journal}/reverse
 
 ACCOUNT / POLICY / MAPPING WRITE
 → AccountingAdministrationRequest.php | conditional typed validation
-→ AccountingAccountController / AccountingPolicyController / AccountingMappingController | store/update
+→ AccountingAccountController / AccountingPolicyController / AccountingMappingController | store/update               <
 → SaveAccountingAdministrationCommand.php
 → SaveAccountingAdministrationHandler.php | boundary normalization
 → AccountingAdministrationService.php | saveAccount/savePolicy/saveMapping
@@ -899,7 +960,7 @@ ACCOUNT / POLICY / MAPPING WRITE
 → activity log + redirect
 
 ======================================================================
-PHASE 3E-1 — PAYROLL ADJUSTMENT FILE/FUNCTION FLOW    |     Điều chỉnh lương
+PHASE 3E-1 — PAYROLL ADJUSTMENT FILE/FUNCTION FLOW    |    MENU: Điều chỉnh lương
 ======================================================================
 GET /admin/payroll/adjustments → Modules/Payroll/routes/web.php | admin.payroll.adjustments.index → PayrollAdjustmentController.php | index() → QueryBusInterface.php | ask(GetPayrollAdjustmentQuery) → GetPayrollAdjustmentHandler.php | handle() → EloquentPayrollAdjustmentReadRepository.php | listing() → PayrollAdjustmentViewModel.php | data → adjustments/index.blade.php.       <
 
@@ -936,9 +997,9 @@ Typed schema boundary
 → Modules/Payroll/app/Application/DTOs/AdjustmentDownstreamIntentData.php | intent status/attempt/artifact fields
 
 Không có Route → Controller → Command trong C1 vì C1 chỉ chuẩn hóa schema. Business integration Payment/Accounting/Statement thuộc Phase 3E-1C2.
-
-PHASE 3E-1C2 — RETROACTIVE ADJUSTMENT DOWNSTREAM FILE/FUNCTION FLOW
-
+========================================================================================================================
+PHASE 3E-1C2 — RETROACTIVE ADJUSTMENT DOWNSTREAM FILE/FUNCTION FLOW      MENU: Điều chỉnh luongw
+========================================================================================================================
 POST /admin/payroll/adjustments/{adjustment}/downstream/payment
 → Modules/Payroll/routes/web.php | admin.payroll.adjustments.downstream.execute
 → PayrollAdjustmentRequest.php | rules()/validatedCompanyId()
@@ -1035,16 +1096,19 @@ tests/Concurrency/Payroll/PayrollProcessConcurrencyTest.php | Adjustment race me
 → lock intent; `processing`/`completed`/`not_applicable` concurrent retry exits
 → exactly one terminal lifecycle/history/artifact/checksum.
 
+============================================================
+MENU: Thuế TNCN năm
+============================================================
 PHASE 3E-2A — ANNUAL PIT RECONCILIATION (DESIGNED, NOT IMPLEMENTED)
-
 Future WRITE flow:
 PHASE 3E-2B — ANNUAL PIT FOUNDATION (luồng file thật, chưa có HTTP/UI)
 
-CREATE DRAFT
+CREATE DRAFT    CreateAnnualTaxReconciliationCommand.php > Hanler > PayrollAnnualTaxReconciliationService.php | create <  function gọi tác vụ nặng ( tái sử dụng trong nìu service )  PayrollAnnualTaxBrowserFixtureService | create (Feature test) , PayrollAnnualTaxDeliveryFixtureService | create (Feature test), PayrollAnnualTaxReconciliationService | create(CommandBus) (chuổi lệnh gộp)
 CommandBusInterface.php | dispatch(CreateAnnualTaxReconciliationCommand)
+> PayrollAnnualTaxReconciliationController.php  | store       (bấm:[Tạo quyết toán])  ( route:admin.payroll.annual-tax.show )              <
 → Application/Commands/CreateAnnualTaxReconciliation/CreateAnnualTaxReconciliationCommand.php | companyId, employeeId, taxYear, jurisdiction, currency, idempotencyKey, actorId
 → Application/Commands/CreateAnnualTaxReconciliation/CreateAnnualTaxReconciliationHandler.php | handle()
-→ Domain/Services/PayrollAnnualTaxReconciliationService.php | create()
+→ Domain/Services/PayrollAnnualTaxReconciliationService.php | create()           <
 → Domain/Repositories/AnnualTaxReconciliationRepositoryInterface.php | findByIdempotency(), findActive(), findScoped()
 → Infrastructure/Persistence/EloquentAnnualTaxReconciliationRepository.php | tenant-scoped Eloquent implementation
 → Domain/Models/PayrollAnnualTaxReconciliation.php | casts(), statusValue(), immutable snapshot accessors
@@ -1053,9 +1117,10 @@ CommandBusInterface.php | dispatch(CreateAnnualTaxReconciliationCommand)
 
 COLLECT IMMUTABLE SOURCES
 CommandBusInterface.php | dispatch(CollectAnnualTaxSourcesCommand)
+> PayrollAnnualTaxReconciliationController.php  | collect      ( Thu thập dữ liệu thuế Ví dụ:Payroll+Bonus+Overtime+Adjustment+Deduction đưa vào reconciliation. )    return $this->done('collect');           <
 → Application/Commands/CollectAnnualTaxSources/CollectAnnualTaxSourcesCommand.php | companyId, reconciliationId, actorId
 → Application/Commands/CollectAnnualTaxSources/CollectAnnualTaxSourcesHandler.php | handle()
-→ Domain/Services/PayrollAnnualTaxReconciliationService.php | collect()
+→ Domain/Services/PayrollAnnualTaxReconciliationService.php | collect()           <
 → Domain/Services/AnnualTaxSourceCollector.php | collect()
 → Domain/Services/PayrollAnnualTaxAttributionResolver.php | regular(), adjustment()
 → payroll_runs(status=finalized) + payroll_items(exact calculation_version) + payroll_item_components(exact version)
@@ -1066,9 +1131,9 @@ CommandBusInterface.php | dispatch(CollectAnnualTaxSourcesCommand)
 → Application/DTOs/AnnualTaxSourceCollectionResult.php | counts, issues, checksum.
 
 VERIFY SOURCE INTEGRITY
-PayrollAnnualTaxReconciliationService.php | verify(companyId, reconciliationId)
+PayrollAnnualTaxReconciliationService.php | verify(companyId, reconciliationId)          <
 → AnnualTaxReconciliationRepositoryInterface.php | findScoped()
-→ PayrollAnnualTaxReconciliationService.php | hydrateSources(), metadata()
+→ PayrollAnnualTaxReconciliationService.php | hydrateSources(), metadata()             <
 → AnnualTaxChecksumService.php | source() for each persisted source/component
 → AnnualTaxChecksumService.php | reconciliation() for ordered aggregate
 → hash_equals(stored source_checksum, calculated checksum)
@@ -1080,10 +1145,10 @@ No Route/FormRequest/Controller/Blade, AnnualTaxCalculator, post-draft lifecycle
 PHASE 3E-2C WRITE HTTP
 POST /admin/payroll/annual-tax/{reconciliation}/{action}
 → AnnualTaxReconciliationRequest.php | rules(), authenticated actor
-→ PayrollAnnualTaxReconciliationController.php | mutate(), Company Gate
+→ PayrollAnnualTaxReconciliationController.php | mutate(), Company Gate                 <
 → ProcessAnnualTaxReconciliationCommand.php | typed IDs/action/reason
 → ProcessAnnualTaxReconciliationHandler.php | handle()
-→ PayrollAnnualTaxOperationsService.php | calculate(), validate(), supersede()
+→ PayrollAnnualTaxOperationsService.php | calculate(), validate(), supersede()              <
 OR PayrollAnnualTaxLifecycleService.php | transition()
 → PayrollAnnualTaxValidator.php | checksum/stale/blocking gates
 → annual header/history/eligibility intents
@@ -1091,50 +1156,71 @@ OR PayrollAnnualTaxLifecycleService.php | transition()
 
 PHASE 3E-2C READ HTTP
 GET /admin/payroll/annual-tax[/{reconciliation}]
-→ PayrollAnnualTaxReconciliationController.php | index()/show(), Company Gate
+→ PayrollAnnualTaxReconciliationController.php | index()/show(), Company Gate    ( Khi user mở: | )            <
 → GetAnnualTaxReconciliationQuery.php
 → GetAnnualTaxReconciliationHandler.php | Company-scoped bounded projection
-→ annual-tax/index.blade.php OR show.blade.php.
+→ annual-tax/index.blade.php OR show.blade.php.                      <
 ANNUAL PIT — DEDICATED ACTION FLOWS (PHASE 3E-2C2)
 
 ANNUAL PIT — TYPED READ FLOWS (PHASE 3E-2C COMPLETION)
+/annual-tax/statement.blade.php    <    ? ( ko có ) (PDF:tài liệu quyết toán nội bộ của employer) (không phải tờ khai gửi trực tiếp cho cơ quan thuế.)
+/annual-tax/create  (Lấy dữ liệu cần cho form:Employee dropdown,Tax year,Currency,Jurisdiction)  ( annual-tax/create.blade.php )        <
+                                                                                V    (Lấy danh sách Annual Tax,Hiển thị Blade.)                                                                                                                                                                        v
 GET admin.payroll.annual-tax.index → PayrollAnnualTaxReconciliationController@index → QueryBusInterface::ask(GetAnnualTaxReconciliationListQuery) → GetAnnualTaxReconciliationListHandler::handle → AnnualTaxReconciliationRepositoryInterface → AnnualTaxReconciliationListViewModel → annual-tax/index.blade.php
-GET admin.payroll.annual-tax.show → PayrollAnnualTaxReconciliationController@show → GetAnnualTaxReconciliationDetailQuery → GetAnnualTaxReconciliationDetailHandler::handle → AnnualTaxReconciliationDetailViewModel → GetAnnualTaxSourceQuery/GetAnnualTaxHistoryQuery → respective handlers/repository → AnnualTaxSourceViewModel/AnnualTaxHistoryViewModel → annual-tax/show.blade.php
+                                                                               V     (payroll::annual-tax.show)                                                                                                                                                                                                                                                                                        v
+GET admin.payroll.annual-tax.show → PayrollAnnualTaxReconciliationController@show → GetAnnualTaxReconciliationDetailQuery → GetAnnualTaxReconciliationDetailHandler::handle → AnnualTaxReconciliationDetailViewModel → GetAnnualTaxSourceQuery/GetAnnualTaxHistoryQuery → respective handlers/repository → AnnualTaxSourceViewModel/AnnualTaxHistoryViewModel → annual-tax/show.blade.php             <
 CLI payroll:annual-tax-browser-fixture → PayrollAnnualTaxBrowserFixtureCommand::handle → PayrollAnnualTaxBrowserFixtureService::create → PayrollAdjustmentBrowserFixtureService + Annual Tax create/collect/calculate services → schema_admin_testing fixture only
 
 ANNUAL TAX DELIVERY (PHASE 3E-2D)
+                                                              V     (Sinh chứng từ:Ví dụ:Annual Tax Statement.pdf)
 POST statement → PayrollAnnualTaxReconciliationController@generateStatement → CommandBus → GenerateAnnualTaxStatementCommand → Handler → PayrollAnnualTaxDeliveryService@generateStatement → persisted snapshots/sources → Dompdf → private disk → payroll_annual_tax_documents → access log → redirect
-GET statement/{document} → Controller@downloadStatement → QueryBus → DownloadAnnualTaxStatementQuery → Handler → PayrollAnnualTaxDeliveryService@download → company-scoped document → exists/MIME/size/SHA-256/%PDF validation → access log → private PDF response
-POST payment-intent|refund-intent|settlement-journal → Controller → dedicated Command/Handler → PayrollAnnualTaxDeliveryService → locked finalized aggregate → idempotent intent/refund obligation/balanced annual settlement journal
-POST downstream/retry → RetryAnnualTaxDownstreamCommand → Handler → payment/refund/accounting/statement operations → existing resources returned without duplicate
+                                                 V      (Khác các action trên. Đây là Query:DownloadAnnualTaxStatementQuery : Lấy file:return response($result->bytes) Trả PDF/Excel. Có bảo mật:X-Content-Type-Options:nosniff , Cache-Control:private,no-store)
+GET statement/{document} → Controller@downloadStatement → QueryBus → DownloadAnnualTaxStatementQuery → Handler
+                               v
+→ PayrollAnnualTaxDeliveryService@download → company-scoped document → exists/MIME/size/SHA-256/%PDF validation → access log → private PDF response
+                                                                                                                                                      V   |  function bổ trờ cho function chính
+POST payment-intent|refund-intent|settlement-journal → Controller → dedicated Command/Handler → PayrollAnnualTaxDeliveryService → locked finalized aggregate() → idempotent intent/refund obligation/balanced annual settlement journal
+PayrollAnnualTaxReconciliationController.php@createPaymentIntent > CreateAnnualTaxPaymentIntentCommand (Ví dụ:Phải nộp:5.000.000)
+PayrollAnnualTaxReconciliationController.php@createRefundIntent  > CreateAnnualTaxRefundIntentCommand (Ví dụ:Được hoàn:2.000.000)
+PayrollAnnualTaxReconciliationController.php@createSettlementJournal > CreateAnnualTaxSettlementJournalCommand (Tạo bút toán:Ví dụ:Nợ:Tax Expense Có:Tax Payable)
+                                         V    ( Dùng khi gọi hệ thống ngoài lỗi.Ví dụ:Payroll - Accounting API - X lỗi )
+POST downstream/retry → Controller@retryDownstream → RetryAnnualTaxDownstreamCommand → Handler → payment/refund/accounting/statement operations → existing resources returned without duplicate
 CLI payroll:annual-tax-delivery-fixture → PayrollAnnualTaxDeliveryFixtureCommand → guarded PayrollAnnualTaxDeliveryFixtureService → payable/refund/balanced testing fixtures → --cleanup removes database rows/private files
+                                                                                                 V         (Đây mới là chỗ:Tính thuế)                                                                                                                                                        V
 POST /admin/payroll/annual-tax/{id}/calculate > PayrollAnnualTaxReconciliationController.php|calculate() > CalculateAnnualTaxReconciliationCommand.php|companyId,reconciliationId,actorId > CalculateAnnualTaxReconciliationHandler.php|handle() > PayrollAnnualTaxOperationsService.php|calculate() > PayrollAnnualTaxCalculator.php|liability() > payroll_annual_tax_reconciliations + payroll_annual_tax_histories > RedirectResponse.
-POST /admin/payroll/annual-tax/{id}/validate > Controller|validateReconciliation() > ValidateAnnualTaxReconciliationCommand|validationStage > Handler|handle() > PayrollAnnualTaxOperationsService|validate() > PayrollAnnualTaxValidator|validate() > payroll_annual_tax_validation_issues fingerprint reconcile > RedirectResponse.
+                                                                                                 V         (Kiểm tra:Có employee chưa?,Có tax policy chưa?,Có dữ liệu payroll chưa?,Có lỗi không?)                                                                              V
+POST /admin/payroll/annual-tax/{id}/validate > PayrollAnnualTaxReconciliationController.php|validateReconciliation() > ValidateAnnualTaxReconciliationCommand|validationStage > Handler|handle() > PayrollAnnualTaxOperationsService|validate() > PayrollAnnualTaxValidator|validate() > payroll_annual_tax_validation_issues fingerprint reconcile > RedirectResponse.
+                                       v     v      v        v       v              V         (Chuyển trạng thái:DRAFT > SUBMITTED,REVIEWED > APPROVED,APPROVED > FINALIZED,reject() Từ chối:Ví dụ:Sai số tiền,Sai nhân viên,Thiếu giấy tờ)
 POST /admin/payroll/annual-tax/{id}/submit|review|approve|finalize|reject > Controller action > matching dedicated Command > matching Handler > PayrollAnnualTaxLifecycleService|transition() > row lock + maker-checker + stage validation > reconciliation/history; finalize additionally > downstream eligibility intents > RedirectResponse.
-POST /admin/payroll/annual-tax/{id}/supersede > SupersedeAnnualTaxReconciliationRequest|reason_code,reason,idempotency_key > Controller|supersede() > SupersedeAnnualTaxReconciliationCommand > Handler > PayrollAnnualTaxOperationsService|supersede() > old finalized→superseded + new version draft > redirect new detail.
-GET /admin/payroll/annual-tax/{id} > Controller|show() > GetAnnualTaxReconciliationQuery > QueryBus > GetAnnualTaxReconciliationHandler|handle() > Company-scoped header + independent sources_page/issues_page/history_page/components_page paginators > annual-tax/show.blade.php.
+                                                                                                                                            V         (Cái này nâng cao:Tạo bản thay thế Ví dụ:Bản cũ:Tax 2026,ID=10 -Sai | Tạo bản mới:Tax 2026,ID=11-Bản cũ:SUPERSEDED) - Giống hệ thống kế toán doanh nghiệp.                                                              V
+POST /admin/payroll/annual-tax/{id}/supersede > SupersedeAnnualTaxReconciliationRequest|reason_code,reason,idempotency_key > Controller|supersede() > SupersedeAnnualTaxReconciliationCommand > Handler > PayrollAnnualTaxOperationsService|supersede() > old finalized→superseded + new version draft > redirect new detail. ( return redirect()->route('admin.payroll.annual-tax.show) )
+                                                 V
+GET /admin/payroll/annual-tax/{id} > Controller|show() > GetAnnualTaxReconciliationQuery > QueryBus > GetAnnualTaxReconciliationHandler|handle() > Company-scoped header + independent sources_page/issues_page/history_page/components_page paginators > annual-tax/show.blade.php.             <
 
 QUALITY FLOW 2026-08-01 > mysql/schema_admin_testing > php artisan test > 221 tests / 1,908 assertions PASS > PHPStan Payroll + tests level 10 = 0 > Pint PASS > Blade clear/cache/clear PASS > Vite PASS > docker compose config PASS > production mysql/schema_admin read-only audit = all scoped rows/files 0.
 PHASE 3E-3 — ERP INTEGRATION FOUNDATION
+============================================================
+MENU: ERP Exports
+============================================================
 
-GET/POST/PUT /admin/payroll/erp/connections
+GET/POST/PUT /admin/payroll/erp/connections   < ( cái luồng này chạy đi đâu )
 → ErpExportRequest.php | rules()
-→ ErpExportController.php | connections()/connectionStore()/connectionUpdate()
+→ ErpExportController.php | connections()(payroll::erp.connections.index) / connectionStore()(chạy ra route:admin.payroll.erp.connections.show) / connectionShow()( view: payroll::erp.connections.show ) / connectionEdit()( view: payroll::erp.connections.form ) / connectionUpdate()(chạy ra route:admin.payroll.erp.connections.show)  /  mappingUpdate() > saveMapping() (route('admin.payroll.erp.mappings.show'))            <
 → GetErpAdministrationQuery.php hoặc ManageErpAdministrationCommand.php
 → QueryBus/CommandBus
 → EloquentErpExportReadRepository.php hoặc ErpAdministrationService.php
 → encrypted credential reference + company-scoped erp_connections
 → connections Blade
 
-GET/POST/PUT /admin/payroll/erp/mappings
-→ ErpExportController mapping actions
+GET/POST/PUT /admin/payroll/erp/mappings   < ( cái luồng này chạy đi đâu )
+→ ErpExportController | mappings() actions  mappingCreate()  mappingShow()  mappingEdit()      <
 → GetErpAdministrationQuery / ManageErpAdministrationCommand
 → effective-date validation
 → old version superseded + new immutable erp_mapping_rules version
-→ mappings Blade
+→ mappings ( payroll::erp.mappings.index )  ,  mappingCreate ( payroll::erp.mappings.form ) , mappingShow ( payroll::erp.mappings.show ) , mappingEdit ( payroll::erp.mappings.form )   <
 
 GET /admin/payroll/erp/exports/{export}/download
-→ ErpExportController.php | download()
+→ ErpExportController.php | download()              <
 → DownloadErpArtifactQuery.php
 → DownloadErpArtifactHandler.php
 → ErpExportService.php | download()
@@ -1144,18 +1230,18 @@ GET /admin/payroll/erp/exports/{export}/download
 
 GET /admin/payroll/erp/exports
 → Modules/Payroll/routes/web.php | admin.payroll.erp.exports.index
-→ ErpExportController.php | index()
+→ ErpExportController.php | index()                  <
 → GetErpExportListQuery.php | companyId/search/status
 → Laravel QueryBus | ask()
 → GetErpExportListHandler.php | handle()
 → ErpExportReadRepositoryInterface.php | list()
 → EloquentErpExportReadRepository.php | company-scoped journal/connection read
 → ErpExportViewModel.php | items
-→ erp/exports/index.blade.php
+→ erp/exports/index.blade.php                       <
 
 POST /admin/payroll/erp/exports
 → ErpExportRequest.php | rules()
-→ ErpExportController.php | store()
+→ ErpExportController.php | store()                 <
 → CreateErpExportCommand.php
 → Laravel CommandBus | dispatch()
 → CreateErpExportHandler.php | handle()
@@ -1163,23 +1249,53 @@ POST /admin/payroll/erp/exports
 → payroll_accounting_journal_lines (authoritative read)
 → erp_exports + erp_export_items + erp_export_logs
 → ErpExportResult.php
+→ redirect route('admin.payroll.erp.exports.show')                   <
+
+POST /admin/payroll/erp/exports/{export}/{validate|execute|retry|reverse}
+→ ErpExportController.php | mutate()              <
+→ typed action Command → matching Handler
+→ ErpExportService.php | validate()/execute()/retry()/reverse()
+→ lockForUpdate + maker-checker + state validation
+→ ErpAccountingAdapter.php
+→ GenericCsvErpAdapter.php | export()
+→ private local artifact + SHA-256 metadata + lifecycle log
 → redirect detail
 
+ErpExportController.php | create()          <
+> GetErpExportCreateOptionsQuery.php > GetErpExportCreateOptionsHandler.php > ErpExportViewModel.php | dto
+> ErpExportReadRepositoryInterface.php creaOptions()
+> EloquentErpExportReadRepository.php | createOptions()
+> return new ErpExportViewModel
+> view:payroll::erp.exports.create            <
 ============================================================
-PHASE 3E-4 — GOVERNMENT-FILING FOUNDATION         | thiếu luồng create , show
+PHASE 3E-4 — GOVERNMENT-FILING FOUNDATION   MENU: government-filings
 ============================================================
 
 GET /admin/payroll/government-filings
+→ Modules/Payroll/routes/web.php | admin.payroll.government-filings.index
 → GovernmentFilingController.php | index()      <
-→ GetGovernmentFilingListQuery.php | companyId/status/year/search
-→ QueryBus.php | ask()
+→ GetGovernmentFilingListQuery.php | companyId, taxYear, status
+→ QueryBusInterface.php | ask()
 → GetGovernmentFilingListHandler.php | handle()
 → GovernmentFilingReadRepositoryInterface.php | list()
 → EloquentGovernmentFilingReadRepository.php | company-scoped projection
 → GovernmentFilingViewModel.php | filings
 → government-filing/index.blade.php        <
 
+GET /admin/payroll/government-filings/create
+→ Modules/Payroll/routes/web.php | admin.payroll.government-filings.create
+→ GovernmentFilingController.php | create(Request $request)
+→ workforce.company Gate | government.filing.create + companyId
+→ GetGovernmentFilingCreateOptionsQuery.php | companyId
+→ QueryBusInterface.php | ask()
+→ GetGovernmentFilingCreateOptionsHandler.php | handle()
+→ GovernmentFilingReadRepositoryInterface.php | createOptions()
+→ EloquentGovernmentFilingReadRepository.php | company-scoped finalized annual reconciliations
+→ GovernmentFilingViewModel.php | filingTypes, reconciliations
+→ resources/views/government-filing/create.blade.php
+
 POST /admin/payroll/government-filings
+→ Modules/Payroll/routes/web.php | admin.payroll.government-filings.store
 → GovernmentFilingRequest.php | rules()
 → GovernmentFilingController.php | store()      <
 → CreateGovernmentFilingCommand.php
@@ -1190,7 +1306,21 @@ POST /admin/payroll/government-filings
 → government_tax_filings + government_tax_filing_items + government_tax_filing_logs
 → redirect detail
 
+GET /admin/payroll/government-filings/{filing}
+→ Modules/Payroll/routes/web.php | admin.payroll.government-filings.show
+→ GovernmentFilingController.php | show(Request $request, int $filing)
+→ workforce.company Gate | government.filing.view + companyId
+→ GetGovernmentFilingDetailQuery.php + GetSubmissionHistoryQuery.php
+→ QueryBusInterface.php | ask() twice
+→ matching query Handlers | handle()
+→ GovernmentFilingReadRepositoryInterface.php | detail() + submissionHistory()
+→ EloquentGovernmentFilingReadRepository.php | company/filing-scoped read models
+→ GovernmentFilingViewModel.php | filing, items, documents, issues, attempts, history
+→ resources/views/government-filing/show.blade.php
+
 POST /admin/payroll/government-filings/{filing}/{generate|validate|approve|submit|retry|reject}
+→ Modules/Payroll/routes/web.php | admin.payroll.government-filings.mutate
+→ GovernmentFilingRequest.php | action-aware validation
 → GovernmentFilingController.php | mutate()      <
 → action-specific typed Command
 → matching Handler.php | handle()
@@ -1201,6 +1331,7 @@ POST /admin/payroll/government-filings/{filing}/{generate|validate|approve|submi
 → redirect detail
 
 GET /admin/payroll/government-filings/{filing}/documents/{document}
+→ Modules/Payroll/routes/web.php | admin.payroll.government-filings.download
 → GovernmentFilingController.php | download()       <
 → DownloadGovernmentDocumentQuery.php
 → QueryBus.php | ask()
@@ -1243,16 +1374,6 @@ Future read flow
 → immutable ViewModel/API Resource
 
 Phase 3E-5A created documentation only; every file/class/table in this flow remains a future proposal.
-
-POST /admin/payroll/erp/exports/{export}/{validate|execute|retry|reverse}
-→ ErpExportController.php | mutate()
-→ typed action Command → matching Handler
-→ ErpExportService.php | validate()/execute()/retry()/reverse()
-→ lockForUpdate + maker-checker + state validation
-→ ErpAccountingAdapter.php
-→ GenericCsvErpAdapter.php | export()
-→ private local artifact + SHA-256 metadata + lifecycle log
-→ redirect detail
 
 Organization
       |
@@ -1885,6 +2006,14 @@ EloquentWorkforceReadRepository -> DB read -> typed WorkforceManagementViewModel
 now stores deterministic JSON at the cache boundary and validates/reconstructs
 the DTO. Legacy serialized objects invalidate the scoped cache version and are
 replaced; they can no longer surface as __PHP_Incomplete_Class HTTP 500 errors.
+The final navigation runtime walk applied the same concrete boundary to three
+additional read paths: LeaveManagementController -> GetLeaveManagementQuery ->
+EloquentLeaveReadRepository -> LeaveManagementViewModel JSON; OvertimeController
+-> EloquentOvertimeReadRepository -> OvertimeManagementViewModel JSON; and
+PayrollDeliveryController::index -> GetPayrollDeliveryQuery ->
+EloquentPayrollDeliveryReadRepository -> PayrollDeliveryViewModel JSON. Each
+path validates cached scalars, invalidates legacy/corrupt payloads and rebuilds
+from its owned tables before rendering the admin Blade page.
 
 Core/Dashboard: web middleware (auth, verified, company context, correlation)
 -> named route -> controller -> QueryBus/read services -> cache-safe typed arrays
@@ -1941,3 +2070,41 @@ HTTP write -> Controller -> CommandBus -> Handler/Domain Service -> DB transacti
 Reverb healthy -> event delivered -> original response.
 Reverb unavailable -> catch only BroadcastException -> safe warning (component/correlation/event/failure category) -> preserve original response.
 Validation/domain/database/programming exception -> propagate normally; never swallowed by the realtime boundary.
+
+DATA QUALITY READ FLOW (Phase 3F-24)
+GET /admin/operations/data-quality -> auth -> verified -> operations.view -> DataQualityController -> DataQualityAuditService -> bounded aggregate SQL over module-owned tables -> safe count/checksum ViewModel array -> operations/data-quality Blade.
+CLI operations:data-quality-audit --json -> same read-only service -> aggregate JSON; no PII, SQL binding or mutation.
+
+EMPLOYEE MANAGER UX READ FLOW
+GET create/edit Employee -> EmployeeController::managerOptions -> company-scoped active employees -> eager-load current primary assignment + position + organization unit -> label `Name — Position — Unit` -> Blade select -> StoreEmployeeRequest -> existing write repository tenant/self/cycle validation.
+Employee age -> existing date_of_birth -> derived at render time; age is never persisted.
+
+EMPLOYEE CREATE / ASSIGNMENT / LIFECYCLE WRITE FLOW
+POST admin.employees.store -> StoreEmployeeRequest (company, manager, Unit/Position ownership and position-unit match) -> EmployeeController::store -> optional EmployeeAvatarService::stage -> DB transaction -> CreateEmployeeCommand -> CreateEmployeeHandler/repository -> CreateEmployeeLifecycleCommand -> EmployeeLifecycleService::create -> EmployeeAssignmentService::create -> employee_assignments current PRIMARY + initial employee_positions_history/employee_manager_history -> onboarding/active transitions when applicable -> optional EmployeeAccountService -> optional EmployeeAvatarService::persist -> commit -> assignment/lifecycle domain events -> scoped Employee/Organization cache version invalidation -> Employee detail redirect. DB failure after avatar staging -> EmployeeAvatarService::compensate deletes only the newly uploaded owned asset.
+
+EMPLOYEE EDIT ASSIGNMENT WRITE FLOW
+PUT admin.employees.update -> StoreEmployeeRequest -> EmployeeController::update -> lock/read effective current PRIMARY assignment -> UpdateEmployeeCommand for profile -> same-day assignment correction uses EmployeeAssignmentService::update and appends position/manager history; an effective historical assignment uses EmployeeLifecycleService transfer/promotion/demotion according to actual career levels -> exactly one current PRIMARY assignment -> event/cache invalidation -> Employee List, Employee 360 and Lifecycle read the same new Unit/Position immediately.
+
+EMPLOYEE PROMOTION / DEMOTION FLOW
+GET Employee 360 -> EmployeeLifecycleController::show -> effective current PRIMARY assignment + company-scoped JobPosition records -> Blade selects target Organization Unit -> admin-navigation.ts exposes only positions in that unit; promotion keeps every level above current, demotion every level below current -> EmployeeLifecycleActionRequest revalidates tenant/unit/position/manager -> PromoteEmployeeCommand or DemoteEmployeeCommand -> EmployeeLifecycleService::changeAssignment -> EmployeeAssignmentService::transfer -> close old assignment + create new PRIMARY + append lifecycle, position and manager histories + domain event -> redirect/read-model refresh. No title string or demo Employee ID controls eligibility.
+
+EMPLOYEE AVATAR FLOW
+Employee form -> image validation -> EmployeeAvatarService::stage -> explicitly configured EmployeeAvatarStorageInterface implementation. `local` stores a private owned object; `cloudflare-images` calls Cloudflare Images v1 with its token resolved by SecretProvider and persists only a safe image reference/delivery URL. Create/update transaction failure compensates the new asset. Replace commits the new reference before deleting the old asset. Explicit avatar removal clears the DB reference then deletes the owned asset after commit; Employee soft archive preserves avatar history.
+
+JOB POSITION LEVEL WRITE/READ FLOW
+GET/POST/PUT Job Position -> JobPositionController -> StoreJobPositionRequest (`career_level` required integer 1..6, company-scoped Unit) -> Organization repository/model -> `job_positions.career_level` -> index/show and Employee selectors render `Position — Unit — Level N`. No career level is stored on Organization Unit. Data Quality independently reports active positions outside 1..6.
+
+EMPLOYEE AVATAR PREVIEW/DELIVERY/CLEANUP FLOW
+Employee create/edit file input -> browser validates jpeg/png/webp -> `URL.createObjectURL` round preview only (no upload) -> normal validated submit -> avatar storage flow above. Employee List/360 -> permission- and tenant-protected `admin.employees.avatar.show` -> Cloudflare delivery redirect or private local streamed response -> round image/fallback initials. Archive Employee -> disable linked login + retain avatar. Disable/unlink login -> retain Employee-owned avatar. Explicit remove avatar -> clear DB reference/commit -> ensure no other Employee reference -> provider delete; provider failure is safely logged without undoing the committed business state. No permanent Employee/User delete route currently exists.
+
+EMPLOYEE LIFECYCLE CURRENT COMPENSATION READ FLOW
+Menu Vòng đời nhân sự -> EmployeeLifecycleController::index/show -> `payroll.assignment.view` server authorization decision -> CompensationReadService -> one batched query over effective `employee_salary_component_assignments` + `salary_components` -> CompensationView integer minor units -> Lifecycle table / Employee 360. Unauthorized actor receives only mask; missing assignment displays `Chưa thiết lập lương`.
+
+PROMOTION / DEMOTION COMPENSATION PROJECTION FLOW
+Employee 360 -> current primary EmployeeAssignment/JobPosition -> PositionCompensationReference (actual Unit + Position + career_level 1..6) -> server-rendered safe target dataset -> admin-navigation.ts updates Current vs Projected Base/KPI/Allowance/Target Gross. Submit remains PromoteEmployeeCommand/DemoteEmployeeCommand -> CommandBus -> EmployeeLifecycleService -> assignment/history. It does not bypass PayrollConfigurationService, create salary assignment, or mutate finalized Payroll; salary changes remain separate effective-dated Payroll actions.
+
+HEADER COMPENSATION REFERENCE FLOW
+Header `$` -> GET `admin.compensation-reference` -> auth + verified + `payroll.assignment.view` + company access -> CompensationReferenceController -> CompensationReadService::positionReferences -> actual Organization Unit/Job Position rows -> accessible dialog. Synthetic reference is distinct from Payroll Item/Gross/Net Pay.
+
+CONTEXT HELP FLOW
+Header `?` -> AdminHelpRegistry::resolve(current named route, company id) -> guide cụ thể của primary menu -> purpose/dataSources/upstreamMenus/downstreamMenus/mainActions/workflowSteps/businessRules/statusGuide/immutabilityRules/approvalRules/sideEffects/permissions/warnings/menuFlow/technicalFlow -> AdminNavigation named route/permission metadata -> server-side `User::can` filter -> admin layout render accessible dialog và chuỗi upstream → current (`aria-current`) → downstream. 73/73 primary destinations có guide/menu flow riêng; Escape đóng và focus trả về trigger.

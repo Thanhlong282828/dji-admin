@@ -4,7 +4,11 @@
 @section('header_action')<a class="button secondary" href="{{ route('admin.payroll.payment-accounts.index', ['company_id' => $c]) }}">← Danh sách tài khoản</a>@endsection
 
 @section('content')
-    <nav class="breadcrumb" aria-label="Breadcrumb"><a href="{{ route('admin.payroll.payment-accounts.index', ['company_id' => $c]) }}">Payment Accounts</a><i>/</i><span>Employee #{{ $employee }}</span></nav>
+    <nav class="breadcrumb" aria-label="Breadcrumb"><a href="{{ route('admin.payroll.payment-accounts.index', ['company_id' => $c]) }}">Payment Accounts</a><i>/</i><span>Employee #{{ $employee }}</span>           <i>/</i>
+
+         <span>
+            Payroll/resources/views/payment-accounts/show
+        </span> </nav>
     <section class="panel page-hero">
         <span class="eyebrow">Encrypted beneficiary profile</span>
         <h2>Tài khoản thanh toán nhân viên</h2>

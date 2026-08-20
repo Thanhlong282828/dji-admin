@@ -3,6 +3,7 @@
 namespace Modules\Organization\Presentation\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -15,6 +16,7 @@ use Modules\Organization\Application\Commands\UpdateApprovedHeadcount\UpdateAppr
 use Modules\Organization\Application\Commands\UpdateJobPosition\UpdateJobPositionCommand;
 use Modules\Organization\Application\Queries\GetJobPositionDetail\GetJobPositionDetailQuery;
 use Modules\Organization\Application\Queries\GetJobPositionList\GetJobPositionListQuery;
+use Modules\Organization\Domain\Models\OrganizationUnit;
 use Modules\Organization\Policies\JobPositionPolicy;
 use Modules\Organization\Presentation\Http\Requests\StoreJobPositionRequest;
 
@@ -35,7 +37,7 @@ final class JobPositionController extends Controller
         $c = $this->company($r);
         $this->allow($r, 'create', $c);
 
-        return view('organization::job-positions.create', ['companyId' => $c]);
+        return view('organization::job-positions.create', ['companyId' => $c, 'organizationOptions' => $this->organizationOptions($c)]);
     }
 
     public function store(StoreJobPositionRequest $r): RedirectResponse
@@ -60,7 +62,7 @@ final class JobPositionController extends Controller
         $c = $this->company($r);
         $this->allow($r, 'update', $c);
 
-        return view('organization::job-positions.edit', ['item' => $this->queries->ask(new GetJobPositionDetailQuery($c, $job_position)), 'companyId' => $c]);
+        return view('organization::job-positions.edit', ['item' => $this->queries->ask(new GetJobPositionDetailQuery($c, $job_position)), 'companyId' => $c, 'organizationOptions' => $this->organizationOptions($c)]);
     }
 
     public function update(StoreJobPositionRequest $r, int $job_position): RedirectResponse
@@ -115,6 +117,12 @@ final class JobPositionController extends Controller
         abort_unless(is_int($identifier) || (is_string($identifier) && ctype_digit($identifier)), 401);
 
         return (int) $identifier;
+    }
+
+    /** @return Collection<int, OrganizationUnit> */
+    private function organizationOptions(int $companyId): Collection
+    {
+        return OrganizationUnit::query()->where('company_id', $companyId)->orderBy('name')->get(['id', 'name']);
     }
 
     private function allow(Request $r, string $a, int $c): void

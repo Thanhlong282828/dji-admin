@@ -12,7 +12,11 @@
         $states = ['draft', 'validated', 'reviewed', 'approved', 'released'];
         $currentIndex = array_search($batch['status'], $states, true);
     @endphp
-    <nav class="breadcrumb" aria-label="Breadcrumb"><a href="{{ route('admin.payroll.payment-batches.index', ['company_id' => $c]) }}">Payment Batches</a><i>/</i><span>{{ $batch['batch_number'] }}</span></nav>
+    <nav class="breadcrumb" aria-label="Breadcrumb"><a href="{{ route('admin.payroll.payment-batches.index', ['company_id' => $c]) }}">Payment Batches</a><i>/</i><span>{{ $batch['batch_number'] }}</span><i>/</i>
+
+         <span>
+            Payroll/resources/views/payment-batches/show
+        </span></nav>
 
     <section class="panel page-hero">
         <span class="status-pill is-{{ $batch['status'] }}">{{ $batch['status'] }}</span>

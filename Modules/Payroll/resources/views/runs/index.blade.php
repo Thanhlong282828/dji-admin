@@ -1,6 +1,6 @@
 @extends('layouts.admin')
 
-@section('title', 'Payroll Runs/index')
+@section('title', 'Payroll Runs')
 
 @section('header_action')
     <a
@@ -36,6 +36,12 @@
                 Foundation component totals only.
                 Tax, statutory insurance, payslip and payment are not calculated.
             </p>
+                <i>/</i>
+
+         <span>
+            Payroll/resources/views/runs/index
+        </span>
+
         </section>
 
 

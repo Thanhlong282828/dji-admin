@@ -26,8 +26,9 @@ Simple and legacy surfaces are assessed using their real architecture; no CQRS l
 
 ## Acceptance evidence
 
-- Local authenticated navigation: 51/51 primary links returned HTTP 200.
-- Browser Super Admin navigation: 51/51 links at both exact viewports returned HTTP 200.
+- Historical Phase 3F-23 local authenticated navigation: 51/51 primary links returned HTTP 200.
+- Current Phase 3F-24 coverage audit: 73/73 primary links are centralized and permission-matched; exact browser evidence supersedes the historical 51-link baseline.
+- Runtime proof: all 73 links return HTTP 200 at 1280×800 and 390×844 with menu-specific help and zero overflow/console/page errors. Leave, Overtime and Payroll Delivery legacy object caches discovered during the walk were replaced with validated JSON cache boundaries and regression tests.
 - Operations: 14/14 children available and permission filtered.
 - Swagger/API contracts: 11 paths and 24 operations; zero undocumented/orphan operations.
 - IAM: 14 roles, 748 permissions, Super Admin 748/748, verified account and scoped company access.

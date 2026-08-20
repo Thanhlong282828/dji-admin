@@ -14,6 +14,7 @@ use Modules\Attendance\Application\DTOs\AttendanceDashboard;
 use Modules\Attendance\Application\DTOs\WorkforceManagementViewModel;
 use Modules\Attendance\Application\Queries\GetAttendanceDashboard\GetAttendanceDashboardQuery;
 use Modules\Attendance\Application\Queries\GetWorkforceManagementQuery;
+use Modules\Attendance\Application\Services\AttendanceOperationsReadService;
 use Modules\Attendance\Presentation\Http\Requests\CaptureAttendanceRequest;
 use Modules\Attendance\Presentation\Http\Requests\ManageWorkforceRequest;
 use Modules\Core\Application\Buses\CommandBusInterface;
@@ -21,7 +22,7 @@ use Modules\Core\Application\Buses\QueryBusInterface;
 
 final readonly class AttendanceController
 {
-    public function __construct(private CommandBusInterface $commands, private QueryBusInterface $queries) {}
+    public function __construct(private CommandBusInterface $commands, private QueryBusInterface $queries, private AttendanceOperationsReadService $operations) {}
 
     public function index(Request $request): View
     {
@@ -30,7 +31,14 @@ final readonly class AttendanceController
         $dashboard = $this->queries->ask(new GetAttendanceDashboardQuery($companyId));
         abort_unless($dashboard instanceof AttendanceDashboard, 500);
 
-        return view('attendance::index', ['dashboard' => $dashboard, 'companyId' => $companyId]);
+        $filters = [];
+        foreach ($request->only(['range', 'search', 'attendance_status', 'approval_status', 'start_date', 'end_date']) as $key => $value) {
+            if (is_string($key)) {
+                $filters[$key] = $value;
+            }
+        }
+
+        return view('attendance::index', ['dashboard' => $dashboard, 'operations' => $this->operations->snapshot($companyId, $filters), 'companyId' => $companyId]);
     }
 
     public function checkIn(CaptureAttendanceRequest $request): RedirectResponse

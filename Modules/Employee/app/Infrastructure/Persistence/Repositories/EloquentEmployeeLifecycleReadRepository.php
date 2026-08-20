@@ -3,6 +3,8 @@
 namespace Modules\Employee\Infrastructure\Persistence\Repositories;
 
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Modules\Employee\Application\DTOs\EmployeeLifecycleViewModel;
 use Modules\Employee\Domain\Models\Employee;
@@ -16,7 +18,15 @@ final class EloquentEmployeeLifecycleReadRepository implements EmployeeLifecycle
 {
     public function paginate(int $companyId, ?string $search, ?string $state, int $perPage): LengthAwarePaginator
     {
-        $query = Employee::query()->where('company_id', $companyId)->with('latestLifecycleEvent:employee_lifecycle_events.id,employee_lifecycle_events.employee_id,employee_lifecycle_events.to_state')->select(['id', 'employee_code', 'full_name', 'work_email', 'employment_status']);
+        $query = Employee::query()->where('company_id', $companyId)
+            ->with('latestLifecycleEvent:employee_lifecycle_events.id,employee_lifecycle_events.employee_id,employee_lifecycle_events.to_state')
+            ->with(['assignments' => function (Relation $relation): void {
+                if (! $relation instanceof HasMany) {
+                    return;
+                }
+                $relation->where('assignment_type', 'primary')->whereDate('effective_from', '<=', today())->where(fn (Builder $active): Builder => $active->whereNull('effective_to')->orWhereDate('effective_to', '>=', today()))->with('jobPosition:id,title,career_level');
+            }])
+            ->select(['id', 'employee_code', 'full_name', 'work_email', 'employment_status']);
         if ($search !== null && $search !== '') {
             $query->where(fn (Builder $q): Builder => $q->where('employee_code', 'like', "%{$search}%")->orWhere('full_name', 'like', "%{$search}%"));
         }
@@ -71,7 +81,9 @@ final class EloquentEmployeeLifecycleReadRepository implements EmployeeLifecycle
     {
         $state = $employee->latestLifecycleEvent?->getRawOriginal('to_state');
 
-        return ['id' => (int) $employee->id, 'employee_code' => (string) $employee->employee_code, 'full_name' => (string) $employee->full_name, 'work_email' => is_string($employee->work_email) ? $employee->work_email : null, 'lifecycle_state' => is_string($state) ? $state : 'not_started'];
+        $position = $employee->assignments->first()?->jobPosition;
+
+        return ['id' => (int) $employee->id, 'employee_code' => (string) $employee->employee_code, 'full_name' => (string) $employee->full_name, 'work_email' => is_string($employee->work_email) ? $employee->work_email : null, 'lifecycle_state' => is_string($state) ? $state : 'not_started', 'position_title' => $position === null ? null : (string) $position->title, 'career_level' => $position?->career_level];
     }
 
     /**

@@ -21,6 +21,11 @@
         <span>
             Create
         </span>
+         <i>/</i>
+
+         <span>
+            Payroll/resources/views/adjustments/create
+        </span>
     </nav>
 
 

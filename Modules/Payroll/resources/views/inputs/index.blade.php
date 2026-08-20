@@ -1,6 +1,6 @@
 @extends('layouts.admin')
 
-@section('title', 'Payroll inputs/index')
+@section('title', 'Payroll inputs')
 
 @section('header_action')
     @can('payroll-input.generate')
@@ -35,6 +35,11 @@
             <h1>
                 Payroll Input Snapshots
             </h1>
+                <i>/</i>
+
+         <span>
+            Payroll/resources/views/inputs/index
+        </span>
 
             <p>
                 Ảnh chụp bất biến của attendance, leave và overtime đã duyệt.

@@ -1,16 +1,16 @@
 # Enabled module functionality audit
 
-Audit date: 2026-08-13. Evidence: `modules_statuses.json`, registered routes/controllers, navigation definitions, service bindings, migrations, tests and local synthetic data.
+Audit date: 2026-08-21. Evidence: `modules_statuses.json`, 514 registered routes, routed controllers/actions, navigation definitions, service bindings, views, permissions, migrations, tests and local synthetic data.
 
 ## Inventory
 
 - Modules declared: 39
 - Enabled: 16
 - Disabled: 23
-- Registered routes: 507
-- Named GET routes: 261
-- Centralized sidebar: 9 groups, 51 primary links
-- Operations links: 14
+- Registered routes: 514
+- GET routes: 270; named GET routes: 265
+- Centralized sidebar: 10 collapsed domain groups, 73 primary links
+- Operations links: 15
 
 | Module | Enabled | User entry | Write/read architecture | Sidebar | Demo | Status |
 |---|---:|---|---|---:|---:|---|
@@ -35,11 +35,12 @@ Disabled modules are: Position, Contract, Shift, Insurance, Tax, Training, Benef
 
 ## Sidebar classification
 
-The sidebar contains stable list/dashboard entry points only. Detail, create/edit, API, fixture and internal routes stay reachable from their owning list/dashboard and are intentionally not duplicated. Every child is filtered server-side by its actual permission; a group is removed when it has no visible child. Route existence is covered by navigation tests.
+The sidebar contains stable list/dashboard entry points only. Detail, create/edit, API, fixture and internal routes stay reachable from their owning list/dashboard and are intentionally not duplicated. The 2026-08-21 audit found 21 real work-center gaps: Leave Policy, Overtime, five Recruitment centers, seven Payroll/configuration centers, Workflow Definitions/Tasks, Notification Templates/Deliveries and three IAM centers. All had registered routes, controllers, views and dedicated backend permissions and are now present. Integration and Audit subpages remain child tabs because their hubs already render complete internal navigation. Every child is filtered server-side by its actual landing-route permission; a group is removed when it has no visible child. Route existence and permission equality are covered by navigation tests.
+
+The exact browser walk also exposed obsolete object-cache payloads on the newly reachable Leave Policy, Overtime and Payroll Delivery pages. Their read models now cross Redis as validated JSON, invalidate legacy/corrupt payloads, and rebuild deterministically; regression tests prevent `__PHP_Incomplete_Class` from returning through typed repository contracts.
 
 The dead-control scan found only valid same-page anchors (skip navigation and employee detail tabs) and one submit-button disabling handler used to prevent duplicate payroll input submissions. No `javascript:void`, fake action or missing-route placeholder was found in active Blade views.
 
 ## Flow coverage
 
-All 16 enabled modules are represented in the canonical flow sections of `project.txt`, `luong.txt` and `db.txt`. Disabled skeletons are classified only; no invented flow is documented.
-
+All 16 enabled modules are represented in the canonical flow sections of `project.txt`, `luong.txt` and `db.txt`. The routed-controller audit covers 398 important route actions across 59 application/module controllers; missing controller-flow coverage moved from 9 to 0 after documenting Employee owned artifacts/account/contract, Overtime/Schedule Rules and Recruitment exports. Disabled skeletons are classified only; no invented flow is documented.

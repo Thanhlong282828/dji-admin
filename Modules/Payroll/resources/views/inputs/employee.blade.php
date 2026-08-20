@@ -26,6 +26,11 @@
                 · Snapshot V{{ $d['snapshot_version'] }}
                 · {{ $d['captured_at'] }}
             </p>
+                    <i>/</i>
+
+         <span>
+            Payroll/resources/views/inputs/employee
+        </span>
         </section>
 
 

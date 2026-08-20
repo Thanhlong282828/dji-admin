@@ -1,7 +1,287 @@
-<!doctype html><html><head><meta charset="utf-8"><style>@page{margin:28px 34px}body{font-family:DejaVu Sans,sans-serif;color:#17130b;font-size:11px}.head{background:#111;color:#d9b65d;padding:22px;border-bottom:5px solid #b99038}.head h1{margin:0;font-size:22px}.muted{color:#746b5a}.grid{width:100%;margin:18px 0;border-collapse:collapse}.grid td{width:25%;padding:10px;border:1px solid #dbc78c}.grid strong{display:block;font-size:14px}table.data{width:100%;border-collapse:collapse;margin-top:12px}table.data th{background:#17130b;color:#d9b65d;text-align:left;padding:8px}table.data td{padding:8px;border-bottom:1px solid #ddd;text-align:right}table.data td:first-child{text-align:left}.warning{margin-top:18px;padding:12px;background:#fff8df;border-left:4px solid #b99038}.footer{position:fixed;bottom:-12px;color:#777;font-size:9px}</style></head><body>
-<div class="head"><h1>Retroactive Payroll Adjustment Statement</h1><div>{{ $statement['adjustment']['adjustment_number'] }} · {{ $statement['adjustment']['reason_code'] }} — {{ $statement['adjustment']['reason_name'] }}</div></div>
-@php($h=$statement['historical']['totals']??[]) @php($c=$statement['correction']['totals']??[])
-<table class="grid"><tr><td><span class="muted">Employee</span><strong>{{ $statement['historical']['employee']['number']??'#'.$statement['adjustment']['employee_id'] }}</strong>{{ $statement['historical']['employee']['name']??'' }}</td><td><span class="muted">Historical period</span><strong>#{{ $statement['adjustment']['source_payroll_period_id'] }}</strong>Calculation v{{ $statement['adjustment']['source_calculation_version'] }}</td><td><span class="muted">Target payment period</span><strong>{{ $statement['adjustment']['target_payment_period_id']??'Not assigned' }}</strong>Adjustment v{{ $statement['adjustment']['delta_calculation_version'] }}</td><td><span class="muted">Settlement</span><strong>{{ $statement['recovery']?'Recovery':'Payable' }}</strong>{{ $statement['adjustment']['currency'] }}</td></tr></table>
-<h2>Historical, corrected and delta totals</h2><table class="data"><thead><tr><th>Component</th><th>Historical</th><th>Corrected</th><th>Delta</th></tr></thead><tbody>@foreach($statement['components'] as $x)<tr><td>{{ str_replace('_',' ',$x['component_code']) }}</td><td>{{ number_format($x['historical_amount_minor']) }}</td><td>{{ number_format($x['corrected_amount_minor']) }}</td><td>{{ ($x['delta_amount_minor']>=0?'+':'').number_format($x['delta_amount_minor']) }}</td></tr>@endforeach</tbody></table>
-<p><strong>Net delta:</strong> {{ number_format($statement['adjustment']['delta_net_minor']) }} {{ $statement['adjustment']['currency'] }}. <strong>Employer insurance delta:</strong> {{ number_format($statement['adjustment']['delta_employer_insurance_minor']) }}.</p>
-<div class="warning">This statement records a retroactive payroll adjustment. It does not modify or replace the original finalized payslip.</div><p class="muted">Generated {{ $statement['generated_at'] }} · Immutable snapshot checksum {{ substr($statement['statement']['payload_checksum'],0,16) }}…</p><div class="footer">SCHEMA Enterprise Payroll · Private and confidential</div></body></html>
+<!doctype html>
+
+<html>
+<head>
+    <meta charset="utf-8">
+
+    <style>
+        @page {
+            margin: 28px 34px;
+        }
+
+        body {
+            font-family: DejaVu Sans, sans-serif;
+            color: #17130b;
+            font-size: 11px;
+        }
+
+        .head {
+            background: #111;
+            color: #d9b65d;
+            padding: 22px;
+            border-bottom: 5px solid #b99038;
+        }
+
+        .head h1 {
+            margin: 0;
+            font-size: 22px;
+        }
+
+        .muted {
+            color: #746b5a;
+        }
+
+        .grid {
+            width: 100%;
+            margin: 18px 0;
+            border-collapse: collapse;
+        }
+
+        .grid td {
+            width: 25%;
+            padding: 10px;
+            border: 1px solid #dbc78c;
+        }
+
+        .grid strong {
+            display: block;
+            font-size: 14px;
+        }
+
+        table.data {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 12px;
+        }
+
+        table.data th {
+            background: #17130b;
+            color: #d9b65d;
+            text-align: left;
+            padding: 8px;
+        }
+
+        table.data td {
+            padding: 8px;
+            border-bottom: 1px solid #ddd;
+            text-align: right;
+        }
+
+        table.data td:first-child {
+            text-align: left;
+        }
+
+        .warning {
+            margin-top: 18px;
+            padding: 12px;
+            background: #fff8df;
+            border-left: 4px solid #b99038;
+        }
+
+        .footer {
+            position: fixed;
+            bottom: -12px;
+            color: #777;
+            font-size: 9px;
+        }
+    </style>
+</head>
+
+<body>
+
+    {{-- ================================================================
+        DOCUMENT HEADER
+    ================================================================ --}}
+    <div class="head">
+        <h1>
+            Retroactive Payroll Adjustment Statement
+        </h1>
+
+        <div>
+            {{ $statement['adjustment']['adjustment_number'] }}
+            ·
+            {{ $statement['adjustment']['reason_code'] }}
+            —
+            {{ $statement['adjustment']['reason_name'] }}
+        </div>
+    </div>
+
+
+    {{-- ================================================================
+        SNAPSHOT DATA
+    ================================================================ --}}
+    @php
+        $h = $statement['historical']['totals'] ?? [];
+        $c = $statement['correction']['totals'] ?? [];
+    @endphp
+
+
+    {{-- ================================================================
+        ADJUSTMENT SUMMARY
+    ================================================================ --}}
+    <table class="grid">
+        <tr>
+
+            {{-- Employee --}}
+            <td>
+                <span class="muted">
+                    Employee
+                </span>
+
+                <strong>
+                    {{
+                        $statement['historical']['employee']['number']
+                        ?? '#' . $statement['adjustment']['employee_id']
+                    }}
+                </strong>
+
+                {{ $statement['historical']['employee']['name'] ?? '' }}
+            </td>
+
+
+            {{-- Historical Period --}}
+            <td>
+                <span class="muted">
+                    Historical period
+                </span>
+
+                <strong>
+                    #{{ $statement['adjustment']['source_payroll_period_id'] }}
+                </strong>
+
+                Calculation v{{ $statement['adjustment']['source_calculation_version'] }}
+            </td>
+
+
+            {{-- Target Payment Period --}}
+            <td>
+                <span class="muted">
+                    Target payment period
+                </span>
+
+                <strong>
+                    {{ $statement['adjustment']['target_payment_period_id'] ?? 'Not assigned' }}
+                </strong>
+
+                Adjustment v{{ $statement['adjustment']['delta_calculation_version'] }}
+            </td>
+
+
+            {{-- Settlement --}}
+            <td>
+                <span class="muted">
+                    Settlement
+                </span>
+
+                <strong>
+                    {{ $statement['recovery'] ? 'Recovery' : 'Payable' }}
+                </strong>
+
+                {{ $statement['adjustment']['currency'] }}
+            </td>
+
+        </tr>
+    </table>
+
+
+    {{-- ================================================================
+        HISTORICAL / CORRECTED / DELTA TOTALS
+    ================================================================ --}}
+    <h2>
+        Historical, corrected and delta totals
+    </h2>
+
+    <table class="data">
+        <thead>
+            <tr>
+                <th>Component</th>
+                <th>Historical</th>
+                <th>Corrected</th>
+                <th>Delta</th>
+            </tr>
+        </thead>
+
+        <tbody>
+            @foreach($statement['components'] as $x)
+                <tr>
+
+                    {{-- Component --}}
+                    <td>
+                        {{ str_replace('_', ' ', $x['component_code']) }}
+                    </td>
+
+
+                    {{-- Historical --}}
+                    <td>
+                        {{ number_format($x['historical_amount_minor']) }}
+                    </td>
+
+
+                    {{-- Corrected --}}
+                    <td>
+                        {{ number_format($x['corrected_amount_minor']) }}
+                    </td>
+
+
+                    {{-- Delta --}}
+                    <td>
+                        {{
+                            ($x['delta_amount_minor'] >= 0 ? '+' : '')
+                            . number_format($x['delta_amount_minor'])
+                        }}
+                    </td>
+
+                </tr>
+            @endforeach
+        </tbody>
+    </table>
+
+
+    {{-- ================================================================
+        DELTA SUMMARY
+    ================================================================ --}}
+    <p>
+        <strong>
+            Net delta:
+        </strong>
+
+        {{ number_format($statement['adjustment']['delta_net_minor']) }}
+        {{ $statement['adjustment']['currency'] }}.
+
+        <strong>
+            Employer insurance delta:
+        </strong>
+
+        {{ number_format($statement['adjustment']['delta_employer_insurance_minor']) }}.
+    </p>
+
+
+    {{-- ================================================================
+        IMMUTABILITY WARNING
+    ================================================================ --}}
+    <div class="warning">
+        This statement records a retroactive payroll adjustment.
+        It does not modify or replace the original finalized payslip.
+    </div>
+
+
+    {{-- ================================================================
+        INTEGRITY METADATA
+    ================================================================ --}}
+    <p class="muted">
+        Generated {{ $statement['generated_at'] }}
+        ·
+        Immutable snapshot checksum
+        {{ substr($statement['statement']['payload_checksum'], 0, 16) }}…
+    </p>
+
+
+    {{-- ================================================================
+        DOCUMENT FOOTER
+    ================================================================ --}}
+    <div class="footer">
+        SCHEMA Enterprise Payroll · Private and confidential
+    </div>
+
+</body>
+</html>

@@ -1,6 +1,6 @@
 # Admin Navigation Governance
 
-Phase 3F-22 adds permission-filtered `Data Lifecycle`. Fully permitted Operations now has 14 children. It requires `operations.view`, retains collapse/active-route behavior and exposes no mutation. API Documentation remains independently filtered by `api.documentation.view`.
+Phase 3F-24 adds permission-filtered, read-only `Data Quality`. Fully permitted Operations now has 15 children. Data Quality requires `operations.view`, retains collapse/active-route behavior and exposes no mutation. API Documentation remains independently filtered by `api.documentation.view`.
 
 The canonical information architecture contains nine groups: Overview, Organization, People/HR Core, Talent, Payroll & Finance, Enterprise Automation, Access & Security, Operations/Platform and Content.
 
@@ -24,3 +24,6 @@ The original `.nav-group-items { display: grid }` author rule overrode the brows
 API Documentation is the tenth Operations child. An actor with `operations.view` but without `api.documentation.view` receives no documentation link HTML. An actor with only `api.documentation.view` receives the Operations parent with that one child. Exact browser regression verifies Operations closed/open counts of 0/10 for the authorized fixture and preserves keyboard, active-route and mobile drawer behavior.
 
 Architecture is the eleventh Operations child and requires `operations.view`. It does not alter API Documentation's independent permission behavior. The active Architecture route auto-opens Operations; collapsed children remain hidden and non-tabbable.
+## 2026-08-21 complete work-center audit
+
+Navigation now has 10 collapsed domain groups and 73 server-filtered primary destinations. Twenty-one links were added only after route/controller/view/permission evidence: Leave Policy, Overtime, Recruitment requisitions/candidates/pipeline/interviews/offers, Payroll configuration/tax/insurance/accounting/ERP work centers, Workflow definitions/tasks, Notification templates/deliveries, and IAM requests/roles/SoD. Detail/create/edit/export/download/mutation routes remain page actions. Integration and Audit child tabs remain inside their complete module hubs. Architecture tests compare every landing route permission boundary, route existence and unique item key; active patterns are disjoint for the newly separated work centers.

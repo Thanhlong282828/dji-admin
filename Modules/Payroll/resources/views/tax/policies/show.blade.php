@@ -1,1 +1,127 @@
-@extends('layouts.admin') @section('title','Tax Policy') @section('content') @php($d=$vm->detail)<section class="panel"><span class="eyebrow">TAX POLICY V{{ $d['version'] }}</span><h1>{{ $d['code'] }} · {{ $d['name'] }}</h1><p>{{ $d['tax_method'] }} · {{ $d['residency_group'] }} · {{ $d['currency_code'] }} · {{ $d['effective_from'] }} → {{ $d['effective_to']??'∞' }}</p>@can('payroll.tax.policy.update')<a class="button" href="{{ route('admin.payroll.tax.policies.edit',['policy'=>$d['id'],'company_id'=>$c]) }}">Edit</a>@endcan</section><h2>Brackets</h2><table><thead><tr><th>#</th><th>Lower</th><th>Upper</th><th>Rate bp</th></tr></thead><tbody>@foreach($d['brackets'] as $b)<tr><td>{{ $b['sequence'] }}</td><td>{{ number_format($b['lower_bound_minor']) }}</td><td>{{ $b['upper_bound_minor']===null?'∞':number_format($b['upper_bound_minor']) }}</td><td>{{ $b['rate_basis_points'] }}</td></tr>@endforeach</tbody></table><h2>Deductions</h2><table><tbody>@foreach($d['deductions'] as $x)<tr><td>{{ $x['code'] }}</td><td>{{ $x['name'] }}</td><td>{{ $x['deduction_type'] }}</td><td>{{ number_format($x['amount_minor']??0) }}</td></tr>@endforeach</tbody></table>@endsection
+@extends('layouts.admin')
+
+@section('title', 'Tax Policy')
+
+@section('content')
+    @php
+        $d = $vm->detail;
+    @endphp
+            <i>/</i>
+
+         <span>
+            Payroll/resources/views/tax/policies/show
+        </span>
+    {{-- ================================================================
+        TAX POLICY HEADER
+    ================================================================ --}}
+    <section class="panel">
+        <span class="eyebrow">
+            TAX POLICY V{{ $d['version'] }}
+        </span>
+
+        <h1>
+            {{ $d['code'] }} · {{ $d['name'] }}
+        </h1>
+
+        <p>
+            {{ $d['tax_method'] }}
+            ·
+            {{ $d['residency_group'] }}
+            ·
+            {{ $d['currency_code'] }}
+            ·
+            {{ $d['effective_from'] }}
+            →
+            {{ $d['effective_to'] ?? '∞' }}
+        </p>
+
+        @can('payroll.tax.policy.update')
+            <a
+                class="button"
+                href="{{ route('admin.payroll.tax.policies.edit', [
+                    'policy' => $d['id'],
+                    'company_id' => $c,
+                ]) }}"
+            >
+                Edit
+            </a>
+        @endcan
+    </section>
+
+
+    {{-- ================================================================
+        TAX BRACKETS
+    ================================================================ --}}
+    <h2>
+        Brackets
+    </h2>
+
+    <table>
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>Lower</th>
+                <th>Upper</th>
+                <th>Rate bp</th>
+            </tr>
+        </thead>
+
+        <tbody>
+            @foreach($d['brackets'] as $b)
+                <tr>
+                    <td>
+                        {{ $b['sequence'] }}
+                    </td>
+
+                    <td>
+                        {{ number_format($b['lower_bound_minor']) }}
+                    </td>
+
+                    <td>
+                        {{
+                            $b['upper_bound_minor'] === null
+                                ? '∞'
+                                : number_format($b['upper_bound_minor'])
+                        }}
+                    </td>
+
+                    <td>
+                        {{ $b['rate_basis_points'] }}
+                    </td>
+                </tr>
+            @endforeach
+        </tbody>
+    </table>
+
+
+    {{-- ================================================================
+        TAX DEDUCTIONS
+    ================================================================ --}}
+    <h2>
+        Deductions
+    </h2>
+
+    <table>
+        <tbody>
+            @foreach($d['deductions'] as $x)
+                <tr>
+                    <td>
+                        {{ $x['code'] }}
+                    </td>
+
+                    <td>
+                        {{ $x['name'] }}
+                    </td>
+
+                    <td>
+                        {{ $x['deduction_type'] }}
+                    </td>
+
+                    <td>
+                        {{ number_format($x['amount_minor'] ?? 0) }}
+                    </td>
+                </tr>
+            @endforeach
+        </tbody>
+    </table>
+@endsection

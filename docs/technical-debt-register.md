@@ -1,5 +1,11 @@
 # Enterprise Technical Debt Register
 
+## Phase 3F-24 closure
+
+The previously recorded rank/demotion, account access, Attendance XLSX and duplicate-primary gaps are closed with typed domain boundaries and regression evidence. Remaining external Payroll payment/ERP/Government execution is intentionally disabled local functionality, not a Data Quality defect.
+
+- DQ-EXT-001 (medium, open): the configured Cloudflare account/token returned Images API HTTP 403 / code 5403 during a non-business diagnostic. The adapter and compensation contract are verified with HTTP fakes, but live Cloudflare remains `NOT VERIFIED` until an account authorized for Cloudflare Images is supplied. Local operation explicitly uses private-local storage and does not silently fall back.
+
 Phase 3F-21 records that representative FormRequest/response checks are intentionally targeted rather than a universal Laravel-rule-to-JSON-Schema translator. Expanding typed schemas for additional real APIs remains incremental debt, not permission to add fictional paths.
 
 ## Test engineering debt (Phase 3F-20)
@@ -29,3 +35,4 @@ No critical or high debt was found. Historical Article CQRS and dynamic action r
 - FUNC-001 (medium, open): ClamAV remains `NOT_CONNECTED`; private upload scanning is fail-closed and no file is falsely marked clean.
 - FUNC-002 (low, accepted): live two-browser Reverb delivery is not certified on an external realtime topology; authorized channel/fallback tests remain the current evidence.
 - FUNC-003 (low, accepted): disabled legacy/skeleton modules and historical import ideas remain intentionally unavailable; they must not gain UI actions until a real owned implementation exists.
+Navigation/flow coverage audit (2026-08-21): no open primary-menu or routed-controller documentation debt. Twenty-one proven work centers were wired; 44 zero-parameter landing candidates were classified, with Integration/Audit internal tabs intentionally remaining child navigation. Disabled module skeletons are not treated as debt unless product scope explicitly enables them.

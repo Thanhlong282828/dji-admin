@@ -13,7 +13,7 @@ final class JobPosition extends Model
 
     protected function casts(): array
     {
-        return ['approved_headcount' => 'integer', 'budgeted_cost' => 'decimal:2', 'competency_requirements' => 'array', 'is_critical' => 'boolean'];
+        return ['career_level' => 'integer', 'approved_headcount' => 'integer', 'budgeted_cost' => 'decimal:2', 'competency_requirements' => 'array', 'is_critical' => 'boolean'];
     }
 
     /** @return BelongsTo<Company,$this> */

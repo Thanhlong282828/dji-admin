@@ -3,6 +3,7 @@
 namespace Modules\Employee\Providers;
 
 use Illuminate\Console\Scheduling\Schedule;
+use Illuminate\Contracts\Container\Container;
 use Modules\Employee\Application\Jobs\ExpireEmploymentContractsJob;
 use Modules\Employee\Application\Jobs\NotifyExpiringDataConsentsJob;
 use Modules\Employee\Application\Jobs\NotifyExpiringEmployeeCredentialsJob;
@@ -12,7 +13,10 @@ use Modules\Employee\Domain\Repositories\EmployeeLifecycleReadRepositoryInterfac
 use Modules\Employee\Domain\Repositories\EmployeeReadRepositoryInterface;
 use Modules\Employee\Domain\Repositories\EmployeeWriteRepositoryInterface;
 use Modules\Employee\Domain\Repositories\HRGovernanceReadRepositoryInterface;
+use Modules\Employee\Domain\Services\EmployeeAvatarStorageInterface;
 use Modules\Employee\Domain\Services\MalwareScannerInterface;
+use Modules\Employee\Infrastructure\Media\CloudflareImagesEmployeeAvatarStorage;
+use Modules\Employee\Infrastructure\Media\LocalEmployeeAvatarStorage;
 use Modules\Employee\Infrastructure\Persistence\Repositories\EloquentEmployeeLifecycleReadRepository;
 use Modules\Employee\Infrastructure\Persistence\Repositories\EloquentEmployeeReadRepository;
 use Modules\Employee\Infrastructure\Persistence\Repositories\EloquentEmployeeWriteRepository;
@@ -20,6 +24,7 @@ use Modules\Employee\Infrastructure\Persistence\Repositories\EloquentHRGovernanc
 use Modules\Employee\Infrastructure\Security\ClamAvMalwareScanner;
 use Modules\Employee\Infrastructure\Security\NullMalwareScanner;
 use Nwidart\Modules\Support\ModuleServiceProvider;
+use RuntimeException;
 
 class EmployeeServiceProvider extends ModuleServiceProvider
 {
@@ -44,6 +49,11 @@ class EmployeeServiceProvider extends ModuleServiceProvider
         $this->app->bind(EmployeeLifecycleReadRepositoryInterface::class, EloquentEmployeeLifecycleReadRepository::class);
         $this->app->bind(HRGovernanceReadRepositoryInterface::class, EloquentHRGovernanceReadRepository::class);
         $this->app->bind(MalwareScannerInterface::class, fn () => config('employee.malware_scanner') === 'clamav' ? new ClamAvMalwareScanner : new NullMalwareScanner);
+        $this->app->bind(EmployeeAvatarStorageInterface::class, fn (Container $app) => match (config('employee.avatar_driver')) {
+            'cloudflare-images' => $app->make(CloudflareImagesEmployeeAvatarStorage::class),
+            'local' => $app->make(LocalEmployeeAvatarStorage::class),
+            default => throw new RuntimeException('Employee avatar driver không hợp lệ.'),
+        });
     }
 
     /**

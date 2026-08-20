@@ -27,6 +27,11 @@
             >
                 Payroll Input
             </a>
+                      <i>/</i>
+
+         <span>
+            Payroll/resources/views/delivery
+        </span>
         </div>
 
 
@@ -342,7 +347,7 @@
                             'company_id' => $companyId,
                         ]) }}"
                     >
-                        {{ $run['code'] }}
+                        {{ $run['run_number'] }}
                         ·
                         {{ $run['status'] }}
                     </a>

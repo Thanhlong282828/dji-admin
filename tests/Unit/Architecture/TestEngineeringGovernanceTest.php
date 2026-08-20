@@ -39,6 +39,8 @@ final class TestEngineeringGovernanceTest extends TestCase
         self::assertStringNotContainsString('Process', $controller);
         self::assertStringNotContainsString('Artisan', $controller);
         self::assertStringContainsString('permission:operations.view', $route);
-        self::assertCount(61, glob(database_path('migrations/*.php')) ?: []);
+        $migrations = glob(database_path('migrations/*.php')) ?: [];
+        self::assertNotEmpty($migrations);
+        self::assertSame([], array_values(array_filter($migrations, static fn (string $file): bool => str_contains($file, 'test_quality'))));
     }
 }

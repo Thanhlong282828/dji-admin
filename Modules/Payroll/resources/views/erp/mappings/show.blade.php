@@ -1,3 +1,87 @@
 @extends('layouts.admin')
-@section('header_action') @can('erp.integration.connection.manage')@if($vm->detail['status']==='active')<a class="button" href="{{ route('admin.payroll.erp.mappings.edit',['mapping'=>$vm->detail['id'],'company_id'=>$c]) }}">Tạo version mới</a>@endif @endcan @endsection
-@section('content')@php($m=$vm->detail)<nav class="breadcrumb"><a href="{{ route('admin.payroll.erp.mappings.index',['company_id'=>$c]) }}">ERP Mappings</a><i>/</i><span>{{ $m['source_account_code'] }}</span></nav><section class="panel page-hero"><span class="eyebrow">{{ $m['connection_name'] }} · version {{ $m['version'] }}</span><h2>{{ $m['source_account_code'] }} <span aria-hidden="true">→</span> {{ $m['external_account_code'] }}</h2><p>Effective {{ $m['effective_from'] }} → {{ $m['effective_to'] ?? 'Open-ended' }} · {{ $m['status'] }}</p></section><section class="integrity-callout"><strong>Immutable export boundary</strong><span>Export items đã tạo giữ account snapshot và checksum riêng, không bị đổi theo mapping live.</span></section>@endsection
+
+@section('header_action')
+    @can('erp.integration.connection.manage')
+        @if($vm->detail['status'] === 'active')
+            <a
+                class="button"
+                href="{{ route('admin.payroll.erp.mappings.edit', [
+                    'mapping' => $vm->detail['id'],
+                    'company_id' => $c,
+                ]) }}"
+            >
+                Tạo version mới
+            </a>
+        @endif
+    @endcan
+@endsection
+
+@section('content')
+    @php($m = $vm->detail)
+
+
+    {{-- ================================================================
+        BREADCRUMB
+    ================================================================ --}}
+    <nav class="breadcrumb">
+        <a
+            href="{{ route('admin.payroll.erp.mappings.index', [
+                'company_id' => $c,
+            ]) }}"
+        >
+            ERP Mappings
+        </a>
+
+        <i>/</i>
+
+        <span>
+            {{ $m['source_account_code'] }}
+        </span>
+    </nav>
+
+
+    {{-- ================================================================
+        PAGE HERO
+    ================================================================ --}}
+    <section class="panel page-hero">
+        <span class="eyebrow">
+            {{ $m['connection_name'] }}
+            ·
+            version {{ $m['version'] }}
+        </span>
+
+        <h2>
+            {{ $m['source_account_code'] }}
+
+            <span aria-hidden="true">
+                →
+            </span>
+
+            {{ $m['external_account_code'] }}
+        </h2>
+
+        <p>
+            Effective {{ $m['effective_from'] }}
+            →
+            {{ $m['effective_to'] ?? 'Open-ended' }}
+            ·
+            {{ $m['status'] }}
+        </p>
+    </section>
+
+
+    {{-- ================================================================
+        IMMUTABLE EXPORT BOUNDARY
+    ================================================================ --}}
+    <section class="integrity-callout">
+        <strong>
+            Immutable export boundary
+        </strong>
+
+        <span>
+            Export items đã tạo giữ account snapshot và checksum riêng,
+            không bị đổi theo mapping live.
+        </span>
+    </section>
+
+@endsection

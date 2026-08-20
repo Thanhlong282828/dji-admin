@@ -22,6 +22,7 @@ use Modules\Employee\Domain\Models\Employee;
 use Modules\Leave\Application\Commands\ManageLeaveCommand;
 use Modules\Leave\Domain\Repositories\LeaveReadRepositoryInterface;
 use Modules\Leave\Domain\Services\LeaveManagementService;
+use Modules\Payroll\Domain\Repositories\PayrollDeliveryReadRepositoryInterface;
 use PHPUnit\Framework\Attributes\Group;
 use Tests\TestCase;
 
@@ -82,6 +83,46 @@ final class WorkforceReadAfterWriteCacheTest extends TestCase
 
         self::assertSame('Day shift', $result->rows[0]['name']);
         self::assertIsString(Cache::get("schema:workforce:{$company->id}:workforce:v1:management:{$filterHash}"));
+    }
+
+    public function test_leave_management_replaces_legacy_and_corrupt_cache_with_serialization_safe_json(): void
+    {
+        [$legacyCompany] = $this->context('LEAVE-LEGACY');
+        Cache::put("schema:workforce:{$legacyCompany->id}:leave:v0:management", new \stdClass, 120);
+
+        $leave = app(LeaveReadRepositoryInterface::class);
+        self::assertCount(0, $leave->management($legacyCompany->id)->policies);
+        self::assertIsString(Cache::get("schema:workforce:{$legacyCompany->id}:leave:v1:management"));
+
+        [$corruptCompany] = $this->context('LEAVE-CORRUPT');
+        Cache::put("schema:workforce:{$corruptCompany->id}:leave:v0:management", '{not-json', 120);
+
+        self::assertCount(0, $leave->management($corruptCompany->id)->policies);
+        self::assertIsString(Cache::get("schema:workforce:{$corruptCompany->id}:leave:v1:management"));
+    }
+
+    public function test_payroll_delivery_replaces_legacy_object_cache_with_serialization_safe_json(): void
+    {
+        [$company] = $this->context('PAYROLL-LEGACY');
+        Cache::put("schema:workforce:{$company->id}:payroll-run:v0:delivery-dashboard", new \stdClass, 300);
+
+        $result = app(PayrollDeliveryReadRepositoryInterface::class)->dashboard($company->id);
+
+        self::assertCount(0, $result->components);
+        self::assertCount(0, $result->assignments);
+        self::assertCount(0, $result->runs);
+        self::assertIsString(Cache::get("schema:workforce:{$company->id}:payroll-run:v1:delivery-dashboard"));
+    }
+
+    public function test_overtime_management_replaces_legacy_object_cache_with_serialization_safe_json(): void
+    {
+        [$company] = $this->context('OVERTIME-LEGACY');
+        Cache::put("schema:workforce:{$company->id}:overtime:v0:management", new \stdClass, 120);
+
+        $result = app(OvertimeReadRepositoryInterface::class)->management($company->id);
+
+        self::assertCount(0, $result->requests);
+        self::assertIsString(Cache::get("schema:workforce:{$company->id}:overtime:v1:management"));
     }
 
     /** @return array{Company,Employee,User} */

@@ -43,7 +43,7 @@ SCHEMA ENTERPRISE HRM — TÀI LIỆU TRÌNH BÀY PROJECT KHI PHỎNG VẤN
    - Full PHPUnit hiện tại: 485 tests, 4.923 assertions, exit code 0.
    - Contract gate: 11 API paths, 24 documented operations, 0 orphan/undocumented.
    - Exact browser 1280×800 và 390×844 bằng playwright-core + Google Chrome local.
-   - Bốn database environment tách biệt, cùng 61 migrations/230 tables.
+   - Ba database local tách biệt theo mục đích: schema_admin manual/demo, schema_admin_testing PHPUnit và schema_admin_browser_testing Playwright; VPS dùng DB environment-defined riêng.
 
 1B. CÁCH PR PROJECT NGẮN GỌN
 ----------------------------
@@ -496,6 +496,22 @@ Development demo login:
 - Email: admin@local.test
 - Password: LocalAdmin123!
 - Database local hiện tại: schema_admin (`schema_admin_development` đã REMOVED / NO LONGER EXISTS)
+
+Data Quality được thiết kế read-only và theo ownership: service trung tâm chỉ đối soát count/checksum, còn sửa Employee, Attendance hay Payroll vẫn phải đi qua module sở hữu. Tuổi nhân viên được derive từ ngày sinh để không bị stale. Employee và User có lifecycle khác nhau: lưu trữ hồ sơ nhân sự không đồng nghĩa xóa tài khoản hoặc lịch sử IAM. Manager selector hiển thị tên/vị trí/đơn vị nhưng backend vẫn chống self-manager, cycle và cross-tenant.
+
+Phase 3F-24 hoàn thiện vận hành HR: tài khoản nhân viên được provision theo transaction (hash password, Spatie role, company access), access_enabled được kiểm tra ngay khi login; promotion/demotion dựa trên career_level rõ ràng và ghi lịch sử riêng. Attendance có bảng lọc server-side, chart ngày/tuần và XLSX tenant-scoped chống formula injection. Local Payroll tạo Period → immutable Input Snapshot → calculated Run bằng domain services thật, nhưng adapter ERP/Government/bank vẫn tắt.
+
+Điểm thiết kế đáng nói khi phỏng vấn:
+- Chức vụ hiện tại không nằm trong một cột text dễ stale trên Employee; nó được suy ra từ primary assignment đang hiệu lực. Vì vậy tạo nhân viên phải khởi tạo assignment và position history ngay trong lifecycle transaction thì Employee 360 mới có nguồn chuẩn để thăng/giáng chức.
+- Thăng/giáng chức so sánh `career_level` vị trí nguồn/đích, đóng assignment cũ, tạo đúng một primary assignment mới và ghi lifecycle/career history; không đoán cấp bậc từ tên chức vụ.
+- Avatar đi qua storage port. Khi thay ảnh, hệ thống upload ảnh mới rồi commit reference trước khi cleanup ảnh cũ; upload mới được compensation nếu persistence lỗi. Token Cloudflare đi qua SecretProvider và không xuất hiện trong DB/log.
+- Career level dùng đúng một field `job_positions.career_level` với range 1..6. Form chức vụ bắt buộc level; form Employee ghi rõ Position/Unit/Level; promotion và demotion liệt kê toàn bộ vị trí thật cao hơn/thấp hơn, không hard-code tên hay chỉ cho một bước.
+- Compensation được effective-date vì thay đổi chức vụ ngày 01/09 không được làm sai kỳ lương đã finalized trước đó. Employee Lifecycle chỉ projection mức target; ghi salary thật phải đi qua Payroll configuration, version/idempotency và permission riêng.
+- Target Gross là Base + KPI target + fixed allowance theo reference; Gross Payroll là kết quả calculation thực tế của kỳ; Net Pay còn trừ insurance, tax, deduction/adjustment. Ba khái niệm không được dùng thay nhau.
+- Salary là dữ liệu Restricted: server chỉ query/render actual assignment khi actor có `payroll.assignment.view`; CSS/JavaScript không phải authorization boundary.
+- Preview avatar dùng blob URL phía browser nên chọn file chưa tạo side effect. Employee List phục vụ ảnh private qua route có permission và tenant check; cùng một Employee-owned reference được dùng cho hồ sơ và account liên kết, không copy sang User.
+- Lưu trữ hồ sơ Employee và lifecycle tài khoản là hai quyết định khác nhau: archive hồ sơ vô hiệu hóa login nhưng vẫn giữ lịch sử/avatar khi đó là evidence; route remove avatar mới giải phóng asset thuộc sở hữu một cách có kiểm tra reference.
+- Demo Payroll không phải array giả trong Blade. Seeder idempotent gọi domain services để tạo period, snapshot/input, run/item, adjustment, payslip/payment, accounting, ERP-local, annual-tax và Government filing; mọi external adapter vẫn bị vô hiệu hóa.
 - Chỉ dùng local development, không phải production credential.
 
 19. CÂU KẾT THÚC KHI PHỎNG VẤN
@@ -504,3 +520,9 @@ Development demo login:
 
 Phiên bản nhấn mạnh Engineering:
 “Project này thể hiện cách tôi đưa một Laravel Modular Monolith từ business application thành enterprise platform có reliability, observability, security, release và contract governance. Mỗi claim đều có evidence: process-level concurrency, failure recovery, PHPStan level 10, full regression, exact browser và production read-only safety audit.”
+CONTEXTUAL USER GUIDE — VÌ SAO KHÔNG DÙNG MỘT HELP CHUNG?
+
+Mỗi menu có source data, state machine, permission và downstream khác nhau. `AdminHelpRegistry` resolve named route thành guide riêng, nên Payroll Input giải thích snapshot/idempotency/immutability trong khi Employee giải thích assignment/account/avatar. Ngoài technical flow, guide còn dựng chuỗi menu upstream → current → downstream từ chính metadata `AdminNavigation`, giúp business user biết menu nào làm trước, dữ liệu đổi ở đâu và menu nào làm sau. Node hiện tại có `aria-current`; node/link thiếu permission bị loại server-side nên help không làm lộ chức năng bị cấm. `luong.txt` vẫn là tài liệu kỹ thuật chi tiết.
+SIDEBAR COVERAGE — VÌ SAO KHÔNG ĐƯA MỌI ROUTE VÀO MENU?
+
+Route được phân loại thành primary work center, child/detail, action, API/auth và internal. Sidebar chỉ giữ landing/index/dashboard có controller, view và permission thật. Create/edit/show/export/download/approve/retry vẫn nằm trong page action. Audit 2026-08-21 thêm 21 work center trước đây khó tiếp cận, nhưng giữ Integration/Audit subpages trong nav nội bộ của hub để sidebar không biến thành danh sách route phẳng. Parent accordion chỉ render khi actor có ít nhất một child; permission của từng link khớp landing-route boundary.

@@ -18,7 +18,11 @@
     <h2 class="text-xl">
         History
     </h2>
+  <i>/</i>
 
+         <span>
+            Payroll/resources/views/partials/run-history
+        </span>
     @forelse($viewModel->history as $entry)
         <p class="mt-2 text-sm text-zinc-400">
             {{ $entry['created_at'] }}

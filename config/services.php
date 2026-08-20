@@ -35,4 +35,14 @@ return [
         ],
     ],
 
+    'cloudflare_images' => [
+        'account_id' => env('CLOUDFLARE_IMAGES_ACCOUNT_ID'),
+        'api_token' => env('CLOUDFLARE_IMAGES_API_TOKEN'),
+        'delivery_hash' => env('CLOUDFLARE_IMAGES_DELIVERY_HASH'),
+    ],
+
+    'employee_avatar' => [
+        'driver' => env('EMPLOYEE_AVATAR_DRIVER', 'local'),
+    ],
+
 ];

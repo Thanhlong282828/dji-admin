@@ -13,7 +13,20 @@ final readonly class EloquentLeaveReadRepository implements LeaveReadRepositoryI
 
     public function management(int $companyId): LeaveManagementViewModel
     {
-        return $this->cache->remember($companyId, 'leave', 'management', 120, fn (): LeaveManagementViewModel => $this->managementUncached($companyId));
+        $cached = $this->cache->rememberExternal($companyId, 'leave', 'management', 120, fn (): string => $this->managementUncached($companyId)->toJson());
+        if (is_string($cached)) {
+            try {
+                return LeaveManagementViewModel::fromJson($cached);
+            } catch (\JsonException|\UnexpectedValueException) {
+                // Replace corrupt or obsolete cache payloads from an earlier application version.
+            }
+        }
+
+        $this->cache->invalidate($companyId, 'leave');
+        $fresh = $this->managementUncached($companyId);
+        $this->cache->rememberExternal($companyId, 'leave', 'management', 120, fn (): string => $fresh->toJson());
+
+        return $fresh;
     }
 
     private function managementUncached(int $companyId): LeaveManagementViewModel

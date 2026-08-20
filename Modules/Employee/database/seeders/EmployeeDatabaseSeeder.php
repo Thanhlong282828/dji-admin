@@ -2,6 +2,7 @@
 
 namespace Modules\Employee\Database\Seeders;
 
+use Carbon\CarbonImmutable;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 use Modules\Company\Domain\Models\Company;
@@ -47,7 +48,7 @@ final class EmployeeDatabaseSeeder extends Seeder
                 11 => 'terminated',
                 default => 'active',
             };
-            $joinDate = today()->subYears(3)->addMonths($index % 24);
+            $joinDate = CarbonImmutable::parse('2023-01-15')->addMonths($index % 24);
             $officialDate = $joinDate->copy()->addMonths(2);
             $employee = Employee::query()->updateOrCreate(
                 ['employee_code' => $code],
@@ -58,10 +59,14 @@ final class EmployeeDatabaseSeeder extends Seeder
             }
             $position = JobPosition::query()->where('company_id', $company->id)->where('code', $positionCode)->first();
             if ($position) {
-                EmployeeAssignment::query()->updateOrCreate(
-                    ['employee_id' => $employee->id, 'assignment_type' => 'primary', 'effective_from' => $employee->join_date],
+                $canonicalAssignment = EmployeeAssignment::query()->updateOrCreate(
+                    ['employee_id' => $employee->id, 'assignment_type' => 'primary', 'effective_from' => $joinDate->toDateString()],
                     ['organization_unit_id' => $position->organization_unit_id, 'job_position_id' => $position->id, 'manager_id' => $index === 0 ? null : $manager?->id, 'allocation_percent' => 100, 'work_location' => 'TP. Hồ Chí Minh']
                 );
+                // The local demo previously derived join dates from today(), which
+                // created overlapping primary rows on each yearly bootstrap. Keep
+                // referenced history but close only synthetic employee overlaps.
+                EmployeeAssignment::query()->where('employee_id', $employee->id)->where('assignment_type', 'primary')->whereKeyNot($canonicalAssignment->id)->where(static fn ($query) => $query->whereNull('effective_to')->orWhereDate('effective_to', '>=', $joinDate->toDateString()))->update(['effective_to' => $joinDate->subDay()->toDateString()]);
             }
             EmployeeCredential::query()->updateOrCreate(['employee_id' => $employee->id, 'type' => 'certificate', 'name' => 'Schema Professional Excellence'], ['issuer' => 'Schema Learning Hub', 'issued_at' => today()->subYear(), 'expires_at' => today()->addYears(2)]);
             $contractType = $status === 'probation' ? 'probation' : ($index % 4 === 0 ? 'fixed_term' : 'indefinite');

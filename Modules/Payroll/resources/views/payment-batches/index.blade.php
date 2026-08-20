@@ -10,7 +10,11 @@
 
 @section('content')
     <nav class="breadcrumb" aria-label="Breadcrumb">
-        <a href="{{ route('admin.payroll.runs.index', ['company_id' => $c]) }}">Payroll</a><i>/</i><span>Payment Batches</span>
+        <a href="{{ route('admin.payroll.runs.index', ['company_id' => $c]) }}">Payroll</a><i>/</i><span>Payment Batches</span>    <i>/</i>
+
+         <span>
+            Payroll/resources/views/payment-batches/index
+        </span>
     </nav>
 
     <section class="panel page-hero">

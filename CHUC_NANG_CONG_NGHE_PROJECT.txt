@@ -655,6 +655,21 @@ Contract:
 - production + environment-defined VPS DB  = ALLOW khi debug off
 - schema_admin_development                  = REMOVED / NO LONGER EXISTS
 
+DATA QUALITY (Phase 3F-24)
+- Read-only command: php artisan operations:data-quality-audit --json
+- Read-only UI: /admin/operations/data-quality (operations.view)
+- Kiểm tra 13 aggregate rules: duplicate employee code/primary assignment, Employee-User/company access, manager, cross-tenant/position-unit/career level, Attendance time/owner và Payroll employee/snapshot/run reconciliation.
+- Employee list dùng eager loading cho account/manager/current assignment; tuổi tính từ ngày sinh, không lưu cột age.
+- Account lifecycle dùng `users.access_enabled`, Laravel Hash, Spatie role và company access; login disabled bị từ chối tại credential boundary.
+- Employee create khởi tạo lifecycle + primary assignment + position history; Employee 360 dùng `job_positions.career_level` để giới hạn thăng/giáng chức hợp lệ.
+- Avatar dùng `EmployeeAvatarStorageInterface`: local/testing mặc định private local storage; production có thể chọn Cloudflare Images qua config và token từ `SecretProvider`. Upload/replace có compensation và cleanup an toàn; không lưu token.
+- Job Position create/edit bắt buộc chọn Level 1..6 trên chính `job_positions.career_level`; Employee form và career actions chỉ dùng position đúng Unit, hiển thị `Position — Unit — Level N`, promotion/demotion lấy toàn bộ level cao hơn/thấp hơn thực có.
+- Employee Lifecycle hiển thị Base/KPI/Phụ cấp/Target Gross từ effective `employee_salary_component_assignments` bằng một batch query; quyền `payroll.assignment.view` được kiểm tra server-side. Projection vị trí dùng policy typed theo level/phòng ban, không coi Target Gross là Net Pay và không sửa payroll history.
+- Header `$` mở Compensation Reference của position thật; header `?` mở hướng dẫn riêng cho 73/73 primary menu routes trong 10 accordion domain. `AdminHelpRegistry` mô tả mục đích, nguồn dữ liệu, upstream/downstream, action, thứ tự thao tác, state/immutable/approval, side effect, permission, warning, menu flow và technical flow. Luồng liên kết dùng named route thật, đánh dấu menu hiện tại bằng `aria-current`, và lọc toàn bộ node/link không được phép ở server. Dialog native modal hỗ trợ keyboard/Escape/focus return/mobile.
+- File avatar được preview tròn bằng object URL trước upload; Employee List đọc cùng avatar Employee-owned qua route private có permission, fallback initials nếu chưa có ảnh. Archive/disable/unlink không xóa ảnh; remove-avatar thật mới cleanup provider sau commit và có shared-reference guard.
+- Attendance XLSX dùng maatwebsite/excel (`composer require maatwebsite/excel` nếu dựng project mới; project hiện đã khóa 3.1.69), code tại `Modules/Attendance/app/Application/Exports/AttendanceXlsxExport.php`.
+- Local Payroll synthetic đi qua services thật để tạo 6 snapshots/180 inputs, 5 runs/150 items cùng adjustment/payment/accounting/ERP-local/annual-tax/Government filing; không phát traffic external.
+
 
 26. OBSERVABILITY / RELIABILITY / SLO
 -------------------------------------

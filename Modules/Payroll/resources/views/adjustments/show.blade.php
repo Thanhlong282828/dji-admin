@@ -3,7 +3,9 @@
 @section('title', 'Payroll Adjustment Detail')
 
 @section('content')
-    @php($a = $vm->data['adjustment'])
+    @php
+    ($a = $vm->data['adjustment'])
+    @endphp
 
     {{-- ================================================================
         BREADCRUMB
@@ -21,6 +23,11 @@
 
         <span>
             {{ $a['adjustment_number'] }}
+        </span>
+         <i>/</i>
+
+         <span>
+            Payroll/resources/views/adjustments/show
         </span>
     </nav>
 

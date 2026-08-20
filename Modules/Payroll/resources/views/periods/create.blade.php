@@ -25,7 +25,11 @@
 
         <h1>
             Tạo kỳ lương
-        </h1>
+        </h1> <i>/</i>
+
+         <span>
+            Payroll/resources/views/periods/create
+        </span>
 
 
         {{-- ============================================================

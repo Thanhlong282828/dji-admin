@@ -12,10 +12,15 @@
     data-record-version="{{ $viewModel->summary['version'] }}"
     data-calculation-version="{{ $viewModel->summary['calculation_version'] }}"
 >
+   <i>/</i>
 
+         <span>
+            Payroll/resources/views/partials/run-items
+        </span>
     {{-- ================================================================
         PAYROLL RUN ITEMS
     ================================================================ --}}
+
     <table class="w-full text-left">
         <thead>
             <tr>

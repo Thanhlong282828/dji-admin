@@ -1,6 +1,6 @@
 @extends('layouts.admin')
 
-@section('title', 'Payroll Run | Runs')
+@section('title', 'Payroll Run')
 
 @section('content')
     <div class="space-y-7">
@@ -18,7 +18,11 @@
                     Generate missing official Payslips asynchronously
                     from immutable Payroll Items.
                 </p>
+        <i>/</i>
 
+         <span>
+            Payroll/resources/views/run-detail
+        </span>
                 @can('payroll.payslip.generate')
                     <form
                         method="POST"

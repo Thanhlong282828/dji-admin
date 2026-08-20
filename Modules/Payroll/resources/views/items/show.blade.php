@@ -26,7 +26,11 @@
             <span class="eyebrow">
                 IMMUTABLE CALCULATION RESULT
             </span>
+  <i>/</i>
 
+         <span>
+            Payroll/resources/views/items/show
+        </span>
             <h1>
                 {{ $s['employee_number'] }} · {{ $s['employee_name'] }}
             </h1>

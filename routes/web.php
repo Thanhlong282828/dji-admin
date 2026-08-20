@@ -1,11 +1,13 @@
 <?php
 
 use App\Http\Controllers\ArticleController;
+use App\Http\Controllers\CompensationReferenceController;
 use App\Http\Controllers\Operations\ApiContractsController;
 use App\Http\Controllers\Operations\ArchitectureController;
 use App\Http\Controllers\Operations\ContinuityController;
 use App\Http\Controllers\Operations\DataLifecycleController;
 use App\Http\Controllers\Operations\DataProtectionController;
+use App\Http\Controllers\Operations\DataQualityController;
 use App\Http\Controllers\Operations\HealthController;
 use App\Http\Controllers\Operations\ObservabilityController;
 use App\Http\Controllers\Operations\PerformanceController;
@@ -52,8 +54,10 @@ Route::get('/admin/operations/configuration', RuntimeConfigurationController::cl
 Route::get('/admin/operations/secrets', SecretsController::class)->middleware(['auth', 'verified', 'permission:operations.view'])->name('admin.operations.secrets');
 Route::get('/admin/operations/data-protection', DataProtectionController::class)->middleware(['auth', 'verified', 'permission:operations.view'])->name('admin.operations.data-protection');
 Route::get('/admin/operations/data-lifecycle', DataLifecycleController::class)->middleware(['auth', 'verified', 'permission:operations.view'])->name('admin.operations.data-lifecycle');
+Route::get('/admin/operations/data-quality', DataQualityController::class)->middleware(['auth', 'verified', 'permission:operations.view'])->name('admin.operations.data-quality');
 Route::get('/admin/operations/continuity', ContinuityController::class)->middleware(['auth', 'verified', 'permission:operations.view'])->name('admin.operations.continuity');
 Route::get('/admin/operations/security-assurance', SecurityAssuranceController::class)->middleware(['auth', 'verified', 'permission:operations.view'])->name('admin.operations.security-assurance');
+Route::get('/admin/compensation-reference', CompensationReferenceController::class)->middleware(['auth', 'verified', 'permission:payroll.assignment.view'])->name('admin.compensation-reference');
 
 Route::middleware('auth')->group(function () {
     Route::get('/articles', [ArticleController::class, 'index'])->middleware('can:article.view')->name('articles.index');

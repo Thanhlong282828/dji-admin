@@ -18,5 +18,6 @@ final readonly class LifecycleTransitionData
         public ?int $positionId = null,
         public ?int $managerId = null,
         public bool $promotion = false,
+        public bool $demotion = false,
     ) {}
 }

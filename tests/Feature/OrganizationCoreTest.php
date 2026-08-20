@@ -114,6 +114,22 @@ final class OrganizationCoreTest extends TestCase
         self::assertSame(2.5, $stats['vacancy']);
     }
 
+    public function test_job_position_create_and_edit_require_and_persist_level_one_through_six(): void
+    {
+        $company = $this->company('LEVELS');
+        $unit = $this->unit($company, 'ENGINEERING', 'department');
+        $user = $this->authorized($company, ['job-position.view', 'job-position.create', 'job-position.update']);
+        $payload = ['company_id' => $company->id, 'organization_unit_id' => $unit->id, 'code' => 'BACKEND', 'title' => 'Backend Developer', 'career_level' => 3, 'approved_headcount' => 5, 'budgeted_cost' => 0, 'is_critical' => 0];
+
+        $this->actingAs($user)->post('/admin/job-positions', $payload)->assertRedirect();
+        $position = JobPosition::query()->where('company_id', $company->id)->where('code', 'BACKEND')->firstOrFail();
+        self::assertSame(3, $position->career_level);
+        $this->actingAs($user)->put('/admin/job-positions/'.$position->id, [...$payload, 'career_level' => 6])->assertRedirect();
+        $this->assertDatabaseHas('job_positions', ['id' => $position->id, 'career_level' => 6]);
+        $this->actingAs($user)->post('/admin/job-positions', [...$payload, 'code' => 'INVALID', 'career_level' => 7])->assertSessionHasErrors('career_level');
+        $this->actingAs($user)->get('/admin/job-positions/'.$position->id.'/edit?company_id='.$company->id)->assertOk()->assertSee('Level 1')->assertSee('Level 6');
+    }
+
     private function company(string $code): Company
     {
         return Company::query()->create([

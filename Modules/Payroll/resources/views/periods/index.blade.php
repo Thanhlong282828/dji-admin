@@ -1,6 +1,6 @@
 @extends('layouts.admin')
 
-@section('title', 'Payroll Periods/index')
+@section('title', 'Payroll Periods')
 
 @section('header_action')
     @can('payroll-period.create')
@@ -33,6 +33,11 @@
             <h1>
                 Payroll Period
             </h1>
+    <i>/</i>
+
+         <span>
+            Payroll/resources/views/periods/index
+        </span>
 
             <p>
                 Quản lý kỳ thu thập input, khóa xử lý và đóng bảng lương theo Company.

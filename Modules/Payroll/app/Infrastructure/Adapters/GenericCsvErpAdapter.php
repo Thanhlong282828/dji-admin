@@ -9,6 +9,7 @@ use Modules\Payroll\Domain\Adapters\ErpAccountingAdapter;
 
 final readonly class GenericCsvErpAdapter implements ErpAccountingAdapter
 {
+    // Đoạn này là adapter xuất dữ liệu kế toán ERP ra file CSV theo format “generic”, tức là không phụ thuộc SAP/Oracle/NetSuite cụ thể.
     public function __construct(private SpreadsheetFormulaSanitizer $sanitizer) {}
 
     public function provider(): string

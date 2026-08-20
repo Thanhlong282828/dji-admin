@@ -13,6 +13,8 @@ use Modules\Employee\Domain\Events\EmployeeAssignmentChanged;
 use Modules\Employee\Domain\Models\Employee;
 use Modules\Employee\Domain\Models\EmployeeAssignment;
 use Modules\Employee\Domain\Models\EmployeeHistory;
+use Modules\Employee\Domain\Models\EmployeeManagerHistory;
+use Modules\Employee\Domain\Models\EmployeePositionHistory;
 use Modules\Organization\Domain\Models\JobPosition;
 use Modules\Organization\Domain\Models\OrganizationUnit;
 
@@ -46,11 +48,35 @@ final readonly class EmployeeAssignmentService
             $this->validateAllocation((int) $employee->id, $data, $assignmentId);
             $before = $assignment->toArray();
             $assignment->update($data->toArray());
+            $beforeOrganizationUnitId = $this->integerAttribute($before['organization_unit_id'] ?? null, 'organization_unit_id');
+            $beforeJobPositionId = $this->integerAttribute($before['job_position_id'] ?? null, 'job_position_id');
+            if ($beforeOrganizationUnitId !== $data->organizationUnitId || $beforeJobPositionId !== $data->jobPositionId) {
+                $positionEvidence = ['position_id' => $data->jobPositionId, 'organization_unit_id' => $data->organizationUnitId, 'effective_from' => $data->effectiveFrom->toDateString()];
+                EmployeePositionHistory::query()->create(['company_id' => $companyId, 'employee_id' => (int) $employee->id, 'position_id' => $data->jobPositionId, 'organization_unit_id' => $data->organizationUnitId, 'effective_from' => $data->effectiveFrom->toDateString(), 'checksum' => hash('sha256', json_encode($positionEvidence, JSON_THROW_ON_ERROR))]);
+            }
+            $beforeManager = is_numeric($before['manager_id'] ?? null) ? (int) $before['manager_id'] : null;
+            if ($beforeManager !== $data->managerId) {
+                $managerEvidence = ['manager_id' => $data->managerId, 'effective_from' => $data->effectiveFrom->toDateString()];
+                EmployeeManagerHistory::query()->create(['company_id' => $companyId, 'employee_id' => (int) $employee->id, 'manager_id' => $data->managerId, 'effective_from' => $data->effectiveFrom->toDateString(), 'checksum' => hash('sha256', json_encode($managerEvidence, JSON_THROW_ON_ERROR))]);
+            }
             $this->history((int) $employee->id, EmployeeHistoryEventType::StatusChange, $before, $assignment->refresh()->toArray(), $actorId, 'Cập nhật phân công');
             $this->events->dispatch(EmployeeAssignmentChanged::updated($companyId, (int) $employee->id, $assignmentId, $actorId));
 
             return $assignment;
         }, 3);
+    }
+
+    private function integerAttribute(mixed $value, string $attribute): int
+    {
+        if (is_int($value)) {
+            return $value;
+        }
+
+        if (is_string($value) && ctype_digit($value)) {
+            return (int) $value;
+        }
+
+        throw new \LogicException("Assignment {$attribute} must be an integer.");
     }
 
     public function end(int $companyId, int $assignmentId, CarbonImmutable $effectiveTo, string $reason, int $actorId): EmployeeAssignment
@@ -69,9 +95,9 @@ final readonly class EmployeeAssignmentService
         }, 3);
     }
 
-    public function transfer(int $companyId, int $employeeId, int $currentAssignmentId, EmployeeAssignmentData $data, string $reason, int $actorId, bool $promotion): EmployeeAssignment
+    public function transfer(int $companyId, int $employeeId, int $currentAssignmentId, EmployeeAssignmentData $data, string $reason, int $actorId, bool $promotion, bool $demotion = false): EmployeeAssignment
     {
-        return DB::transaction(function () use ($companyId, $employeeId, $currentAssignmentId, $data, $reason, $actorId, $promotion): EmployeeAssignment {
+        return DB::transaction(function () use ($companyId, $employeeId, $currentAssignmentId, $data, $reason, $actorId, $promotion, $demotion): EmployeeAssignment {
             Employee::query()->where('company_id', $companyId)->lockForUpdate()->findOrFail($employeeId);
             $current = $this->lockedAssignment($companyId, $currentAssignmentId);
             if ((int) $current->employee_id !== $employeeId) {
@@ -80,11 +106,27 @@ final readonly class EmployeeAssignmentService
             if (! $data->effectiveFrom->isAfter(CarbonImmutable::parse((string) $current->effective_from))) {
                 throw ValidationException::withMessages(['effective_from' => 'Ngày chuyển phải sau ngày bắt đầu phân công hiện tại.']);
             }
+            $sourcePosition = JobPosition::query()->where('company_id', $companyId)->findOrFail($current->job_position_id);
+            $targetPosition = JobPosition::query()->where('company_id', $companyId)->findOrFail($data->jobPositionId);
+            if ($targetPosition->organization_unit_id !== $data->organizationUnitId) {
+                throw ValidationException::withMessages(['organization_unit_id' => 'Đơn vị phải khớp đơn vị sở hữu vị trí đích.']);
+            }
+            if ($promotion || $demotion) {
+                if ($sourcePosition->career_level === null || $targetPosition->career_level === null || $sourcePosition->career_level < 1 || $sourcePosition->career_level > 6 || $targetPosition->career_level < 1 || $targetPosition->career_level > 6) {
+                    throw ValidationException::withMessages(['job_position_id' => 'Vị trí nguồn và đích phải có career level từ 1 đến 6.']);
+                }
+                if ($promotion && $targetPosition->career_level <= $sourcePosition->career_level) {
+                    throw ValidationException::withMessages(['job_position_id' => 'Thăng chức yêu cầu career level cao hơn vị trí hiện tại.']);
+                }
+                if ($demotion && $targetPosition->career_level >= $sourcePosition->career_level) {
+                    throw ValidationException::withMessages(['job_position_id' => 'Giáng chức yêu cầu career level thấp hơn vị trí hiện tại.']);
+                }
+            }
             $current->update(['effective_to' => $data->effectiveFrom->subDay()->toDateString()]);
             $new = $this->create($companyId, $employeeId, $data, $actorId);
             $this->history(
                 $employeeId,
-                $promotion ? EmployeeHistoryEventType::Promotion : EmployeeHistoryEventType::Transfer,
+                $promotion ? EmployeeHistoryEventType::Promotion : ($demotion ? EmployeeHistoryEventType::Demotion : EmployeeHistoryEventType::Transfer),
                 $current->toArray(),
                 $new->toArray(),
                 $actorId,

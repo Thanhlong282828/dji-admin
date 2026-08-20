@@ -3,6 +3,7 @@
 use Illuminate\Support\Facades\Route;
 use Modules\Attendance\Http\Controllers\AttendanceController;
 use Modules\Attendance\Http\Controllers\AttendanceWorkflowController;
+use Modules\Attendance\Http\Controllers\AttendanceXlsxExportController;
 use Modules\Attendance\Http\Controllers\OvertimeController;
 use Modules\Attendance\Http\Controllers\ScheduleRuleController;
 use Modules\Attendance\Http\Controllers\WorkforceExportController;
@@ -31,6 +32,7 @@ Route::middleware(['auth', 'verified'])->prefix('admin')->name('admin.')->group(
     Route::put('workforce/shift-rules/{action}/{parent}/{rule}', [ScheduleRuleController::class, 'execute'])->whereIn('action', ['break.update', 'break.archive'])->whereNumber(['parent', 'rule'])->name('workforce.shift-breaks.update');
     Route::get('workforce-export/{type}.csv', WorkforceExportController::class)->whereIn('type', ['workforce', 'attendance', 'leave', 'leave-balances', 'overtime', 'payroll-input'])->name('workforce.export');
     Route::get('attendance-export.csv', WorkforceExportController::class)->defaults('type', 'attendance')->name('attendance.export');
+    Route::get('attendance-export.xlsx', AttendanceXlsxExportController::class)->middleware('permission:attendance.export')->name('attendance.export.xlsx');
     Route::get('leave-export.csv', WorkforceExportController::class)->defaults('type', 'leave')->name('leave.export');
     Route::get('leave-balances-export.csv', WorkforceExportController::class)->defaults('type', 'leave-balances')->name('leave-balances.export');
     Route::get('overtime-export.csv', WorkforceExportController::class)->defaults('type', 'overtime')->name('overtime.export');

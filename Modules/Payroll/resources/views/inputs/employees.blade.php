@@ -10,6 +10,11 @@
         ============================================================ --}}
         <section class="panel">
             <h1>Employee Input Rows</h1>
+           <i>/</i>
+
+         <span>
+            Payroll/resources/views/inputs/employees
+        </span>
 
             <form
                 method="GET"

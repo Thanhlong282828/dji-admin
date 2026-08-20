@@ -60,7 +60,11 @@
                     ·
                     {{ strtoupper($s['status']) }}
                 </h1>
+        <i>/</i>
 
+         <span>
+            Payroll/resources/views/inputs/show
+        </span>
                 <p>
                     {{ $s['period'] }}
                     · Captured {{ $s['captured_at'] }}

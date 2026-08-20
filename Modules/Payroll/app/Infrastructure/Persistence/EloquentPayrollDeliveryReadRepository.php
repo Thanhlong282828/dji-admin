@@ -17,22 +17,38 @@ final readonly class EloquentPayrollDeliveryReadRepository implements PayrollDel
 
     public function dashboard(int $company): PayrollDeliveryViewModel
     {
-        return $this->cache->remember($company, 'payroll-run', 'delivery-dashboard', 300, function () use ($company): PayrollDeliveryViewModel {
-            $components = [];
-            foreach (DB::table('salary_components')->where('company_id', $company)->orderBy('display_order')->orderBy('code')->get() as $r) {
-                $components[] = ['id' => $this->int($r, 'id'), 'code' => $this->text($r, 'code'), 'name' => $this->text($r, 'name'), 'category' => $this->text($r, 'category'), 'calculation_type' => $this->text($r, 'calculation_type'), 'currency_code' => $this->nullableText($r, 'currency_code'), 'status' => $this->text($r, 'status'), 'version' => $this->int($r, 'version')];
+        $cached = $this->cache->rememberExternal($company, 'payroll-run', 'delivery-dashboard', 300, fn (): string => $this->dashboardUncached($company)->toJson());
+        if (is_string($cached)) {
+            try {
+                return PayrollDeliveryViewModel::fromJson($cached);
+            } catch (\JsonException|\UnexpectedValueException) {
+                // Replace corrupt or obsolete cache payloads from an earlier application version.
             }
-            $assignments = [];
-            foreach (DB::table('employee_salary_component_assignments as a')->join('employees as e', 'e.id', '=', 'a.employee_id')->join('salary_components as c', 'c.id', '=', 'a.salary_component_id')->where('a.company_id', $company)->select('a.*', 'e.full_name as employee_name', 'c.name as component_name')->orderByDesc('a.effective_from')->get() as $r) {
-                $assignments[] = ['id' => $this->int($r, 'id'), 'employee_id' => $this->int($r, 'employee_id'), 'employee_name' => $this->text($r, 'employee_name'), 'component_name' => $this->text($r, 'component_name'), 'effective_from' => $this->text($r, 'effective_from'), 'effective_to' => $this->nullableText($r, 'effective_to'), 'status' => $this->text($r, 'status'), 'version' => $this->int($r, 'version')];
-            }
-            $runs = [];
-            foreach (DB::table('payroll_runs')->where('company_id', $company)->orderByDesc('id')->limit(25)->get() as $r) {
-                $runs[] = ['id' => $this->int($r, 'id'), 'run_number' => $this->text($r, 'run_number'), 'status' => $this->text($r, 'status'), 'currency_code' => $this->text($r, 'currency_code'), 'employee_count' => $this->int($r, 'employee_count'), 'calculation_version' => $this->int($r, 'calculation_version'), 'version' => $this->int($r, 'version')];
-            }
+        }
 
-            return new PayrollDeliveryViewModel($components, $assignments, $runs);
-        });
+        $this->cache->invalidate($company, 'payroll-run');
+        $fresh = $this->dashboardUncached($company);
+        $this->cache->rememberExternal($company, 'payroll-run', 'delivery-dashboard', 300, fn (): string => $fresh->toJson());
+
+        return $fresh;
+    }
+
+    private function dashboardUncached(int $company): PayrollDeliveryViewModel
+    {
+        $components = [];
+        foreach (DB::table('salary_components')->where('company_id', $company)->orderBy('display_order')->orderBy('code')->get() as $r) {
+            $components[] = ['id' => $this->int($r, 'id'), 'code' => $this->text($r, 'code'), 'name' => $this->text($r, 'name'), 'category' => $this->text($r, 'category'), 'calculation_type' => $this->text($r, 'calculation_type'), 'currency_code' => $this->nullableText($r, 'currency_code'), 'status' => $this->text($r, 'status'), 'version' => $this->int($r, 'version')];
+        }
+        $assignments = [];
+        foreach (DB::table('employee_salary_component_assignments as a')->join('employees as e', 'e.id', '=', 'a.employee_id')->join('salary_components as c', 'c.id', '=', 'a.salary_component_id')->where('a.company_id', $company)->select('a.*', 'e.full_name as employee_name', 'c.name as component_name')->orderByDesc('a.effective_from')->get() as $r) {
+            $assignments[] = ['id' => $this->int($r, 'id'), 'employee_id' => $this->int($r, 'employee_id'), 'employee_name' => $this->text($r, 'employee_name'), 'component_name' => $this->text($r, 'component_name'), 'effective_from' => $this->text($r, 'effective_from'), 'effective_to' => $this->nullableText($r, 'effective_to'), 'status' => $this->text($r, 'status'), 'version' => $this->int($r, 'version')];
+        }
+        $runs = [];
+        foreach (DB::table('payroll_runs')->where('company_id', $company)->orderByDesc('id')->limit(25)->get() as $r) {
+            $runs[] = ['id' => $this->int($r, 'id'), 'run_number' => $this->text($r, 'run_number'), 'status' => $this->text($r, 'status'), 'currency_code' => $this->text($r, 'currency_code'), 'employee_count' => $this->int($r, 'employee_count'), 'calculation_version' => $this->int($r, 'calculation_version'), 'version' => $this->int($r, 'version')];
+        }
+
+        return new PayrollDeliveryViewModel($components, $assignments, $runs);
     }
 
     public function runList(int $company, array $filters): PayrollRunListViewModel

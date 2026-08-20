@@ -10,5 +10,6 @@ return [
         'secret://realtime/reverb' => ['component' => 'realtime', 'classification' => 'restricted', 'source' => 'environment', 'config_path' => 'reverb.apps.apps.0.secret', 'required' => false, 'rotation_days' => 90],
         'secret://integration/encrypted-connection' => ['component' => 'integration', 'classification' => 'critical', 'source' => 'encrypted_store', 'config_path' => null, 'required' => false, 'rotation_days' => 90],
         'secret://storage/object-store' => ['component' => 'storage', 'classification' => 'critical', 'source' => 'environment', 'config_path' => 'filesystems.disks.s3.secret', 'required' => false, 'rotation_days' => 90],
+        'secret://media/cloudflare-images' => ['component' => 'media', 'classification' => 'critical', 'source' => 'environment', 'config_path' => 'services.cloudflare_images.api_token', 'required' => false, 'rotation_days' => 90],
     ],
 ];

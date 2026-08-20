@@ -23,6 +23,6 @@ final class PayrollRun extends Model
 
     protected function casts(): array
     {
-        return ['status' => PayrollRunStatus::class, 'period_start' => 'immutable_date', 'period_end' => 'immutable_date', 'calculated_at' => 'immutable_datetime', 'submitted_at' => 'immutable_datetime', 'approved_at' => 'immutable_datetime', 'rejected_at' => 'immutable_datetime', 'finalized_at' => 'immutable_datetime', 'formula_version' => 'array'];
+        return ['status' => PayrollRunStatus::class, 'version' => 'integer', 'calculation_version' => 'integer', 'period_start' => 'immutable_date', 'period_end' => 'immutable_date', 'calculated_at' => 'immutable_datetime', 'submitted_at' => 'immutable_datetime', 'approved_at' => 'immutable_datetime', 'rejected_at' => 'immutable_datetime', 'finalized_at' => 'immutable_datetime', 'formula_version' => 'array'];
     }
 }

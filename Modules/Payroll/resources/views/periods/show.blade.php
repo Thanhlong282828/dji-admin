@@ -79,6 +79,11 @@
                     {{ $p['note'] }}
                 </p>
             @endif
+            <i>/</i>
+
+         <span>
+            Payroll/resources/views/periods/show
+        </span>
         </section>
 
 

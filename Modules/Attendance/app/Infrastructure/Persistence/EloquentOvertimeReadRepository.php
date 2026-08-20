@@ -13,7 +13,20 @@ final readonly class EloquentOvertimeReadRepository implements OvertimeReadRepos
 
     public function management(int $companyId): OvertimeManagementViewModel
     {
-        return $this->cache->remember($companyId, 'overtime', 'management', 120, fn (): OvertimeManagementViewModel => $this->managementUncached($companyId));
+        $cached = $this->cache->rememberExternal($companyId, 'overtime', 'management', 120, fn (): string => $this->managementUncached($companyId)->toJson());
+        if (is_string($cached)) {
+            try {
+                return OvertimeManagementViewModel::fromJson($cached);
+            } catch (\JsonException|\UnexpectedValueException) {
+                // Replace corrupt or obsolete cache payloads from an earlier application version.
+            }
+        }
+
+        $this->cache->invalidate($companyId, 'overtime');
+        $fresh = $this->managementUncached($companyId);
+        $this->cache->rememberExternal($companyId, 'overtime', 'management', 120, fn (): string => $fresh->toJson());
+
+        return $fresh;
     }
 
     private function managementUncached(int $companyId): OvertimeManagementViewModel

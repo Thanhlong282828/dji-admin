@@ -22,7 +22,11 @@
             {{ strtoupper($viewModel->summary['status']) }}
         </span>
     </h1>
+     <i>/</i>
 
+         <span>
+            Payroll/resources/views/partials/run-summary
+        </span>
 
     {{-- ================================================================
         RUN INFORMATION

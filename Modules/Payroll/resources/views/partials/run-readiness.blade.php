@@ -19,7 +19,11 @@
     <h2 class="text-lg font-semibold">
         Readiness
     </h2>
+     <i>/</i>
 
+         <span>
+            Payroll/resources/views/partials/run-readiness
+        </span>
     <p class="mt-2 text-zinc-400">
         {{ count($viewModel->issues) === 0
             ? 'Không có lỗi validation đang hiển thị.'

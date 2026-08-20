@@ -31,6 +31,11 @@
             Snapshot không thể chỉnh sửa sau khi tạo.
             Chỉ Payroll Period đang mở mới xuất hiện.
         </p>
+       <i>/</i>
+
+         <span>
+            Payroll/resources/views/inputs/create
+        </span>
 
 
         {{-- ============================================================

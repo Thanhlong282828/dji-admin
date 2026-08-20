@@ -18,7 +18,11 @@
     <h2 class="text-xl">
         Validation Issues
     </h2>
+           <i>/</i>
 
+         <span>
+            Payroll/resources/views/partials/run-validation/
+        </span>
     @forelse($viewModel->issues as $issue)
         <p class="mt-2 rounded bg-red-950 p-3">
             {{ $issue['code'] }}

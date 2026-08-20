@@ -4,7 +4,11 @@
 @section('header_action')<a class="button secondary" href="{{ route('admin.payroll.payment-batches.index', ['company_id' => $c]) }}">← Hủy</a>@endsection
 
 @section('content')
-    <nav class="breadcrumb" aria-label="Breadcrumb"><a href="{{ route('admin.payroll.payment-batches.index', ['company_id' => $c]) }}">Payment Batches</a><i>/</i><span>Tạo mới</span></nav>
+    <nav class="breadcrumb" aria-label="Breadcrumb"><a href="{{ route('admin.payroll.payment-batches.index', ['company_id' => $c]) }}">Payment Batches</a><i>/</i><span>Tạo mới</span><i>/</i>
+
+         <span>
+            Payroll/resources/views/payment-batches/create
+        </span></nav>
     <div class="operation-layout">
         <section class="panel page-hero">
             <span class="eyebrow">Finalized payroll only</span>

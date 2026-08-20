@@ -24,7 +24,11 @@
             Sửa {{ $viewModel->detail['code'] }}
         </h1>
 
+<i>/</i>
 
+         <span>
+            Payroll/resources/views/periods/edit
+        </span>
         {{-- ============================================================
             EDIT PAYROLL PERIOD FORM
         ============================================================ --}}
