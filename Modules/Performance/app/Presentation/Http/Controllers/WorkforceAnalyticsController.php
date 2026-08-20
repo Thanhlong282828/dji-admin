@@ -4,6 +4,7 @@ namespace Modules\Performance\Presentation\Http\Controllers;
 
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 use Modules\Core\Application\Buses\CommandBusInterface;
 use Modules\Core\Application\Buses\QueryBusInterface;
@@ -11,7 +12,10 @@ use Modules\Organization\Domain\Services\TenantAccessService;
 use Modules\Performance\Application\Commands\GenerateWorkforceSnapshot\GenerateWorkforceSnapshotCommand;
 use Modules\Performance\Application\Commands\RebuildAnalyticsPeriod\RebuildAnalyticsPeriodCommand;
 use Modules\Performance\Application\Commands\RefreshAnalyticsProjection\RefreshAnalyticsProjectionCommand;
+use Modules\Performance\Application\DTOs\AnalyticsFilter;
+use Modules\Performance\Application\DTOs\WorkforceAnalyticsViewModel;
 use Modules\Performance\Application\Queries\WorkforceDashboard\WorkforceDashboardQuery;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 final readonly class WorkforceAnalyticsController
 {
@@ -22,7 +26,50 @@ final readonly class WorkforceAnalyticsController
         $c = $this->company($r);
         $this->allow($r, $c, 'analytics.view');
 
-        return view('performance::analytics.dashboard', ['data' => $this->queries->ask(new WorkforceDashboardQuery($c)), 'companyId' => $c]);
+        $filter = AnalyticsFilter::fromRequest($r, $c);
+        $salaryAllowed = $r->user()?->can('payroll.assignment.view') === true;
+
+        return view('performance::analytics.dashboard', [
+            'data' => $this->queries->ask(new WorkforceDashboardQuery($c, $filter, $salaryAllowed)),
+            'companyId' => $c,
+            'filter' => $filter,
+            'units' => DB::table('organization_units')->where('company_id', $c)->orderBy('name')->get(['id', 'name']),
+            'positions' => DB::table('job_positions')->where('company_id', $c)->orderBy('title')->get(['id', 'organization_unit_id', 'title', 'career_level']),
+        ]);
+    }
+
+    public function export(Request $r): StreamedResponse
+    {
+        $c = $this->company($r);
+        $this->allow($r, $c, 'analytics.export');
+        $filter = AnalyticsFilter::fromRequest($r, $c);
+        /** @var WorkforceAnalyticsViewModel $data */
+        $data = $this->queries->ask(new WorkforceDashboardQuery($c, $filter, $r->user()?->can('payroll.assignment.view') === true));
+
+        return response()->streamDownload(static function () use ($data): void {
+            $handle = fopen('php://output', 'wb');
+            if ($handle === false) {
+                return;
+            }
+            fputcsv($handle, ['Section', 'Metric', 'Value']);
+            foreach (['executive', 'attendance', 'leave', 'recruitment', 'workflow', 'iam'] as $section) {
+                $values = $data->enterprise[$section] ?? [];
+                if (! is_array($values)) {
+                    continue;
+                }
+                foreach ($values as $metric => $value) {
+                    if (is_scalar($value)) {
+                        fputcsv($handle, [$section, self::safeCell((string) $metric), self::safeCell((string) $value)]);
+                    }
+                }
+            }
+            fclose($handle);
+        }, 'enterprise-analytics.csv', ['Content-Type' => 'text/csv; charset=UTF-8']);
+    }
+
+    private static function safeCell(string $value): string
+    {
+        return preg_match('/^[=+\-@]/', $value) === 1 ? "'".$value : $value;
     }
 
     public function generate(Request $r): RedirectResponse

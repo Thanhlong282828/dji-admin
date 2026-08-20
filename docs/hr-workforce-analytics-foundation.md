@@ -1,6 +1,6 @@
 # Phase 3E-5E — Workforce Analytics
 
-Workforce Analytics is a company-scoped read model. It reads Organization, Employee Lifecycle, Performance and Career evidence only; it does not update source aggregates and never reads salary, tax, bank or Payroll data.
+Workforce Analytics is a company-scoped read model. Its original snapshots read Organization, Employee Lifecycle, Performance and Career evidence. Phase 3F-25 extends the dashboard with read-only aggregate Payroll and effective Compensation sources only when the actor also has `payroll.assignment.view`; it never exposes employee-level salary, tax/bank identifiers, or updates source aggregates.
 
 Batch 44 creates `analytics_calculation_runs`, `workforce_analytics_snapshots` and `analytics_outbox`. Calculations are deterministic and cover headcount/active/inactive, hires, terminations, transfers, promotions, attrition, performance rating, goal completion, critical-position succession coverage, position count and vacancy. Snapshot generation is transactional, checksummed and idempotent.
 

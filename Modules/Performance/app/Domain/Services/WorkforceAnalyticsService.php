@@ -4,13 +4,14 @@ namespace Modules\Performance\Domain\Services;
 
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Modules\Performance\Application\DTOs\AnalyticsFilter;
 use Modules\Performance\Application\DTOs\WorkforceAnalyticsViewModel;
 
 final readonly class WorkforceAnalyticsService
 {
-    public function __construct(private WorkforceSnapshotCalculator $workforce, private TalentSnapshotCalculator $talent, private OrganizationSnapshotCalculator $organization) {}
+    public function __construct(private WorkforceSnapshotCalculator $workforce, private TalentSnapshotCalculator $talent, private OrganizationSnapshotCalculator $organization, private EnterpriseAnalyticsService $enterprise) {}
 
-    public function calculate(int $c): WorkforceAnalyticsViewModel
+    public function calculate(int $c, ?AnalyticsFilter $filter = null, bool $salaryAllowed = false): WorkforceAnalyticsViewModel
     {
         $w = $this->workforce->calculate($c);
         $t = $this->talent->calculate($c);
@@ -23,7 +24,7 @@ final readonly class WorkforceAnalyticsService
         $transfer = (int) $w['transfers'];
         $term = (int) $w['terminations'];
 
-        return new WorkforceAnalyticsViewModel($m, ['headcount' => [$active, $inactive], 'mobility' => [$hires, $prom, $transfer, $term], 'talent' => [$m['average_rating'], $m['goal_completion'], $m['succession_coverage']]], null);
+        return new WorkforceAnalyticsViewModel($m, ['headcount' => [$active, $inactive], 'mobility' => [$hires, $prom, $transfer, $term], 'talent' => [$m['average_rating'], $m['goal_completion'], $m['succession_coverage']]], null, $filter === null ? [] : $this->enterprise->build($filter, $salaryAllowed));
     }
 
     public function snapshot(int $c, int $actor, string $key, string $date, bool $rebuild = false): int

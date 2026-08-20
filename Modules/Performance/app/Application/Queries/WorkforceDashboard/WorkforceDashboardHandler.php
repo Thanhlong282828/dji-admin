@@ -11,6 +11,6 @@ final readonly class WorkforceDashboardHandler
 
     public function handle(WorkforceDashboardQuery $q): WorkforceAnalyticsViewModel
     {
-        return $this->service->calculate($q->companyId);
+        return $this->service->calculate($q->companyId, $q->filter, $q->salaryAllowed);
     }
 }

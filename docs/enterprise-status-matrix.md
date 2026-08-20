@@ -1,5 +1,7 @@
 # Enterprise Canonical Status Matrix
 
+Phase 3F-25 Enterprise Reporting / Workforce Analytics: **COMPLETED**. The existing Performance analytics route now provides tenant-scoped executive, workforce, attendance/leave, recruitment, organization, Payroll/compensation, Workflow/IAM and Data Quality aggregates with bounded filters and aggregate CSV export. Compensation HTML requires `payroll.assignment.view`; no Payroll calculation semantics, schema, or external BI boundary changed. Final evidence: focused analytics 8 tests/33 assertions, full PHPUnit 535 tests/7,103 assertions/one skipped/exit 0, PHPStan level 10 zero, exact desktop/mobile browser zero overflow/console/page errors, and 63/230 schema parity across the three local databases.
+
 Phase 3F-24 Data Quality / HR Operations: **COMPLETED**. Evidence: read-only 13-rule reconciliation CLI/dashboard (13/13 PASS, score 100), Operations navigation child 15, Employee account provisioning/access lifecycle, explicit career-level promotion/demotion, stable primary-assignment correction, Attendance operational table/day-week chart/XLSX and idempotent synthetic Payroll snapshot/calculation. Exact desktop/mobile browser and final quality evidence are recorded in the Phase 3F-24 governance documents.
 
 Phase 3F-21 Enterprise API Contract Governance: **COMPLETED**. The earlier browser-tooling blocker was resolved with installed Chrome plus `playwright-core`; exact desktop/mobile, contract, security, CI, full PHPUnit, static/build and production-safety gates pass. Inventory is 11 governed paths, 21 route records and 24 actual/documented operations with zero undocumented, orphan or duplicate operationId findings.
@@ -14,7 +16,7 @@ Authority: this file is the canonical current-state summary. Older phase documen
 | Employee Lifecycle | **COMPLETED** | Append-only lifecycle, transitions, position/manager/document history, CQRS, tenant security and concurrency foundation. This does not mean every Employee Core convenience feature is complete. |
 | Talent | **COMPLETED** | Performance cycle, goals, reviews, ratings and talent snapshot foundation. |
 | Career | **COMPLETED** | Career plan, succession, readiness and immutable history foundation. |
-| Analytics | **COMPLETED** | Versioned workforce/talent/organization snapshots, deterministic metrics and dashboard foundation. |
+| Analytics | **COMPLETED** | Versioned snapshots plus DB-backed enterprise workforce, time, recruitment, organization, Payroll/compensation, Workflow/IAM and current Data Quality decision support; salary aggregates have a separate permission boundary. |
 | Governance | **COMPLETED** | HR data quality, consent/document governance and append-only governance audit foundation. |
 | Workflow | **COMPLETED** | Versioned workflow definitions, tasks, decisions, histories, outbox and concurrency foundation. |
 | Notification | **COMPLETED** | Template versions, messages, recipients, delivery attempts, preferences and outbox foundation. |

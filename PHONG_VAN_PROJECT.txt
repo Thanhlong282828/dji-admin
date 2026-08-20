@@ -526,3 +526,12 @@ Mỗi menu có source data, state machine, permission và downstream khác nhau.
 SIDEBAR COVERAGE — VÌ SAO KHÔNG ĐƯA MỌI ROUTE VÀO MENU?
 
 Route được phân loại thành primary work center, child/detail, action, API/auth và internal. Sidebar chỉ giữ landing/index/dashboard có controller, view và permission thật. Create/edit/show/export/download/approve/retry vẫn nằm trong page action. Audit 2026-08-21 thêm 21 work center trước đây khó tiếp cận, nhưng giữ Integration/Audit subpages trong nav nội bộ của hub để sidebar không biến thành danh sách route phẳng. Parent accordion chỉ render khi actor có ít nhất một child; permission của từng link khớp landing-route boundary.
+PHASE 3F-25 — ENTERPRISE ANALYTICS
+
+Vì sao không bật module Report riêng? Repository đã có route/controller/query/service Analytics hoạt động trong Performance, còn Report chỉ là skeleton. Tái sử dụng bounded context thật tránh hai nguồn metric và menu giả.
+
+Vì sao `analytics.view` chưa đủ để xem lương? Analytics tổng hợp workforce là Internal, còn lương thực tế là Restricted. Controller quyết định `payroll.assignment.view` trước khi dựng read model/HTML, nên không dựa vào CSS để che số tiền.
+
+Vì sao dùng grouped SQL thay vì vòng lặp Employee? Một số query cố định theo company/filter giữ query count bounded khi headcount tăng, tránh N+1 và không đưa PII vào chart labels.
+
+Dashboard có sửa dữ liệu không? Không. Finding phải được sửa qua menu/module sở hữu; Payroll history, Workforce snapshot và Data Quality evidence không bị analytics mutate.

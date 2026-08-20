@@ -875,3 +875,9 @@ Cache Organization theo company/version
 → config/cache.php + config/database.php
 → EloquentOrganizationReadRepository.php + OrganizationChangeListener.php
 → docker compose up -d redis + redis-cli ping
+ENTERPRISE ANALYTICS (Phase 3F-25)
+- Executive/Workforce/Attendance/Leave/Recruitment/Organization/Workflow/IAM/Data Quality aggregates from real tenant data.
+- Bounded company, Unit, Position, Level 1–6 and date filters; no per-Employee chart query.
+- Payroll and Compensation aggregates are server-side protected by payroll.assignment.view.
+- Formula-safe aggregate CSV export; no PII row export and no external BI traffic.
+- Existing immutable Workforce snapshot/version/checksum flow remains intact.

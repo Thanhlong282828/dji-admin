@@ -1,5 +1,7 @@
 # Admin Navigation Governance
 
+Phase 3F-25 keeps one Analytics destination and moves it beside Dashboard in the collapsed `Tổng quan` group as `Enterprise Analytics`. It reuses `admin.analytics.workforce` and `analytics.view`; no flat report links or disabled Report module are introduced. Contextual help describes the source/correction flow and separately notes `payroll.assignment.view` and `analytics.export`.
+
 Phase 3F-24 adds permission-filtered, read-only `Data Quality`. Fully permitted Operations now has 15 children. Data Quality requires `operations.view`, retains collapse/active-route behavior and exposes no mutation. API Documentation remains independently filtered by `api.documentation.view`.
 
 The canonical information architecture contains nine groups: Overview, Organization, People/HR Core, Talent, Payroll & Finance, Enterprise Automation, Access & Security, Operations/Platform and Content.

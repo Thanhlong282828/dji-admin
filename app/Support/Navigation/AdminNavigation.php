@@ -39,6 +39,7 @@ final class AdminNavigation
         return [
             $this->group('overview', 'Tổng quan', '◫', [
                 $this->item('dashboard', 'Dashboard', 'dashboard', ['dashboard'], 'dashboard.view'),
+                $this->item('analytics', 'Enterprise Analytics', 'admin.analytics.workforce', ['admin.analytics.*'], 'analytics.view', $company),
             ]),
             $this->group('organization', 'Tổ chức', '⌂', [
                 $this->item('companies', 'Công ty', 'admin.companies.index', ['admin.companies.*'], 'company.view'),
@@ -70,7 +71,6 @@ final class AdminNavigation
                 $this->item('onboarding', 'Onboarding', 'admin.onboarding.dashboard', ['admin.onboarding.*', 'admin.onboarding-cases.*'], 'onboarding.view', $company),
                 $this->item('performance', 'Hiệu suất và tài năng', 'admin.talent.performance.index', ['admin.talent.performance.*'], 'talent.performance.view', $company),
                 $this->item('career', 'Career và kế nhiệm', 'admin.career.index', ['admin.career.*'], 'career.view', $company),
-                $this->item('analytics', 'Workforce Analytics', 'admin.analytics.workforce', ['admin.analytics.*'], 'analytics.view', $company),
             ]),
             $this->group('payroll', 'Payroll và tài chính', '◇', [
                 $this->item('payroll-dashboard', 'Cấu hình lương', 'admin.payroll.delivery.index', ['admin.payroll.delivery.*', 'admin.payroll.components.*', 'admin.payroll.assignments.*'], 'payroll.component.view', $company),

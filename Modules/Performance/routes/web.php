@@ -12,6 +12,7 @@ Route::middleware(['auth', 'verified'])->prefix('admin/talent')->name('admin.tal
 });
 Route::middleware(['web', 'auth', 'verified'])->prefix('admin/analytics')->name('admin.analytics.')->group(function (): void {
     Route::get('/workforce', [WorkforceAnalyticsController::class, 'index'])->middleware('permission:analytics.view')->name('workforce');
+    Route::get('/workforce/export', [WorkforceAnalyticsController::class, 'export'])->middleware('permission:analytics.export')->name('export');
     Route::post('/workforce/snapshots', [WorkforceAnalyticsController::class, 'generate'])->middleware('permission:analytics.manage')->name('generate');
     Route::post('/workforce/{action}', [WorkforceAnalyticsController::class, 'mutate'])->where('action', 'refresh|rebuild')->middleware('permission:analytics.manage')->name('mutate');
 });

@@ -1522,6 +1522,8 @@ POST /admin/career/{action}/{subject?}
 
 PHASE 3E-5E — WORKFORCE ANALYTICS
 GET /admin/analytics/workforce → WorkforceAnalyticsController::index() → WorkforceDashboardQuery → QueryBus → WorkforceDashboardHandler → WorkforceAnalyticsService::calculate() → WorkforceAnalyticsViewModel → analytics/dashboard.blade.php
+GET /admin/analytics/workforce?company_id&organization_unit_id&job_position_id&career_level&date_from&date_to → WorkforceAnalyticsController::index() → TenantAccessService + AnalyticsFilter::fromRequest() → WorkforceDashboardQuery → QueryBus → WorkforceDashboardHandler → WorkforceAnalyticsService::calculate() → EnterpriseAnalyticsService::build() → fixed company-scoped grouped SQL over Employee/current primary Assignment, Organization, Attendance, Leave, Recruitment, Payroll/Compensation (only with payroll.assignment.view), Workflow, IAM and tenant-scoped Data Quality → WorkforceAnalyticsViewModel → analytics/dashboard.blade.php.
+GET /admin/analytics/workforce/export → auth + verified + analytics.export + company access → AnalyticsFilter → same read model (Payroll/Compensation only with payroll.assignment.view) → StreamedResponse CSV aggregate → formula-injection-safe cells; no Employee rows or restricted identifiers.
 POST /admin/analytics/workforce/snapshots → WorkforceAnalyticsController::generate() → GenerateWorkforceSnapshotCommand → CommandBus → Handler → WorkforceAnalyticsService::snapshot() → analytics_calculation_runs + workforce_analytics_snapshots + analytics_outbox → RedirectResponse
 ---------
 

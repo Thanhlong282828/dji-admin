@@ -549,6 +549,19 @@ compensation tests pass, while the supplied external account returned 403/5403,
 so live Cloudflare is not claimed. Final clean regression: 508 tests, 507 passed,
 5,091 assertions, one skipped, exit 0; PHPStan level 10 remains zero errors.
 
+Phase 3F-25 Enterprise Analytics reuses the enabled Performance bounded context
+and canonical `/admin/analytics/workforce` route. `AnalyticsFilter` enforces a
+company-scoped Unit/Position/Level/date contract (maximum 366 days), while
+`EnterpriseAnalyticsService` performs fixed grouped queries over Employee,
+Organization, Attendance, Leave, Recruitment, Payroll, Compensation, Workflow,
+IAM and tenant-scoped Data Quality evidence. The dashboard is read-only, uses
+DB-backed semantic distributions, and offers a formula-safe aggregate CSV.
+Actual Payroll/Compensation amounts require both analytics access and
+`payroll.assignment.view`; unauthorized HTML contains no amount aggregates.
+No Report skeleton, external BI dependency, migration, or Payroll semantic
+change is introduced. The single Enterprise Analytics destination sits beside
+Dashboard rather than creating flat report links.
+
 Realtime reliability boundary: `app/Support/Broadcasting/FailOpenRealtimeBroadcaster.php`
 decorates the Laravel Reverb transport. `ShouldBroadcastNow` remains the event
 contract, but Reverb `BroadcastException` is a non-critical fail-open side
