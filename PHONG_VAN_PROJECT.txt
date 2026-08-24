@@ -561,3 +561,15 @@ Vì sao chưa tạo Plan Version và maker-checker? Repository chưa có owner, 
 Vì sao Forecast không sửa Payroll? Payroll Run/Item là historical calculation evidence. Planning chỉ đọc Actual và tạo comparison; mọi sửa salary, attendance hoặc headcount phải đi qua module sở hữu và effective-dated workflow.
 
 Vì sao budget lương cần quyền riêng? Headcount analytics là dữ liệu quản trị, còn compensation/payroll cost là Restricted. Controller quyết định `payroll.assignment.view` trước khi tạo HTML/export financial values; CSS không phải authorization boundary.
+
+PHASE 3F-28 — PLANNING EXECUTION
+
+Plan, Target, Actual, Forecast và Reforecast khác nhau thế nào? Plan mô tả ý định từ nguồn có thẩm quyền; Target là mức vận hành cho kỳ; Actual là record đã xảy ra; Forecast là baseline estimate; Reforecast là estimate mới có chủ ý và không được âm thầm ghi đè Forecast cũ.
+
+Variance được tính thế nào? Hệ thống dùng `Actual − Target` và basis points trên Target bằng integer math. Target bằng 0 có phần trăm xác định là 0 để tránh chia cho 0, trong khi chênh lệch tuyệt đối vẫn hiển thị.
+
+Vì sao không sửa historical Payroll? Payroll Run/Item là evidence của kỳ tính lương. Planning Execution chỉ đọc run hợp lệ; chênh lệch phải được xử lý qua Payroll/Adjustment hoặc nguồn nghiệp vụ, không rewrite lịch sử.
+
+Vì sao approval/maker-checker là N/A? Target và Reforecast chưa được lưu vì chưa có authority/version contract cho approved operating plan. Nếu persistence được phê duyệt sau này, versioning, audit, maker-checker và concurrency sẽ là hard gates.
+
+Management Attention có phải AI không? Không. Đây là enum category từ quy tắc công khai như hiring gap hoặc payroll variance; hệ thống không gọi AI và không tự thực thi.

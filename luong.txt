@@ -2191,3 +2191,36 @@ Organization / Approved Headcount / Position Budget
 → Workforce Forecasting
 → Executive Planning Budget / Actual / Forecast / Variance
 → warning and permission-filtered drill-down to owning module.
+
+==================================================
+PERFORMANCE / ANALYTICS / PLANNING — PLANNING EXECUTION (PHASE 3F-28)
+==================================================
+
+GET /admin/planning/execution
+→ Modules/Performance/routes/web.php | admin.planning.execution
+→ auth + verified + analytics.view + TenantAccessService
+→ PlanningExecutionController::index()
+→ PlanningExecutionFilter::fromRequest()
+→ PlanningFilter::fromRequest() + bounded Reforecast deltas
+→ PlanningExecutionService::build()
+→ ExecutivePlanningService::build() + grouped candidate_offers completed-hire query
+→ ExecutionVarianceMath + VarianceStatus + ManagementAction
+→ PlanningExecutionViewModel
+→ performance::planning.execution Blade
+→ Target / Actual / Variance / request-scoped Reforecast; NO source mutation.
+
+GET /admin/planning/execution/export
+→ Modules/Performance/routes/web.php | admin.planning.execution.export
+→ analytics.export + tenant boundary
+→ same PlanningExecutionFilter + PlanningExecutionService read model
+→ StreamedResponse aggregate CSV
+→ formula-safe labels; financial fields MASKED without payroll.assignment.view.
+
+Execution control flow
+Executive Planning baseline
+→ monthly operating Target
+→ effective Assignment / completed Hire / eligible Payroll Actual
+→ integer Variance + typed status
+→ explicit Reforecast v2 comparison
+→ deterministic Management Attention
+→ owning Employee/Recruitment/Payroll workflow; NO automatic action.

@@ -4,6 +4,7 @@ use Illuminate\Support\Facades\Route;
 use Modules\Performance\Presentation\Http\Controllers\CareerController;
 use Modules\Performance\Presentation\Http\Controllers\ExecutivePlanningController;
 use Modules\Performance\Presentation\Http\Controllers\PerformanceController;
+use Modules\Performance\Presentation\Http\Controllers\PlanningExecutionController;
 use Modules\Performance\Presentation\Http\Controllers\WorkforceAnalyticsController;
 use Modules\Performance\Presentation\Http\Controllers\WorkforceForecastController;
 
@@ -15,6 +16,8 @@ Route::middleware(['auth', 'verified'])->prefix('admin/talent')->name('admin.tal
 Route::middleware(['web', 'auth', 'verified'])->prefix('admin/planning')->name('admin.planning.')->group(function (): void {
     Route::get('/', [ExecutivePlanningController::class, 'index'])->middleware('permission:analytics.view')->name('executive');
     Route::get('/export', [ExecutivePlanningController::class, 'export'])->middleware('permission:analytics.export')->name('export');
+    Route::get('/execution', [PlanningExecutionController::class, 'index'])->middleware('permission:analytics.view')->name('execution');
+    Route::get('/execution/export', [PlanningExecutionController::class, 'export'])->middleware('permission:analytics.export')->name('execution.export');
 });
 Route::middleware(['web', 'auth', 'verified'])->prefix('admin/analytics')->name('admin.analytics.')->group(function (): void {
     Route::get('/workforce', [WorkforceAnalyticsController::class, 'index'])->middleware('permission:analytics.view')->name('workforce');

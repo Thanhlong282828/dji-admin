@@ -41,7 +41,8 @@ final class AdminNavigation
                 $this->item('dashboard', 'Dashboard', 'dashboard', ['dashboard'], 'dashboard.view'),
                 $this->item('analytics', 'Enterprise Analytics', 'admin.analytics.workforce', ['admin.analytics.workforce', 'admin.analytics.export', 'admin.analytics.generate', 'admin.analytics.mutate'], 'analytics.view', $company),
                 $this->item('forecasting', 'Workforce Forecasting', 'admin.analytics.forecasting', ['admin.analytics.forecasting*'], 'analytics.view', $company),
-                $this->item('executive-planning', 'Executive Planning', 'admin.planning.executive', ['admin.planning.*'], 'analytics.view', $company),
+                $this->item('executive-planning', 'Executive Planning', 'admin.planning.executive', ['admin.planning.executive', 'admin.planning.export'], 'analytics.view', $company),
+                $this->item('planning-execution', 'Planning Execution', 'admin.planning.execution', ['admin.planning.execution*'], 'analytics.view', $company),
             ]),
             $this->group('organization', 'Tổ chức', '⌂', [
                 $this->item('companies', 'Công ty', 'admin.companies.index', ['admin.companies.*'], 'company.view'),

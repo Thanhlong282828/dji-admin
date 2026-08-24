@@ -900,3 +900,9 @@ EXECUTIVE PLANNING (Phase 3F-27)
 - So sánh Budget / Actual / Latest Forecast / Variance cho headcount, position cost và hiring coverage; 8 KPI cards, 5 visual summaries, aggregate CSV chống formula injection.
 - Tenant filter fail-closed; headcount dùng `analytics.view`, còn financial HTML cần `payroll.assignment.view`; export cần `analytics.export`.
 - Computed/read-only, không Plan table, không approval giả, không sửa Payroll lịch sử, không external BI/AI và không migration.
+
+PLANNING EXECUTION (Phase 3F-28)
+- `PlanningExecutionController` → `PlanningExecutionFilter` → `PlanningExecutionService` → Executive Planning baseline + grouped actual-hire query → typed variance/status → responsive dashboard.
+- So sánh monthly Headcount/Hiring/Payroll Target với Actual; unit matrix, root-cause aggregate và deterministic Management Attention không tự thực thi.
+- Reforecast v2 là explicit request-scoped comparison, không Save và không ghi đè Forecast v1.
+- Salary data bị loại server-side khi thiếu `payroll.assignment.view`; CSV aggregate chống formula injection; không migration hoặc Payroll mutation.

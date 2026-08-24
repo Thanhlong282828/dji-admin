@@ -606,3 +606,10 @@ PHASE 3F-27 — EXECUTIVE PLANNING
 - Eight KPI cards, five DB-backed visual summaries, variance/position tables, deterministic warnings, drill-down context and formula-safe aggregate CSV use the existing black-gold responsive UI.
 - Budget, Actual, Forecast and request-scoped Scenario remain distinct. Financial values require `payroll.assignment.view`; no approved Plan/version/approval persistence is claimed without an authority contract.
 - No migration, historical Payroll mutation, external BI/AI traffic or VPS action.
+
+PHASE 3F-28 — PLANNING EXECUTION
+- `/admin/planning/execution` adds a protected operating-control dashboard beside Executive Planning; navigation now has 76 primary destinations.
+- Monthly Headcount, Hiring and Payroll Target are compared with governed Actual records using typed integer variance/status math and bounded grouped queries.
+- Explicit Reforecast v2 is request-scoped and never overwrites Forecast v1; deterministic Management Attention never auto-executes.
+- Financial HTML/export requires `payroll.assignment.view`; aggregate CSV uses `analytics.export`; tenant filters reuse `PlanningFilter`.
+- No persistence, approval workflow, migration, Payroll history mutation, external BI/AI traffic or VPS action.
