@@ -2224,3 +2224,25 @@ Executive Planning baseline
 → explicit Reforecast v2 comparison
 → deterministic Management Attention
 → owning Employee/Recruitment/Payroll workflow; NO automatic action.
+
+==================================================
+PERFORMANCE / ANALYTICS / REPORTING — ENTERPRISE BOARD PACK (PHASE 3F-29)
+==================================================
+
+GET /admin/reports
+→ Modules/Performance/routes/web.php | admin.reports.index
+→ auth + verified + analytics.view + TenantAccessService
+→ EnterpriseReportController::index()
+→ ReportingFilter::fromRequest() | monthly/quarterly/YTD + tenant hierarchy
+→ EnterpriseReportingService::build()
+→ EnterpriseAnalyticsService + PlanningExecutionService
+→ EnterpriseReportCatalog + EnterpriseReportViewModel
+→ performance::reports.index live preview
+→ NO business mutation or report persistence.
+
+GET /admin/reports/export/{csv|xlsx|pdf}
+→ analytics.export + same ReportingFilter/read model
+→ EnterpriseReportExportService::generate()
+→ UTF-8 formula-safe CSV / multi-sheet XLSX / local Dompdf PDF
+→ actual artifact-byte SHA-256 response header
+→ private no-store download; no external upload/certification.

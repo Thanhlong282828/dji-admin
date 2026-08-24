@@ -2,6 +2,7 @@
 
 use Illuminate\Support\Facades\Route;
 use Modules\Performance\Presentation\Http\Controllers\CareerController;
+use Modules\Performance\Presentation\Http\Controllers\EnterpriseReportController;
 use Modules\Performance\Presentation\Http\Controllers\ExecutivePlanningController;
 use Modules\Performance\Presentation\Http\Controllers\PerformanceController;
 use Modules\Performance\Presentation\Http\Controllers\PlanningExecutionController;
@@ -18,6 +19,10 @@ Route::middleware(['web', 'auth', 'verified'])->prefix('admin/planning')->name('
     Route::get('/export', [ExecutivePlanningController::class, 'export'])->middleware('permission:analytics.export')->name('export');
     Route::get('/execution', [PlanningExecutionController::class, 'index'])->middleware('permission:analytics.view')->name('execution');
     Route::get('/execution/export', [PlanningExecutionController::class, 'export'])->middleware('permission:analytics.export')->name('execution.export');
+});
+Route::middleware(['web', 'auth', 'verified'])->prefix('admin/reports')->name('admin.reports.')->group(function (): void {
+    Route::get('/', [EnterpriseReportController::class, 'index'])->middleware('permission:analytics.view')->name('index');
+    Route::get('/export/{format}', [EnterpriseReportController::class, 'export'])->whereIn('format', ['csv', 'xlsx', 'pdf'])->middleware('permission:analytics.export')->name('export');
 });
 Route::middleware(['web', 'auth', 'verified'])->prefix('admin/analytics')->name('admin.analytics.')->group(function (): void {
     Route::get('/workforce', [WorkforceAnalyticsController::class, 'index'])->middleware('permission:analytics.view')->name('workforce');

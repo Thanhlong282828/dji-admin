@@ -4,7 +4,7 @@ Phase 3F-25 keeps one Analytics destination and moves it beside Dashboard in the
 
 Phase 3F-24 adds permission-filtered, read-only `Data Quality`. Fully permitted Operations now has 15 children. Data Quality requires `operations.view`, retains collapse/active-route behavior and exposes no mutation. API Documentation remains independently filtered by `api.documentation.view`.
 
-The canonical information architecture contains ten groups: Overview, Organization, People/HR Core, Workforce, Talent, Payroll & Finance, Enterprise Automation, Access & Security, Operations/Platform and Content. Phase 3F-28 has 76 server-filtered primary destinations, including Enterprise Analytics, Workforce Forecasting, Executive Planning and Planning Execution in Overview; Operations has 15 children. Planning remains four primary work centers rather than a flat set of report links, and their active route patterns are disjoint.
+The canonical information architecture contains ten groups: Overview, Organization, People/HR Core, Workforce, Talent, Payroll & Finance, Enterprise Automation, Access & Security, Operations/Platform and Content. Phase 3F-29 has 77 server-filtered primary destinations, adding one Enterprise Reports hub beside Analytics/Forecasting/Planning in Overview; Operations has 15 children. Individual report/export routes remain page actions rather than flat sidebar entries.
 
 Operations owns Reliability, Observability, Performance, Architecture, Releases, Runtime Configuration, Secrets, Data Protection, Business Continuity, Security Assurance and API Documentation. A page may be added only when its named route exists and permission metadata is defined. Item/group keys and named routes must remain unique.
 

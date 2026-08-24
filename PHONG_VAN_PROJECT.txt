@@ -573,3 +573,17 @@ Vì sao không sửa historical Payroll? Payroll Run/Item là evidence của k�
 Vì sao approval/maker-checker là N/A? Target và Reforecast chưa được lưu vì chưa có authority/version contract cho approved operating plan. Nếu persistence được phê duyệt sau này, versioning, audit, maker-checker và concurrency sẽ là hard gates.
 
 Management Attention có phải AI không? Không. Đây là enum category từ quy tắc công khai như hiring gap hoặc payroll variance; hệ thống không gọi AI và không tự thực thi.
+
+PHASE 3F-29 — ENTERPRISE REPORTING
+
+Dashboard và Report khác nhau thế nào? Dashboard tối ưu cho theo dõi tương tác hiện tại; report đóng gói một scope/kỳ rõ ràng để preview, export và management review. Cả hai vẫn phải dùng cùng read model/công thức nguồn.
+
+Vì sao report không query lại công thức trong Blade? Reuse Analytics/Planning services ngăn variance, Payroll và headcount có hai định nghĩa khác nhau; Blade chỉ trình bày typed ViewModel.
+
+Salary privacy được bảo vệ thế nào? Controller quyết định `payroll.assignment.view` trước khi build section. Unauthorized HTML/XLSX/PDF không chứa raw financial values; CSS không phải security boundary.
+
+Vì sao Board Pack chưa gọi immutable/certified? SHA-256 của live bytes chỉ chứng minh payload tải xuống, không tạo historical artifact. Certification cần persistence, version, owner, retention và approval contract thật.
+
+Khi nào export nên chạy Queue? Bounded aggregate board pack hiện chạy sync. Dataset lớn hoặc per-row export cần queue, idempotency, private artifact storage và cleanup policy; không queue mọi report một cách máy móc.
+
+Vì sao tenant scope là hard gate? Report tổng hợp nhiều module nên một filter sai có thể leak chéo công ty. TenantAccessService và hierarchy validation được áp dụng trước mọi preview/export.
