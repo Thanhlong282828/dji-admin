@@ -199,3 +199,7 @@ Status: **COMPLETED**. The new tenant-scoped `/admin/planning` cockpit compares 
 # Phase 3F-30 Production Go-Live
 
 Status: **PRODUCTION_BLOCKED_EXTERNAL**. Code provides a read-only go-live command/UI, production/local/test DB isolation, demo-seed guard, immutable Docker/release flow, migration compatibility review, deployment/rollback/smoke runbooks and redacted external dependency matrix. No production endpoint or VPS was accessed. Target MySQL/Redis/TLS/mail/backup evidence is pending and Cloudflare Images remains blocked by 403/5403.
+
+# Final project audit
+
+Status: **COMPLETED / PRODUCTION_BLOCKED_EXTERNAL**. Repository-wide module, route, navigation/help, flow, schema, data-quality, cache, security, browser and documentation audits found no Critical/High code defect. The audit closes incomplete-object cache recovery, Swagger admin-shell/help coverage, Article API route naming and stale current-count documentation. Final browser evidence is 78/78 primary destinations at both exact viewports with zero HTTP/console/page/overflow problem. Final clean PHPUnit passed 568 tests (567 passed), 7,508 assertions, one expected skip and exit 0. See `docs/final-project-audit.md`.

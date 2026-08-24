@@ -1,4 +1,5 @@
 SCHEMA ADMIN — TÀI LIỆU DATABASE THỰC TẾ
+CURRENT CANONICAL MATRIX (FINAL PROJECT AUDIT, 2026-08-24): schema_admin, schema_admin_testing và schema_admin_browser_testing cùng 63 migrations / 230 tables; schema_admin_development ABSENT; VPS không được truy cập. Các snapshot 61 migrations hoặc ít bảng hơn bên dưới là phase evidence lịch sử, không phải current environment contract.
 Phase 3F-21 adds no migration/table; contract governance is a route/spec read model. Expected environment matrix remains 61 migrations and 230 tables each.
 Phase 3F-21 verified schema_admin/development/testing/browser_testing at 61 migrations and 230 tables each. Production before/after business counts were identical.
 Phase 3F-21 browser completion used only schema_admin_browser_testing; owned users/companies/audit_events returned to 0/0/0 after cleanup.

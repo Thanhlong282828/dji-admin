@@ -3,6 +3,7 @@
 use App\Http\Controllers\ArticleController;
 use App\Http\Controllers\CompensationReferenceController;
 use App\Http\Controllers\Operations\ApiContractsController;
+use App\Http\Controllers\Operations\ApiDocumentationController;
 use App\Http\Controllers\Operations\ArchitectureController;
 use App\Http\Controllers\Operations\ContinuityController;
 use App\Http\Controllers\Operations\DataLifecycleController;
@@ -49,6 +50,7 @@ Route::get('/admin/operations/observability/metrics', [ObservabilityController::
 Route::get('/admin/operations/performance', PerformanceController::class)->middleware(['auth', 'verified', 'permission:operations.view'])->name('admin.operations.performance');
 Route::get('/admin/operations/architecture', ArchitectureController::class)->middleware(['auth', 'verified', 'permission:operations.view'])->name('admin.operations.architecture');
 Route::get('/admin/operations/api-contracts', ApiContractsController::class)->middleware(['auth', 'verified', 'permission:operations.view'])->name('admin.operations.api-contracts');
+Route::get('/admin/operations/api-documentation', ApiDocumentationController::class)->middleware(['auth', 'verified', 'permission:api.documentation.view'])->name('admin.operations.api-documentation');
 Route::get('/admin/operations/test-quality', TestQualityController::class)->middleware(['auth', 'verified', 'permission:operations.view'])->name('admin.operations.test-quality');
 Route::get('/admin/operations/releases', ReleaseDashboardController::class)->middleware(['auth', 'verified', 'permission:operations.view'])->name('admin.operations.releases');
 Route::get('/admin/operations/configuration', RuntimeConfigurationController::class)->middleware(['auth', 'verified', 'permission:operations.view'])->name('admin.operations.configuration');

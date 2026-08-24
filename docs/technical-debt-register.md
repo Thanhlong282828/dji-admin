@@ -23,6 +23,16 @@ Phase 3F-21 records that representative FormRequest/response checks are intentio
 | ARCH-005 | Low | Permissions | Large catalog retains disabled-module metadata. | Entitlement review overhead. | Add owner/removal lifecycle; avoid in-place production renames. | Security governance | Open |
 
 No critical or high debt was found. Historical Article CQRS and dynamic action routing remain documented legacy exceptions rather than Phase 3F-19 rewrites.
+
+## Final project audit (2026-08-24)
+
+- CACHE-001 (closed): `WorkforceCacheRegistry` now rejects legacy/deserialization results whose runtime type is `__PHP_Incomplete_Class`, evicts that key and reconstructs the read model. Dashboard/external caches remain arrays or JSON; the Company paginator cache already had equivalent recovery.
+- SCHEMA-001 (low, open): `employees.identity_number_hash` has both the original non-unique index and a later unique index over the same column. The unique index enforces identity integrity and makes the earlier index redundant; remove it only in a separately reviewed additive/online migration window.
+- MONEY-001 (medium, accepted): legacy Organization/Recruitment budget and Employment Contract columns still use decimal/float-facing boundaries. Canonical Payroll, Compensation, Planning and Reporting calculations use integer minor units. Migrate the legacy fields only with an effective-dated compatibility/backfill plan.
+- DOCS-001 (closed): current development matrix documentation was corrected from the historical 61-migration count to 63 migrations / 230 tables and 39 local demo employees.
+- NAV-001 (closed): API Documentation now has a permission-protected admin landing page, contextual help and links to the still-protected Swagger UI/OpenAPI JSON; all 78 primary destinations render the shared navigation contract.
+
+Production infrastructure, TLS/domain, least-privilege MySQL/Redis, mail delivery, backup/PITR and provider credentials remain external go-live blockers. Cloudflare Images remains `BLOCKED` by the last live HTTP 403/code 5403 result; production Mail/ERP/Government/Bank and malware-provider verification are not claimed. MFA and the disabled/skeleton catalog remain accepted product/security backlog, not hidden code completion claims.
 # Phase 3F-22 governed gaps
 
 - Approved jurisdiction/owner retention sources and durations are not yet supplied.

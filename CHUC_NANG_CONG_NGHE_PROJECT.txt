@@ -918,3 +918,8 @@ PRODUCTION GO-LIVE (Phase 3F-30)
 - Kiểm tra production DB separation, config/cache/queue/session/log/assets/health/migration inventory và external dependency states mà không deploy/migrate/seed.
 - Production/rollback/smoke/migration compatibility runbooks; non-root Docker và demo bootstrap production guard được giữ fail-closed.
 - Classification trung thực `PRODUCTION_BLOCKED_EXTERNAL`; không tuyên bố provider/VPS đã verified.
+
+FINAL PROJECT AUDIT — RUNTIME SAFETY / NAVIGATION
+- Workforce cache tự loại bỏ object `__PHP_Incomplete_Class` sau deploy/autoload mismatch và dựng lại read model chuẩn thay vì đưa object lỗi vào controller/Blade.
+- API Documentation có landing admin permission-protected, contextual help và link riêng tới Swagger UI/OpenAPI JSON vẫn được bảo vệ.
+- Browser walk desktop/mobile xác nhận 78/78 primary destinations dùng đúng help/navigation contract; không 403/404/500, console error hoặc document overflow.

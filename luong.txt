@@ -2270,3 +2270,77 @@ Production delivery
 → live/ready + scripts/operations/postdeploy-smoke.sh
 → monitor queue/scheduler/Reverb
 → rollback only with schema/config compatibility evidence.
+
+GET /admin/operations/api-documentation
+→ routes/web.php | admin.operations.api-documentation | auth + verified + api.documentation.view
+→ ApiDocumentationController::__invoke()
+→ resources/views/operations/api-documentation.blade.php
+→ shared admin layout + contextual help
+→ protected l5-swagger.default.api (/api/documentation) hoặc protected OpenAPI JSON (/docs)
+→ read-only contract inspection; không business mutation.
+
+Workforce cached read-model recovery
+→ controller/query asks WorkforceCacheRegistry::remember()
+→ stable versioned cache key
+→ cached array/DTO is returned when class metadata remains valid
+→ __PHP_Incomplete_Class is treated as an invalid deploy/runtime artifact
+→ key is evicted and resolver/repository rebuilds the canonical read model
+→ no unsafe incomplete object reaches Blade/controller.
+
+==================================================
+CORE / AUTH / CONTENT — ROUTED ACTION COMPLETENESS
+==================================================
+
+Browser authentication
+→ routes/auth.php
+→ AuthenticatedSessionController::{create,store,destroy}
+→ PasswordResetLinkController::{create,store}
+→ NewPasswordController::{create,store}
+→ ConfirmablePasswordController::{show,store}
+→ EmailVerificationPromptController / VerifyEmailController / EmailVerificationNotificationController
+→ RegisteredUserController::{create,store} + PasswordController::update
+→ Breeze/session authentication; Sanctum remains the API authentication boundary.
+
+Profile
+→ routes/web.php | profile.{edit,update,destroy}
+→ ProfileController::{edit,update,destroy}
+→ validated account profile mutation / guarded account deletion semantics.
+
+Article administration
+→ routes/web.php | articles.{index,create,store,edit,update}
+→ ArticleController::{index,create,store,edit,update}
+→ Article model + validated Blade CRUD; authorization remains article capability based.
+
+Public Article read API
+→ routes/api.php | api.articles.{index,show}
+→ Api\\ArticleController::{index,show}
+→ ArticleResource JSON; read-only public content contract.
+
+==================================================
+EMPLOYEE / WORKFORCE — EXPORT BOUNDARIES
+==================================================
+
+GET /admin/employees-export
+→ Modules/Employee/routes/web.php | admin.employees.export | employee.export
+→ EmployeeExportController::__invoke()
+→ GetEmployeeExportQuery / QueryBus / governed read repository
+→ bounded spreadsheet-safe employee export response.
+
+GET /admin/{attendance,leave,leave-balances,overtime,payroll-input}-export.csv
+→ Modules/Attendance/routes/web.php | named export routes + workforce.export
+→ WorkforceExportController::__invoke()
+→ validated tenant/type scope → WorkforceExportService/read repositories
+→ formula-safe CSV; no cross-company row.
+
+==================================================
+OPERATIONS — GOVERNANCE LANDING SURFACES
+==================================================
+
+GET /admin/operations/{architecture,api-contracts,test-quality,configuration,secrets,data-protection,data-lifecycle,continuity,security-assurance}
+→ routes/web.php | matching admin.operations.* named route + operations.view
+→ ArchitectureController / ApiContractsController / TestQualityController
+→ RuntimeConfigurationController / SecretsController / DataProtectionController
+→ DataLifecycleController / ContinuityController / SecurityAssuranceController
+→ owned read-only audit/snapshot service
+→ matching resources/views/operations/*.blade.php
+→ governance evidence only; no business mutation.

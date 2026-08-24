@@ -599,3 +599,7 @@ Live khác Ready thế nào? Live chỉ chứng minh process sống; Ready kiể
 Vì sao production DB tách riêng và demo seed bị chặn? EnvironmentSafetyGuard chặn mọi local/test schema trong production; bootstrap còn yêu cầu đồng thời local + schema_admin nên không thể tạo admin/demo employee trên production.
 
 Release certification và rollback hoạt động thế nào? Manifest/certificate gắn commit, image digest, migration checksum, gates và rollback target. Rollback dùng image bất biến trước đó khi compatibility hợp lệ; nếu không thì forward-fix/DR theo runbook.
+
+Vì sao cache object PHP có thể sinh `__PHP_Incomplete_Class`? Cache có thể sống lâu hơn release chứa class/version dùng để serialize nó. Khi worker mới không còn đúng metadata class, PHP không thể hydrate object an toàn. Registry phải xem đó là cache miss, xóa key và dựng lại read model; permission và dữ liệu chuẩn vẫn đến từ server/repository, không cố cast object lỗi.
+
+Vì sao Swagger cần một admin landing thay vì đặt thẳng trong sidebar? Swagger UI là vendor view riêng nên không mang sidebar, contextual help và active-group contract. Landing dùng admin layout giữ UX/permission governance, còn Swagger UI và OpenAPI JSON vẫn là các child resource được `api.documentation.view` bảo vệ; không bọc hay làm yếu API security.

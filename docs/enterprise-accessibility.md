@@ -25,4 +25,6 @@ Hardening gate: 15 focused/relevant tests, 14 passed, 1 skipped, 1,415 assertion
 
 Swagger completion hardening adds API Documentation as the tenth Operations child under its own server-side `api.documentation.view` permission. Exact desktop/mobile automation verifies the 0/10 collapse cycle, Swagger UI and protected specification navigation, zero overflow and zero console/page problems.
 
+The final project audit closes the vendor-layout gap with an admin-layout API Documentation landing. All 78 primary destinations now expose the contextual-help trigger and shared navigation semantics; Swagger UI/OpenAPI JSON remain protected child resources rather than pretending the vendor view is an admin shell.
+
 Phase 3F-19 adds Architecture as the eleventh authorized Operations child. It retains server-side filtering, hidden/non-tabbable collapse, keyboard accordion, active-group auto-open and exact desktop/mobile regression coverage.

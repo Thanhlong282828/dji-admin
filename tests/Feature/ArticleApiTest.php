@@ -15,6 +15,7 @@ final class ArticleApiTest extends TestCase
     {
         $user = User::factory()->create();
         Article::query()->create(['author_id' => $user->id, 'title' => 'Published story', 'slug' => 'published-story', 'excerpt' => 'A useful editorial summary', 'body' => str_repeat('Premium story body. ', 10), 'category' => 'Camera', 'hero_image' => 'https://example.com/image.jpg', 'status' => 'published', 'featured' => true, 'published_at' => now()]);
-        $this->getJson('/api/v1/articles')->assertOk()->assertJsonPath('data.0.slug', 'published-story');
+        $this->getJson(route('api.articles.index'))->assertOk()->assertJsonPath('data.0.slug', 'published-story');
+        $this->getJson(route('api.articles.show', ['slug' => 'published-story']))->assertOk()->assertJsonPath('data.slug', 'published-story');
     }
 }
