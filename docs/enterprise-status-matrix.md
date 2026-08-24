@@ -195,3 +195,7 @@ Final navigation UX hardening retains server-rendered permissions/active route w
 # Phase 3F-27 Executive Planning
 
 Status: **COMPLETED**. The new tenant-scoped `/admin/planning` cockpit compares Organization-owned approved headcount/position budget with current Employee assignments, latest eligible Payroll Actual, deterministic compensation Forecast and Recruitment coverage. It is computed/read-only: no Plan tables, approval states, Payroll mutation, AI/BI traffic or migration were introduced. Financial HTML requires `payroll.assignment.view`; aggregate CSV requires `analytics.export`. The navigation now has 75 primary destinations. Evidence: focused Planning/navigation 20 tests / 2,182 assertions; full PHPUnit 550 tests / 7,258 assertions / one skipped / exit 0; PHPStan level 10 zero; Data Quality 16/16; exact desktop/mobile browser zero overflow/console/page errors; 63/230 schema parity across the local trio.
+
+# Phase 3F-30 Production Go-Live
+
+Status: **PRODUCTION_BLOCKED_EXTERNAL**. Code provides a read-only go-live command/UI, production/local/test DB isolation, demo-seed guard, immutable Docker/release flow, migration compatibility review, deployment/rollback/smoke runbooks and redacted external dependency matrix. No production endpoint or VPS was accessed. Target MySQL/Redis/TLS/mail/backup evidence is pending and Cloudflare Images remains blocked by 403/5403.

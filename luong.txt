@@ -2246,3 +2246,27 @@ GET /admin/reports/export/{csv|xlsx|pdf}
 → UTF-8 formula-safe CSV / multi-sheet XLSX / local Dompdf PDF
 → actual artifact-byte SHA-256 response header
 → private no-store download; no external upload/certification.
+
+==================================================
+OPERATIONS — PRODUCTION GO-LIVE READINESS (PHASE 3F-30)
+==================================================
+
+GET /admin/operations/go-live
+→ routes/web.php | admin.operations.go-live | auth + verified + operations.view
+→ GoLiveReadinessController::__invoke()
+→ ProductionReadinessService::snapshot()
+→ safe config/secret-readiness metadata + migration/release/runtime inventory
+→ resources/views/operations/go-live.blade.php
+→ read-only checklist/dependency/blocker cockpit; NO VPS, deploy, migration or seed.
+
+CLI operations:production-readiness --json
+→ ProductionReadinessCommand::handle()
+→ ProductionReadinessService::snapshot()
+→ redacted JSON certification input; classification carries external blocker state.
+
+Production delivery
+→ scripts/operations/predeploy-check.sh
+→ authorized immutable release + reviewed migration
+→ live/ready + scripts/operations/postdeploy-smoke.sh
+→ monitor queue/scheduler/Reverb
+→ rollback only with schema/config compatibility evidence.

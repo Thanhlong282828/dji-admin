@@ -587,3 +587,15 @@ Vì sao Board Pack chưa gọi immutable/certified? SHA-256 của live bytes ch�
 Khi nào export nên chạy Queue? Bounded aggregate board pack hiện chạy sync. Dataset lớn hoặc per-row export cần queue, idempotency, private artifact storage và cleanup policy; không queue mọi report một cách máy móc.
 
 Vì sao tenant scope là hard gate? Report tổng hợp nhiều module nên một filter sai có thể leak chéo công ty. TenantAccessService và hierarchy validation được áp dụng trước mọi preview/export.
+
+Deploy Laravel an toàn thế nào? Build artifact bất biến, chạy quality/readiness và migration-risk review, deploy đúng environment, cache config/route/view sau khi inject config, restart worker gracefully, rồi health/smoke/monitor. Readiness command không tự deploy hay migrate.
+
+Vì sao không rollback migration mù? Code cũ có thể không tương thích schema mới và `down()` có thể drop dữ liệu. Ưu tiên expand/contract và forward-fix; rollback image chỉ khi schema/config compatibility đã chứng minh.
+
+Queue/Reverb sau deploy xử lý ra sao? Worker/Horizon được graceful restart để nạp code mới. Reverb restart riêng và là non-critical: realtime hỏng không rollback core CRUD.
+
+Live khác Ready thế nào? Live chỉ chứng minh process sống; Ready kiểm tra dependency quan trọng để nhận traffic. Secret được environment/provider inject và output chỉ có readiness metadata, không có value.
+
+Vì sao production DB tách riêng và demo seed bị chặn? EnvironmentSafetyGuard chặn mọi local/test schema trong production; bootstrap còn yêu cầu đồng thời local + schema_admin nên không thể tạo admin/demo employee trên production.
+
+Release certification và rollback hoạt động thế nào? Manifest/certificate gắn commit, image digest, migration checksum, gates và rollback target. Rollback dùng image bất biến trước đó khi compatibility hợp lệ; nếu không thì forward-fix/DR theo runbook.

@@ -128,6 +128,7 @@ final class AdminNavigation
                 $this->item('data-quality', 'Data Quality', 'admin.operations.data-quality', ['admin.operations.data-quality'], 'operations.view'),
                 $this->item('continuity', 'Business Continuity', 'admin.operations.continuity', ['admin.operations.continuity'], 'operations.view'),
                 $this->item('security-assurance', 'Security Assurance', 'admin.operations.security-assurance', ['admin.operations.security-assurance'], 'operations.view'),
+                $this->item('go-live-readiness', 'Go-Live Readiness', 'admin.operations.go-live', ['admin.operations.go-live'], 'operations.view'),
                 $this->item('api-documentation', 'API Documentation', 'l5-swagger.default.api', ['l5-swagger.default.api'], 'api.documentation.view'),
             ]),
             $this->group('content', 'Nội dung', '▤', [

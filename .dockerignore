@@ -9,6 +9,7 @@ public/build
 bootstrap/cache/*
 storage
 tests
+test-results
 docs
 *.log
 phpunit.xml

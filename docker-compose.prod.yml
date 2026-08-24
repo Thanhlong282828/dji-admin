@@ -2,13 +2,19 @@ x-production-environment: &production-environment
   APP_KEY: ${APP_KEY:?APP_KEY is required for production}
   APP_ENV: production
   APP_DEBUG: "false"
+  APP_URL: ${APP_URL:?APP_URL must be the verified production HTTPS origin}
   DB_DATABASE: ${APP_DB_DATABASE:?APP_DB_DATABASE must name the separate VPS production database}
+  VPS_PRODUCTION_DATABASE: ${APP_DB_DATABASE:?APP_DB_DATABASE must name the separate VPS production database}
   DB_USERNAME: ${DB_USERNAME:?DB_USERNAME is required for production}
   DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required for production}
+  CACHE_STORE: redis
+  QUEUE_CONNECTION: redis
+  SESSION_DRIVER: redis
   LOG_CHANNEL: production
   LOG_LEVEL: warning
   REDIS_CLIENT: predis
   SESSION_ENCRYPT: "true"
+  SESSION_SECURE_COOKIE: "true"
 
 services:
   app:

@@ -186,6 +186,7 @@ final class AdminHelpRegistry
             'releases' => ['architecture-governance', 'test-quality', 'security-assurance', 'releases'],
             'continuity' => ['reliability', 'continuity', 'releases'],
             'security-assurance' => ['secrets', 'data-protection', 'security-assurance', 'releases'],
+            'go-live-readiness' => ['architecture-governance', 'test-quality', 'security-assurance', 'releases', 'go-live-readiness'],
             'articles' => ['articles', 'article-create'],
             'article-create' => ['articles', 'article-create'],
             default => [$key],
@@ -263,6 +264,7 @@ final class AdminHelpRegistry
             'data-lifecycle' => ['data-protection', 'audit'],
             'reliability', 'observability', 'performance-engineering' => ['releases'],
             'releases' => ['reliability', 'security-assurance'],
+            'go-live-readiness' => ['releases', 'reliability', 'continuity', 'security-assurance'],
             default => [],
         };
     }
@@ -344,6 +346,7 @@ final class AdminHelpRegistry
             'data-quality' => $this->make($key, $label, 'Đối soát read-only rules, pass/fail, score và checksum.', ['Aggregate Employee, Organization, Attendance, Payroll, Compensation.'], ['Chạy/xem audit; không auto-fix.'], ['Đọc finding → sửa qua module owner → audit lại.'], ['Rule không mutate và không làm yếu để đạt PASS.'], $this->statuses([['passed', 'Count = 0', 'Theo dõi'], ['failed', 'Có critical count', 'Sửa tại module owner']]), ['Checksum evidence không sửa tay.'], [], ['Finding về Employee/Organization/Attendance/Payroll.'], [], [$permission], ['Không sửa DB trực tiếp.'], ['DataQualityController → DataQualityAuditService → findings/checksum']),
             'continuity' => $ops('Xem backup/restore, DR readiness và continuity findings.', 'Backup strategy, restore verification, DR evidence.', 'ContinuityController → ContinuitySnapshotService'),
             'security-assurance' => $ops('Xem security controls, threats và release evidence.', 'Security scanners, route/payload policies.', 'SecurityAssuranceController → assurance service'),
+            'go-live-readiness' => $this->make($key, $label, 'Đánh giá khả năng go-live và tách code readiness khỏi blocker hạ tầng/credential.', ['Application config, EnvironmentSafetyGuard, migration inventory, release/DR evidence và external dependency metadata.'], ['Xem checklist, dependency matrix, blocker và mở runbook sở hữu; không có action deploy.'], ['Code → Tests → Build → Release Check → Migration Review → Deploy → Health → Smoke → Monitor → rollback khi cần.'], ['Trang hoàn toàn read-only; không migrate, seed, restart, gọi provider hay truy cập VPS.'], [], ['Release/certificate đã phát hành không sửa trực tiếp.'], ['Production approval và credential verification diễn ra ngoài trang này.'], ['Finding được xử lý trong deployment runbook, Secrets, Reliability hoặc Business Continuity.'], [], [$permission], ['Không coi CONFIGURED là VERIFIED; PRODUCTION_READY cần evidence tại target thật.'], ['GET admin.operations.go-live → GoLiveReadinessController → ProductionReadinessService → configuration/release evidence → Blade']),
             'api-documentation' => $this->make($key, $label, 'Mở Swagger UI được bảo vệ để đọc API contract.', ['OpenAPI JSON /docs và governed API routes.'], ['Duyệt tags, operations và schemas.'], ['/api/documentation → authorize → Swagger tải /docs.'], ['UI và JSON đều cần api.documentation.view.'], [], ['Generated spec regenerate bằng command, không sửa output.'], [], ['API consumers và API Contracts dashboard.'], [], [$permission], ['Không nhập token thật hoặc public docs.'], ['Protected L5-Swagger route → /docs JSON → Swagger UI']),
             'articles', 'article-create' => $simple($label.' trong kho nội dung.', 'articles và authenticated author.', $key === 'article-create' ? 'Nhập/lưu bài mới.' : 'Xem/edit theo permission.', 'ArticleController → Article model → Blade', 'Không chèn secret/PII hoặc dùng quyền Article cho business module.'),
             default => $simple($label.' theo module sở hữu.', 'Module-owned company-scoped data.', 'Chỉ action đang hiển thị.', $label.' route → Controller → Service/Repository → View', 'Không đoán route/action ẩn.'),

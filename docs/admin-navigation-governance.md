@@ -29,3 +29,5 @@ Architecture is the eleventh Operations child and requires `operations.view`. It
 ## 2026-08-21 complete work-center audit
 
 Navigation now has 10 collapsed domain groups and 75 server-filtered primary destinations. Twenty-one links were added only after route/controller/view/permission evidence; Phase 3F-26 added Workforce Forecasting and Phase 3F-27 adds the read-only Executive Planning cockpit beside Enterprise Analytics. Detail/create/edit/export/download/mutation routes remain page actions. Integration and Audit child tabs remain inside their complete module hubs. Architecture tests compare every landing route permission boundary, route existence and unique item key; active patterns are disjoint for the separated work centers.
+
+Phase 3F-30 adds Go-Live Readiness as the sixteenth Operations child and 78th primary destination. It uses `operations.view`, has specific contextual help, is read-only and preserves server permission filtering plus pre-paint sidebar stability.
