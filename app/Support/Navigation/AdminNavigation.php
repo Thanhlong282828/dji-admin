@@ -39,7 +39,8 @@ final class AdminNavigation
         return [
             $this->group('overview', 'Tổng quan', '◫', [
                 $this->item('dashboard', 'Dashboard', 'dashboard', ['dashboard'], 'dashboard.view'),
-                $this->item('analytics', 'Enterprise Analytics', 'admin.analytics.workforce', ['admin.analytics.*'], 'analytics.view', $company),
+                $this->item('analytics', 'Enterprise Analytics', 'admin.analytics.workforce', ['admin.analytics.workforce', 'admin.analytics.export', 'admin.analytics.generate', 'admin.analytics.mutate'], 'analytics.view', $company),
+                $this->item('forecasting', 'Workforce Forecasting', 'admin.analytics.forecasting', ['admin.analytics.forecasting*'], 'analytics.view', $company),
             ]),
             $this->group('organization', 'Tổ chức', '⌂', [
                 $this->item('companies', 'Công ty', 'admin.companies.index', ['admin.companies.*'], 'company.view'),

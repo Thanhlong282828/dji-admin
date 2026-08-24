@@ -522,7 +522,7 @@ assignments (base, KPI target and fixed allowance) behind
 for actual Unit/Position/Level records. Promotion/demotion shows current versus
 projected Target Gross but never rewrites finalized Payroll or silently creates
 a salary assignment. The admin header adds a protected `$` Compensation
-Reference dialog and route-aware `?` help backed by `AdminHelpRegistry`. The registry covers all 73 primary navigation destinations across 10 collapsed domain groups with menu-specific Vietnamese purpose, sources, upstream/downstream menus, actions, workflow, business/status/immutability/approval rules, side effects, permissions, warnings and concise technical flow. A permission-filtered visual menu flow highlights the current node with semantic `aria-current`; unauthorized upstream/downstream nodes are absent from HTML. The complete audit retained 39 declared/16 enabled/23 disabled modules and added 21 proven work-center links without enabling a skeleton.
+Reference dialog and route-aware `?` help backed by `AdminHelpRegistry`. The registry covers all 74 primary navigation destinations across 10 collapsed domain groups, including Workforce Forecasting, with menu-specific Vietnamese purpose, sources, upstream/downstream menus, actions, workflow, business/status/immutability/approval rules, side effects, permissions, warnings and concise technical flow. A permission-filtered visual menu flow highlights the current node with semantic `aria-current`; unauthorized upstream/downstream nodes are absent from HTML. The complete audit retained 39 declared/16 enabled/23 disabled modules and added only proven work-center links without enabling a skeleton.
 Exact desktop/mobile navigation execution found and fixed legacy serialized-object caches in Leave Management, Overtime Management and Payroll Delivery. These read models now cache validated JSON and replace legacy/corrupt values before returning typed DTOs.
 Job Position create/edit requires the existing `career_level` in the canonical
 1..6 range. Employee forms label positions with Unit and Level; Employee 360
@@ -586,3 +586,16 @@ idempotency, immutable payroll/audit evidence) remain owned by their modules.
 Detailed class/file flows are in `luong.txt`; table ownership, relationships,
 indexes and lifecycle relevance are in `db.txt`. Historical sections below are
 retained as phase evidence; this header is the current canonical contract.
+PHASE 3F-26 — ENTERPRISE FORECASTING
+- Workforce Forecasting is a protected Analytics sub-destination (`admin.analytics.forecasting`).
+- Deterministic headcount, vacancy, recruitment-demand and target-payroll planning uses actual company-scoped data.
+- Request-only scenarios support add/remove headcount and promotion mix with effective month, maximum 50 lines.
+- Compensation values require `payroll.assignment.view`; aggregate CSV requires `analytics.export`.
+- Forecasts disclose assumptions and data-quality warnings, do not call AI/external services, and never mutate Employee/Payroll history.
+- Design/audit: `docs/enterprise-forecasting-audit.md`, `docs/enterprise-forecasting-design.md`.
+
+PERSISTENT SERVER-RENDERED SIDEBAR NAVIGATION
+- Laravel remains full-page/server-rendered: `AdminNavigation` supplies permission-filtered links and the current route/group before client JavaScript.
+- A minimal pre-paint bootstrap restores only one valid group key and session scroll offset, so accordion groups do not flash closed/open and the long menu does not reset to the top.
+- `admin-navigation.ts` persists state on navigation/pagehide, reconciles BFCache idempotently, reveals an off-screen active item minimally, and never restores an open mobile drawer.
+- Storage contains no menu HTML, permission list, identity or business data; no SPA framework, fetch, migration or database table was added.

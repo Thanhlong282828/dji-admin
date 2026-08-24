@@ -2109,4 +2109,52 @@ HEADER COMPENSATION REFERENCE FLOW
 Header `$` -> GET `admin.compensation-reference` -> auth + verified + `payroll.assignment.view` + company access -> CompensationReferenceController -> CompensationReadService::positionReferences -> actual Organization Unit/Job Position rows -> accessible dialog. Synthetic reference is distinct from Payroll Item/Gross/Net Pay.
 
 CONTEXT HELP FLOW
-Header `?` -> AdminHelpRegistry::resolve(current named route, company id) -> guide cụ thể của primary menu -> purpose/dataSources/upstreamMenus/downstreamMenus/mainActions/workflowSteps/businessRules/statusGuide/immutabilityRules/approvalRules/sideEffects/permissions/warnings/menuFlow/technicalFlow -> AdminNavigation named route/permission metadata -> server-side `User::can` filter -> admin layout render accessible dialog và chuỗi upstream → current (`aria-current`) → downstream. 73/73 primary destinations có guide/menu flow riêng; Escape đóng và focus trả về trigger.
+Header `?` -> AdminHelpRegistry::resolve(current named route, company id) -> guide cụ thể của primary menu -> purpose/dataSources/upstreamMenus/downstreamMenus/mainActions/workflowSteps/businessRules/statusGuide/immutabilityRules/approvalRules/sideEffects/permissions/warnings/menuFlow/technicalFlow -> AdminNavigation named route/permission metadata -> server-side `User::can` filter -> admin layout render accessible dialog và chuỗi upstream → current (`aria-current`) → downstream. 74/74 primary destinations có guide/menu flow riêng, gồm Workforce Forecasting; Escape đóng và focus trả về trigger.
+==================================================
+PERFORMANCE / ANALYTICS — WORKFORCE FORECASTING (PHASE 3F-26)
+==================================================
+
+GET /admin/analytics/forecasting
+→ Modules/Performance/routes/web.php | admin.analytics.forecasting
+→ WorkforceForecastController::index()
+→ company access + analytics.view + payroll.assignment.view cost boundary
+→ WorkforceScenarioLine (request-scoped, max 50, effective month)
+→ WorkforceForecastService::build()
+→ grouped job_positions / employee_assignments / recruitment_requisitions / applications
+→ CompensationReadService + PositionCompensationReference
+→ WorkforceForecastViewModel
+→ performance::forecasting.dashboard
+→ NO Employee/Salary/Payroll mutation.
+
+POST /admin/analytics/forecasting/export
+→ Modules/Performance/routes/web.php | admin.analytics.forecasting.export
+→ WorkforceForecastController::export()
+→ analytics.export + tenant boundary
+→ same deterministic WorkforceForecastService projection
+→ streamed aggregate CSV + assumptions
+→ formula-injection-safe labels; no Employee detail.
+
+Scenario flow
+Organization / Headcount / Employee Assignment / Compensation / Recruitment
+→ Actual + Budget inputs
+→ add/remove/promote request lines
+→ effective-month evaluation
+→ HeadcountProjection + PayrollCostProjection + RecruitmentDemandProjection
+→ Baseline / Scenario / Delta
+→ reset or export; no Save and no historical Payroll rewrite.
+
+==================================================
+CORE / NAVIGATION — FULL-PAGE STATE RESTORE
+==================================================
+
+Request admin page mới
+→ Laravel named route + controller
+→ resources/views/layouts/admin.blade.php
+→ AdminNavigation::for(authenticated user, current Request, company)
+→ server render permission-filtered groups + active item/group + aria-current
+→ minimal pre-paint bootstrap validates rendered group key and restores session scrollTop
+→ resources/ts/admin-navigation.ts
+→ active route precedence + max one open group + minimal active-item reveal
+→ pagehide saves group/scroll; BFCache pageshow reconciles idempotently
+→ data-admin-nav-ready; initial accordion animation NONE
+→ mobile drawer remains closed on the new document.

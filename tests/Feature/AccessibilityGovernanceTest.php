@@ -24,6 +24,9 @@ final class AccessibilityGovernanceTest extends TestCase
             ->assertSee('aria-controls="nav-group-operations"', false)
             ->assertSee('aria-expanded="true"', false)
             ->assertSee('aria-current="page"', false)
+            ->assertSee('schema.admin.navigation.open-groups', false)
+            ->assertSee('schema.admin.navigation.scroll-top', false)
+            ->assertSee('adminNavReady', false)
             ->assertSee('role="status"', false)
             ->assertDontSee('DB_PASSWORD');
     }

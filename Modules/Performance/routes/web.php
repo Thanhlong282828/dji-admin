@@ -4,6 +4,7 @@ use Illuminate\Support\Facades\Route;
 use Modules\Performance\Presentation\Http\Controllers\CareerController;
 use Modules\Performance\Presentation\Http\Controllers\PerformanceController;
 use Modules\Performance\Presentation\Http\Controllers\WorkforceAnalyticsController;
+use Modules\Performance\Presentation\Http\Controllers\WorkforceForecastController;
 
 Route::middleware(['auth', 'verified'])->prefix('admin/talent')->name('admin.talent.')->group(function () {
     Route::get('performance', [PerformanceController::class, 'index'])->middleware('permission:talent.performance.view')->name('performance.index');
@@ -15,6 +16,8 @@ Route::middleware(['web', 'auth', 'verified'])->prefix('admin/analytics')->name(
     Route::get('/workforce/export', [WorkforceAnalyticsController::class, 'export'])->middleware('permission:analytics.export')->name('export');
     Route::post('/workforce/snapshots', [WorkforceAnalyticsController::class, 'generate'])->middleware('permission:analytics.manage')->name('generate');
     Route::post('/workforce/{action}', [WorkforceAnalyticsController::class, 'mutate'])->where('action', 'refresh|rebuild')->middleware('permission:analytics.manage')->name('mutate');
+    Route::get('/forecasting', [WorkforceForecastController::class, 'index'])->middleware('permission:analytics.view')->name('forecasting');
+    Route::post('/forecasting/export', [WorkforceForecastController::class, 'export'])->middleware('permission:analytics.export')->name('forecasting.export');
 });
 
 Route::middleware(['web', 'auth', 'verified'])->prefix('admin/career')->name('admin.career.')->group(function (): void {

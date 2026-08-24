@@ -665,7 +665,7 @@ DATA QUALITY (Phase 3F-24)
 - Avatar dùng `EmployeeAvatarStorageInterface`: local/testing mặc định private local storage; production có thể chọn Cloudflare Images qua config và token từ `SecretProvider`. Upload/replace có compensation và cleanup an toàn; không lưu token.
 - Job Position create/edit bắt buộc chọn Level 1..6 trên chính `job_positions.career_level`; Employee form và career actions chỉ dùng position đúng Unit, hiển thị `Position — Unit — Level N`, promotion/demotion lấy toàn bộ level cao hơn/thấp hơn thực có.
 - Employee Lifecycle hiển thị Base/KPI/Phụ cấp/Target Gross từ effective `employee_salary_component_assignments` bằng một batch query; quyền `payroll.assignment.view` được kiểm tra server-side. Projection vị trí dùng policy typed theo level/phòng ban, không coi Target Gross là Net Pay và không sửa payroll history.
-- Header `$` mở Compensation Reference của position thật; header `?` mở hướng dẫn riêng cho 73/73 primary menu routes trong 10 accordion domain. `AdminHelpRegistry` mô tả mục đích, nguồn dữ liệu, upstream/downstream, action, thứ tự thao tác, state/immutable/approval, side effect, permission, warning, menu flow và technical flow. Luồng liên kết dùng named route thật, đánh dấu menu hiện tại bằng `aria-current`, và lọc toàn bộ node/link không được phép ở server. Dialog native modal hỗ trợ keyboard/Escape/focus return/mobile.
+- Header `$` mở Compensation Reference của position thật; header `?` mở hướng dẫn riêng cho 74/74 primary menu routes trong 10 accordion domain, gồm Workforce Forecasting. `AdminHelpRegistry` mô tả mục đích, nguồn dữ liệu, upstream/downstream, action, thứ tự thao tác, state/immutable/approval, side effect, permission, warning, menu flow và technical flow. Luồng liên kết dùng named route thật, đánh dấu menu hiện tại bằng `aria-current`, và lọc toàn bộ node/link không được phép ở server. Dialog native modal hỗ trợ keyboard/Escape/focus return/mobile.
 - File avatar được preview tròn bằng object URL trước upload; Employee List đọc cùng avatar Employee-owned qua route private có permission, fallback initials nếu chưa có ảnh. Archive/disable/unlink không xóa ảnh; remove-avatar thật mới cleanup provider sau commit và có shared-reference guard.
 - Attendance XLSX dùng maatwebsite/excel (`composer require maatwebsite/excel` nếu dựng project mới; project hiện đã khóa 3.1.69), code tại `Modules/Attendance/app/Application/Exports/AttendanceXlsxExport.php`.
 - Local Payroll synthetic đi qua services thật để tạo 6 snapshots/180 inputs, 5 runs/150 items cùng adjustment/payment/accounting/ERP-local/annual-tax/Government filing; không phát traffic external.
@@ -881,3 +881,16 @@ ENTERPRISE ANALYTICS (Phase 3F-25)
 - Payroll and Compensation aggregates are server-side protected by payroll.assignment.view.
 - Formula-safe aggregate CSV export; no PII row export and no external BI traffic.
 - Existing immutable Workforce snapshot/version/checksum flow remains intact.
+
+ENTERPRISE FORECASTING (Phase 3F-26)
+- Route `admin.analytics.forecasting` dùng `analytics.view`; cost chỉ render với `payroll.assignment.view`, export dùng `analytics.export`.
+- `WorkforceForecastController` → `WorkforceScenarioLine` → `WorkforceForecastService` → grouped SQL + `CompensationReadService` → `WorkforceForecastViewModel`.
+- Phân biệt Actual (assignment hiện tại), Budget (approved headcount), Forecast (kỳ chọn) và Scenario A/B (what-if request scope).
+- Scenario tối đa 50 dòng, hỗ trợ effective month, add/remove headcount và promotion level mix; reset/export, không Save.
+- Không migration, không AI/API ngoài, không sửa Employee/Salary Assignment/Payroll Run/Payroll Item lịch sử.
+
+FRONTEND / NAVIGATION — NO-RESET SIDEBAR
+- Blade + `AdminNavigation` render active item/group and permission filtering on the server.
+- Pre-paint bootstrap restores a stable open-group key from localStorage and menu scroll offset from sessionStorage before transitions are enabled.
+- `resources/ts/admin-navigation.ts` keeps at most one accordion group open, saves on child navigation/pagehide, handles BFCache pageshow idempotently, and scrolls only when the active link is outside the visible menu region.
+- Mobile drawer state is intentionally not persisted; reduced-motion and hidden/non-tabbable submenu behavior remain intact.

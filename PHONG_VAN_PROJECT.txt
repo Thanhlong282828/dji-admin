@@ -535,3 +535,17 @@ Vì sao `analytics.view` chưa đủ để xem lương? Analytics tổng hợp w
 Vì sao dùng grouped SQL thay vì vòng lặp Employee? Một số query cố định theo company/filter giữ query count bounded khi headcount tăng, tránh N+1 và không đưa PII vào chart labels.
 
 Dashboard có sửa dữ liệu không? Không. Finding phải được sửa qua menu/module sở hữu; Payroll history, Workforce snapshot và Data Quality evidence không bị analytics mutate.
+
+PHASE 3F-26 — ENTERPRISE FORECASTING
+
+Vì sao gọi là deterministic planning chứ không phải AI forecast? Kết quả chỉ áp dụng công thức công khai lên approved headcount, current primary assignment, salary assignment/reference và open requisition. Không có model học máy, external API hoặc claim dự đoán xác suất.
+
+Vì sao Scenario không lưu DB? Đây là what-if request-scoped để so Baseline/Scenario A/Scenario B. Không lưu giúp tách planning estimate khỏi Employee, salary assignment và historical Payroll; thay đổi thật vẫn phải đi qua workflow của module sở hữu.
+
+Vì sao không forecast thuế/bảo hiểm? Nếu thiếu policy/rate có authority thì việc tự suy diễn tạo claim pháp lý sai. Phase này chỉ forecast Base/KPI/Allowance/Target Gross; Net Pay và employer cost được loại trừ rõ ràng.
+
+Forecast bảo vệ lương thế nào? `analytics.view` cho phép xem headcount; controller chỉ dựng/render/export cost khi actor có thêm `payroll.assignment.view`. Không có salary number ẩn bằng CSS trong HTML unauthorized.
+
+SIDEBAR LARAVEL VÌ SAO BỊ FLICKER VÀ SỬA THẾ NÀO?
+
+Full-page navigation tạo document mới. Nếu Blade render trạng thái mặc định rồi module JavaScript mới đọc localStorage để mở accordion, browser có thể paint trạng thái sai trước và tạo FOUC; scroll container cũng trở về đầu. Project xử lý bằng active route/group server-side, bootstrap pre-paint không animation, rồi TypeScript xác thực state và restore session scroll. Chỉ UI preference không nhạy cảm (một group key và scroll offset) được lưu; permission/link vẫn do server lọc nên storage không thể làm lộ menu bị cấm. Mobile drawer không được persist để trang mới luôn bắt đầu ở trạng thái đóng an toàn.

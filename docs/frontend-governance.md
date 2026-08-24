@@ -8,3 +8,4 @@
 - Never remove focus outlines without a visible replacement. Respect reduced motion and a practical 44px touch target.
 - Keep empty/error states actionable without stack traces. Labels and ARIA metadata must obey data-protection rules.
 - Exact 1280×800 and 390×844 browser checks are required for shared-shell changes.
+- Full-page Laravel navigation must render the active item/group server-side. Pre-paint restoration may persist only a stable group key and session scroll offset; it must not cache menu HTML, permissions or user data. Initial restoration has no animation, while pagehide/pageshow handling keeps scroll stable and mobile drawer state resets closed.

@@ -667,3 +667,5 @@ logical identity for retries. Lifecycle decisions must respect owner dependencie
 classification and legal hold; Phase 3F-22 performs no physical disposal.
 
 Historical detailed schema evidence follows; this header is canonical.
+
+Navigation UI persistence is browser-only and schema-free: localStorage keeps at most one stable accordion group key; sessionStorage keeps the menu scroll offset. No navigation HTML, permission metadata, user data or business state is persisted, and no sidebar-state database table/migration exists.
