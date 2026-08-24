@@ -14,8 +14,8 @@ final class AdminHelpRegistryTest extends TestCase
         $registry = new AdminHelpRegistry;
         $items = array_merge(...array_column((new AdminNavigation)->definitions(41), 'items'));
 
-        self::assertCount(74, $items);
-        self::assertCount(74, $registry->definitions(41));
+        self::assertCount(75, $items);
+        self::assertCount(75, $registry->definitions(41));
 
         foreach ($items as $item) {
             $guide = $registry->resolve($item['route'], 41);

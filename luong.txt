@@ -2158,3 +2158,36 @@ Request admin page mới
 → pagehide saves group/scroll; BFCache pageshow reconciles idempotently
 → data-admin-nav-ready; initial accordion animation NONE
 → mobile drawer remains closed on the new document.
+
+==================================================
+PERFORMANCE / ANALYTICS / PLANNING — EXECUTIVE PLANNING (PHASE 3F-27)
+==================================================
+
+GET /admin/planning
+→ Modules/Performance/routes/web.php | admin.planning.executive
+→ auth + verified + analytics.view + TenantAccessService
+→ ExecutivePlanningController::index()
+→ PlanningFilter::fromRequest() | company → Cost Center → Unit → Position → Level/month validation
+→ ExecutivePlanningService::build()
+→ grouped job_positions/current employee_assignments
+→ separate Recruitment demand + pipeline aggregates
+→ latest eligible payroll_runs Actual when payroll.assignment.view allows financial data
+→ CompensationReadService + DataQualityAuditService
+→ ExecutivePlanningViewModel
+→ performance::planning.executive Blade
+→ computed read-only KPI/charts/variance; NO Plan/Employee/Payroll mutation.
+
+GET /admin/planning/export
+→ Modules/Performance/routes/web.php | admin.planning.export
+→ analytics.export + tenant boundary
+→ same PlanningFilter + ExecutivePlanningService read model
+→ StreamedResponse aggregate CSV
+→ formula-injection-safe labels; salary columns MASKED without payroll.assignment.view; no Employee detail.
+
+Planning menu flow
+Organization / Approved Headcount / Position Budget
+→ Employee current primary Assignment + Recruitment + Payroll Actual
+→ Enterprise Analytics
+→ Workforce Forecasting
+→ Executive Planning Budget / Actual / Forecast / Variance
+→ warning and permission-filtered drill-down to owning module.

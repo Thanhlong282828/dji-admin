@@ -549,3 +549,15 @@ Forecast bảo vệ lương thế nào? `analytics.view` cho phép xem headcount
 SIDEBAR LARAVEL VÌ SAO BỊ FLICKER VÀ SỬA THẾ NÀO?
 
 Full-page navigation tạo document mới. Nếu Blade render trạng thái mặc định rồi module JavaScript mới đọc localStorage để mở accordion, browser có thể paint trạng thái sai trước và tạo FOUC; scroll container cũng trở về đầu. Project xử lý bằng active route/group server-side, bootstrap pre-paint không animation, rồi TypeScript xác thực state và restore session scroll. Chỉ UI preference không nhạy cảm (một group key và scroll offset) được lưu; permission/link vẫn do server lọc nên storage không thể làm lộ menu bị cấm. Mobile drawer không được persist để trang mới luôn bắt đầu ở trạng thái đóng an toàn.
+
+PHASE 3F-27 — EXECUTIVE PLANNING
+
+Budget, Actual, Forecast và Scenario khác nhau thế nào? Budget là năng lực/chi phí mục tiêu do Organization sở hữu; Actual là assignment và Payroll result đã phát sinh; Forecast là ước tính deterministic từ trạng thái hiện tại; Scenario là what-if request-scoped. Không được lấy Scenario làm Approved Plan hoặc ghi đè Actual.
+
+Variance được tính thế nào? `Forecast − Budget`, còn tỷ lệ dùng integer basis points để tránh float và xử lý budget bằng 0 một cách deterministic. Giá trị âm là under budget, dương là over budget; UI luôn có text/icon chứ không chỉ màu.
+
+Vì sao chưa tạo Plan Version và maker-checker? Repository chưa có owner, authority, permission và state-machine contract cho approved budget plan. Tạo bảng/status lúc này sẽ là approval giả. Cockpit vì thế computed/read-only; khi authority thật xuất hiện, approved version phải immutable, effective-dated, audited và maker không được tự approve.
+
+Vì sao Forecast không sửa Payroll? Payroll Run/Item là historical calculation evidence. Planning chỉ đọc Actual và tạo comparison; mọi sửa salary, attendance hoặc headcount phải đi qua module sở hữu và effective-dated workflow.
+
+Vì sao budget lương cần quyền riêng? Headcount analytics là dữ liệu quản trị, còn compensation/payroll cost là Restricted. Controller quyết định `payroll.assignment.view` trước khi tạo HTML/export financial values; CSS không phải authorization boundary.

@@ -894,3 +894,9 @@ FRONTEND / NAVIGATION — NO-RESET SIDEBAR
 - Pre-paint bootstrap restores a stable open-group key from localStorage and menu scroll offset from sessionStorage before transitions are enabled.
 - `resources/ts/admin-navigation.ts` keeps at most one accordion group open, saves on child navigation/pagehide, handles BFCache pageshow idempotently, and scrolls only when the active link is outside the visible menu region.
 - Mobile drawer state is intentionally not persisted; reduced-motion and hidden/non-tabbable submenu behavior remain intact.
+
+EXECUTIVE PLANNING (Phase 3F-27)
+- `ExecutivePlanningController` → typed `PlanningFilter` → `ExecutivePlanningService` → grouped Organization/Assignment/Recruitment/Payroll reads + Compensation/Data Quality services → `ExecutivePlanningViewModel` → responsive cockpit.
+- So sánh Budget / Actual / Latest Forecast / Variance cho headcount, position cost và hiring coverage; 8 KPI cards, 5 visual summaries, aggregate CSV chống formula injection.
+- Tenant filter fail-closed; headcount dùng `analytics.view`, còn financial HTML cần `payroll.assignment.view`; export cần `analytics.export`.
+- Computed/read-only, không Plan table, không approval giả, không sửa Payroll lịch sử, không external BI/AI và không migration.

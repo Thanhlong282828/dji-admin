@@ -599,3 +599,10 @@ PERSISTENT SERVER-RENDERED SIDEBAR NAVIGATION
 - A minimal pre-paint bootstrap restores only one valid group key and session scroll offset, so accordion groups do not flash closed/open and the long menu does not reset to the top.
 - `admin-navigation.ts` persists state on navigation/pagehide, reconciles BFCache idempotently, reveals an off-screen active item minimally, and never restores an open mobile drawer.
 - Storage contains no menu HTML, permission list, identity or business data; no SPA framework, fetch, migration or database table was added.
+
+PHASE 3F-27 — EXECUTIVE PLANNING
+- `/admin/planning` is a protected, computed management cockpit beside Enterprise Analytics and Workforce Forecasting; navigation now has 75 primary destinations.
+- `PlanningFilter` enforces company → Cost Center → Unit → Position → Level/month scope; `ExecutivePlanningService` groups approved/current/forecast headcount, vacancy, position budget, latest eligible Payroll Actual and Recruitment coverage.
+- Eight KPI cards, five DB-backed visual summaries, variance/position tables, deterministic warnings, drill-down context and formula-safe aggregate CSV use the existing black-gold responsive UI.
+- Budget, Actual, Forecast and request-scoped Scenario remain distinct. Financial values require `payroll.assignment.view`; no approved Plan/version/approval persistence is claimed without an authority contract.
+- No migration, historical Payroll mutation, external BI/AI traffic or VPS action.

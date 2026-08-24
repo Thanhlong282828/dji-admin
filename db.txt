@@ -669,3 +669,5 @@ classification and legal hold; Phase 3F-22 performs no physical disposal.
 Historical detailed schema evidence follows; this header is canonical.
 
 Navigation UI persistence is browser-only and schema-free: localStorage keeps at most one stable accordion group key; sessionStorage keeps the menu scroll offset. No navigation HTML, permission metadata, user data or business state is persisted, and no sidebar-state database table/migration exists.
+
+Phase 3F-27 Executive Planning adds no table or migration. It reads Organization-owned `cost_centers`, `organization_units` and `job_positions` (approved headcount/position budget); effective Employee-owned `employee_assignments`; Payroll-owned compensation assignments and `payroll_runs`; Recruitment-owned requisition/application/interview/offer aggregates; and Data Quality evidence. The cockpit owns only a typed computed ViewModel. There is no `planning_plans` table, because no approved Plan authority/version/approval contract currently exists; historical Payroll remains immutable.
