@@ -164,7 +164,7 @@ Evidence hiện tại:
 - 21 Laravel route records.
 - 24 actual/documented HTTP operations.
 - 0 undocumented, 0 orphan, 0 duplicate operationId.
-- Sanctum Bearer scheme khớp auth thật.
+- Historical Phase 3F API used Sanctum Bearer; Commerce C2.5 intentionally replaces the active API boundary with Passport Authorization Code + PKCE.
 - Swagger UI và `/docs` đều được bảo vệ.
 
 4C. LUỒNG RELEASE / PRODUCTION-LIKE CERTIFICATION
@@ -603,3 +603,24 @@ Release certification và rollback hoạt động thế nào? Manifest/certifica
 Vì sao cache object PHP có thể sinh `__PHP_Incomplete_Class`? Cache có thể sống lâu hơn release chứa class/version dùng để serialize nó. Khi worker mới không còn đúng metadata class, PHP không thể hydrate object an toàn. Registry phải xem đó là cache miss, xóa key và dựng lại read model; permission và dữ liệu chuẩn vẫn đến từ server/repository, không cố cast object lỗi.
 
 Vì sao Swagger cần một admin landing thay vì đặt thẳng trong sidebar? Swagger UI là vendor view riêng nên không mang sidebar, contextual help và active-group contract. Landing dùng admin layout giữ UX/permission governance, còn Swagger UI và OpenAPI JSON vẫn là các child resource được `api.documentation.view` bảo vệ; không bọc hay làm yếu API security.
+
+COMMERCE C1+C2 — CÁC QUYẾT ĐỊNH KIẾN TRÚC
+
+Vì sao Branch khác Organization Unit? Branch biểu diễn địa điểm và access scope trong Company; Organization Unit biểu diễn cây quản trị HR. Trộn hai khái niệm làm sai báo cáo, authorization và Employee lifecycle.
+
+Vì sao User role khác Seller status? Role/permission trả lời actor được mở chức năng nào; Seller status trả lời business entity có được kinh doanh không. User có role Seller vẫn không thể lưu Store khi profile pending/suspended.
+
+Vì sao chỉ có một media provider boundary? Avatar, Article và Store đều cần cùng upload/delete/secret/compensation contract. Một MediaStorageInterface ngăn mỗi module tự viết Cloudflare client và drift security.
+
+Replace ảnh tránh mất dữ liệu thế nào? Upload ảnh mới trước, commit reference mới, rồi cleanup ảnh cũ. Nếu DB fail thì xóa ảnh mới; cleanup cũ fail không rollback business record và log chỉ giữ reference hash.
+
+Vì sao token không lưu DB và Article không lưu Base64? Token chỉ reveal tại infrastructure boundary qua SecretProvider. Base64 làm phình DB/body, bỏ qua lifecycle/validation/CDN và khó cleanup; Article chỉ lưu ownership/reference an toàn.
+
+COMMERCE C2.5 — CÂU HỎI IDENTITY
+Vì sao không tự merge Social Login theo email? Email provider có thể thay đổi, chưa được xác minh đồng nhất hoặc thuộc local account khác; explicit linking sau local authentication ngăn account takeover.
+
+Vì sao API dùng Passport nhưng web vẫn dùng session? Session/Breeze phù hợp trình duyệt first-party; Passport cung cấp OAuth2 consent, PKCE, access/refresh lifecycle cho API client. Spatie/IAM vẫn quyết định quyền nghiệp vụ.
+
+Vì sao PKCE và không dùng password/implicit grant? PKCE ràng buộc authorization code với client khởi tạo, giảm nguy cơ đánh cắp code. Password grant chia sẻ mật khẩu cho client và implicit đưa token qua browser URL nên không được chọn.
+
+Vì sao OTP phải hash và single-use? OTP là credential ngắn hạn; hash-at-rest, expiry, attempt counter, throttling và consumed timestamp giảm replay/brute-force và thiệt hại khi DB lộ.

@@ -7,7 +7,7 @@ for (const [key, expected] of Object.entries({ APP_ENV: 'testing', DB_CONNECTION
 const baseUrl = process.env.FINAL_AUDIT_BASE_URL ?? 'http://127.0.0.1:18140';
 const companyId = process.env.FINAL_AUDIT_COMPANY_ID;
 if (!companyId || !/^\d+$/.test(companyId)) throw new Error('FINAL_AUDIT_COMPANY_ID is required');
-const expectedPrimaryDestinations = 78;
+const expectedPrimaryDestinations = 82;
 const browser = await chromium.launch({ executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', headless: true });
 
 try {
@@ -25,7 +25,7 @@ async function walk(viewport, verifyDialogs) {
     const pageErrors = [];
     page.setDefaultTimeout(10_000);
     page.on('console', message => {
-        if (['warning', 'error'].includes(message.type())) consoleProblems.push(`${message.type()}:${message.text()}`);
+        if (['warning', 'error'].includes(message.type())) consoleProblems.push(`${message.type()}:${message.text()}:${message.location().url}`);
     });
     page.on('pageerror', error => pageErrors.push(error.message));
 
@@ -42,10 +42,9 @@ async function walk(viewport, verifyDialogs) {
     let helpTriggers = 0;
     const missingHelp = [];
     for (const destination of destinations) {
-        const probe = await context.request.get(destination.href);
-        const status = probe.status();
+        const response = await gotoStable(page, destination.href);
+        const status = response?.status() ?? 0;
         if (status !== 200) failures.push(`${destination.label}:HTTP ${status}`);
-        await gotoStable(page, destination.href);
         const overflow = await page.evaluate(() => Math.max(0, document.documentElement.scrollWidth - document.documentElement.clientWidth));
         maxOverflow = Math.max(maxOverflow, overflow);
         if (overflow !== 0) failures.push(`${destination.label}:overflow ${overflow}`);
@@ -54,7 +53,7 @@ async function walk(viewport, verifyDialogs) {
     }
 
     if (verifyDialogs) {
-        await page.goto(`${baseUrl}/admin/operations/go-live`, { waitUntil: 'domcontentloaded' });
+        await page.goto(`${baseUrl}/admin/operations/go-live?company_id=${companyId}`, { waitUntil: 'domcontentloaded' });
         await page.getByRole('button', { name: 'Hướng dẫn sử dụng trang này' }).click();
         await page.locator('[data-admin-help-dialog]').waitFor({ state: 'visible' });
         await page.keyboard.press('Escape');
@@ -90,7 +89,7 @@ async function gotoStable(page, url) {
     try {
         return await page.goto(url, { waitUntil: 'domcontentloaded' });
     } catch (error) {
-        if (!String(error).includes('ERR_ABORTED')) throw error;
+        if (!String(error).includes('ERR_ABORTED') && !String(error).includes('ERR_NETWORK_IO_SUSPENDED')) throw error;
         await page.waitForTimeout(100);
         return page.goto(url, { waitUntil: 'domcontentloaded' });
     }

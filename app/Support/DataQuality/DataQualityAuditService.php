@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\DB;
 
 final class DataQualityAuditService
 {
-    /** @return array{rules:int,passed:int,failed:int,warnings:int,duplicates:int,orphans:int,cross_tenant:int,manager_issues:int,invalid_career_levels:int,attendance_issues:int,payroll_issues:int,compensation_issues:int,score:int,checksum:string,findings:list<array{key:string,component:string,severity:string,description:string,count:int,status:string}>} */
+    /** @return array{rules:int,passed:int,failed:int,warnings:int,duplicates:int,orphans:int,cross_tenant:int,manager_issues:int,invalid_career_levels:int,attendance_issues:int,payroll_issues:int,compensation_issues:int,commerce_issues:int,identity_issues:int,score:int,checksum:string,findings:list<array{key:string,component:string,severity:string,description:string,count:int,status:string}>} */
     public function snapshot(): array
     {
         $findings = [
@@ -28,6 +28,14 @@ final class DataQualityAuditService
             new DataQualityFinding('compensation.invalid_money', 'Payroll', 'critical', 'Salary assignment dạng money phải có amount không âm.', $this->invalidCompensationMoney()),
             new DataQualityFinding('compensation.invalid_currency', 'Payroll', 'critical', 'Salary assignment dạng money phải có currency ISO viết hoa hợp lệ.', $this->invalidCompensationCurrency()),
             new DataQualityFinding('compensation.overlap', 'Payroll', 'critical', 'Salary assignment cùng component không được overlap effective period.', $this->overlappingCompensation()),
+            new DataQualityFinding('branch.cross_company_access', 'Commerce/Branch', 'critical', 'Branch access phải thuộc company access của cùng user.', $this->crossCompanyBranchAccess()),
+            new DataQualityFinding('seller.orphan_owner', 'Commerce', 'critical', 'Seller profile phải có User owner hợp lệ.', $this->orphanSellers()),
+            new DataQualityFinding('store.orphan_seller', 'Commerce', 'critical', 'Store phải có Seller owner hợp lệ.', $this->orphanStores()),
+            new DataQualityFinding('media.orphan_owner', 'Media', 'critical', 'Media phải trỏ đến Article, Store hoặc Employee owner hợp lệ.', $this->orphanMedia()),
+            new DataQualityFinding('identity.orphan_user', 'Identity', 'critical', 'External identity phải thuộc User hợp lệ.', $this->orphanExternalIdentities()),
+            new DataQualityFinding('identity.duplicate_provider_id', 'Identity', 'critical', 'Provider identity không được liên kết với nhiều User.', $this->duplicateProviderIdentities()),
+            new DataQualityFinding('identity.duplicate_verified_phone', 'Identity', 'critical', 'Số điện thoại đã xác minh không được dùng chung.', $this->duplicateVerifiedPhones()),
+            new DataQualityFinding('identity.invalid_verified_phone', 'Identity', 'critical', 'Số điện thoại đã xác minh phải ở định dạng E.164 Việt Nam.', $this->invalidVerifiedPhones()),
         ];
         $rows = array_map(static fn (DataQualityFinding $finding): array => $finding->toArray(), $findings);
         $failed = count(array_filter($rows, static fn (array $row): bool => $row['count'] > 0 && $row['severity'] === 'critical'));
@@ -40,6 +48,8 @@ final class DataQualityAuditService
             'orphans' => $rows[1]['count'] + $rows[8]['count'] + $rows[10]['count'],
             'cross_tenant' => $rows[4]['count'], 'manager_issues' => $rows[3]['count'], 'invalid_career_levels' => $rows[7]['count'],
             'attendance_issues' => $rows[8]['count'] + $rows[9]['count'], 'payroll_issues' => $rows[10]['count'] + $rows[11]['count'] + $rows[12]['count'], 'compensation_issues' => $rows[13]['count'] + $rows[14]['count'] + $rows[15]['count'],
+            'commerce_issues' => $rows[16]['count'] + $rows[17]['count'] + $rows[18]['count'] + $rows[19]['count'],
+            'identity_issues' => $rows[20]['count'] + $rows[21]['count'] + $rows[22]['count'] + $rows[23]['count'],
             'score' => max(0, 100 - ($failed * 10) - ($warnings * 3)), 'checksum' => $checksum, 'findings' => $rows,
         ];
     }
@@ -138,5 +148,57 @@ final class DataQualityAuditService
         return DB::table('employee_salary_component_assignments as a')->join('employee_salary_component_assignments as b', static function (JoinClause $join): void {
             $join->on('a.company_id', '=', 'b.company_id')->on('a.employee_id', '=', 'b.employee_id')->on('a.salary_component_id', '=', 'b.salary_component_id')->whereColumn('a.id', '<', 'b.id');
         })->where('a.status', 'active')->where('b.status', 'active')->whereRaw('a.effective_from <= COALESCE(b.effective_to, \'9999-12-31\')')->whereRaw('b.effective_from <= COALESCE(a.effective_to, \'9999-12-31\')')->count();
+    }
+
+    private function crossCompanyBranchAccess(): int
+    {
+        return DB::table('branch_user_access as bua')->join('branches as b', 'b.id', '=', 'bua.branch_id')->leftJoin('company_user_access as cua', static function (JoinClause $join): void {
+            $join->on('cua.company_id', '=', 'b.company_id')->on('cua.user_id', '=', 'bua.user_id');
+        })->whereNull('cua.user_id')->count();
+    }
+
+    private function orphanSellers(): int
+    {
+        return DB::table('seller_profiles as s')->leftJoin('users as u', 'u.id', '=', 's.user_id')->whereNull('u.id')->count();
+    }
+
+    private function orphanStores(): int
+    {
+        return DB::table('stores as s')->leftJoin('seller_profiles as sp', 'sp.id', '=', 's.seller_profile_id')->whereNull('sp.id')->count();
+    }
+
+    private function orphanMedia(): int
+    {
+        $owners = ['article' => 'articles', 'store' => 'stores', 'employee' => 'employees', 'user' => 'users', 'seller' => 'seller_profiles'];
+        $count = DB::table('media_assets')->whereNotIn('owner_type', array_keys($owners))->count();
+        foreach ($owners as $type => $table) {
+            $count += DB::table('media_assets as m')->leftJoin($table.' as o', 'o.id', '=', 'm.owner_id')->where('m.owner_type', $type)->whereNull('o.id')->count();
+        }
+
+        return $count;
+    }
+
+    private function orphanExternalIdentities(): int
+    {
+        return DB::table('user_external_identities as i')->leftJoin('users as u', 'u.id', '=', 'i.user_id')->whereNull('u.id')->count();
+    }
+
+    private function duplicateProviderIdentities(): int
+    {
+        $duplicates = DB::table('user_external_identities')->select(['provider', 'provider_user_id'])->groupBy('provider', 'provider_user_id')->havingRaw('COUNT(*) > 1');
+
+        return DB::query()->fromSub($duplicates, 'duplicate_external_identities')->count();
+    }
+
+    private function duplicateVerifiedPhones(): int
+    {
+        $duplicates = DB::table('users')->select('phone_e164')->whereNotNull('phone_verified_at')->whereNotNull('phone_e164')->groupBy('phone_e164')->havingRaw('COUNT(*) > 1');
+
+        return DB::query()->fromSub($duplicates, 'duplicate_verified_phones')->count();
+    }
+
+    private function invalidVerifiedPhones(): int
+    {
+        return DB::table('users')->whereNotNull('phone_verified_at')->where(static fn (Builder $query): Builder => $query->whereNull('phone_e164')->orWhereRaw("phone_e164 NOT REGEXP '^\\+84[1-9][0-9]{8,10}$'"))->count();
     }
 }

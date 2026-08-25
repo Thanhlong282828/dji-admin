@@ -2,7 +2,7 @@
 
 ## Scope and result
 
-Phase 3F-30 audited Laravel/config, 63 migrations, Docker/Nginx, queue/Horizon, scheduler, Reverb, storage, health, logging, secrets, Cloudflare Images, release/rollback/DR scripts, CI and generated artifacts. No VPS or production provider was contacted and no business record was mutated.
+Phase 3F-30 audited Laravel/config and its 63-migration baseline. Commerce C1/C2 subsequently adds one additive migration, making the current inventory 64, without changing the deployment/readiness safety contract. No VPS or production provider was contacted and no production business record was mutated.
 
 The codebase already has immutable image/digest release governance, release manifests/certificates, migration-risk scanning, guarded databases, non-root containers, Redis workers, scheduler heartbeat, fail-open Reverb and live/ready probes. The missing layer was a single redacted go-live assessment and an operator-facing runbook/cockpit.
 

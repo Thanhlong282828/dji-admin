@@ -33,6 +33,12 @@ No critical or high debt was found. Historical Article CQRS and dynamic action r
 - NAV-001 (closed): API Documentation now has a permission-protected admin landing page, contextual help and links to the still-protected Swagger UI/OpenAPI JSON; all 78 primary destinations render the shared navigation contract.
 
 Production infrastructure, TLS/domain, least-privilege MySQL/Redis, mail delivery, backup/PITR and provider credentials remain external go-live blockers. Cloudflare Images remains `BLOCKED` by the last live HTTP 403/code 5403 result; production Mail/ERP/Government/Bank and malware-provider verification are not claimed. MFA and the disabled/skeleton catalog remain accepted product/security backlog, not hidden code completion claims.
+
+## Commerce C1/C2 boundary (2026-08-24)
+
+- COMMERCE-EXT-001 (medium, open/external): unified media adapter and cleanup compensation are covered by fakes, but Cloudflare Images upload/delete remain live `NOT VERIFIED` because the last diagnostic returned HTTP 403/code 5403. Supply an Images-authorized account/token before production selection of `MEDIA_DRIVER=cloudflare`.
+- COMMERCE-SCOPE-001 (closed): legacy company-null Articles are visible/editable in admin only to `organization.tenant-all`; ordinary company actors see only their company-owned Articles.
+- COMMERCE-C3-001 (deferred by scope): Product, category, SKU, inventory, cart and order remain disabled/skeleton concepts. No tables, routes or menu links were fabricated in C1/C2.
 # Phase 3F-22 governed gaps
 
 - Approved jurisdiction/owner retention sources and durations are not yet supplied.
@@ -46,3 +52,8 @@ Production infrastructure, TLS/domain, least-privilege MySQL/Redis, mail deliver
 - FUNC-002 (low, accepted): live two-browser Reverb delivery is not certified on an external realtime topology; authorized channel/fallback tests remain the current evidence.
 - FUNC-003 (low, accepted): disabled legacy/skeleton modules and historical import ideas remain intentionally unavailable; they must not gain UI actions until a real owned implementation exists.
 Navigation/flow coverage audit (2026-08-21): no open primary-menu or routed-controller documentation debt. Twenty-one proven work centers were wired; 44 zero-parameter landing candidates were classified, with Integration/Audit internal tabs intentionally remaining child navigation. Disabled module skeletons are not treated as debt unless product scope explicitly enables them.
+# C2.5 identity external dependencies (2026-08-25)
+
+- External/credential: Google and Facebook callback flows are code-complete and fake-tested but live credentials are not configured, so live state is NOT VERIFIED.
+- External/credential: production SMS/OTP delivery provider is not selected; the local provider is explicitly blocked in production.
+- Deferred product requirement: MFA enrollment/recovery is not introduced by C2.5. Verified phone is an authentication option, not a claim that full MFA exists.

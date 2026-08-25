@@ -44,4 +44,13 @@
             </x-primary-button>
         </div>
     </form>
+
+    <div class="mt-6 border-t pt-5 space-y-3">
+        @foreach (['google' => 'Google', 'facebook' => 'Facebook'] as $provider => $label)
+            @if (config("services.$provider.enabled"))
+                <a class="flex w-full justify-center rounded-md border px-4 py-2 text-sm font-medium" href="{{ route('social.redirect', $provider) }}">Đăng nhập với {{ $label }}</a>
+            @endif
+        @endforeach
+        <a class="flex w-full justify-center rounded-md border px-4 py-2 text-sm font-medium" href="{{ route('phone.login') }}">Đăng nhập bằng số điện thoại</a>
+    </div>
 </x-guest-layout>

@@ -2299,7 +2299,18 @@ Browser authentication
 → ConfirmablePasswordController::{show,store}
 → EmailVerificationPromptController / VerifyEmailController / EmailVerificationNotificationController
 → RegisteredUserController::{create,store} + PasswordController::update
-→ Breeze/session authentication; Sanctum remains the API authentication boundary.
+→ Breeze/session authentication remains the web boundary; Passport Authorization Code + PKCE is the active API authentication boundary.
+
+IDENTITY / ACCOUNT — SOCIAL LOGIN, PHONE OTP, PASSPORT
+
+GET /auth/{provider}/redirect → SocialIdentityController::redirect → Socialite provider state redirect
+GET /auth/{provider}/callback → SocialIdentityController::callback → ExternalIdentityService → user_external_identities → session regeneration
+DELETE /account/identities/{provider} → password confirmation → ExternalIdentityService::unlink → last-method guard → audit event
+POST /account/phone/request → PhoneVerificationController → PhoneVerificationService::issue → hashed phone_verification_challenges → provider boundary
+POST /account/phone/verify → PhoneVerificationService::verify → lock/attempt/expiry/single-use → users.phone_e164 + phone_verified_at
+GET /account → AccountSecurityController → User identity/IAM/scope/OAuth aggregate reads → account.show
+GET|POST /oauth/authorize → Passport Authorization Code consent + PKCE → access/refresh token
+API /api/v1/* → auth:api → endpoint scope → account.enabled → existing policy/Spatie/company scope → controller/CQRS
 
 Profile
 → routes/web.php | profile.{edit,update,destroy}
@@ -2344,3 +2355,62 @@ GET /admin/operations/{architecture,api-contracts,test-quality,configuration,sec
 → owned read-only audit/snapshot service
 → matching resources/views/operations/*.blade.php
 → governance evidence only; no business mutation.
+
+==================================================
+COMPANY / BRANCH — COMMERCE C1
+==================================================
+
+GET /admin/branches
+→ routes/web.php | admin.branches.index | branch.view
+→ BranchController::index()
+→ BranchAccessService company/branch scope
+→ branches + branch_user_access
+→ resources/views/admin/branches/index.blade.php.
+
+POST/PUT /admin/branches[/{branch}]
+→ BranchRequest
+→ BranchController::store()/update()
+→ transaction creates Branch + creator access, or updates scoped Branch
+→ redirect Branch list.
+
+==================================================
+SELLER / STORE — COMMERCE C1
+==================================================
+
+GET /admin/seller[/store]
+→ SellerCenterController
+→ authenticated User resolves seller_profiles (no owner route ID)
+→ owned stores/media_assets
+→ Seller Dashboard / Store Profile Blade.
+
+PUT /admin/seller/store
+→ StoreProfileRequest
+→ verified/active Seller gate
+→ MediaService stage logo/banner
+→ stores + media_assets transaction
+→ after-commit old cleanup / DB-failure compensation.
+
+PATCH /admin/commerce/sellers/{seller}/status
+→ SellerGovernanceController::transition()
+→ bounded status transition
+→ seller_profiles + Audit event.
+
+==================================================
+MEDIA / ARTICLE — COMMERCE C2
+==================================================
+
+Media upload/replace/delete
+→ MediaService validation
+→ MediaStorageInterface
+→ CloudflareImagesStorage OR explicit LocalMediaStorage
+→ media_assets safe reference
+→ upload-new / DB commit / delete-old
+→ DB failure compensation + shared-reference protection.
+
+POST/PUT /articles[/{article}]
+→ StoreArticleRequest
+→ ArticleController::store()/update()
+→ cover/gallery staged through MediaService
+→ Article + media_assets transaction
+→ after-commit replacement/removal cleanup
+→ public /stories/{slug} published Article + ordered gallery.

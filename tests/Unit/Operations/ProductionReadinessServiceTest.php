@@ -13,7 +13,7 @@ final class ProductionReadinessServiceTest extends TestCase
         config()->set('services.cloudflare_images.api_token', 'forbidden-secret-value');
         $snapshot = app(ProductionReadinessService::class)->snapshot();
 
-        self::assertSame(63, $snapshot['migration_count']);
+        self::assertSame(70, $snapshot['migration_count']);
         self::assertContains($snapshot['classification'], ['STAGING_READY', 'PRODUCTION_BLOCKED_EXTERNAL']);
         self::assertSame(['total', 'passed', 'warnings', 'blocked'], array_keys($snapshot['summary']));
         self::assertStringNotContainsString('forbidden-secret-value', json_encode($snapshot, JSON_THROW_ON_ERROR));

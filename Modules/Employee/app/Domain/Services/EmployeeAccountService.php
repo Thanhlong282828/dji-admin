@@ -32,6 +32,9 @@ final class EmployeeAccountService
                 $user->password = Hash::make($data['password']);
             }
             $user->save();
+            if (! $user->access_enabled) {
+                DB::table('oauth_access_tokens')->where('user_id', $user->id)->where('revoked', false)->update(['revoked' => true]);
+            }
             $role = Role::findByName($data['role'], 'web');
             $user->syncRoles([$role]);
             DB::table('company_user_access')->updateOrInsert(['company_id' => $companyId, 'user_id' => $user->id], ['created_at' => now(), 'updated_at' => now()]);
@@ -55,6 +58,9 @@ final class EmployeeAccountService
                 throw ValidationException::withMessages(['account' => 'Không thể vô hiệu hóa Super Admin cuối cùng.']);
             }
             $user->update(['access_enabled' => $enabled]);
+            if (! $enabled) {
+                DB::table('oauth_access_tokens')->where('user_id', $user->id)->where('revoked', false)->update(['revoked' => true]);
+            }
         }, 3);
     }
 }

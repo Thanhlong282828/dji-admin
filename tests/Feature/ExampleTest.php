@@ -12,10 +12,9 @@ class ExampleTest extends TestCase
     /**
      * A basic test example.
      */
-    public function test_guest_is_redirected_to_login(): void
+    public function test_public_home_is_visible_and_admin_dashboard_requires_login(): void
     {
-        $response = $this->get('/');
-
-        $response->assertRedirectToRoute('login');
+        $this->get('/')->assertOk()->assertSee('LA THÀNH');
+        $this->get('/dashboard')->assertRedirectToRoute('login');
     }
 }

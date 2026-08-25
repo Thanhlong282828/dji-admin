@@ -22,7 +22,7 @@ final class OperationsApiContractsTest extends TestCase
         $this->actingAs($user)->get('/admin/operations/api-contracts')
             ->assertOk()
             ->assertSee('Enterprise API Contracts')
-            ->assertSee('sanctum-bearer')
+            ->assertSee('passport-authorization-code-pkce')
             ->assertSee('API Contracts')
             ->assertDontSee('DB_PASSWORD')
             ->assertDontSee('LocalAdmin123!');

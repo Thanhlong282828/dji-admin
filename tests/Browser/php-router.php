@@ -1,8 +1,19 @@
 <?php
 
 $path = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH);
-if (is_string($path) && $path !== '/' && is_file(__DIR__.'/../../public'.$path)) {
-    return false;
+$public = realpath(__DIR__.'/../../public');
+$candidate = is_string($path) && $public !== false ? realpath($public.$path) : false;
+$storage = realpath(__DIR__.'/../../storage/app/public');
+$insidePublic = is_string($candidate) && is_string($public) && str_starts_with($candidate, $public.DIRECTORY_SEPARATOR);
+$insideStorage = is_string($candidate) && is_string($storage) && str_starts_with($candidate, $storage.DIRECTORY_SEPARATOR);
+if (is_string($candidate) && ($insidePublic || $insideStorage) && is_file($candidate)) {
+    $mime = mime_content_type($candidate);
+    if (is_string($mime)) {
+        header('Content-Type: '.$mime);
+    }
+    readfile($candidate);
+
+    return true;
 }
 
 require __DIR__.'/../../public/index.php';

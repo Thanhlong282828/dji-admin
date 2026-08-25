@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\ArticleController;
+use App\Http\Controllers\BranchController;
 use App\Http\Controllers\CompensationReferenceController;
 use App\Http\Controllers\Operations\ApiContractsController;
 use App\Http\Controllers\Operations\ApiDocumentationController;
@@ -20,6 +21,9 @@ use App\Http\Controllers\Operations\SecretsController;
 use App\Http\Controllers\Operations\SecurityAssuranceController;
 use App\Http\Controllers\Operations\TestQualityController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\PublicContentController;
+use App\Http\Controllers\SellerCenterController;
+use App\Http\Controllers\SellerGovernanceController;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
@@ -40,7 +44,10 @@ Route::prefix('health')->withoutMiddleware([
     Route::get('/metrics-readiness', [HealthController::class, 'metricsReadiness'])->name('health.metrics-readiness');
 });
 
-Route::get('/', fn () => auth()->check() ? to_route('dashboard') : to_route('login'));
+Route::get('/', [PublicContentController::class, 'home'])->name('public.home');
+Route::get('/stories', [PublicContentController::class, 'articles'])->name('public.articles.index');
+Route::get('/stories/{slug}', [PublicContentController::class, 'article'])->name('public.articles.show');
+Route::get('/stores', [PublicContentController::class, 'stores'])->name('public.stores.index');
 
 Route::get('/dashboard', DashboardController::class)->middleware(['auth', 'verified', 'can:dashboard.view'])->name('dashboard');
 Route::get('/admin', fn () => to_route('dashboard'))->middleware(['auth', 'verified', 'can:dashboard.view'])->name('admin.index');
@@ -64,11 +71,21 @@ Route::get('/admin/operations/go-live', GoLiveReadinessController::class)->middl
 Route::get('/admin/compensation-reference', CompensationReferenceController::class)->middleware(['auth', 'verified', 'permission:payroll.assignment.view'])->name('admin.compensation-reference');
 
 Route::middleware('auth')->group(function () {
-    Route::get('/articles', [ArticleController::class, 'index'])->middleware('can:article.view')->name('articles.index');
-    Route::get('/articles/create', [ArticleController::class, 'create'])->middleware('can:article.create')->name('articles.create');
-    Route::post('/articles', [ArticleController::class, 'store'])->middleware('can:article.create')->name('articles.store');
-    Route::get('/articles/{article}/edit', [ArticleController::class, 'edit'])->middleware('can:article.update')->name('articles.edit');
-    Route::match(['put', 'patch'], '/articles/{article}', [ArticleController::class, 'update'])->middleware('can:article.update')->name('articles.update');
+    Route::get('/admin/branches', [BranchController::class, 'index'])->middleware(['verified', 'permission:branch.view'])->name('admin.branches.index');
+    Route::get('/admin/branches/create', [BranchController::class, 'create'])->middleware(['verified', 'permission:branch.create'])->name('admin.branches.create');
+    Route::post('/admin/branches', [BranchController::class, 'store'])->middleware(['verified', 'permission:branch.create'])->name('admin.branches.store');
+    Route::get('/admin/branches/{branch}/edit', [BranchController::class, 'edit'])->middleware(['verified', 'permission:branch.update'])->name('admin.branches.edit');
+    Route::put('/admin/branches/{branch}', [BranchController::class, 'update'])->middleware(['verified', 'permission:branch.update'])->name('admin.branches.update');
+    Route::get('/admin/seller', [SellerCenterController::class, 'dashboard'])->middleware(['verified', 'permission:commerce.store.view'])->name('admin.seller.dashboard');
+    Route::get('/admin/seller/store', [SellerCenterController::class, 'storeProfile'])->middleware(['verified', 'permission:commerce.store.view'])->name('admin.seller.store');
+    Route::put('/admin/seller/store', [SellerCenterController::class, 'saveStore'])->middleware(['verified', 'permission:commerce.store.update'])->name('admin.seller.store.update');
+    Route::get('/admin/commerce/sellers', [SellerGovernanceController::class, 'index'])->middleware(['verified', 'permission:commerce.seller.governance.view'])->name('admin.commerce.sellers.index');
+    Route::patch('/admin/commerce/sellers/{seller}/status', [SellerGovernanceController::class, 'transition'])->middleware(['verified', 'permission:commerce.seller.governance.manage'])->name('admin.commerce.sellers.transition');
+    Route::get('/articles', [ArticleController::class, 'index'])->middleware(['verified', 'can:article.view'])->name('articles.index');
+    Route::get('/articles/create', [ArticleController::class, 'create'])->middleware(['verified', 'can:article.create'])->name('articles.create');
+    Route::post('/articles', [ArticleController::class, 'store'])->middleware(['verified', 'can:article.create'])->name('articles.store');
+    Route::get('/articles/{article}/edit', [ArticleController::class, 'edit'])->middleware(['verified', 'can:article.update'])->name('articles.edit');
+    Route::match(['put', 'patch'], '/articles/{article}', [ArticleController::class, 'update'])->middleware(['verified', 'can:article.update'])->name('articles.update');
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');

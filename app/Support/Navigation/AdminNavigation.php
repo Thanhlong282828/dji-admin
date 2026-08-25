@@ -47,6 +47,7 @@ final class AdminNavigation
             ]),
             $this->group('organization', 'Tổ chức', '⌂', [
                 $this->item('companies', 'Công ty', 'admin.companies.index', ['admin.companies.*'], 'company.view'),
+                $this->item('branches', 'Chi nhánh', 'admin.branches.index', ['admin.branches.*'], 'branch.view', $company),
                 $this->item('cost-centers', 'Trung tâm chi phí', 'admin.cost-centers.index', ['admin.cost-centers.*'], 'cost-center.view', $company),
                 $this->item('organization-units', 'Đơn vị tổ chức', 'admin.organization-units.index', ['admin.organization-units.index', 'admin.organization-units.show', 'admin.organization-units.edit'], 'organization-unit.view', $company),
                 $this->item('organization-tree', 'Cây tổ chức', 'admin.organization-units.tree', ['admin.organization-units.tree'], 'organization-unit.view', $company),
@@ -132,8 +133,13 @@ final class AdminNavigation
                 $this->item('api-documentation', 'API Documentation', 'admin.operations.api-documentation', ['admin.operations.api-documentation'], 'api.documentation.view'),
             ]),
             $this->group('content', 'Nội dung', '▤', [
-                $this->item('articles', 'Kho nội dung', 'articles.index', ['articles.index', 'articles.edit'], 'article.view'),
-                $this->item('article-create', 'Viết bài mới', 'articles.create', ['articles.create'], 'article.create'),
+                $this->item('articles', 'Kho nội dung', 'articles.index', ['articles.index', 'articles.edit'], 'article.view', $company),
+                $this->item('article-create', 'Viết bài mới', 'articles.create', ['articles.create'], 'article.create', $company),
+            ]),
+            $this->group('seller', 'Seller Center', '▣', [
+                $this->item('seller-dashboard', 'Tổng quan Seller', 'admin.seller.dashboard', ['admin.seller.dashboard'], 'commerce.store.view'),
+                $this->item('store-profile', 'Hồ sơ cửa hàng', 'admin.seller.store', ['admin.seller.store*'], 'commerce.store.view'),
+                $this->item('seller-governance', 'Quản trị Seller', 'admin.commerce.sellers.index', ['admin.commerce.sellers.*'], 'commerce.seller.governance.view'),
             ]),
         ];
     }

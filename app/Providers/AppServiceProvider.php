@@ -11,6 +11,11 @@ use App\Services\LaravelWorkforceNotificationChannelSender;
 use App\Services\NullErrorTracker;
 use App\Support\Broadcasting\FailOpenRealtimeBroadcaster;
 use App\Support\EnvironmentSafetyGuard;
+use App\Support\Identity\LocalPhoneVerificationProvider;
+use App\Support\Identity\PhoneVerificationProviderInterface;
+use App\Support\Media\CloudflareImagesStorage;
+use App\Support\Media\LocalMediaStorage;
+use App\Support\Media\MediaStorageInterface;
 use App\Support\RuntimeConfiguration\RuntimeConfigurationService;
 use App\Support\Secrets\ConfiguredSecretProvider;
 use App\Support\Secrets\SecretProviderInterface;
@@ -20,6 +25,7 @@ use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Broadcast;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
+use Laravel\Passport\Passport;
 use Psr\Log\LoggerInterface;
 use RuntimeException;
 
@@ -50,6 +56,18 @@ class AppServiceProvider extends ServiceProvider
         $this->app->bind(WorkforceNotificationChannelSenderInterface::class, LaravelWorkforceNotificationChannelSender::class);
         $this->app->singleton(ErrorTrackerInterface::class, NullErrorTracker::class);
         $this->app->bind(SecretProviderInterface::class, ConfiguredSecretProvider::class);
+        $this->app->bind(PhoneVerificationProviderInterface::class, function (): PhoneVerificationProviderInterface {
+            if (config('services.phone_verification.driver') !== 'local') {
+                throw new RuntimeException('Phone verification provider chưa được cấu hình.');
+            }
+
+            return new LocalPhoneVerificationProvider;
+        });
+        $this->app->bind(MediaStorageInterface::class, fn (Application $app): MediaStorageInterface => match (config('media.driver')) {
+            'cloudflare-images' => $app->make(CloudflareImagesStorage::class),
+            'local' => $app->make(LocalMediaStorage::class),
+            default => throw new RuntimeException('Media driver không hợp lệ.'),
+        });
     }
 
     /**
@@ -57,6 +75,21 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        Passport::tokensCan([
+            'company:read' => 'Đọc dữ liệu công ty',
+            'company:write' => 'Thay đổi dữ liệu công ty',
+            'organization:read' => 'Đọc cấu trúc tổ chức',
+            'onboarding:read' => 'Đọc dữ liệu onboarding',
+            'onboarding:write' => 'Thay đổi dữ liệu onboarding',
+            'performance:read' => 'Đọc dữ liệu hiệu suất',
+            'performance:write' => 'Thay đổi dữ liệu hiệu suất',
+            'recruitment:read' => 'Đọc dữ liệu tuyển dụng',
+            'recruitment:write' => 'Thay đổi dữ liệu tuyển dụng',
+        ]);
+        Passport::tokensExpireIn(now()->addMinutes(15));
+        Passport::refreshTokensExpireIn(now()->addDays(30));
+        Passport::authorizationView('auth.oauth.authorize');
+
         Broadcast::extend('fail-open-reverb', function (Application $app, array $config): FailOpenRealtimeBroadcaster {
             $transport = $app->make(BroadcastManager::class)->connection('reverb_transport');
             if (! $transport instanceof BroadcasterContract) {

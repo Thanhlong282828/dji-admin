@@ -23,7 +23,7 @@ final class ApiContractGovernanceTest extends TestCase
     public function test_security_tenant_validation_pagination_and_examples_pass_governance(): void
     {
         $snapshot = app(ApiContractAuditService::class)->snapshot();
-        self::assertSame('sanctum-bearer', $snapshot['security_scheme']);
+        self::assertSame('passport-authorization-code-pkce', $snapshot['security_scheme']);
         self::assertSame([], $snapshot['tenant_findings']);
         self::assertSame([], $snapshot['validation_mismatches']);
         self::assertSame([], $snapshot['response_mismatches']);

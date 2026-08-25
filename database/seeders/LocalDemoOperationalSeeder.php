@@ -57,7 +57,33 @@ final class LocalDemoOperationalSeeder extends Seeder
         $this->integration($company->id, $admin->id);
         $this->iam($company->id, $admin->id);
         $this->workflow($company->id, $admin->id);
+        $this->commerceFoundation($admin);
         app(AuditRecorderInterface::class)->record(new AuditEventData($company->id, 'user', $admin->id, 'bootstrap', 'LocalDemo', 'LocalDemoBootstrapCompleted', 'local_demo_dataset', 'SCHEMA-LOCAL-DEMO', [], ['status' => 'ready'], ['synthetic_demo' => true, 'external_delivery' => false], 'local-demo-bootstrap-v1', $this->uuid(701)));
+    }
+
+    private function commerceFoundation(User $admin): void
+    {
+        $cities = [['HCM', 'Chi nhánh TP.HCM', 'TP.HCM'], ['HN', 'Chi nhánh Hà Nội', 'Hà Nội'], ['DN', 'Chi nhánh Đà Nẵng', 'Đà Nẵng']];
+        foreach (DB::table('companies')->orderBy('id')->get(['id', 'code']) as $companyIndex => $company) {
+            DB::table('company_user_access')->updateOrInsert(['company_id' => $company->id, 'user_id' => $admin->id], ['created_at' => now(), 'updated_at' => now()]);
+            foreach (array_slice($cities, 0, $companyIndex === 0 ? 3 : (($companyIndex % 2) + 1)) as [$suffix, $name, $city]) {
+                DB::table('branches')->updateOrInsert(['company_id' => $company->id, 'code' => $company->code.'-'.$suffix], ['name' => $name, 'status' => 'active', 'address_line' => 'Địa chỉ synthetic phục vụ local demo', 'city' => $city, 'timezone' => 'Asia/Ho_Chi_Minh', 'email' => strtolower($suffix).'@branch.local.test', 'created_at' => now(), 'updated_at' => now()]);
+            }
+            foreach (DB::table('branches')->where('company_id', $company->id)->pluck('id') as $branchId) {
+                DB::table('branch_user_access')->updateOrInsert(['branch_id' => $branchId, 'user_id' => $admin->id], ['created_at' => now(), 'updated_at' => now()]);
+            }
+        }
+
+        $seller = User::query()->updateOrCreate(['email' => 'seller@local.test'], ['name' => 'Seller Synthetic Việt Nam', 'password' => Hash::make('LocalSeller123!'), 'email_verified_at' => now(), 'access_enabled' => true]);
+        $seller->syncRoles(['Seller']);
+        DB::table('seller_profiles')->updateOrInsert(['user_id' => $seller->id], ['display_name' => 'Sao Việt Seller', 'status' => 'active', 'verified_at' => now(), 'verified_by' => $admin->id, 'created_at' => now(), 'updated_at' => now()]);
+        $sellerProfileId = (int) DB::table('seller_profiles')->where('user_id', $seller->id)->value('id');
+        DB::table('stores')->updateOrInsert(['slug' => 'sao-viet-technology-store'], ['seller_profile_id' => $sellerProfileId, 'name' => 'Sao Việt Technology Store', 'description' => 'Cửa hàng synthetic phục vụ kiểm thử Seller/Store local, chưa có Product hoặc Order.', 'status' => 'active', 'created_at' => now(), 'updated_at' => now()]);
+
+        $buyer = User::query()->updateOrCreate(['email' => 'buyer@local.test'], ['name' => 'Buyer Synthetic Việt Nam', 'password' => Hash::make('LocalBuyer123!'), 'email_verified_at' => now(), 'access_enabled' => true]);
+        $buyer->syncRoles(['Buyer']);
+        DB::table('buyer_profiles')->updateOrInsert(['user_id' => $buyer->id], ['display_name' => 'Khách hàng Synthetic', 'status' => 'active', 'created_at' => now(), 'updated_at' => now()]);
+        DB::table('articles')->whereNull('company_id')->update(['company_id' => DB::table('companies')->where('code', 'SCHEMA-TECH-VN')->value('id')]);
     }
 
     /** @param list<int> $employeeIds */

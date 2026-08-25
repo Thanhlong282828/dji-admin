@@ -263,7 +263,7 @@ File chính:
 -----------------------------
 Chức năng:
 - API token/Bearer authentication cho enterprise APIs.
-- OpenAPI security scheme khớp Sanctum Bearer thật.
+- OpenAPI security scheme hiện khớp Passport OAuth2 Authorization Code + PKCE; Sanctum chỉ là lịch sử trước C2.5.
 
 Package:
 - laravel/sanctum ^4.3
@@ -923,3 +923,16 @@ FINAL PROJECT AUDIT — RUNTIME SAFETY / NAVIGATION
 - Workforce cache tự loại bỏ object `__PHP_Incomplete_Class` sau deploy/autoload mismatch và dựng lại read model chuẩn thay vì đưa object lỗi vào controller/Blade.
 - API Documentation có landing admin permission-protected, contextual help và link riêng tới Swagger UI/OpenAPI JSON vẫn được bảo vệ.
 - Browser walk desktop/mobile xác nhận 78/78 primary destinations dùng đúng help/navigation contract; không 403/404/500, console error hoặc document overflow.
+
+COMMERCE C1+C2 FOUNDATION
+- Multi-Branch company scope với creator access, permission filtering và cross-company isolation.
+- Buyer/Seller profile tách khỏi User authentication; Seller business status tách khỏi IAM role.
+- Seller Center, Store Profile và Seller Governance; chưa claim Product/Cart/Order.
+- Unified Cloudflare/local MediaService cho Employee avatar, Store logo/banner và Article cover/gallery.
+- Article multi-image preview, transactional compensation, safe replace/delete và public white/blue Article/Store pages.
+
+COMMERCE C2.5 — IDENTITY / OAUTH2
+- Đăng nhập web tiếp tục dùng Breeze/session; Google/Facebook là liên kết tường minh, không tự merge theo email.
+- Xác minh/đăng nhập điện thoại dùng E.164, OTP hash, expiry, attempt limit, throttle và single-use.
+- Trang Tài khoản & bảo mật hiển thị verification, provider link, role, company/branch access và OAuth summary an toàn.
+- API dùng Passport Authorization Code + PKCE; scope được kiểm tra trước IAM/policy/tenant. Không hỗ trợ password/implicit grant.

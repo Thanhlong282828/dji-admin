@@ -160,12 +160,13 @@ final class ApiContractAuditService
     /** @param array<mixed> $document */
     private function securityScheme(array $document): string
     {
-        $scheme = $this->at($document, ['components', 'securitySchemes', 'sanctum']);
-        if (! is_array($scheme) || ($scheme['type'] ?? null) !== 'http' || ($scheme['scheme'] ?? null) !== 'bearer' || ($scheme['bearerFormat'] ?? null) !== 'Sanctum') {
+        $scheme = $this->at($document, ['components', 'securitySchemes', 'passport']);
+        $flow = is_array($scheme) ? $this->at($scheme, ['flows', 'authorizationCode']) : null;
+        if (! is_array($scheme) || ($scheme['type'] ?? null) !== 'oauth2' || ! is_array($flow) || ($flow['authorizationUrl'] ?? null) !== '/oauth/authorize' || ($flow['tokenUrl'] ?? null) !== '/oauth/token') {
             return 'invalid';
         }
 
-        return 'sanctum-bearer';
+        return 'passport-authorization-code-pkce';
     }
 
     /** @param array<mixed> $document
@@ -453,8 +454,8 @@ final class ApiContractAuditService
                 $findings[] = new ApiContractFinding($key, 'critical', $category, 'API contract governance gate failed.', implode('; ', $items));
             }
         }
-        if ($security !== 'sanctum-bearer') {
-            $findings[] = new ApiContractFinding('API-009', 'critical', 'SECURITY', 'OpenAPI security scheme does not match Sanctum bearer authentication.', $security);
+        if ($security !== 'passport-authorization-code-pkce') {
+            $findings[] = new ApiContractFinding('API-009', 'critical', 'SECURITY', 'OpenAPI security scheme does not match Passport Authorization Code + PKCE.', $security);
         }
         if ($breaking !== []) {
             $findings[] = new ApiContractFinding('API-010', 'critical', 'COMPATIBILITY', 'Unapproved breaking contract changes were detected.', (string) count($breaking));

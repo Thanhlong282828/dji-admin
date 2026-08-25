@@ -1,11 +1,14 @@
 <?php
 
 use App\Contracts\ErrorTrackerInterface;
+use App\Http\Middleware\EnsureAccountAccessEnabled;
 use App\Http\Middleware\RequestCorrelationContext;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
+use Laravel\Passport\Http\Middleware\CheckToken;
+use Laravel\Passport\Http\Middleware\CheckTokenForAnyScope;
 use Spatie\Permission\Middleware\PermissionMiddleware;
 use Spatie\Permission\Middleware\RoleMiddleware;
 use Spatie\Permission\Middleware\RoleOrPermissionMiddleware;
@@ -25,6 +28,9 @@ return Application::configure(basePath: dirname(__DIR__))
             'permission' => PermissionMiddleware::class,
             'role' => RoleMiddleware::class,
             'role_or_permission' => RoleOrPermissionMiddleware::class,
+            'account.enabled' => EnsureAccountAccessEnabled::class,
+            'scope' => CheckToken::class,
+            'scopes' => CheckTokenForAnyScope::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

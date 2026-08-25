@@ -203,3 +203,9 @@ Status: **PRODUCTION_BLOCKED_EXTERNAL**. Code provides a read-only go-live comma
 # Final project audit
 
 Status: **COMPLETED / PRODUCTION_BLOCKED_EXTERNAL**. Repository-wide module, route, navigation/help, flow, schema, data-quality, cache, security, browser and documentation audits found no Critical/High code defect. The audit closes incomplete-object cache recovery, Swagger admin-shell/help coverage, Article API route naming and stale current-count documentation. Final browser evidence is 78/78 primary destinations at both exact viewports with zero HTTP/console/page/overflow problem. Final clean PHPUnit passed 568 tests (567 passed), 7,508 assertions, one expected skip and exit 0. See `docs/final-project-audit.md`.
+
+# Commerce C1/C2 foundation and media
+
+Status: **IMPLEMENTED ON WORKING TREE**. The additive foundation introduces tenant-scoped Branch access, Buyer/Seller identities, Seller Store governance and unified local/Cloudflare Images media ownership without enabling Product/Cart/Order. Root Article authoring now accepts cover/gallery uploads through the same media boundary; public Articles and Store discovery use the white/blue public shell. Current schema is 64 migrations / 236 tables and centralized navigation/help is specific for 82/82 primary destinations. Cloudflare live remains **BLOCKED_EXTERNAL** by the last HTTP 403/code 5403 evidence; local/test behavior is explicit and does not claim provider verification.
+
+Commerce C2.5 identity hardening is **IMPLEMENTED ON WORKING TREE**: web remains Breeze/session, Google/Facebook are explicit link-first identities, phone OTP is hashed/expiring/single-use, and the active API contract uses Passport Authorization Code + PKCE with layered scope/IAM/tenant enforcement. Current schema is 70 migrations / 243 tables. Google, Facebook and production SMS remain NOT VERIFIED without live credentials; Cloudflare status is unchanged.

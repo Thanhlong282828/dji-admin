@@ -104,7 +104,7 @@
         <div class="header-actions">
             @can('payroll.assignment.view')<button type="button" class="header-icon-button" aria-label="Compensation Reference" title="Compensation Reference" data-compensation-reference-open data-url="{{ route('admin.compensation-reference',['company_id'=>$navigationCompanyId]) }}">$</button>@endcan
             @if($adminHelp !== null)<button type="button" class="header-icon-button" aria-label="Hướng dẫn sử dụng trang này" title="Hướng dẫn sử dụng trang này" data-admin-help-open>?</button>@endif
-            @hasSection('header_action') @yield('header_action') @else @can('article.create')<a class="button" href="{{ route('articles.create') }}">+ Tạo bài viết</a>@endcan @endif
+            @hasSection('header_action') @yield('header_action') @else @can('article.create')<a class="button" href="{{ route('articles.create',['company_id'=>$navigationCompanyId]) }}">+ Tạo bài viết</a>@endcan @endif
         </div>
     </header>
     @if(session('success'))<div class="notice" role="status">{{ session('success') }}</div>@endif

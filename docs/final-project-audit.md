@@ -30,7 +30,7 @@ Audit date: 2026-08-24. Baseline: `224fcab` on `codex/final-project-audit`. Scop
 
 ## Data and runtime integrity
 
-- `schema_admin`, `schema_admin_testing`, `schema_admin_browser_testing`: 63 migrations / 230 tables each.
+- Historical final-audit baseline: 63 migrations / 230 tables each. Current Commerce C1/C2.5 matrix: 70 migrations / 243 tables each.
 - `schema_admin_development`: absent.
 - Database foreign keys inspected: 720; constraints with orphan rows: 0.
 - Duplicate index finding: the Employee identity hash has a unique and redundant non-unique index over the same column. It is low severity and intentionally not changed without a reviewed online migration.
@@ -48,7 +48,7 @@ Audit date: 2026-08-24. Baseline: `224fcab` on `codex/final-project-audit`. Scop
 
 ## Security and auth
 
-- Browser authentication: Breeze/session. API authentication: Sanctum Bearer. Authorization: Spatie Permission plus IAM/company scope. Passport is not required.
+- Browser authentication: Breeze/session. API authentication: Passport Authorization Code + PKCE. Authorization: endpoint OAuth scope followed by `access_enabled`, Spatie Permission/policy and IAM/company scope. Google/Facebook identities require explicit local-account linking; phone OTP uses hashed expiring challenges.
 - Security assurance: critical 0, high 0; fixed SSRF finding retained. Medium accepted gaps: phishing-resistant MFA and a selected malware-scanning provider.
 - No tracked secret scan finding, dependency advisory, raw salary leak or cross-company data-quality finding.
 - Salary/reporting values remain omitted server-side without `payroll.assignment.view`.
@@ -87,3 +87,11 @@ There are no remaining Critical or High **code defects**. The only High item is 
 - Docker: production overlay renders; image digest `sha256:c3b1027f4dbeddb6c3a4e32d6ed078104cce3d84b8545e68cfd1a23bb06029b2`, 62.2 MB, non-root `www-data` (82:82), Vite manifest present and forbidden build artifacts 0.
 - Full PHPUnit: 568 tests, 567 passed, 7,508 assertions, one expected skip, 27m16s, exit 0; orphan workers after completion: 0.
 - Production classification: `PRODUCTION_BLOCKED_EXTERNAL`.
+
+## Commerce C1/C2 working-tree supplement
+
+- Additive current matrix: 70 migrations / 243 tables in `schema_admin`, `schema_admin_testing` and `schema_admin_browser_testing`; development database remains absent.
+- Current navigation/runtime evidence: 82/82 primary destinations return HTTP 200 and expose specific contextual help at 1280×800 and 390×844; unexpected 403/404/500, console/page errors and document overflow are zero.
+- Data Quality expands from the final-audit baseline 16 rules to 24 rules with Branch/Seller/Store/Media plus external-identity/verified-phone aggregate integrity checks; local result is 24/24 with zero findings.
+- C1/C2 fixes the actual root Article upload boundary, adds company/branch authorization and Seller/Store governance, and deliberately keeps disabled Product/Cart/Order skeletons disabled.
+- The historical final-project-audit counts above remain immutable evidence for baseline `3eb4cfd`; this supplement records the uncommitted Commerce working tree.

@@ -3,10 +3,12 @@ CRUD + MVC: app/Models/Article.php, app/Http/Controllers/ArticleController.php, 
 Validation: app/Http/Requests/StoreArticleRequest.php
 Public microservice API: routes/api.php, app/Http/Controllers/Api/ArticleController.php, app/Http/Resources/ArticleResource.php
 Dashboard chart-ready metrics: routes/web.php, resources/views/admin/dashboard/index.blade.php
-Cloudflare images: articles.hero_image; production R2 credentials documented in .env.example
+Unified image boundary: app/Support/Media/*; Article cover/gallery, Store logo/banner and Employee avatar use explicit Cloudflare Images or local driver. Live Cloudflare remains unverified after 403/5403; this is not R2.
 Modules/CQRS shell: app/Modules/Content/{Domain,Application,Infrastructure,Presentation}
 HRM enterprise schema: database/migrations/2026_07_23_000200_create_hrm_core_schema.php
 23 domain requirements map into Core HR, Talent Management, Analytics & Platform; see db.txt for physical tables.
 Tests: tests/Feature/ArticleApiTest.php. CI: .github/workflows/ci.yml
 Docker/nginx/php-fpm/redis/mailpit/healthcheck: Dockerfile, compose.yml, docker/nginx/default.conf
 Planned integrations are recorded in README; packages must be version-checked against Laravel 13 before activation.
+Commerce C1+C2 adds Branch access, Buyer/Seller profiles, Store foundation and shared media ownership. Product/Cart/Order remain deferred and have no menu/table claim.
+Commerce C2.5 adds explicit Google/Facebook identity linking, verified phone/OTP, Account Security and Passport Authorization Code + PKCE for the active API. Web remains Breeze/session; Spatie/IAM and tenant scope remain authoritative. Current local schema matrix is 70 migrations / 243 tables.

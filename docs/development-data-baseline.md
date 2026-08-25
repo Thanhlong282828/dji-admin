@@ -7,7 +7,7 @@
 - `schema_admin_testing`: destructive automated PHPUnit/concurrency tests only.
 - `schema_admin_browser_testing`: disposable browser fixtures; verified empty after cleanup.
 
-The three active local databases contain the same 63 migrations and 230 tables. VPS production is a separate environment-defined database and was not accessed during local consolidation or the final project audit.
+The three active local databases contain the same 70 migrations and 243 tables after Commerce C1/C2.5. VPS production is a separate environment-defined database and was not accessed during local consolidation, final audit or Commerce foundation work.
 
 ## Local bootstrap
 
@@ -38,6 +38,6 @@ Other bounded contexts remain intentionally empty where no safe idempotent devel
 - Browser fixture database: zero users, companies, employees, workflow, IAM, integration and audit rows after cleanup.
 - Production baseline remained users 1, employees 9, roles 14, company access 1, payroll runs 0; IAM/workflow/notification/integration/audit business tables remained 0.
 
-The canonical index repair migration was applied historically without changing business rows. The current local trio contains 63 migrations / 230 tables each; the removed database is not part of the active matrix.
+The canonical index repair migration was applied historically without changing business rows. The current local trio contains 70 migrations / 243 tables each; the removed database is not part of the active matrix.
 
 The 397-test/4,291-assertion result below is retained as Phase 3F-8 historical evidence; current final-audit evidence is recorded in `docs/final-project-audit.md`.

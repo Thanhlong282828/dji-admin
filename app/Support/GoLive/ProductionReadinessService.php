@@ -32,7 +32,7 @@ final class ProductionReadinessService
             $this->check('assets', 'Compiled frontend manifest', 'Release', is_file(public_path('build/manifest.json')), 'Production must use compiled Vite assets.'),
             $this->check('storage', 'Runtime writable paths', 'Storage', is_writable(storage_path()) && is_writable(base_path('bootstrap/cache')), 'Only storage and bootstrap/cache require runtime writes.'),
             $this->check('health', 'Health endpoints registered', 'Health', route('health.live', [], false) === '/health/live' && route('health.ready', [], false) === '/health/ready', 'Liveness and readiness are distinct read-only probes.'),
-            $this->check('migrations', 'Migration inventory present', 'Database', $this->migrationCount() === 63, 'Readiness reviews inventory only; it never executes migrations.'),
+            $this->check('migrations', 'Migration inventory present', 'Database', $this->migrationCount() === 64, 'Readiness reviews inventory only; it never executes migrations.'),
         ];
 
         $dependencies = [
