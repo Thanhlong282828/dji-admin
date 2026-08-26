@@ -17,7 +17,7 @@ final class RolePermissionSeeder extends Seeder
 
         foreach ($modules as $module) {
             foreach ($actions as $action) {
-                Permission::findOrCreate("{$module}.{$action}", 'web');
+                Permission::query()->firstOrCreate(['name' => "{$module}.{$action}", 'guard_name' => 'web']);
             }
         }
 
@@ -72,8 +72,9 @@ final class RolePermissionSeeder extends Seeder
             'branch.view', 'branch.create', 'branch.update', 'branch.archive',
             'commerce.store.view', 'commerce.store.create', 'commerce.store.update',
             'commerce.seller.governance.view', 'commerce.seller.governance.manage',
+            'inventory.view', 'inventory.update',
         ] as $permission) {
-            Permission::findOrCreate($permission, 'web');
+            Permission::query()->firstOrCreate(['name' => $permission, 'guard_name' => 'web']);
         }
 
         app(PermissionRegistrar::class)->forgetCachedPermissions();
@@ -110,7 +111,7 @@ final class RolePermissionSeeder extends Seeder
         Role::findByName('Recruiter')->syncPermissions(Permission::where(fn ($query) => $query->where('name', 'like', 'recruitment-requisition.%')->orWhere('name', 'like', 'candidate.%')->orWhere('name', 'like', 'application.%')->orWhere('name', 'like', 'interview.%')->orWhere('name', 'like', 'candidate-offer.%'))->whereNotIn('name', ['recruitment-requisition.override-headcount', 'candidate-offer.approve', 'candidate-offer.view-salary'])->get());
         Role::findByName('C&B')->syncPermissions(Permission::where(fn ($query) => $query->where('name', 'like', 'payroll-%')->orWhere('name', 'like', 'payroll.%')->orWhere('name', 'like', 'attendance.%')->orWhere('name', 'like', 'leave.%')->orWhere('name', 'like', 'overtime.%'))->get());
         Role::findByName('Content Admin')->syncPermissions(Permission::whereIn('name', collect(['article', 'article-category', 'product', 'product-category', 'media', 'page', 'menu', 'seo'])->crossJoin($actions)->map(fn ($pair) => implode('.', $pair)))->get());
-        Role::findByName('Seller')->syncPermissions(['commerce.store.view', 'commerce.store.create', 'commerce.store.update']);
+        Role::findByName('Seller')->syncPermissions(['commerce.store.view', 'commerce.store.create', 'commerce.store.update', 'product.view', 'product.create', 'product.update', 'product-category.view', 'inventory.view', 'inventory.update']);
         Role::findByName('HR Admin')->givePermissionTo(['branch.view', 'branch.create', 'branch.update', 'branch.archive']);
         Role::findByName('HR Manager')->givePermissionTo('branch.view');
         Role::findByName('Viewer')->syncPermissions(Permission::where('name', 'like', '%.view')->get());

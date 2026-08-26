@@ -31,13 +31,15 @@ final class DataQualityAuditService
             new DataQualityFinding('branch.cross_company_access', 'Commerce/Branch', 'critical', 'Branch access phải thuộc company access của cùng user.', $this->crossCompanyBranchAccess()),
             new DataQualityFinding('seller.orphan_owner', 'Commerce', 'critical', 'Seller profile phải có User owner hợp lệ.', $this->orphanSellers()),
             new DataQualityFinding('store.orphan_seller', 'Commerce', 'critical', 'Store phải có Seller owner hợp lệ.', $this->orphanStores()),
-            new DataQualityFinding('media.orphan_owner', 'Media', 'critical', 'Media phải trỏ đến Article, Store hoặc Employee owner hợp lệ.', $this->orphanMedia()),
+            new DataQualityFinding('media.orphan_owner', 'Media', 'critical', 'Media phải trỏ đến Article, Store, Product, Employee hoặc account owner hợp lệ.', $this->orphanMedia()),
             new DataQualityFinding('identity.orphan_user', 'Identity', 'critical', 'External identity phải thuộc User hợp lệ.', $this->orphanExternalIdentities()),
             new DataQualityFinding('identity.duplicate_provider_id', 'Identity', 'critical', 'Provider identity không được liên kết với nhiều User.', $this->duplicateProviderIdentities()),
             new DataQualityFinding('identity.duplicate_verified_phone', 'Identity', 'critical', 'Số điện thoại đã xác minh không được dùng chung.', $this->duplicateVerifiedPhones()),
             new DataQualityFinding('identity.invalid_verified_phone', 'Identity', 'critical', 'Số điện thoại đã xác minh phải ở định dạng E.164 Việt Nam.', $this->invalidVerifiedPhones()),
             new DataQualityFinding('branch.invalid_leader', 'Commerce/Branch', 'critical', 'Lãnh đạo chi nhánh phải là Employee cùng công ty, có account hoạt động và vị trí hiện tại.', $this->invalidBranchLeaders()),
             new DataQualityFinding('branch.leader_missing_access', 'Commerce/Branch', 'critical', 'Lãnh đạo chi nhánh phải có quyền truy cập chi nhánh đó.', $this->branchLeadersMissingAccess()),
+            new DataQualityFinding('product.invalid_ownership', 'Commerce/Product', 'critical', 'Product phải thuộc Store/Seller hợp lệ và Variant phải thuộc Product hợp lệ.', $this->invalidProductOwnership()),
+            new DataQualityFinding('inventory.invalid_balance', 'Commerce/Inventory', 'critical', 'Inventory phải có on_hand/reserved không âm và reserved không vượt on_hand.', $this->invalidInventoryBalances()),
         ];
         $rows = array_map(static fn (DataQualityFinding $finding): array => $finding->toArray(), $findings);
         $failed = count(array_filter($rows, static fn (array $row): bool => $row['count'] > 0 && $row['severity'] === 'critical'));
@@ -50,7 +52,7 @@ final class DataQualityAuditService
             'orphans' => $rows[1]['count'] + $rows[8]['count'] + $rows[10]['count'],
             'cross_tenant' => $rows[4]['count'], 'manager_issues' => $rows[3]['count'], 'invalid_career_levels' => $rows[7]['count'],
             'attendance_issues' => $rows[8]['count'] + $rows[9]['count'], 'payroll_issues' => $rows[10]['count'] + $rows[11]['count'] + $rows[12]['count'], 'compensation_issues' => $rows[13]['count'] + $rows[14]['count'] + $rows[15]['count'],
-            'commerce_issues' => $rows[16]['count'] + $rows[17]['count'] + $rows[18]['count'] + $rows[19]['count'] + $rows[24]['count'] + $rows[25]['count'],
+            'commerce_issues' => $rows[16]['count'] + $rows[17]['count'] + $rows[18]['count'] + $rows[19]['count'] + $rows[24]['count'] + $rows[25]['count'] + $rows[26]['count'] + $rows[27]['count'],
             'identity_issues' => $rows[20]['count'] + $rows[21]['count'] + $rows[22]['count'] + $rows[23]['count'],
             'score' => max(0, 100 - ($failed * 10) - ($warnings * 3)), 'checksum' => $checksum, 'findings' => $rows,
         ];
@@ -171,7 +173,7 @@ final class DataQualityAuditService
 
     private function orphanMedia(): int
     {
-        $owners = ['article' => 'articles', 'store' => 'stores', 'employee' => 'employees', 'user' => 'users', 'seller' => 'seller_profiles'];
+        $owners = ['article' => 'articles', 'store' => 'stores', 'employee' => 'employees', 'user' => 'users', 'seller' => 'seller_profiles', 'product' => 'products'];
         $count = DB::table('media_assets')->whereNotIn('owner_type', array_keys($owners))->count();
         foreach ($owners as $type => $table) {
             $count += DB::table('media_assets as m')->leftJoin($table.' as o', 'o.id', '=', 'm.owner_id')->where('m.owner_type', $type)->whereNull('o.id')->count();
@@ -216,5 +218,26 @@ final class DataQualityAuditService
         return DB::table('branches as b')->join('employees as e', 'e.id', '=', 'b.leader_employee_id')->leftJoin('branch_user_access as bua', static function (JoinClause $join): void {
             $join->on('bua.branch_id', '=', 'b.id')->on('bua.user_id', '=', 'e.user_id');
         })->whereNotNull('b.leader_employee_id')->whereNull('bua.user_id')->count();
+    }
+
+    private function invalidProductOwnership(): int
+    {
+        $products = DB::table('products as p')
+            ->leftJoin('stores as s', 's.id', '=', 'p.store_id')
+            ->leftJoin('seller_profiles as sp', 'sp.id', '=', 's.seller_profile_id')
+            ->where(static fn (Builder $query): Builder => $query->whereNull('s.id')->orWhereNull('sp.id'))
+            ->count();
+        $variants = DB::table('product_variants as v')->leftJoin('products as p', 'p.id', '=', 'v.product_id')->whereNull('p.id')->count();
+
+        return $products + $variants;
+    }
+
+    private function invalidInventoryBalances(): int
+    {
+        return DB::table('inventory_balances')->where(static fn (Builder $query): Builder => $query
+            ->where('on_hand', '<', 0)
+            ->orWhere('reserved', '<', 0)
+            ->orWhereColumn('reserved', '>', 'on_hand'))
+            ->count();
     }
 }

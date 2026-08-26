@@ -3,9 +3,14 @@
 namespace Modules\Company\Presentation\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Models\User;
+use App\Support\Iam\RoleHierarchyService;
+use Illuminate\Database\Query\JoinClause;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\View\View;
 use Modules\Company\Application\Commands\ChangeCompanyStatus\ChangeCompanyStatusCommand;
@@ -29,7 +34,7 @@ use Symfony\Component\HttpFoundation\Response;
 
 final class CompanyController extends Controller
 {
-    public function __construct(private readonly CommandBusInterface $commands, private readonly QueryBusInterface $queries) {}
+    public function __construct(private readonly CommandBusInterface $commands, private readonly QueryBusInterface $queries, private readonly RoleHierarchyService $hierarchy) {}
 
     public function index(Request $request): View|JsonResponse
     {
@@ -53,6 +58,10 @@ final class CompanyController extends Controller
 
     public function store(StoreCompanyRequest $request): RedirectResponse|JsonResponse
     {
+        if ($request->has('branches')) {
+            $actor = $request->user();
+            abort_unless($actor instanceof User && $this->hierarchy->canMutateBranches($actor), 403);
+        }
         $company = $this->commands->dispatch(new CreateCompanyCommand($request->validated(), $this->actorId($request)));
         abort_unless($company instanceof Company, Response::HTTP_INTERNAL_SERVER_ERROR);
 
@@ -65,7 +74,7 @@ final class CompanyController extends Controller
         /** @var CompanyViewModel $item */
         $item = $this->queries->ask(new GetCompanyDetailQuery($company, true));
 
-        return view('company::companies.show', ['company' => $item]);
+        return view('company::companies.show', ['company' => $item, 'branches' => $this->branches($company)]);
     }
 
     public function edit(int $company): View
@@ -74,11 +83,15 @@ final class CompanyController extends Controller
         /** @var CompanyViewModel $item */
         $item = $this->queries->ask(new GetCompanyEditQuery($company));
 
-        return view('company::companies.edit', ['company' => $item]);
+        return view('company::companies.edit', ['company' => $item, 'branches' => $this->branches($company)]);
     }
 
     public function update(UpdateCompanyRequest $request, int $company): RedirectResponse
     {
+        if ($request->has('branches')) {
+            $actor = $request->user();
+            abort_unless($actor instanceof User && $this->hierarchy->canMutateBranches($actor), 403);
+        }
         $this->commands->dispatch(new UpdateCompanyCommand($company, $request->validated(), $this->actorId($request)));
 
         return to_route('admin.companies.show', $company)->with('success', 'Đã cập nhật công ty.');
@@ -119,5 +132,15 @@ final class CompanyController extends Controller
         abort_unless(is_int($identifier) || (is_string($identifier) && ctype_digit($identifier)), Response::HTTP_UNAUTHORIZED);
 
         return intval($identifier);
+    }
+
+    /** @return Collection<int, \stdClass> */
+    private function branches(int $companyId): Collection
+    {
+        return DB::table('branches as b')->leftJoin('employees as e', 'e.id', '=', 'b.leader_employee_id')->leftJoin('users as u', 'u.id', '=', 'e.user_id')->leftJoin('model_has_roles as mhr', function (JoinClause $join): void {
+            $join->on('mhr.model_id', '=', 'u.id')->where('mhr.model_type', User::class);
+        })->leftJoin('roles as r', 'r.id', '=', 'mhr.role_id')->leftJoin('employee_assignments as ea', function (JoinClause $join): void {
+            $join->on('ea.employee_id', '=', 'e.id')->where('ea.assignment_type', 'primary')->whereNull('ea.effective_to');
+        })->leftJoin('job_positions as p', 'p.id', '=', 'ea.job_position_id')->leftJoin('branch_user_access as bua', 'bua.branch_id', '=', 'b.id')->where('b.company_id', $companyId)->whereNull('b.deleted_at')->select('b.*', 'e.full_name as leader_name', 'r.name as leader_role', 'p.title as leader_position', DB::raw('COUNT(DISTINCT bua.user_id) as users_count'))->groupBy('b.id', 'e.full_name', 'r.name', 'p.title')->orderBy('b.name')->get();
     }
 }

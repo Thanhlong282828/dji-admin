@@ -79,7 +79,8 @@ final class PlanningExecutionTest extends TestCase
         $after = count(DB::getQueryLog());
         DB::disableQueryLog();
         self::assertSame($before, $after);
-        self::assertLessThanOrEqual(40, $after);
+        // C4 Commerce quality ownership checks add fixed work, never per Employee.
+        self::assertLessThanOrEqual(43, $after);
     }
 
     private function company(string $suffix): Company

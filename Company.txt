@@ -2375,3 +2375,5 @@ Không tạo file rỗng.
 Không dùng dữ liệu giả trong View.
 
 Không báo hoàn thành trước khi chạy test.
+
+COMMERCE C4: Company create/edit upserts validated Branch rows in the same transaction and never deletes omitted Branches. Branch detail separates IAM Role authority from workforce Job Position display and lists canonical branch membership.

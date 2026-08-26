@@ -83,6 +83,7 @@ final readonly class MediaService
         [$maxBytes, $maxDimension] = match ($purpose) {
             MediaPurpose::ArticleCover, MediaPurpose::ArticleImage => [15 * 1024 * 1024, 8192],
             MediaPurpose::StoreBanner => [12 * 1024 * 1024, 8192],
+            MediaPurpose::ProductCover, MediaPurpose::ProductImage, MediaPurpose::ProductVariant => [10 * 1024 * 1024, 6000],
             default => [5 * 1024 * 1024, 6000],
         };
         $exceedsPixelCeiling = $dimensions !== false && $dimensions[0] > 0 && $dimensions[1] > intdiv(67_108_864, $dimensions[0]);

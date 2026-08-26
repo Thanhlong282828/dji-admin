@@ -53,6 +53,7 @@ final class CommerceFoundationTest extends TestCase
         [$actor, $company] = $this->actor('branch.view', 'branch.create', 'branch.update');
         $actor->assignRole(Role::findOrCreate('System Admin', 'web'));
         $leaderUser = User::factory()->create(['access_enabled' => true, 'email_verified_at' => now()]);
+        $leaderUser->assignRole(Role::findOrCreate('Manager', 'web'));
         DB::table('company_user_access')->insert(['company_id' => $company->id, 'user_id' => $leaderUser->id, 'created_at' => now(), 'updated_at' => now()]);
         $employee = Employee::query()->create(['company_id' => $company->id, 'user_id' => $leaderUser->id, 'employee_code' => 'LEADER-1', 'full_name' => 'Lãnh đạo Chi nhánh', 'nationality' => 'VN', 'join_date' => today(), 'employment_status' => 'active', 'employment_type' => 'full_time']);
         $unit = OrganizationUnit::query()->create(['company_id' => $company->id, 'code' => 'LEAD-U', 'name' => 'Ban điều hành', 'type' => 'department', 'effective_from' => today()]);
@@ -63,7 +64,8 @@ final class CommerceFoundationTest extends TestCase
         $branchId = $this->databaseId(DB::table('branches')->where('code', 'LEAD')->value('id'));
         $this->assertDatabaseHas('branches', ['id' => $branchId, 'leader_employee_id' => $employee->id]);
         $this->assertDatabaseHas('branch_user_access', ['branch_id' => $branchId, 'user_id' => $leaderUser->id]);
-        $this->actingAs($actor)->get(route('admin.branches.index', ['company_id' => $company->id]))->assertOk()->assertSee('Lãnh đạo Chi nhánh')->assertSee('Branch Manager');
+        $this->actingAs($actor)->get(route('admin.branches.index', ['company_id' => $company->id]))->assertOk()->assertSee('Lãnh đạo Chi nhánh')->assertSee('Manager')->assertSee('Branch Manager');
+        $this->actingAs($actor)->get(route('admin.branches.show', ['branch' => $branchId, 'company_id' => $company->id]))->assertOk()->assertSee('Users được gắn Branch')->assertSee($leaderUser->email);
     }
 
     public function test_seller_cannot_edit_another_seller_store_and_governance_transition_is_bounded(): void

@@ -5,6 +5,7 @@ namespace Modules\Company\Tests\Feature;
 use App\Models\User;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Modules\Company\Domain\Events\CompanyCreated;
 use Modules\Company\Domain\Models\Company;
@@ -53,6 +54,26 @@ final class CompanyManagementTest extends TestCase
         $this->assertSoftDeleted('companies', ['id' => $company->id]);
         $this->actingAs($user)->post("/admin/companies/{$company->id}/restore")->assertRedirect();
         $this->assertDatabaseHas('companies', ['id' => $company->id, 'deleted_at' => null]);
+    }
+
+    public function test_company_create_and_update_branches_are_atomic_and_do_not_blind_delete(): void
+    {
+        $user = User::factory()->create();
+        $user->assignRole('System Admin');
+        $user->givePermissionTo(['company.create', 'company.update', 'company.view']);
+        $payload = $this->payload(['branches' => [['code' => 'HCM', 'name' => 'TP.HCM', 'address_line' => '123 Nguyễn Văn Cừ', 'city' => 'TP.HCM', 'status' => 'active', 'timezone' => 'Asia/Ho_Chi_Minh']]]);
+        $this->actingAs($user)->post('/admin/companies', $payload)->assertRedirect();
+        $company = Company::query()->where('code', 'SCHEMA-HOLDING')->firstOrFail();
+        $branchId = DB::table('branches')->where('company_id', $company->id)->where('code', 'HCM')->value('id');
+        self::assertNotNull($branchId);
+        $this->assertDatabaseHas('branch_user_access', ['branch_id' => $branchId, 'user_id' => $user->id]);
+
+        $this->actingAs($user)->put("/admin/companies/{$company->id}", $this->payload(['branches' => [['id' => $branchId, 'code' => 'HCM', 'name' => 'Hồ Chí Minh HQ', 'status' => 'active', 'timezone' => 'Asia/Ho_Chi_Minh'], ['code' => 'HN', 'name' => 'Hà Nội', 'status' => 'active', 'timezone' => 'Asia/Ho_Chi_Minh']]]))->assertRedirect();
+        $this->assertDatabaseHas('branches', ['id' => $branchId, 'name' => 'Hồ Chí Minh HQ']);
+        $this->assertDatabaseHas('branches', ['company_id' => $company->id, 'code' => 'HN']);
+
+        $this->actingAs($user)->put("/admin/companies/{$company->id}", $this->payload(['branches' => [['id' => $branchId, 'code' => 'HCM', 'name' => 'Hồ Chí Minh HQ', 'status' => 'active', 'timezone' => 'Asia/Ho_Chi_Minh']]]))->assertRedirect();
+        $this->assertDatabaseHas('branches', ['company_id' => $company->id, 'code' => 'HN']);
     }
 
     private function authorized(string $permission): User

@@ -54,6 +54,14 @@ final class EmployeeAccountService
                         $branchIds[] = (int) $id;
                     }
                 }
+                foreach (DB::table('branches')->where('company_id', $companyId)->where('leader_employee_id', $employee->id)->pluck('id') as $leaderBranchId) {
+                    if (is_int($leaderBranchId)) {
+                        $branchIds[] = $leaderBranchId;
+                    } elseif (is_string($leaderBranchId) && ctype_digit($leaderBranchId)) {
+                        $branchIds[] = (int) $leaderBranchId;
+                    }
+                }
+                $branchIds = array_values(array_unique($branchIds));
                 DB::table('branch_user_access')->where('user_id', $user->id)->whereIn('branch_id', DB::table('branches')->select('id')->where('company_id', $companyId))->delete();
                 if ($branchIds !== []) {
                     $now = now();

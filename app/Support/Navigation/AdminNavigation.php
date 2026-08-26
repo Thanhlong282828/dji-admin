@@ -139,6 +139,8 @@ final class AdminNavigation
             $this->group('seller', 'Seller Center', '▣', [
                 $this->item('seller-dashboard', 'Tổng quan Seller', 'admin.seller.dashboard', ['admin.seller.dashboard'], 'commerce.store.view'),
                 $this->item('store-profile', 'Hồ sơ cửa hàng', 'admin.seller.store', ['admin.seller.store*'], 'commerce.store.view'),
+                $this->item('products', 'Sản phẩm & Tồn kho', 'admin.products.index', ['admin.products.*'], 'product.view'),
+                $this->item('product-categories', 'Danh mục sản phẩm', 'admin.product-categories.index', ['admin.product-categories.*'], 'product-category.view'),
                 $this->item('seller-governance', 'Quản trị Seller', 'admin.commerce.sellers.index', ['admin.commerce.sellers.*'], 'commerce.seller.governance.view'),
             ]),
         ];

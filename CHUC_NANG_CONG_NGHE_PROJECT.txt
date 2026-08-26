@@ -937,3 +937,4 @@ COMMERCE C2.5 — IDENTITY / OAUTH2
 - Trang Tài khoản & bảo mật hiển thị verification, provider link, role, company/branch access và OAuth summary an toàn.
 - API dùng Passport Authorization Code + PKCE; scope được kiểm tra trước IAM/policy/tenant. Không hỗ trợ password/implicit grant.
 Commerce C3: quản trị lãnh đạo chi nhánh theo Employee/Position thực; tự cấp branch access idempotent; chống nâng Role vượt cấp; compensation analytics theo Level/Position; Article media 8K có giới hạn; Seller transition có chống tự duyệt.
+Commerce C4: Company create/edit có Branch rows transaction-safe; Branch Show, Employee List và Account Security dùng access/leadership canonical; IAM Role quyết định mutation. Seller Product Catalog có Category phân cấp, Product, generic Variant/SKU, Store inventory on_hand/reserved/available, ownership guard, unified cover/gallery media và public Product list/detail.

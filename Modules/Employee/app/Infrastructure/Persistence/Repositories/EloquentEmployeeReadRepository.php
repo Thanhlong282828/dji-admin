@@ -2,13 +2,16 @@
 
 namespace Modules\Employee\Infrastructure\Persistence\Repositories;
 
+use App\Models\User;
 use BackedEnum;
 use Carbon\CarbonImmutable;
 use Generator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\Relation;
+use Illuminate\Database\Query\JoinClause;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Facades\DB;
 use Modules\Employee\Domain\Models\Employee;
 use Modules\Employee\Domain\Repositories\EmployeeReadRepositoryInterface;
 use Modules\Employee\Domain\Services\EmployeeIdentityService;
@@ -67,8 +70,23 @@ final readonly class EloquentEmployeeReadRepository implements EmployeeReadRepos
         $perPageValue = $filters['per_page'] ?? 15;
         $perPage = is_int($perPageValue) || is_numeric($perPageValue) ? (int) $perPageValue : 15;
 
-        return $query->orderBy($sort, $direction)->paginate(min(100, max(5, $perPage)))
-            ->through(fn (Employee $employee) => $this->map($employee));
+        $paginator = $query->orderBy($sort, $direction)->paginate(min(100, max(5, $perPage)));
+        $userIds = $paginator->getCollection()->pluck('user_id')->filter(static fn (mixed $id): bool => is_int($id))->values()->all();
+        $rawBranchRows = $userIds === [] ? [] : DB::table('branch_user_access as bua')->join('branches as b', 'b.id', '=', 'bua.branch_id')->leftJoin('employees as leader', 'leader.id', '=', 'b.leader_employee_id')->leftJoin('employee_assignments as la', function (JoinClause $join): void {
+            $join->on('la.employee_id', '=', 'leader.id')->where('la.assignment_type', 'primary')->whereNull('la.effective_to');
+        })->leftJoin('job_positions as lp', 'lp.id', '=', 'la.job_position_id')->leftJoin('model_has_roles as mhr', function (JoinClause $join): void {
+            $join->on('mhr.model_id', '=', 'bua.user_id')->where('mhr.model_type', User::class);
+        })->leftJoin('roles as r', 'r.id', '=', 'mhr.role_id')->where('b.company_id', $companyId)->whereNull('b.deleted_at')->whereIn('bua.user_id', $userIds)->select('bua.user_id', 'b.id', 'b.name', 'b.address_line', 'b.city', 'b.leader_employee_id', 'leader.user_id as leader_user_id', 'leader.full_name as leader_name', 'lp.title as leader_position', 'r.name as account_role')->orderBy('b.name')->get()->all();
+        $branchesByUser = [];
+        foreach ($rawBranchRows as $rawRow) {
+            $row = $this->normalizeArray((array) $rawRow);
+            $userId = $row['user_id'] ?? null;
+            if (is_int($userId)) {
+                $branchesByUser[$userId][] = $row;
+            }
+        }
+
+        return $paginator->through(fn (Employee $employee): array => $this->mapWithBranches($employee, $employee->user_id === null ? [] : ($branchesByUser[$employee->user_id] ?? [])));
     }
 
     public function detail(int $companyId, int $id, bool $sensitive = false): array
@@ -88,6 +106,27 @@ final readonly class EloquentEmployeeReadRepository implements EmployeeReadRepos
         $data['avatar_url'] = is_string($employee->avatar_url) && $employee->avatar_url !== '' ? $employee->avatar_url : null;
         unset($data['avatar_storage_key']);
         unset($data['identity_number'],$data['identity_number_hash']);
+
+        return $data;
+    }
+
+    /** @param list<array<string,mixed>> $rows
+     * @return array<string,mixed>
+     */
+    private function mapWithBranches(Employee $employee, array $rows): array
+    {
+        $data = $this->map($employee);
+        $branches = [];
+        $leaderships = [];
+        foreach ($rows as $row) {
+            $branches[] = ['id' => $row['id'] ?? null, 'name' => $row['name'] ?? null, 'address_line' => $row['address_line'] ?? null, 'city' => $row['city'] ?? null];
+            $leaderUserId = $row['leader_user_id'] ?? null;
+            if ((is_int($leaderUserId) || (is_string($leaderUserId) && ctype_digit($leaderUserId))) && (int) $leaderUserId === $employee->user_id) {
+                $leaderships[] = ['id' => $row['id'] ?? null, 'name' => $row['name'] ?? null, 'role' => $row['account_role'] ?? null, 'position' => $row['leader_position'] ?? null];
+            }
+        }
+        $data['branches'] = $branches;
+        $data['branch_leaderships'] = $leaderships;
 
         return $data;
     }

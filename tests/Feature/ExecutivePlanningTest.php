@@ -88,7 +88,8 @@ final class ExecutivePlanningTest extends TestCase
 
         self::assertSame($before, $after);
         // Keep the current fixed read-model ceiling; before/after equality is the N+1 gate.
-        self::assertLessThanOrEqual(38, $after);
+        // C4 Commerce quality ownership checks add a fixed four-query composition cost.
+        self::assertLessThanOrEqual(42, $after);
     }
 
     private function company(string $suffix): Company

@@ -46,7 +46,7 @@ final class LocalDemoOperationalSeeder extends Seeder
     public function run(): void
     {
         $company = Company::query()->where('code', 'SCHEMA-TECH-VN')->firstOrFail();
-        $admin = User::query()->where('email', 'admin@local.test')->firstOrFail();
+        $admin = User::query()->whereIn('email', ['admin@local.test', 'admin@schema.vn'])->orderByRaw("email = 'admin@local.test' DESC")->firstOrFail();
         $this->actors($company->id);
         $this->positionLevels($company->id);
         $employees = Employee::query()->where('company_id', $company->id)->whereIn('employment_status', ['active', 'probation', 'leave'])->orderBy('employee_code')->limit(18)->get();
@@ -58,6 +58,7 @@ final class LocalDemoOperationalSeeder extends Seeder
         $this->iam($company->id, $admin->id);
         $this->workflow($company->id, $admin->id);
         $this->commerceFoundation($admin);
+        $this->commerceCatalog();
         app(AuditRecorderInterface::class)->record(new AuditEventData($company->id, 'user', $admin->id, 'bootstrap', 'LocalDemo', 'LocalDemoBootstrapCompleted', 'local_demo_dataset', 'SCHEMA-LOCAL-DEMO', [], ['status' => 'ready'], ['synthetic_demo' => true, 'external_delivery' => false], 'local-demo-bootstrap-v1', $this->uuid(701)));
     }
 
@@ -93,6 +94,59 @@ final class LocalDemoOperationalSeeder extends Seeder
         $buyer->syncRoles(['Buyer']);
         DB::table('buyer_profiles')->updateOrInsert(['user_id' => $buyer->id], ['display_name' => 'Khách hàng Synthetic', 'status' => 'active', 'created_at' => now(), 'updated_at' => now()]);
         DB::table('articles')->whereNull('company_id')->update(['company_id' => DB::table('companies')->where('code', 'SCHEMA-TECH-VN')->value('id')]);
+    }
+
+    private function commerceCatalog(): void
+    {
+        $categories = [
+            ['ELEC', 'Điện tử', null, 10],
+            ['PHONE', 'Điện thoại', 'ELEC', 20],
+            ['LAPTOP', 'Laptop', 'ELEC', 30],
+            ['ACCESSORY', 'Phụ kiện', 'ELEC', 40],
+            ['HOME', 'Gia dụng', null, 50],
+        ];
+        $categoryIds = [];
+        foreach ($categories as [$code, $name, $parentCode, $order]) {
+            $slug = strtolower($code);
+            DB::table('product_categories')->updateOrInsert(
+                ['slug' => $slug],
+                ['parent_id' => $parentCode === null ? null : ($categoryIds[$parentCode] ?? null), 'name' => $name, 'status' => 'active', 'sort_order' => $order, 'created_at' => now(), 'updated_at' => now()],
+            );
+            $categoryIds[$code] = $this->requiredId(DB::table('product_categories')->where('slug', $slug)->value('id'), 'product category');
+        }
+
+        $storeId = $this->requiredId(DB::table('stores')->where('slug', 'sao-viet-technology-store')->value('id'), 'commerce store');
+        DB::table('inventory_locations')->updateOrInsert(
+            ['store_id' => $storeId, 'code' => 'MAIN'],
+            ['name' => 'Kho chính', 'status' => 'active', 'created_at' => now(), 'updated_at' => now()],
+        );
+        $locationId = $this->requiredId(DB::table('inventory_locations')->where('store_id', $storeId)->where('code', 'MAIN')->value('id'), 'inventory location');
+        $products = [
+            ['SV-PHONE-01', 'Điện thoại Sao Việt Nova 5G', 'PHONE', 8_990_000, '256GB · Đen', 18],
+            ['SV-LAPTOP-01', 'Laptop Sao Việt Pro 14', 'LAPTOP', 24_990_000, '16GB · 512GB', 9],
+            ['SV-AUDIO-01', 'Tai nghe không dây AirBeat', 'ACCESSORY', 1_490_000, 'Màu trắng', 32],
+            ['SV-KEYBOARD-01', 'Bàn phím cơ Mekong 87', 'ACCESSORY', 1_190_000, 'Blue switch', 24],
+            ['SV-MONITOR-01', 'Màn hình Vision 27 QHD', 'ELEC', 6_790_000, '27 inch', 12],
+            ['SV-ROUTER-01', 'Bộ phát Wi-Fi 6 HomeMesh', 'ELEC', 2_290_000, 'Bộ 2 thiết bị', 20],
+            ['SV-CAMERA-01', 'Camera an ninh SmartEye', 'ELEC', 990_000, '2K · Trong nhà', 27],
+            ['SV-HOME-01', 'Máy lọc không khí An Nhiên', 'HOME', 4_590_000, 'Phòng 40m²', 11],
+        ];
+        foreach ($products as [$code, $name, $categoryCode, $price, $variantName, $onHand]) {
+            DB::table('products')->updateOrInsert(
+                ['store_id' => $storeId, 'code' => $code],
+                ['product_category_id' => $categoryIds[$categoryCode], 'name' => $name, 'slug' => strtolower($code), 'description' => 'Sản phẩm synthetic phục vụ local demo; không phải chào bán thương mại thật.', 'brand' => 'Sao Việt', 'base_price_minor' => $price, 'currency' => 'VND', 'status' => 'active', 'created_at' => now(), 'updated_at' => now()],
+            );
+            $productId = $this->requiredId(DB::table('products')->where('store_id', $storeId)->where('code', $code)->value('id'), 'product');
+            DB::table('product_variants')->updateOrInsert(
+                ['sku' => $code.'-DEFAULT'],
+                ['product_id' => $productId, 'name' => $variantName, 'attributes' => json_encode(['label' => $variantName], JSON_THROW_ON_ERROR), 'price_minor' => $price, 'status' => 'active', 'created_at' => now(), 'updated_at' => now()],
+            );
+            $variantId = $this->requiredId(DB::table('product_variants')->where('sku', $code.'-DEFAULT')->value('id'), 'product variant');
+            DB::table('inventory_balances')->updateOrInsert(
+                ['product_variant_id' => $variantId, 'inventory_location_id' => $locationId],
+                ['on_hand' => $onHand, 'reserved' => min(2, $onHand), 'version' => 1, 'created_at' => now(), 'updated_at' => now()],
+            );
+        }
     }
 
     /** @param list<int> $employeeIds */

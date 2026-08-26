@@ -645,3 +645,11 @@ COMMERCE C2.5 — FEDERATED IDENTITY AND API AUTHENTICATION
 - Canonical local schema is 71 migrations / 243 tables across the three active databases after the additive Branch Leader relation; no VPS was accessed.
 COMMERCE C3 GOVERNANCE: Branch Leader dùng quan hệ Employee canonical; Branch mutation giới hạn Super Admin/System Admin; role ceiling tách biệt career level; compensation analytics dùng salary assignment hiệu lực; Article cover/gallery hỗ trợ ảnh 15 MB, 8192px qua Unified Media; Seller state governance giữ state machine thực tế.
 Commerce C3 completes permission-safe multi-branch account assignment on the existing Employee 360 account form. Selection reuses `branch_user_access`, validates Branch company scope, and preserves access belonging to other companies.
+
+COMMERCE C4 — COMPANY/BRANCH CONSOLIDATION + PRODUCT CATALOG/INVENTORY
+- Company create/edit manages Branch rows transactionally without blind-delete; Branch Show reads leader role, workforce position and canonical membership.
+- Branch mutation authority comes from IAM account role; Job Position/career level remains display-only.
+- Employee create/edit synchronizes company-scoped multi-Branch access through canonical `branch_user_access`.
+- Seller Product Catalog supports Category, generic Variant/SKU, integer VND pricing, locked Store inventory and unified media.
+- Public Product pages show active records only and fabricate no rating, review, promotion or Order claim.
+- One additive migration/five tables brings the local matrix to 72 migrations / 248 tables; Data Quality has 28 rules.

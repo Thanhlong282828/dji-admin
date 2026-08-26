@@ -20,6 +20,8 @@ use App\Http\Controllers\Operations\RuntimeConfigurationController;
 use App\Http\Controllers\Operations\SecretsController;
 use App\Http\Controllers\Operations\SecurityAssuranceController;
 use App\Http\Controllers\Operations\TestQualityController;
+use App\Http\Controllers\ProductCatalogController;
+use App\Http\Controllers\ProductCategoryController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PublicContentController;
 use App\Http\Controllers\SellerCenterController;
@@ -74,6 +76,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/admin/branches', [BranchController::class, 'index'])->middleware(['verified', 'permission:branch.view'])->name('admin.branches.index');
     Route::get('/admin/branches/create', [BranchController::class, 'create'])->middleware(['verified', 'permission:branch.create'])->name('admin.branches.create');
     Route::post('/admin/branches', [BranchController::class, 'store'])->middleware(['verified', 'permission:branch.create'])->name('admin.branches.store');
+    Route::get('/admin/branches/{branch}', [BranchController::class, 'show'])->middleware(['verified', 'permission:branch.view'])->whereNumber('branch')->name('admin.branches.show');
     Route::get('/admin/branches/{branch}/edit', [BranchController::class, 'edit'])->middleware(['verified', 'permission:branch.update'])->name('admin.branches.edit');
     Route::put('/admin/branches/{branch}', [BranchController::class, 'update'])->middleware(['verified', 'permission:branch.update'])->name('admin.branches.update');
     Route::get('/admin/seller', [SellerCenterController::class, 'dashboard'])->middleware(['verified', 'permission:commerce.store.view'])->name('admin.seller.dashboard');
@@ -81,6 +84,13 @@ Route::middleware('auth')->group(function () {
     Route::put('/admin/seller/store', [SellerCenterController::class, 'saveStore'])->middleware(['verified', 'permission:commerce.store.update'])->name('admin.seller.store.update');
     Route::get('/admin/commerce/sellers', [SellerGovernanceController::class, 'index'])->middleware(['verified', 'permission:commerce.seller.governance.view'])->name('admin.commerce.sellers.index');
     Route::patch('/admin/commerce/sellers/{seller}/status', [SellerGovernanceController::class, 'transition'])->middleware(['verified', 'permission:commerce.seller.governance.manage'])->name('admin.commerce.sellers.transition');
+    Route::get('/admin/products', [ProductCatalogController::class, 'index'])->middleware(['verified', 'permission:product.view'])->name('admin.products.index');
+    Route::get('/admin/products/create', [ProductCatalogController::class, 'create'])->middleware(['verified', 'permission:product.create'])->name('admin.products.create');
+    Route::post('/admin/products', [ProductCatalogController::class, 'store'])->middleware(['verified', 'permission:product.create'])->name('admin.products.store');
+    Route::get('/admin/products/{product}/edit', [ProductCatalogController::class, 'edit'])->middleware(['verified', 'permission:product.update'])->name('admin.products.edit');
+    Route::put('/admin/products/{product}', [ProductCatalogController::class, 'update'])->middleware(['verified', 'permission:product.update'])->name('admin.products.update');
+    Route::get('/admin/product-categories', [ProductCategoryController::class, 'index'])->middleware(['verified', 'permission:product-category.view'])->name('admin.product-categories.index');
+    Route::post('/admin/product-categories', [ProductCategoryController::class, 'store'])->middleware(['verified', 'permission:product-category.create'])->name('admin.product-categories.store');
     Route::get('/articles', [ArticleController::class, 'index'])->middleware(['verified', 'can:article.view'])->name('articles.index');
     Route::get('/articles/create', [ArticleController::class, 'create'])->middleware(['verified', 'can:article.create'])->name('articles.create');
     Route::post('/articles', [ArticleController::class, 'store'])->middleware(['verified', 'can:article.create'])->name('articles.store');
@@ -90,5 +100,8 @@ Route::middleware('auth')->group(function () {
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 });
+
+Route::get('/products', [PublicContentController::class, 'products'])->name('public.products.index');
+Route::get('/products/{slug}', [PublicContentController::class, 'product'])->name('public.products.show');
 
 require __DIR__.'/auth.php';

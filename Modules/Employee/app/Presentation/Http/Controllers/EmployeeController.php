@@ -94,7 +94,7 @@ final class EmployeeController extends Controller
                     $password = $r->validated('account_password');
                     $role = $r->validated('account_role');
                     abort_unless(is_string($email) && is_string($password) && is_string($role), 422);
-                    $this->accounts->save($c, $employeeId, ['email' => $email, 'password' => $password, 'role' => $role, 'access_enabled' => $r->boolean('account_access_enabled', true), 'verified' => true], $this->actor($r));
+                    $this->accounts->save($c, $employeeId, ['email' => $email, 'password' => $password, 'role' => $role, 'access_enabled' => $r->boolean('account_access_enabled', true), 'verified' => true, 'branch_ids' => $this->integerList($r->validated('branch_ids', []))], $this->actor($r));
                 }
                 if ($stagedAvatar !== null) {
                     $this->avatars->persist($c, $employeeId, $stagedAvatar);
@@ -143,6 +143,7 @@ final class EmployeeController extends Controller
         $current = EmployeeAssignment::query()->where('employee_id', $employee)->where('assignment_type', 'primary')->whereDate('effective_from', '<=', today())->where(fn (Builder $query): Builder => $query->whereNull('effective_to')->orWhereDate('effective_to', '>=', today()))->latest('effective_from')->first();
         $item['organization_unit_id'] = $current?->organization_unit_id;
         $item['job_position_id'] = $current?->job_position_id;
+        $item['branch_ids'] = is_numeric($item['user_id'] ?? null) ? $this->branchIds((int) $item['user_id'], $c) : [];
 
         return view('employee::employees.edit', [...$this->formOptions($c), 'item' => $item, 'companyId' => $c, 'managerOptions' => $this->managerOptions($c, $employee), 'roleOptions' => $this->roleOptions($r)]);
     }
@@ -188,6 +189,7 @@ final class EmployeeController extends Controller
                     if (is_string($password) && $password !== '') {
                         $account['password'] = $password;
                     }
+                    $account['branch_ids'] = $this->integerList($r->validated('branch_ids', []));
                     $this->accounts->save($c, $employee, $account, $this->actor($r));
                 }
                 if ($stagedAvatar !== null) {
@@ -304,6 +306,7 @@ final class EmployeeController extends Controller
         return [
             'organizationOptions' => OrganizationUnit::query()->where('company_id', $companyId)->orderBy('name')->get(['id', 'name']),
             'positionOptions' => JobPosition::query()->where('company_id', $companyId)->whereBetween('career_level', [1, 6])->with('organizationUnit:id,name')->orderBy('title')->get(['id', 'title', 'organization_unit_id', 'career_level']),
+            'branchOptions' => DB::table('branches')->where('company_id', $companyId)->where('status', '!=', 'archived')->whereNull('deleted_at')->orderBy('name')->get(['id', 'name', 'address_line', 'city']),
         ];
     }
 
@@ -330,5 +333,29 @@ final class EmployeeController extends Controller
         }
 
         return $normalized;
+    }
+
+    /** @return list<int> */
+    private function integerList(mixed $value): array
+    {
+        if (! is_array($value)) {
+            return [];
+        }
+        $ids = [];
+        foreach ($value as $id) {
+            if (is_int($id)) {
+                $ids[] = $id;
+            } elseif (is_string($id) && ctype_digit($id)) {
+                $ids[] = (int) $id;
+            }
+        }
+
+        return $ids;
+    }
+
+    /** @return list<int> */
+    private function branchIds(int $userId, int $companyId): array
+    {
+        return $this->integerList(DB::table('branch_user_access as bua')->join('branches as b', 'b.id', '=', 'bua.branch_id')->where('bua.user_id', $userId)->where('b.company_id', $companyId)->pluck('b.id')->all());
     }
 }

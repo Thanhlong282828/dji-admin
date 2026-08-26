@@ -2421,3 +2421,63 @@ EMPLOYEE ACCOUNT BRANCH ACCESS → Employee 360 account form → ManageEmployeeA
 ANALYTICS COMPENSATION → WorkforceAnalyticsController → EnterpriseAnalyticsService → effective employee_salary_component_assignments + salary_components → current primary assignment/Position Level → permission-filtered ViewModel → analytics dashboard.
 ARTICLE MEDIA → StoreArticleRequest purpose limit → ArticleController → MediaService → MediaStorageInterface → media_assets → local preview/delivery variant.
 SELLER GOVERNANCE → SellerGovernanceController → bounded seller_profiles transition → self-governance guard → Audit.
+
+==================================================
+COMPANY / BRANCH / EMPLOYEE ACCESS — COMMERCE C4
+==================================================
+
+POST/PUT Company
+→ CompanyController + Store/UpdateCompanyRequest
+→ Create/UpdateCompanyCommand → Handler
+→ CompanyService + CompanyBranchService in one transaction
+→ companies + validated Branch upsert + creator branch_user_access
+→ omitted Branch remains unchanged.
+
+GET /admin/branches/{branch}
+→ BranchController::show
+→ TenantAccessService + BranchAccessService
+→ branches.leader_employee_id + branch_user_access
+→ User/Role + Employee/current assignment/Position/Unit
+→ resources/views/admin/branches/show.blade.php.
+
+Branch create/update/leader
+→ BranchRequest → BranchController
+→ BranchAuthorityService (account Role authority)
+→ RoleHierarchyService + same-company active Employee/current Position
+→ transaction + leader access sync + Audit.
+
+Employee create/update Branch access
+→ StoreEmployeeRequest same-company branch_ids
+→ EmployeeController → EmployeeAccountService transaction
+→ company-scoped branch_user_access sync
+→ preserve other-company and current-leader access
+→ batched Employee List / Branch Detail / Account Security reads.
+
+==================================================
+PRODUCT CATALOG / INVENTORY — COMMERCE C4
+==================================================
+
+GET /admin/products
+→ ProductCatalogController::index
+→ permission + Seller-owned Store scope
+→ grouped products/categories/variants/inventory
+→ resources/views/admin/products/index.blade.php.
+
+POST/PUT /admin/products[/{product}]
+→ ProductRequest
+→ ProductCatalogController::store/update
+→ Product + Variant/SKU + Store inventory transaction
+→ InventoryService locked balance update
+→ MediaService attach/after-commit cleanup or failure compensation
+→ Audit → Product list.
+
+GET/POST /admin/product-categories
+→ ProductCategoryController::index/store
+→ validated parent + unique slug
+→ product_categories hierarchy → Blade.
+
+GET /products and /products/{slug}
+→ PublicContentController::products/product
+→ active Seller + Store + Product scope
+→ grouped availability + ordered media_assets
+→ resources/views/public/products/index/show.blade.php.

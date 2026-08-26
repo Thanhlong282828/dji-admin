@@ -95,7 +95,8 @@ final class EnterpriseReportingTest extends TestCase
         DB::disableQueryLog();
         self::assertSame($before, $after);
         // Keep the current fixed read-model ceiling; before/after equality is the N+1 gate.
-        self::assertLessThanOrEqual(106, $after);
+        // C4 adds two composed Commerce quality rules; the count stays fixed as volume grows.
+        self::assertLessThanOrEqual(110, $after);
     }
 
     private function company(string $suffix): Company
