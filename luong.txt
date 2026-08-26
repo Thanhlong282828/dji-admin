@@ -2481,3 +2481,33 @@ GET /products and /products/{slug}
 → active Seller + Store + Product scope
 → grouped availability + ordered media_assets
 → resources/views/public/products/index/show.blade.php.
+
+==================================================
+MARKETPLACE / CART / WISHLIST — COMMERCE C5
+==================================================
+
+GET /products, GET /products/{slug}, GET /stores/{slug}
+→ routes/web.php
+→ PublicContentController::products/product/store
+→ grouped Product/Variant/Inventory/Media queries
+→ resources/views/public/products|stores
+
+POST /cart/items, PATCH /cart/items/{item}/quantity, DELETE /cart/items/{item}
+→ CartController
+→ CartService
+→ authenticated Buyer scope + DB transaction/row lock
+→ carts/cart_items + current Product/Variant/Inventory validation
+→ public Cart ViewModel grouped by Store
+
+POST|DELETE /wishlist/{product}, POST /wishlist/{product}/cart
+→ WishlistController
+→ WishlistService / CartService
+→ wishlists/wishlist_items unique ownership
+→ public Wishlist / Cart
+
+PATCH /admin/seller/inventory/{variant}
+→ SellerInventoryController::adjust
+→ Seller-owned Variant query + inventory.update permission
+→ InventoryService::adjust
+→ DB transaction + inventory row lock + invariant validation
+→ inventory_balances + append-only Activity Log

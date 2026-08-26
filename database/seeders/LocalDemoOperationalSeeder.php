@@ -59,6 +59,7 @@ final class LocalDemoOperationalSeeder extends Seeder
         $this->workflow($company->id, $admin->id);
         $this->commerceFoundation($admin);
         $this->commerceCatalog();
+        $this->commerceBuyerExperience();
         app(AuditRecorderInterface::class)->record(new AuditEventData($company->id, 'user', $admin->id, 'bootstrap', 'LocalDemo', 'LocalDemoBootstrapCompleted', 'local_demo_dataset', 'SCHEMA-LOCAL-DEMO', [], ['status' => 'ready'], ['synthetic_demo' => true, 'external_delivery' => false], 'local-demo-bootstrap-v1', $this->uuid(701)));
     }
 
@@ -104,6 +105,9 @@ final class LocalDemoOperationalSeeder extends Seeder
             ['LAPTOP', 'Laptop', 'ELEC', 30],
             ['ACCESSORY', 'Phụ kiện', 'ELEC', 40],
             ['HOME', 'Gia dụng', null, 50],
+            ['FASHION', 'Thời trang', null, 60],
+            ['HEALTH', 'Sức khỏe', null, 70],
+            ['OFFICE', 'Văn phòng', null, 80],
         ];
         $categoryIds = [];
         foreach ($categories as [$code, $name, $parentCode, $order]) {
@@ -146,6 +150,64 @@ final class LocalDemoOperationalSeeder extends Seeder
                 ['product_variant_id' => $variantId, 'inventory_location_id' => $locationId],
                 ['on_hand' => $onHand, 'reserved' => min(2, $onHand), 'version' => 1, 'created_at' => now(), 'updated_at' => now()],
             );
+        }
+
+        $additionalStores = [
+            ['seller.home@local.test', 'Nhà Việt Seller', 'nha-viet-living-store', 'Nhà Việt Living Store'],
+            ['seller.office@local.test', 'Mekong Office Seller', 'mekong-office-store', 'Mekong Office Store'],
+        ];
+        $storeIds = [$storeId];
+        foreach ($additionalStores as [$email, $sellerName, $storeSlug, $storeName]) {
+            $seller = User::query()->updateOrCreate(['email' => $email], ['name' => $sellerName, 'password' => Hash::make('LocalSeller123!'), 'email_verified_at' => now(), 'access_enabled' => true]);
+            $seller->syncRoles(['Seller']);
+            DB::table('seller_profiles')->updateOrInsert(['user_id' => $seller->id], ['display_name' => $sellerName, 'status' => 'active', 'verified_at' => now(), 'created_at' => now(), 'updated_at' => now()]);
+            $profileId = $this->requiredId(DB::table('seller_profiles')->where('user_id', $seller->id)->value('id'), 'seller profile');
+            DB::table('stores')->updateOrInsert(['slug' => $storeSlug], ['seller_profile_id' => $profileId, 'name' => $storeName, 'description' => 'Cửa hàng synthetic phục vụ local marketplace demo.', 'status' => 'active', 'created_at' => now(), 'updated_at' => now()]);
+            $storeIds[] = $this->requiredId(DB::table('stores')->where('slug', $storeSlug)->value('id'), 'commerce store');
+        }
+
+        $demoNames = [
+            ['Nồi chiên Không Dầu An Nhiên', 'HOME', 2_690_000], ['Máy pha cà phê Ban Mê', 'HOME', 3_490_000],
+            ['Máy hút bụi Sông Hồng', 'HOME', 4_190_000], ['Đèn bàn thông minh Lotus', 'OFFICE', 890_000],
+            ['Ghế công thái học Mekong', 'OFFICE', 5_990_000], ['Bàn làm việc Tre Việt', 'OFFICE', 3_290_000],
+            ['Máy in laser Văn Lang', 'OFFICE', 4_790_000], ['Webcam Hội Nghị Aurora', 'ELEC', 1_790_000],
+            ['Chuột không dây Swift', 'ACCESSORY', 690_000], ['Ổ cứng di động Delta 1TB', 'ACCESSORY', 2_190_000],
+            ['Sạc nhanh GaN 65W', 'ACCESSORY', 790_000], ['Đồng hồ sức khỏe Bình Minh', 'HEALTH', 2_990_000],
+            ['Máy massage cổ An Tâm', 'HEALTH', 1_390_000], ['Cân điện tử SmartCare', 'HEALTH', 790_000],
+            ['Áo khoác chống nắng Việt', 'FASHION', 590_000], ['Balo laptop Urban 15', 'FASHION', 890_000],
+            ['Tai nghe Studio Mekong', 'ACCESSORY', 2_590_000], ['Tablet Hạ Long 11', 'ELEC', 9_490_000],
+            ['Máy chiếu Mini Cinema', 'ELEC', 5_490_000], ['Bộ lưu điện HomeSafe', 'ELEC', 2_890_000],
+            ['Quạt tuần hoàn Gió Việt', 'HOME', 1_690_000], ['Máy lọc nước Lam Sơn', 'HOME', 6_990_000],
+        ];
+        foreach ($demoNames as $index => [$name, $categoryCode, $price]) {
+            $targetStore = $storeIds[$index % count($storeIds)];
+            $code = 'DEMO-'.str_pad((string) ($index + 1), 3, '0', STR_PAD_LEFT);
+            DB::table('products')->updateOrInsert(['store_id' => $targetStore, 'code' => $code], ['product_category_id' => $categoryIds[$categoryCode], 'name' => $name, 'slug' => strtolower($code), 'description' => 'Sản phẩm synthetic marketplace demo; không phải chào bán thương mại thật.', 'brand' => 'Thương hiệu Việt Demo', 'base_price_minor' => $price, 'currency' => 'VND', 'status' => 'active', 'created_at' => now(), 'updated_at' => now()]);
+            $productId = $this->requiredId(DB::table('products')->where('store_id', $targetStore)->where('code', $code)->value('id'), 'product');
+            DB::table('inventory_locations')->updateOrInsert(['store_id' => $targetStore, 'code' => 'MAIN'], ['name' => 'Kho chính', 'status' => 'active', 'created_at' => now(), 'updated_at' => now()]);
+            $targetLocation = $this->requiredId(DB::table('inventory_locations')->where('store_id', $targetStore)->where('code', 'MAIN')->value('id'), 'inventory location');
+            foreach ([['STANDARD', 'Tiêu chuẩn', $price], ['PREMIUM', 'Cao cấp', $price + intdiv($price, 5)]] as [$suffix, $variantName, $variantPrice]) {
+                $sku = $code.'-'.$suffix;
+                DB::table('product_variants')->updateOrInsert(['sku' => $sku], ['product_id' => $productId, 'name' => $variantName, 'attributes' => json_encode(['edition' => $variantName], JSON_THROW_ON_ERROR), 'price_minor' => $variantPrice, 'status' => 'active', 'created_at' => now(), 'updated_at' => now()]);
+                $variantId = $this->requiredId(DB::table('product_variants')->where('sku', $sku)->value('id'), 'product variant');
+                DB::table('inventory_balances')->updateOrInsert(['product_variant_id' => $variantId, 'inventory_location_id' => $targetLocation], ['on_hand' => 8 + ($index % 20), 'reserved' => $index % 3, 'version' => 1, 'created_at' => now(), 'updated_at' => now()]);
+            }
+        }
+    }
+
+    private function commerceBuyerExperience(): void
+    {
+        $buyerId = $this->requiredId(DB::table('users')->where('email', 'buyer@local.test')->value('id'), 'buyer');
+        DB::table('carts')->updateOrInsert(['user_id' => $buyerId, 'status' => 'active'], ['created_at' => now(), 'updated_at' => now()]);
+        $cartId = $this->requiredId(DB::table('carts')->where('user_id', $buyerId)->where('status', 'active')->value('id'), 'cart');
+        $variants = DB::table('product_variants as v')->join('products as p', 'p.id', '=', 'v.product_id')->where('v.status', 'active')->where('p.status', 'active')->orderBy('p.store_id')->orderBy('v.id')->limit(9)->get(['v.id', 'v.product_id', 'v.price_minor']);
+        foreach ($variants as $index => $variant) {
+            DB::table('cart_items')->updateOrInsert(['cart_id' => $cartId, 'product_variant_id' => $variant->id], ['product_id' => $variant->product_id, 'quantity' => ($index % 3) + 1, 'unit_price_minor' => $variant->price_minor, 'selected' => $index < 6, 'created_at' => now(), 'updated_at' => now()]);
+        }
+        DB::table('wishlists')->updateOrInsert(['user_id' => $buyerId], ['created_at' => now(), 'updated_at' => now()]);
+        $wishlistId = $this->requiredId(DB::table('wishlists')->where('user_id', $buyerId)->value('id'), 'wishlist');
+        foreach (DB::table('products')->where('status', 'active')->orderByDesc('id')->limit(10)->pluck('id') as $productId) {
+            DB::table('wishlist_items')->updateOrInsert(['wishlist_id' => $wishlistId, 'product_id' => $productId], ['created_at' => now(), 'updated_at' => now()]);
         }
     }
 

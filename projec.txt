@@ -10,6 +10,8 @@ HRM enterprise schema: database/migrations/2026_07_23_000200_create_hrm_core_sch
 Tests: tests/Feature/ArticleApiTest.php. CI: .github/workflows/ci.yml
 Docker/nginx/php-fpm/redis/mailpit/healthcheck: Dockerfile, compose.yml, docker/nginx/default.conf
 Planned integrations are recorded in README; packages must be version-checked against Laravel 13 before activation.
-Commerce C1+C2 adds Branch access, Buyer/Seller profiles, Store foundation and shared media ownership. Product/Cart/Order remain deferred and have no menu/table claim.
+Commerce C1+C2 adds Branch access, Buyer/Seller profiles, Store foundation and shared media ownership. Product was delivered in C4; Cart/Wishlist and marketplace UX are delivered in C5; Order/Checkout remain deferred.
 Commerce C2.5 adds explicit Google/Facebook identity linking, verified phone/OTP, Account Security and Passport Authorization Code + PKCE for the active API. Commerce C3 adds canonical Branch leadership, role ceilings, complete compensation aggregates and purpose-specific high-resolution Article media. Web remains Breeze/session; Spatie/IAM and tenant scope remain authoritative. Current local schema matrix is 71 migrations / 243 tables.
 Commerce C4 consolidates Company/Branch/User/Employee access and adds Seller-owned Product/Variant/SKU/Store-inventory catalog. Current local schema matrix is 72 migrations / 248 tables; disabled Product scaffolds remain disabled.
+
+Commerce C5 adds private Buyer Cart/Wishlist, multi-Store cart grouping, current-price/current-stock validation, public catalog search/filter/store pages, and Seller inventory adjustment. Current schema target is 73 migrations / 252 tables; Order/Payment is not created.

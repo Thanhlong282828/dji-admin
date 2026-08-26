@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\ArticleController;
 use App\Http\Controllers\BranchController;
+use App\Http\Controllers\CartController;
 use App\Http\Controllers\CompensationReferenceController;
 use App\Http\Controllers\Operations\ApiContractsController;
 use App\Http\Controllers\Operations\ApiDocumentationController;
@@ -26,6 +27,8 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PublicContentController;
 use App\Http\Controllers\SellerCenterController;
 use App\Http\Controllers\SellerGovernanceController;
+use App\Http\Controllers\SellerInventoryController;
+use App\Http\Controllers\WishlistController;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
@@ -50,6 +53,7 @@ Route::get('/', [PublicContentController::class, 'home'])->name('public.home');
 Route::get('/stories', [PublicContentController::class, 'articles'])->name('public.articles.index');
 Route::get('/stories/{slug}', [PublicContentController::class, 'article'])->name('public.articles.show');
 Route::get('/stores', [PublicContentController::class, 'stores'])->name('public.stores.index');
+Route::get('/stores/{slug}', [PublicContentController::class, 'store'])->name('public.stores.show');
 
 Route::get('/dashboard', DashboardController::class)->middleware(['auth', 'verified', 'can:dashboard.view'])->name('dashboard');
 Route::get('/admin', fn () => to_route('dashboard'))->middleware(['auth', 'verified', 'can:dashboard.view'])->name('admin.index');
@@ -89,6 +93,8 @@ Route::middleware('auth')->group(function () {
     Route::post('/admin/products', [ProductCatalogController::class, 'store'])->middleware(['verified', 'permission:product.create'])->name('admin.products.store');
     Route::get('/admin/products/{product}/edit', [ProductCatalogController::class, 'edit'])->middleware(['verified', 'permission:product.update'])->name('admin.products.edit');
     Route::put('/admin/products/{product}', [ProductCatalogController::class, 'update'])->middleware(['verified', 'permission:product.update'])->name('admin.products.update');
+    Route::get('/admin/seller/inventory', [SellerInventoryController::class, 'index'])->middleware(['verified', 'permission:inventory.view'])->name('admin.seller.inventory');
+    Route::patch('/admin/seller/inventory/{variant}', [SellerInventoryController::class, 'adjust'])->middleware(['verified', 'permission:inventory.update'])->name('admin.seller.inventory.adjust');
     Route::get('/admin/product-categories', [ProductCategoryController::class, 'index'])->middleware(['verified', 'permission:product-category.view'])->name('admin.product-categories.index');
     Route::post('/admin/product-categories', [ProductCategoryController::class, 'store'])->middleware(['verified', 'permission:product-category.create'])->name('admin.product-categories.store');
     Route::get('/articles', [ArticleController::class, 'index'])->middleware(['verified', 'can:article.view'])->name('articles.index');
@@ -99,6 +105,17 @@ Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+    Route::middleware('verified')->group(function (): void {
+        Route::get('/cart', [CartController::class, 'index'])->name('cart.index');
+        Route::post('/cart/items', [CartController::class, 'add'])->name('cart.items.add');
+        Route::patch('/cart/items/{item}/quantity', [CartController::class, 'quantity'])->whereNumber('item')->name('cart.items.quantity');
+        Route::patch('/cart/selection/{scope}/{subject?}', [CartController::class, 'selection'])->whereIn('scope', ['item', 'store', 'all'])->whereNumber('subject')->name('cart.selection');
+        Route::delete('/cart/items/{item}', [CartController::class, 'remove'])->whereNumber('item')->name('cart.items.remove');
+        Route::get('/wishlist', [WishlistController::class, 'index'])->name('wishlist.index');
+        Route::post('/wishlist/{product}', [WishlistController::class, 'like'])->whereNumber('product')->name('wishlist.like');
+        Route::delete('/wishlist/{product}', [WishlistController::class, 'unlike'])->whereNumber('product')->name('wishlist.unlike');
+        Route::post('/wishlist/{product}/cart', [WishlistController::class, 'addToCart'])->whereNumber('product')->name('wishlist.cart');
+    });
 });
 
 Route::get('/products', [PublicContentController::class, 'products'])->name('public.products.index');

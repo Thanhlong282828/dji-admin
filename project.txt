@@ -651,5 +651,11 @@ COMMERCE C4 — COMPANY/BRANCH CONSOLIDATION + PRODUCT CATALOG/INVENTORY
 - Branch mutation authority comes from IAM account role; Job Position/career level remains display-only.
 - Employee create/edit synchronizes company-scoped multi-Branch access through canonical `branch_user_access`.
 - Seller Product Catalog supports Category, generic Variant/SKU, integer VND pricing, locked Store inventory and unified media.
+
+COMMERCE C5 — MARKETPLACE, CART AND WISHLIST
+- Public marketplace now has database-backed search/filter/sort, Store profiles, responsive Product cards/detail/gallery, current Variant price and live available stock.
+- Buyer-owned Cart merges each Variant/SKU idempotently, groups items by Store, validates current status/price/stock and does not reserve inventory before checkout.
+- Private Wishlist is user-scoped and can move a single-variant Product into Cart; Checkout/Order/Payment remains explicitly outside C5.
+- Seller Inventory is a separate permission/ownership-scoped page with atomic locked increase/decrease/set operations and Audit reason.
 - Public Product pages show active records only and fabricate no rating, review, promotion or Order claim.
-- One additive migration/five tables brings the local matrix to 72 migrations / 248 tables; Data Quality has 28 rules.
+- One additive migration/four tables brings the target local matrix to 73 migrations / 252 tables; Data Quality has 30 read-only rules.

@@ -8,6 +8,30 @@ use RuntimeException;
 
 final class InventoryService
 {
+    public function adjust(int $variantId, int $locationId, string $operation, int $quantity): int
+    {
+        if (! in_array($operation, ['increase', 'decrease', 'set'], true) || $quantity < 0) {
+            throw ValidationException::withMessages(['inventory' => 'Yêu cầu điều chỉnh tồn kho không hợp lệ.']);
+        }
+
+        return DB::transaction(function () use ($variantId, $locationId, $operation, $quantity): int {
+            $balance = DB::table('inventory_balances')
+                ->where('product_variant_id', $variantId)
+                ->where('inventory_location_id', $locationId)
+                ->lockForUpdate()
+                ->firstOrFail(['id', 'on_hand', 'reserved', 'version']);
+            $current = $this->integer($balance->on_hand);
+            $next = match ($operation) {
+                'increase' => $current + $quantity,
+                'decrease' => $current - $quantity,
+                'set' => $quantity,
+            };
+            $this->set($variantId, $locationId, $next, $this->integer($balance->reserved));
+
+            return $next;
+        }, 3);
+    }
+
     public function set(int $variantId, int $locationId, int $onHand, int $reserved): void
     {
         if ($onHand < 0 || $reserved < 0 || $reserved > $onHand) {

@@ -633,3 +633,13 @@ Vì sao User có thể thuộc nhiều Branch? Branch là access scope many-to-m
 Vì sao Inventory không lưu available? `available = on_hand - reserved` là giá trị dẫn xuất. Transaction khóa balance, chặn reserved vượt on_hand và tăng version để tránh drift.
 
 Vì sao Product chưa nối Branch? Store thuộc Seller Profile nhưng chưa có invariant Store→Company/Branch. C4 dùng Store inventory location, không suy diễn ownership giả.
+
+COMMERCE C5 — CART / WISHLIST / INVENTORY
+
+Vì sao Cart lưu price snapshot nhưng tính theo giá hiện tại? Snapshot giúp phát hiện giá đã đổi; trước checkout hệ thống luôn hiển thị và tính lại từ Variant hiện tại để không dùng giá cũ sai lệch.
+
+Vì sao thêm Cart chưa reserve tồn? C5 chưa có Checkout/Order lifecycle. Reserve sớm sẽ khóa hàng cho ý định mua chưa cam kết và tạo tồn ảo; reservation thuộc transaction checkout ở phase sau.
+
+Vì sao Wishlist và Cart thuộc User/Buyer, không thuộc Seller? Đây là dữ liệu riêng của người mua. Mọi query mutation đều scope qua authenticated user; Seller không có API duyệt danh sách riêng này.
+
+Vì sao điều chỉnh tồn kho cần transaction và row lock? Hai yêu cầu đồng thời có thể đọc cùng on_hand. Khóa hàng rồi tính/set trong một transaction ngăn lost update và bảo đảm reserved không vượt on_hand.

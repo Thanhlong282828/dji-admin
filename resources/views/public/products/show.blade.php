@@ -1,29 +1,9 @@
-@extends('layouts.public')
-@section('title',$product->name)
-@section('content')
-<section class="public-hero">
-    <span>{{ $product->category_name ?: 'Sản phẩm' }}</span>
-    <h1>{{ $product->name }}</h1>
-    <p>{{ $product->store_name }} · {{ $product->seller_name }}</p>
-</section>
-<section class="public-detail-grid">
-    <div class="media-grid">
-        @forelse($media as $asset)
-            <img src="{{ $asset->delivery_url }}" alt="{{ $product->name }}">
-        @empty
-            <div class="panel">Sản phẩm chưa có hình ảnh.</div>
-        @endforelse
-    </div>
-    <article>
-        <p>{{ $product->description ?: 'Chưa có mô tả.' }}</p>
-        <h2>{{ number_format($product->base_price_minor, 0, ',', '.') }} ₫</h2>
-        <h3>Phiên bản</h3>
-        @foreach($variants as $variant)
-            <div class="panel">
-                <strong>{{ $variant->name }}</strong>
-                <p>{{ number_format($variant->price_minor, 0, ',', '.') }} ₫ · {{ $variant->available > 0 ? 'Còn '.$variant->available : 'Hết hàng' }}</p>
-            </div>
-        @endforeach
-    </article>
-</section>
+@extends('layouts.public') @section('title',$product->name) @section('description',\Illuminate\Support\Str::limit(strip_tags($product->description?:$product->name),155)) @section('content')
+<nav class="market-breadcrumb" aria-label="Breadcrumb"><a href="{{ route('public.products.index') }}">Sản phẩm</a><span>›</span><span>{{ $product->category_name ?: 'Chưa phân loại' }}</span><span>›</span><strong>{{ $product->name }}</strong></nav>
+<section class="product-detail-market"><div class="product-gallery-market" data-market-gallery><div class="gallery-main">@if($media->first()?->delivery_url)<img src="{{ $media->first()->delivery_url }}" alt="{{ $product->name }}" data-gallery-main>@else<span>▧</span>@endif</div><div class="gallery-thumbs">@foreach($media as $asset)<button type="button" data-gallery-thumb data-gallery-src="{{ $asset->delivery_url }}" aria-pressed="{{ $loop->first ? 'true' : 'false' }}" aria-label="Xem ảnh {{ $loop->iteration }}"><img src="{{ $asset->delivery_url }}" alt="Ảnh {{ $loop->iteration }} của {{ $product->name }}"></button>@endforeach</div></div><article class="product-buy-panel" data-product-purchase><small>{{ $product->brand ?: $product->category_name }}</small><h1>{{ $product->name }}</h1><a class="store-link" href="{{ route('public.stores.show',$product->store_slug) }}">Cửa hàng: {{ $product->store_name }}</a><div class="detail-price" data-variant-price>@if($variants->min('price_minor')!==$variants->max('price_minor')){{ number_format($variants->min('price_minor'),0,',','.') }} ₫ – {{ number_format($variants->max('price_minor'),0,',','.') }} ₫@else{{ number_format($variants->min('price_minor')??$product->base_price_minor,0,',','.') }} ₫@endif</div>
+<form class="product-cart-form" method="POST" action="{{ route('cart.items.add') }}" data-cart-form>@csrf<label>Phân loại<select name="variant_id" required data-variant-selector><option value="" data-available="0" data-active="false">Chọn Variant / SKU</option>@foreach($variants as $variant)<option value="{{ $variant->id }}" data-price-label="{{ number_format($variant->price_minor,0,',','.') }} ₫" data-available="{{ $variant->available }}" data-active="{{ $variant->status === 'active' ? 'true' : 'false' }}" @disabled((int)$variant->available<1)>{{ $variant->name }} · {{ $variant->sku }} · {{ number_format($variant->price_minor,0,',','.') }} ₫ · {{ (int)$variant->available>0?'Còn '.$variant->available:'Hết hàng' }}</option>@endforeach</select></label><div class="quantity-control" data-commerce-quantity><button type="button" data-quantity-delta="-1" aria-label="Giảm số lượng">−</button><input name="quantity" type="number" min="1" value="1" max="99" aria-label="Số lượng"><button type="button" data-quantity-delta="1" aria-label="Tăng số lượng">+</button><span data-variant-stock>Chọn phân loại để xem tồn kho</span></div><div class="product-actions">@auth<button class="market-secondary" type="submit">Thêm vào giỏ</button><button class="market-primary" type="submit" name="buy_now" value="1">Mua ngay</button>@else<a class="market-secondary" href="{{ route('login') }}">Đăng nhập để thêm giỏ</a>@endauth</div></form>
+@auth<form method="POST" action="{{ $liked?route('wishlist.unlike',$product->id):route('wishlist.like',$product->id) }}">@csrf @if($liked)@method('DELETE')@endif<button class="wishlist-detail" aria-pressed="{{ $liked?'true':'false' }}">{{ $liked?'♥ Đã yêu thích':'♡ Yêu thích' }}</button></form>@else<a class="wishlist-detail" href="{{ route('login') }}">♡ Đăng nhập để yêu thích</a>@endauth
+<div class="checkout-boundary"><strong>Cart không giữ hàng</strong><p>Tồn kho hiển thị là current-state. Checkout C6 sẽ kiểm tra và reserve có thẩm quyền.</p></div></article></section>
+<section class="market-section product-info"><div><small>MÔ TẢ</small><h2>Thông tin sản phẩm</h2><p>{{ $product->description ?: 'Chưa có mô tả.' }}</p></div><aside><small>THÔNG SỐ PHÂN LOẠI</small>@foreach($variants as $variant)<p><strong>{{ $variant->name }}</strong><span>{{ data_get(json_decode($variant->attributes,true),'label','—') }}</span></p>@endforeach</aside></section>
+@if($related->isNotEmpty())<section class="market-section"><div class="market-section-head"><div><small>LIÊN QUAN</small><h2>Cùng danh mục</h2></div></div><div class="market-product-grid">@foreach($related as $product)@include('public.products._card',['media'=>$relatedMedia,'liked'=>[]])@endforeach</div></section>@endif
 @endsection

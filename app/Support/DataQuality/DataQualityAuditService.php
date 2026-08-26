@@ -40,6 +40,8 @@ final class DataQualityAuditService
             new DataQualityFinding('branch.leader_missing_access', 'Commerce/Branch', 'critical', 'Lãnh đạo chi nhánh phải có quyền truy cập chi nhánh đó.', $this->branchLeadersMissingAccess()),
             new DataQualityFinding('product.invalid_ownership', 'Commerce/Product', 'critical', 'Product phải thuộc Store/Seller hợp lệ và Variant phải thuộc Product hợp lệ.', $this->invalidProductOwnership()),
             new DataQualityFinding('inventory.invalid_balance', 'Commerce/Inventory', 'critical', 'Inventory phải có on_hand/reserved không âm và reserved không vượt on_hand.', $this->invalidInventoryBalances()),
+            new DataQualityFinding('cart.invalid_item', 'Commerce/Cart', 'critical', 'Cart item phải thuộc đúng Product/Variant và có quantity, price snapshot hợp lệ.', $this->invalidCartItems()),
+            new DataQualityFinding('wishlist.invalid_item', 'Commerce/Wishlist', 'critical', 'Wishlist item phải trỏ đến Product hợp lệ.', $this->invalidWishlistItems()),
         ];
         $rows = array_map(static fn (DataQualityFinding $finding): array => $finding->toArray(), $findings);
         $failed = count(array_filter($rows, static fn (array $row): bool => $row['count'] > 0 && $row['severity'] === 'critical'));
@@ -52,7 +54,7 @@ final class DataQualityAuditService
             'orphans' => $rows[1]['count'] + $rows[8]['count'] + $rows[10]['count'],
             'cross_tenant' => $rows[4]['count'], 'manager_issues' => $rows[3]['count'], 'invalid_career_levels' => $rows[7]['count'],
             'attendance_issues' => $rows[8]['count'] + $rows[9]['count'], 'payroll_issues' => $rows[10]['count'] + $rows[11]['count'] + $rows[12]['count'], 'compensation_issues' => $rows[13]['count'] + $rows[14]['count'] + $rows[15]['count'],
-            'commerce_issues' => $rows[16]['count'] + $rows[17]['count'] + $rows[18]['count'] + $rows[19]['count'] + $rows[24]['count'] + $rows[25]['count'] + $rows[26]['count'] + $rows[27]['count'],
+            'commerce_issues' => $rows[16]['count'] + $rows[17]['count'] + $rows[18]['count'] + $rows[19]['count'] + $rows[24]['count'] + $rows[25]['count'] + $rows[26]['count'] + $rows[27]['count'] + $rows[28]['count'] + $rows[29]['count'],
             'identity_issues' => $rows[20]['count'] + $rows[21]['count'] + $rows[22]['count'] + $rows[23]['count'],
             'score' => max(0, 100 - ($failed * 10) - ($warnings * 3)), 'checksum' => $checksum, 'findings' => $rows,
         ];
@@ -239,5 +241,24 @@ final class DataQualityAuditService
             ->orWhere('reserved', '<', 0)
             ->orWhereColumn('reserved', '>', 'on_hand'))
             ->count();
+    }
+
+    private function invalidCartItems(): int
+    {
+        return DB::table('cart_items as ci')
+            ->leftJoin('products as p', 'p.id', '=', 'ci.product_id')
+            ->leftJoin('product_variants as v', 'v.id', '=', 'ci.product_variant_id')
+            ->where(static fn (Builder $query): Builder => $query
+                ->whereNull('p.id')
+                ->orWhereNull('v.id')
+                ->orWhereColumn('v.product_id', '<>', 'ci.product_id')
+                ->orWhere('ci.quantity', '<', 1)
+                ->orWhere('ci.unit_price_minor', '<', 0))
+            ->count();
+    }
+
+    private function invalidWishlistItems(): int
+    {
+        return DB::table('wishlist_items as wi')->leftJoin('products as p', 'p.id', '=', 'wi.product_id')->whereNull('p.id')->count();
     }
 }

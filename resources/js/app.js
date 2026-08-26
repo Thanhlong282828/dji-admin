@@ -85,3 +85,53 @@ document.querySelectorAll('[data-media-input]').forEach((input) => {
     });
     window.addEventListener('pagehide', () => objectUrls.forEach((url) => URL.revokeObjectURL(url)), { once: true });
 });
+
+document.querySelectorAll('[data-gallery-thumb]').forEach((button) => {
+    if (!(button instanceof HTMLButtonElement)) return;
+    button.addEventListener('click', () => {
+        const main = document.querySelector('[data-gallery-main]');
+        if (!(main instanceof HTMLImageElement) || !button.dataset.gallerySrc) return;
+        main.src = button.dataset.gallerySrc;
+        document.querySelectorAll('[data-gallery-thumb]').forEach((item) => item.setAttribute('aria-pressed', String(item === button)));
+    });
+});
+
+document.querySelectorAll('[data-commerce-quantity], [data-cart-quantity]').forEach((control) => {
+    const input = control.querySelector('input[type="number"]');
+    if (!(input instanceof HTMLInputElement)) return;
+    control.querySelectorAll('[data-quantity-delta]').forEach((button) => button.addEventListener('click', () => {
+        const delta = Number(button.getAttribute('data-quantity-delta'));
+        const minimum = Number(input.min || 1);
+        const maximum = Number(input.max || 99);
+        input.value = String(Math.min(maximum, Math.max(minimum, Number(input.value || minimum) + delta)));
+    }));
+    control.querySelector('[data-qty-minus]')?.addEventListener('click', () => {
+        input.value = String(Math.max(Number(input.min || 1), Number(input.value || 1) - 1));
+    });
+    control.querySelector('[data-qty-plus]')?.addEventListener('click', () => {
+        input.value = String(Math.min(Number(input.max || 99), Number(input.value || 1) + 1));
+    });
+});
+
+document.querySelectorAll('[data-product-purchase]').forEach((panel) => {
+    const selector = panel.querySelector('[data-variant-selector]');
+    const price = panel.querySelector('[data-variant-price]');
+    const stock = panel.querySelector('[data-variant-stock]');
+    const quantity = panel.querySelector('input[name="quantity"]');
+    const submit = panel.querySelector('button[type="submit"]');
+    if (!(selector instanceof HTMLSelectElement)) return;
+    const synchronize = () => {
+        const option = selector.selectedOptions[0];
+        if (!option) return;
+        const available = Number(option.dataset.available || 0);
+        if (price) price.textContent = option.dataset.priceLabel || '';
+        if (stock) stock.textContent = available > 0 ? `Còn ${available} sản phẩm` : 'Hết hàng';
+        if (quantity instanceof HTMLInputElement) {
+            quantity.max = String(Math.max(1, available));
+            quantity.value = String(Math.min(Math.max(1, Number(quantity.value || 1)), Math.max(1, available)));
+        }
+        if (submit instanceof HTMLButtonElement) submit.disabled = available < 1 || option.dataset.active !== 'true';
+    };
+    selector.addEventListener('change', synchronize);
+    synchronize();
+});
