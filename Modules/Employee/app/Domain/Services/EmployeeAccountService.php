@@ -3,6 +3,7 @@
 namespace Modules\Employee\Domain\Services;
 
 use App\Models\User;
+use App\Support\Iam\RoleHierarchyService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
@@ -11,10 +12,12 @@ use Spatie\Permission\Models\Role;
 
 final class EmployeeAccountService
 {
-    /** @param array{email:string,password?:string,role:string,access_enabled:bool,verified:bool} $data */
-    public function save(int $companyId, int $employeeId, array $data): User
+    public function __construct(private readonly RoleHierarchyService $hierarchy) {}
+
+    /** @param array{email:string,password?:string,role:string,access_enabled:bool,verified:bool,branch_ids?:list<int>} $data */
+    public function save(int $companyId, int $employeeId, array $data, ?int $actorId = null): User
     {
-        return DB::transaction(function () use ($companyId, $employeeId, $data): User {
+        return DB::transaction(function () use ($companyId, $employeeId, $data, $actorId): User {
             $employee = Employee::query()->where('company_id', $companyId)->lockForUpdate()->findOrFail($employeeId);
             $user = $employee->user_id === null ? new User : User::query()->lockForUpdate()->findOrFail($employee->user_id);
             $existing = User::query()->where('email', $data['email'])->when($user->exists, fn ($query) => $query->whereKeyNot($user->id))->exists();
@@ -36,8 +39,27 @@ final class EmployeeAccountService
                 DB::table('oauth_access_tokens')->where('user_id', $user->id)->where('revoked', false)->update(['revoked' => true]);
             }
             $role = Role::findByName($data['role'], 'web');
+            if ($actorId !== null) {
+                $actor = User::query()->with('roles')->findOrFail($actorId);
+                $this->hierarchy->assertCanAssign($actor, $role->name, $user->exists ? $user : null);
+            }
             $user->syncRoles([$role]);
             DB::table('company_user_access')->updateOrInsert(['company_id' => $companyId, 'user_id' => $user->id], ['created_at' => now(), 'updated_at' => now()]);
+            if (array_key_exists('branch_ids', $data)) {
+                $branchIds = [];
+                foreach (DB::table('branches')->where('company_id', $companyId)->whereIn('id', $data['branch_ids'])->pluck('id') as $id) {
+                    if (is_int($id)) {
+                        $branchIds[] = $id;
+                    } elseif (is_string($id) && ctype_digit($id)) {
+                        $branchIds[] = (int) $id;
+                    }
+                }
+                DB::table('branch_user_access')->where('user_id', $user->id)->whereIn('branch_id', DB::table('branches')->select('id')->where('company_id', $companyId))->delete();
+                if ($branchIds !== []) {
+                    $now = now();
+                    DB::table('branch_user_access')->insert(array_map(static fn (int $branchId): array => ['branch_id' => $branchId, 'user_id' => $user->id, 'created_at' => $now, 'updated_at' => $now], $branchIds));
+                }
+            }
             if ($employee->user_id === null) {
                 $employee->update(['user_id' => $user->id]);
             }

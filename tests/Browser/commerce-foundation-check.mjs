@@ -34,8 +34,7 @@ async function run(viewport) {
     await page.locator('[name=title]').fill(`Commerce media ${suffix}`);
     await page.locator('[name=excerpt]').fill('Bài viết kiểm thử browser cho unified media.');
     await page.locator('[name=body]').fill('Nội dung kiểm thử giao dịch media doanh nghiệp. '.repeat(5));
-    await page.locator('[name=status]').selectOption('published');
-    await page.locator('[name=published_at]').fill('2026-08-24T10:00');
+    await page.locator('[name=status]').selectOption('draft');
     await page.locator('[name=cover_image]').setInputFiles(image);
     await page.locator('[name="gallery_images[]"]').setInputFiles([image, { ...image, name: 'gallery.png' }]);
     const previewSrc = await page.locator('#cover-preview').getAttribute('src');

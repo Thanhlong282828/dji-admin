@@ -22,6 +22,7 @@ final class SellerGovernanceController extends Controller
     {
         $request->validate(['status' => ['required', Rule::in(['verified', 'active', 'suspended', 'banned'])]]);
         $target = $request->string('status')->toString();
+        abort_if(DB::table('seller_profiles')->where('id', $seller)->where('user_id', $request->user()?->id)->exists(), 403, 'Seller không thể tự duyệt hoặc thay đổi trạng thái governance của mình.');
         $from = DB::transaction(function () use ($seller, $target, $request): string {
             $profile = DB::table('seller_profiles')->where('id', $seller)->lockForUpdate()->firstOrFail();
             $current = $profile->status;

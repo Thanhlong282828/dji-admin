@@ -88,7 +88,7 @@ final class ExecutivePlanningTest extends TestCase
 
         self::assertSame($before, $after);
         // Keep the current fixed read-model ceiling; before/after equality is the N+1 gate.
-        self::assertLessThanOrEqual(36, $after);
+        self::assertLessThanOrEqual(38, $after);
     }
 
     private function company(string $suffix): Company

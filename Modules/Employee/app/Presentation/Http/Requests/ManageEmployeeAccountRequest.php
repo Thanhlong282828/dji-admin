@@ -2,6 +2,7 @@
 
 namespace Modules\Employee\Presentation\Http\Requests;
 
+use Illuminate\Database\Query\Builder;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -21,6 +22,12 @@ final class ManageEmployeeAccountRequest extends FormRequest
             'account_password' => ['nullable', 'string', 'min:12', 'confirmed'],
             'role' => ['required', 'string', Rule::exists('roles', 'name')->where('guard_name', 'web')],
             'access_enabled' => ['required', 'boolean'], 'verified' => ['required', 'boolean'],
+            'branch_ids' => ['sometimes', 'array'],
+            'branch_ids.*' => [
+                'integer',
+                'distinct',
+                Rule::exists('branches', 'id')->where(fn (Builder $query): Builder => $query->where('company_id', $this->integer('company_id'))),
+            ],
         ];
     }
 }

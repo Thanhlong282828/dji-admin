@@ -2414,3 +2414,10 @@ POST/PUT /articles[/{article}]
 → Article + media_assets transaction
 → after-commit replacement/removal cleanup
 → public /stories/{slug} published Article + ordered gallery.
+COMMERCE / BRANCH GOVERNANCE
+GET/POST/PUT Branch → routes/web.php → BranchController → BranchRequest → BranchAccessService + RoleHierarchyService → branches.leader_employee_id → Employee/current primary assignment → branch_user_access → Audit event → Branch Blade.
+ACCOUNT SECURITY → AccountSecurityController → company_user_access + branch_user_access → Branch leader Employee/current Position → account/show.blade.php.
+EMPLOYEE ACCOUNT BRANCH ACCESS → Employee 360 account form → ManageEmployeeAccountRequest (same-company Branch validation) → EmployeeAccountController → EmployeeAccountService transaction → company-scoped branch_user_access sync; access thuộc company khác được giữ nguyên.
+ANALYTICS COMPENSATION → WorkforceAnalyticsController → EnterpriseAnalyticsService → effective employee_salary_component_assignments + salary_components → current primary assignment/Position Level → permission-filtered ViewModel → analytics dashboard.
+ARTICLE MEDIA → StoreArticleRequest purpose limit → ArticleController → MediaService → MediaStorageInterface → media_assets → local preview/delivery variant.
+SELLER GOVERNANCE → SellerGovernanceController → bounded seller_profiles transition → self-governance guard → Audit.

@@ -12,8 +12,14 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Modules\Company\Domain\Models\Company;
+use Modules\Employee\Domain\Models\Employee;
+use Modules\Employee\Domain\Models\EmployeeAssignment;
+use Modules\Organization\Domain\Models\JobPosition;
+use Modules\Organization\Domain\Models\OrganizationUnit;
 use Spatie\Permission\Models\Permission;
+use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 final class CommerceFoundationTest extends TestCase
@@ -23,6 +29,7 @@ final class CommerceFoundationTest extends TestCase
     public function test_branch_crud_is_company_scoped_and_navigation_permission_matches_route(): void
     {
         [$actor, $company] = $this->actor('branch.view', 'branch.create', 'branch.update');
+        $actor->assignRole(Role::findOrCreate('System Admin', 'web'));
         $foreign = $this->company('FOREIGN');
 
         $this->actingAs($actor)->post(route('admin.branches.store'), ['company_id' => $company->id, 'code' => 'HCM', 'name' => 'TP.HCM', 'status' => 'active', 'timezone' => 'Asia/Ho_Chi_Minh'])->assertRedirect();
@@ -30,6 +37,33 @@ final class CommerceFoundationTest extends TestCase
         $this->actingAs($actor)->get(route('admin.branches.index', ['company_id' => $company->id]))->assertOk()->assertSee('TP.HCM');
         $this->actingAs($actor)->put(route('admin.branches.update', $branch), ['company_id' => $company->id, 'code' => 'HCM', 'name' => 'Chi nhánh Hồ Chí Minh', 'status' => 'active', 'timezone' => 'Asia/Ho_Chi_Minh'])->assertRedirect();
         $this->actingAs($actor)->get(route('admin.branches.index', ['company_id' => $foreign->id]))->assertNotFound();
+    }
+
+    public function test_branch_mutation_requires_platform_admin_even_with_crafted_permission(): void
+    {
+        [$actor, $company] = $this->actor('branch.view', 'branch.create', 'branch.update');
+        $actor->assignRole(Role::findOrCreate('HR Manager', 'web'));
+
+        $this->actingAs($actor)->post(route('admin.branches.store'), ['company_id' => $company->id, 'code' => 'HN', 'name' => 'Hà Nội', 'status' => 'active', 'timezone' => 'Asia/Ho_Chi_Minh'])->assertForbidden();
+        $this->assertDatabaseMissing('branches', ['company_id' => $company->id, 'code' => 'HN']);
+    }
+
+    public function test_branch_leader_is_canonical_employee_and_receives_access(): void
+    {
+        [$actor, $company] = $this->actor('branch.view', 'branch.create', 'branch.update');
+        $actor->assignRole(Role::findOrCreate('System Admin', 'web'));
+        $leaderUser = User::factory()->create(['access_enabled' => true, 'email_verified_at' => now()]);
+        DB::table('company_user_access')->insert(['company_id' => $company->id, 'user_id' => $leaderUser->id, 'created_at' => now(), 'updated_at' => now()]);
+        $employee = Employee::query()->create(['company_id' => $company->id, 'user_id' => $leaderUser->id, 'employee_code' => 'LEADER-1', 'full_name' => 'Lãnh đạo Chi nhánh', 'nationality' => 'VN', 'join_date' => today(), 'employment_status' => 'active', 'employment_type' => 'full_time']);
+        $unit = OrganizationUnit::query()->create(['company_id' => $company->id, 'code' => 'LEAD-U', 'name' => 'Ban điều hành', 'type' => 'department', 'effective_from' => today()]);
+        $position = JobPosition::query()->create(['company_id' => $company->id, 'organization_unit_id' => $unit->id, 'code' => 'LEAD-P', 'title' => 'Branch Manager', 'career_level' => 6, 'approved_headcount' => 1, 'budgeted_cost' => 0]);
+        EmployeeAssignment::query()->create(['employee_id' => $employee->id, 'organization_unit_id' => $unit->id, 'job_position_id' => $position->id, 'assignment_type' => 'primary', 'allocation_percent' => 100, 'effective_from' => today()]);
+
+        $this->actingAs($actor)->post(route('admin.branches.store'), ['company_id' => $company->id, 'leader_employee_id' => $employee->id, 'code' => 'LEAD', 'name' => 'Chi nhánh Lãnh đạo', 'status' => 'active', 'timezone' => 'Asia/Ho_Chi_Minh'])->assertRedirect();
+        $branchId = $this->databaseId(DB::table('branches')->where('code', 'LEAD')->value('id'));
+        $this->assertDatabaseHas('branches', ['id' => $branchId, 'leader_employee_id' => $employee->id]);
+        $this->assertDatabaseHas('branch_user_access', ['branch_id' => $branchId, 'user_id' => $leaderUser->id]);
+        $this->actingAs($actor)->get(route('admin.branches.index', ['company_id' => $company->id]))->assertOk()->assertSee('Lãnh đạo Chi nhánh')->assertSee('Branch Manager');
     }
 
     public function test_seller_cannot_edit_another_seller_store_and_governance_transition_is_bounded(): void
@@ -108,6 +142,24 @@ final class CommerceFoundationTest extends TestCase
         self::assertSame([], $storage->deleted);
         $service->removeAsset($this->databaseId(DB::table('media_assets')->where('owner_id', 2)->value('id')));
         self::assertSame(['shared'], $storage->deleted);
+    }
+
+    public function test_article_media_accepts_bounded_8k_but_rejects_larger_dimension(): void
+    {
+        $storage = new class implements MediaStorageInterface
+        {
+            public function upload(UploadedFile $file, MediaPurpose $purpose): StoredMedia
+            {
+                return new StoredMedia('fake', '8k', null, (string) $file->getMimeType(), (int) $file->getSize(), hash('sha256', '8k'));
+            }
+
+            public function delete(string $assetId): void {}
+        };
+        $service = new MediaService($storage, app('db'));
+        self::assertSame('8k', $service->stage(UploadedFile::fake()->image('article-8k.jpg', 8192, 1), MediaPurpose::ArticleCover)->assetId);
+
+        $this->expectException(ValidationException::class);
+        $service->stage(UploadedFile::fake()->image('article-too-wide.jpg', 8193, 1), MediaPurpose::ArticleImage);
     }
 
     /** @return array{User,Company} */

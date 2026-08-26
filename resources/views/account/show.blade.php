@@ -66,7 +66,7 @@
             <p class="mt-2 text-sm">Vai trò: {{ $user->roles->pluck('name')->join(', ') ?: 'Chưa có' }}</p>
             <p class="mt-2 text-sm">Hồ sơ nghiệp vụ: Employee {{ $employee ? 'Có' : 'Không' }} · Buyer {{ $buyer ? 'Có' : 'Không' }} · Seller {{ $seller ? 'Có' : 'Không' }}</p>
             <p class="mt-2 text-sm">Công ty: {{ $companies->pluck('name')->join(', ') ?: 'Chưa có' }}</p>
-            <p class="mt-2 text-sm">Chi nhánh: {{ $branches->pluck('name')->join(', ') ?: 'Chưa có' }}</p>
+            <div class="mt-2 text-sm"><strong>Chi nhánh</strong>@forelse($branches as $branch)<p>{{ $branch->name }} — {{ collect([$branch->address_line,$branch->city])->filter()->join(', ') ?: 'Chưa có địa chỉ' }}<br><small>Lãnh đạo: {{ $branch->leader_name ? $branch->leader_name.' — '.$branch->leader_position : 'Chưa gán' }} @if((int)$branch->leader_user_id===(int)$user->id) · <strong>Bạn là lãnh đạo chi nhánh này</strong>@endif</small></p>@empty<p>Chưa có</p>@endforelse</div>
             <p class="mt-2 text-sm">OAuth clients: {{ $oauth['clients'] }} · Access tokens còn hiệu lực: {{ $oauth['tokens'] }}</p>
             <p class="mt-2 text-xs text-gray-500">OAuth scope chỉ giới hạn phạm vi token; quyền IAM và phạm vi công ty vẫn được kiểm tra riêng.</p>
         </section>

@@ -642,4 +642,6 @@ COMMERCE C2.5 — FEDERATED IDENTITY AND API AUTHENTICATION
 - Breeze/session remains canonical browser authentication; the account security page unifies verified email/phone, explicitly linked Google/Facebook identities, IAM/company/branch scope and safe OAuth summaries.
 - Passport Authorization Code + PKCE replaces Sanctum on the active 24-operation API contract. Short-lived access tokens, refresh expiry, endpoint scopes, `access_enabled`, Spatie policies and tenant scope are layered controls.
 - Social identities never auto-merge by provider email and never persist provider access/refresh tokens. Phone OTP is E.164-normalized, hashed, throttled, expiring and single-use.
-- Canonical local schema is 70 migrations / 243 tables across the three active databases; no VPS was accessed.
+- Canonical local schema is 71 migrations / 243 tables across the three active databases after the additive Branch Leader relation; no VPS was accessed.
+COMMERCE C3 GOVERNANCE: Branch Leader dùng quan hệ Employee canonical; Branch mutation giới hạn Super Admin/System Admin; role ceiling tách biệt career level; compensation analytics dùng salary assignment hiệu lực; Article cover/gallery hỗ trợ ảnh 15 MB, 8192px qua Unified Media; Seller state governance giữ state machine thực tế.
+Commerce C3 completes permission-safe multi-branch account assignment on the existing Employee 360 account form. Selection reuses `branch_user_access`, validates Branch company scope, and preserves access belonging to other companies.

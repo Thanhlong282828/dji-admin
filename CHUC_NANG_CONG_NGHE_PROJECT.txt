@@ -936,3 +936,4 @@ COMMERCE C2.5 — IDENTITY / OAUTH2
 - Xác minh/đăng nhập điện thoại dùng E.164, OTP hash, expiry, attempt limit, throttle và single-use.
 - Trang Tài khoản & bảo mật hiển thị verification, provider link, role, company/branch access và OAuth summary an toàn.
 - API dùng Passport Authorization Code + PKCE; scope được kiểm tra trước IAM/policy/tenant. Không hỗ trợ password/implicit grant.
+Commerce C3: quản trị lãnh đạo chi nhánh theo Employee/Position thực; tự cấp branch access idempotent; chống nâng Role vượt cấp; compensation analytics theo Level/Position; Article media 8K có giới hạn; Seller transition có chống tự duyệt.

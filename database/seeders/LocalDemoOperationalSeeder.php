@@ -72,6 +72,15 @@ final class LocalDemoOperationalSeeder extends Seeder
             foreach (DB::table('branches')->where('company_id', $company->id)->pluck('id') as $branchId) {
                 DB::table('branch_user_access')->updateOrInsert(['branch_id' => $branchId, 'user_id' => $admin->id], ['created_at' => now(), 'updated_at' => now()]);
             }
+            $leader = DB::table('employees as e')->join('users as u', 'u.id', '=', 'e.user_id')->join('employee_assignments as a', function ($join): void {
+                $join->on('a.employee_id', '=', 'e.id')->where('a.assignment_type', 'primary')->whereNull('a.effective_to');
+            })->where('e.company_id', $company->id)->whereIn('e.employment_status', ['active', 'probation'])->where('u.access_enabled', true)->orderByDesc('e.id')->first(['e.id', 'e.user_id']);
+            if ($leader !== null) {
+                foreach (DB::table('branches')->where('company_id', $company->id)->pluck('id') as $branchId) {
+                    DB::table('branches')->where('id', $branchId)->whereNull('leader_employee_id')->update(['leader_employee_id' => $leader->id, 'updated_at' => now()]);
+                    DB::table('branch_user_access')->updateOrInsert(['branch_id' => $branchId, 'user_id' => $leader->user_id], ['created_at' => now(), 'updated_at' => now()]);
+                }
+            }
         }
 
         $seller = User::query()->updateOrCreate(['email' => 'seller@local.test'], ['name' => 'Seller Synthetic Việt Nam', 'password' => Hash::make('LocalSeller123!'), 'email_verified_at' => now(), 'access_enabled' => true]);
@@ -90,14 +99,14 @@ final class LocalDemoOperationalSeeder extends Seeder
     private function payroll(int $companyId, array $employeeIds, int $actorId): void
     {
         $componentDefinitions = [
-            'BASE-SALARY-DEMO' => ['name' => 'Lương cơ bản synthetic', 'display_order' => 10],
-            'KPI-TARGET-DEMO' => ['name' => 'KPI mục tiêu synthetic', 'display_order' => 20],
-            'FIXED-ALLOWANCE-DEMO' => ['name' => 'Phụ cấp cố định synthetic', 'display_order' => 30],
+            'BASE-SALARY-DEMO' => ['name' => 'Lương cơ bản synthetic', 'display_order' => 10, 'system_key' => 'base_salary', 'category' => 'earning'],
+            'KPI-TARGET-DEMO' => ['name' => 'KPI mục tiêu synthetic', 'display_order' => 20, 'system_key' => 'kpi_target', 'category' => 'earning'],
+            'FIXED-ALLOWANCE-DEMO' => ['name' => 'Phụ cấp cố định synthetic', 'display_order' => 30, 'system_key' => 'fixed_allowance', 'category' => 'allowance'],
         ];
         foreach ($componentDefinitions as $code => $definition) {
             DB::table('salary_components')->updateOrInsert(
                 ['company_id' => $companyId, 'code' => $code],
-                ['name' => $definition['name'], 'description' => 'LOCAL SYNTHETIC DEMO ONLY — không phải dữ liệu luật định hoặc Net Pay.', 'category' => 'earning', 'calculation_type' => 'fixed', 'value_type' => 'money', 'default_value_minor' => 0, 'currency_code' => 'VND', 'taxable_status' => 'not_configured', 'insurance_status' => 'not_configured', 'affects_gross' => true, 'affects_net' => true, 'display_order' => $definition['display_order'], 'effective_from' => '2026-01-01', 'status' => 'active', 'is_system' => false, 'version' => 1, 'created_by' => $actorId, 'updated_by' => $actorId, 'created_at' => now(), 'updated_at' => now()],
+                ['name' => $definition['name'], 'description' => 'LOCAL SYNTHETIC DEMO ONLY — không phải dữ liệu luật định hoặc Net Pay.', 'category' => $definition['category'], 'calculation_type' => 'fixed', 'value_type' => 'money', 'default_value_minor' => 0, 'currency_code' => 'VND', 'taxable_status' => 'not_configured', 'insurance_status' => 'not_configured', 'affects_gross' => true, 'affects_net' => true, 'display_order' => $definition['display_order'], 'effective_from' => '2026-01-01', 'status' => 'active', 'is_system' => false, 'system_key' => $definition['system_key'], 'version' => 1, 'created_by' => $actorId, 'updated_by' => $actorId, 'created_at' => now(), 'updated_at' => now()],
             );
         }
         $components = DB::table('salary_components')->where('company_id', $companyId)->whereIn('code', array_keys($componentDefinitions))->pluck('id', 'code');

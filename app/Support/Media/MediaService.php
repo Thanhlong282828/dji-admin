@@ -17,7 +17,7 @@ final readonly class MediaService
 
     public function stage(UploadedFile $file, MediaPurpose $purpose): StoredMedia
     {
-        $this->validate($file);
+        $this->validate($file, $purpose);
 
         return $this->storage->upload($file, $purpose);
     }
@@ -73,23 +73,22 @@ final readonly class MediaService
         }
     }
 
-    private function validate(UploadedFile $file): void
+    private function validate(UploadedFile $file, MediaPurpose $purpose): void
     {
         $mime = $file->getMimeType();
         $dimensions = getimagesize($file->getRealPath());
         if (! is_string($mime) || ! in_array($mime, self::MIMES, true)) {
             throw ValidationException::withMessages(['media' => 'Media chỉ hỗ trợ JPEG, PNG hoặc WebP.']);
         }
-        if ($dimensions === false || $dimensions[0] > 6000 || $dimensions[1] > 6000 || $file->getSize() > $this->maxBytes()) {
+        [$maxBytes, $maxDimension] = match ($purpose) {
+            MediaPurpose::ArticleCover, MediaPurpose::ArticleImage => [15 * 1024 * 1024, 8192],
+            MediaPurpose::StoreBanner => [12 * 1024 * 1024, 8192],
+            default => [5 * 1024 * 1024, 6000],
+        };
+        $exceedsPixelCeiling = $dimensions !== false && $dimensions[0] > 0 && $dimensions[1] > intdiv(67_108_864, $dimensions[0]);
+        if ($dimensions === false || $dimensions[0] > $maxDimension || $dimensions[1] > $maxDimension || $exceedsPixelCeiling || $file->getSize() > $maxBytes) {
             throw ValidationException::withMessages(['media' => 'Kích thước media không hợp lệ hoặc vượt giới hạn.']);
         }
-    }
-
-    private function maxBytes(): int
-    {
-        $configured = config('media.max_bytes', 8 * 1024 * 1024);
-
-        return is_int($configured) && $configured > 0 ? $configured : 8 * 1024 * 1024;
     }
 
     private function deleteSafely(string $reference, string $operation): void

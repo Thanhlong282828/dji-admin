@@ -28,14 +28,16 @@ final class BranchRequest extends FormRequest
             'timezone' => ['required', 'timezone'],
             'phone' => ['nullable', 'string', 'max:30'],
             'email' => ['nullable', 'email', 'max:255'],
+            'leader_employee_id' => ['nullable', 'integer', 'exists:employees,id'],
         ];
     }
 
-    /** @return array{company_id:int,code:string,name:string,status:string,address_line:?string,city:?string,timezone:string,phone:?string,email:?string} */
+    /** @return array{company_id:int,leader_employee_id:?int,code:string,name:string,status:string,address_line:?string,city:?string,timezone:string,phone:?string,email:?string} */
     public function branchData(): array
     {
         return [
             'company_id' => $this->integer('company_id'),
+            'leader_employee_id' => $this->filled('leader_employee_id') ? $this->integer('leader_employee_id') : null,
             'code' => $this->string('code')->toString(),
             'name' => $this->string('name')->toString(),
             'status' => $this->string('status')->toString(),

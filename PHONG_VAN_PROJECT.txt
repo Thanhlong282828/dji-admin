@@ -624,3 +624,4 @@ Vì sao API dùng Passport nhưng web vẫn dùng session? Session/Breeze phù h
 Vì sao PKCE và không dùng password/implicit grant? PKCE ràng buộc authorization code với client khởi tạo, giảm nguy cơ đánh cắp code. Password grant chia sẻ mật khẩu cho client và implicit đưa token qua browser URL nên không được chọn.
 
 Vì sao OTP phải hash và single-use? OTP là credential ngắn hạn; hash-at-rest, expiry, attempt counter, throttling và consumed timestamp giảm replay/brute-force và thiệt hại khi DB lộ.
+Commerce C3: Platform Role và career_level là hai trục khác nhau nên không suy diễn quyền IAM từ chức vụ. Branch Leader trỏ Employee để đọc account và current position canonical; khi đổi leader chỉ cấp access cho leader mới, không xóa access hợp lệ của người cũ. Compensation average dùng assignment effective-dated và integer minor units. Article ảnh 8K có policy riêng vì cover/gallery khác avatar/logo. Store Role là phạm vi Store, không phải Platform IAM Role.

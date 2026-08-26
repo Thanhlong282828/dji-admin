@@ -36,6 +36,8 @@ final class DataQualityAuditService
             new DataQualityFinding('identity.duplicate_provider_id', 'Identity', 'critical', 'Provider identity không được liên kết với nhiều User.', $this->duplicateProviderIdentities()),
             new DataQualityFinding('identity.duplicate_verified_phone', 'Identity', 'critical', 'Số điện thoại đã xác minh không được dùng chung.', $this->duplicateVerifiedPhones()),
             new DataQualityFinding('identity.invalid_verified_phone', 'Identity', 'critical', 'Số điện thoại đã xác minh phải ở định dạng E.164 Việt Nam.', $this->invalidVerifiedPhones()),
+            new DataQualityFinding('branch.invalid_leader', 'Commerce/Branch', 'critical', 'Lãnh đạo chi nhánh phải là Employee cùng công ty, có account hoạt động và vị trí hiện tại.', $this->invalidBranchLeaders()),
+            new DataQualityFinding('branch.leader_missing_access', 'Commerce/Branch', 'critical', 'Lãnh đạo chi nhánh phải có quyền truy cập chi nhánh đó.', $this->branchLeadersMissingAccess()),
         ];
         $rows = array_map(static fn (DataQualityFinding $finding): array => $finding->toArray(), $findings);
         $failed = count(array_filter($rows, static fn (array $row): bool => $row['count'] > 0 && $row['severity'] === 'critical'));
@@ -48,7 +50,7 @@ final class DataQualityAuditService
             'orphans' => $rows[1]['count'] + $rows[8]['count'] + $rows[10]['count'],
             'cross_tenant' => $rows[4]['count'], 'manager_issues' => $rows[3]['count'], 'invalid_career_levels' => $rows[7]['count'],
             'attendance_issues' => $rows[8]['count'] + $rows[9]['count'], 'payroll_issues' => $rows[10]['count'] + $rows[11]['count'] + $rows[12]['count'], 'compensation_issues' => $rows[13]['count'] + $rows[14]['count'] + $rows[15]['count'],
-            'commerce_issues' => $rows[16]['count'] + $rows[17]['count'] + $rows[18]['count'] + $rows[19]['count'],
+            'commerce_issues' => $rows[16]['count'] + $rows[17]['count'] + $rows[18]['count'] + $rows[19]['count'] + $rows[24]['count'] + $rows[25]['count'],
             'identity_issues' => $rows[20]['count'] + $rows[21]['count'] + $rows[22]['count'] + $rows[23]['count'],
             'score' => max(0, 100 - ($failed * 10) - ($warnings * 3)), 'checksum' => $checksum, 'findings' => $rows,
         ];
@@ -200,5 +202,19 @@ final class DataQualityAuditService
     private function invalidVerifiedPhones(): int
     {
         return DB::table('users')->whereNotNull('phone_verified_at')->where(static fn (Builder $query): Builder => $query->whereNull('phone_e164')->orWhereRaw("phone_e164 NOT REGEXP '^\\+84[1-9][0-9]{8,10}$'"))->count();
+    }
+
+    private function invalidBranchLeaders(): int
+    {
+        return DB::table('branches as b')->leftJoin('employees as e', 'e.id', '=', 'b.leader_employee_id')->leftJoin('users as u', 'u.id', '=', 'e.user_id')->leftJoin('employee_assignments as a', static function (JoinClause $join): void {
+            $join->on('a.employee_id', '=', 'e.id')->where('a.assignment_type', 'primary')->whereNull('a.effective_to');
+        })->whereNotNull('b.leader_employee_id')->where(static fn (Builder $query): Builder => $query->whereNull('e.id')->orWhereColumn('e.company_id', '<>', 'b.company_id')->orWhereNull('u.id')->orWhere('u.access_enabled', false)->orWhereNull('a.id'))->count();
+    }
+
+    private function branchLeadersMissingAccess(): int
+    {
+        return DB::table('branches as b')->join('employees as e', 'e.id', '=', 'b.leader_employee_id')->leftJoin('branch_user_access as bua', static function (JoinClause $join): void {
+            $join->on('bua.branch_id', '=', 'b.id')->on('bua.user_id', '=', 'e.user_id');
+        })->whereNotNull('b.leader_employee_id')->whereNull('bua.user_id')->count();
     }
 }
