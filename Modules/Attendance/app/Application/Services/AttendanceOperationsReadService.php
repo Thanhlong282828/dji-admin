@@ -37,9 +37,15 @@ final class AttendanceOperationsReadService
     /** @param array<string,mixed> $filters */
     private function base(int $companyId, array $filters): Builder
     {
-        $query = DB::table('attendance_records as r')->join('employees as e', 'e.id', '=', 'r.employee_id')->leftJoin('employee_assignments as a', function (JoinClause $join): void {
+        $query = DB::table('attendance_records as r')->join('companies as c', 'c.id', '=', 'r.company_id')->join('employees as e', 'e.id', '=', 'r.employee_id')->leftJoin('branches as b', 'b.id', '=', 'r.branch_id')->leftJoin('employee_assignments as a', function (JoinClause $join): void {
             $join->on('a.employee_id', '=', 'e.id')->where('a.assignment_type', 'primary')->whereDate('a.effective_from', '<=', today())->whereNull('a.effective_to');
-        })->leftJoin('organization_units as o', 'o.id', '=', 'a.organization_unit_id')->leftJoin('job_positions as p', 'p.id', '=', 'a.job_position_id')->where('r.company_id', $companyId)->select(['r.*', 'e.employee_code', 'e.full_name', 'o.name as organization_name', 'p.title as position_title']);
+        })->leftJoin('organization_units as o', 'o.id', '=', 'a.organization_unit_id')->leftJoin('job_positions as p', 'p.id', '=', 'a.job_position_id')->where('r.company_id', $companyId)->select(['r.*', 'c.name as company_name', 'b.name as branch_name', 'e.employee_code', 'e.full_name', 'o.name as organization_name', 'p.title as position_title']);
+        foreach (['branch_id' => 'r.branch_id', 'organization_unit_id' => 'a.organization_unit_id'] as $key => $column) {
+            $value = $filters[$key] ?? null;
+            if (is_numeric($value) && (int) $value > 0) {
+                $query->where($column, (int) $value);
+            }
+        }
         foreach (['approval_status', 'attendance_status'] as $key) {
             $value = $filters[$key] ?? null;
             if (is_string($value) && $value !== '') {

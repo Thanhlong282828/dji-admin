@@ -37,15 +37,10 @@ final class AdminNavigation
         $company = ['company_id' => $companyId];
 
         return [
-            $this->group('overview', 'Tổng quan', '◫', [
+            $this->group('overview', 'ERP · Tổng quan', '◫', [
                 $this->item('dashboard', 'Dashboard', 'dashboard', ['dashboard'], 'dashboard.view'),
-                $this->item('analytics', 'Enterprise Analytics', 'admin.analytics.workforce', ['admin.analytics.workforce', 'admin.analytics.export', 'admin.analytics.generate', 'admin.analytics.mutate'], 'analytics.view', $company),
-                $this->item('forecasting', 'Workforce Forecasting', 'admin.analytics.forecasting', ['admin.analytics.forecasting*'], 'analytics.view', $company),
-                $this->item('executive-planning', 'Executive Planning', 'admin.planning.executive', ['admin.planning.executive', 'admin.planning.export'], 'analytics.view', $company),
-                $this->item('planning-execution', 'Planning Execution', 'admin.planning.execution', ['admin.planning.execution*'], 'analytics.view', $company),
-                $this->item('enterprise-reports', 'Enterprise Reports', 'admin.reports.index', ['admin.reports.*'], 'analytics.view', $company),
             ]),
-            $this->group('organization', 'Tổ chức', '⌂', [
+            $this->group('organization', 'HRM · Tổ chức', '⌂', [
                 $this->item('companies', 'Công ty', 'admin.companies.index', ['admin.companies.*'], 'company.view'),
                 $this->item('branches', 'Chi nhánh', 'admin.branches.index', ['admin.branches.*'], 'branch.view', $company),
                 $this->item('cost-centers', 'Trung tâm chi phí', 'admin.cost-centers.index', ['admin.cost-centers.*'], 'cost-center.view', $company),
@@ -54,19 +49,20 @@ final class AdminNavigation
                 $this->item('job-positions', 'Vị trí công việc', 'admin.job-positions.index', ['admin.job-positions.*'], 'job-position.view', $company),
                 $this->item('headcount', 'Báo cáo định biên', 'admin.organization.headcount', ['admin.organization.headcount'], 'organization-unit.view', $company),
             ]),
-            $this->group('people', 'Nhân sự', '♙', [
+            $this->group('people', 'HRM · Nhân sự', '♙', [
+                $this->item('employee-portal', 'Cổng thông tin nhân viên', 'employee.portal', ['employee.portal'], 'employee.portal.view'),
                 $this->item('employees', 'Nhân viên', 'admin.employees.index', ['admin.employees.*'], 'employee.view', $company),
                 $this->item('employee-lifecycle', 'Vòng đời nhân sự', 'admin.employee-lifecycle.index', ['admin.employee-lifecycle.*'], 'hr.lifecycle.view', $company),
                 $this->item('hr-governance', 'HR Data Governance', 'admin.hr.governance.dashboard', ['admin.hr.governance.*'], 'hr.governance.view', $company),
             ]),
-            $this->group('workforce', 'Chấm công và nghỉ phép', '◷', [
+            $this->group('workforce', 'HRM · Chấm công và nghỉ phép', '◷', [
                 $this->item('attendance', 'Chấm công', 'admin.attendance.index', ['admin.attendance.*'], 'attendance.view', $company),
                 $this->item('shifts', 'Ca và lịch làm việc', 'admin.workforce.management', ['admin.workforce.*'], 'shift.view', ['section' => 'shifts', ...$company]),
                 $this->item('leave', 'Nghỉ phép', 'admin.leave.index', ['admin.leave.*'], 'leave.view', $company),
                 $this->item('leave-management', 'Chính sách nghỉ phép', 'admin.leave-management.index', ['admin.leave-management.*'], 'leave.manage-policy', $company),
                 $this->item('overtime', 'Tăng ca', 'admin.overtime.index', ['admin.overtime.*'], 'overtime.view', $company),
             ]),
-            $this->group('talent', 'Tuyển dụng và phát triển', '◎', [
+            $this->group('talent', 'HRM · Tuyển dụng và phát triển', '◎', [
                 $this->item('recruitment', 'Tổng quan tuyển dụng', 'admin.recruitment.dashboard', ['admin.recruitment.dashboard'], 'recruitment-requisition.view', $company),
                 $this->item('requisitions', 'Yêu cầu tuyển dụng', 'admin.recruitment-requisitions.index', ['admin.recruitment-requisitions.*'], 'recruitment-requisition.view', $company),
                 $this->item('candidates', 'Ứng viên', 'admin.candidates.index', ['admin.candidates.*'], 'candidate.view', $company),
@@ -77,24 +73,37 @@ final class AdminNavigation
                 $this->item('performance', 'Hiệu suất và tài năng', 'admin.talent.performance.index', ['admin.talent.performance.*'], 'talent.performance.view', $company),
                 $this->item('career', 'Career và kế nhiệm', 'admin.career.index', ['admin.career.*'], 'career.view', $company),
             ]),
-            $this->group('payroll', 'Payroll và tài chính', '◇', [
+            $this->group('payroll', 'Payroll', '◇', [
                 $this->item('payroll-dashboard', 'Cấu hình lương', 'admin.payroll.delivery.index', ['admin.payroll.delivery.*', 'admin.payroll.components.*', 'admin.payroll.assignments.*'], 'payroll.component.view', $company),
                 $this->item('payroll-periods', 'Kỳ lương', 'admin.payroll.periods.index', ['admin.payroll.periods.*'], 'payroll-period.view', $company),
                 $this->item('payroll-inputs', 'Payroll Inputs', 'admin.payroll.inputs.index', ['admin.payroll.inputs.*', 'admin.payroll-period.*'], 'payroll-period.view', $company),
                 $this->item('payroll-runs', 'Payroll Runs', 'admin.payroll.runs.index', ['admin.payroll.runs.*'], 'payroll.run.view', $company),
                 $this->item('payroll-adjustments', 'Điều chỉnh lương', 'admin.payroll.adjustments.index', ['admin.payroll.adjustments.*'], 'payroll.adjustment.view', $company),
-                $this->item('annual-tax', 'Thuế TNCN năm', 'admin.payroll.annual-tax.index', ['admin.payroll.annual-tax.*'], 'payroll.annual_tax.view', $company),
+                $this->item('branch-bonuses', 'Thưởng chi nhánh', 'admin.branch-bonuses.index', ['admin.branch-bonuses.*'], 'branch.bonus.view', $company),
                 $this->item('payslips', 'Phiếu lương', 'admin.payroll.payslips.index', ['admin.payroll.payslips.*'], 'payroll.payslip.view', $company),
                 $this->item('payments', 'Thanh toán', 'admin.payroll.payment-batches.index', ['admin.payroll.payment-accounts.*', 'admin.payroll.payment-batches.*'], 'payroll.payment.view', $company),
-                $this->item('tax-administration', 'Hồ sơ thuế', 'admin.payroll.tax.employees.index', ['admin.payroll.tax.employees.*'], 'payroll.tax.view', $company),
+            ]),
+            $this->group('tax-statutory', 'Thuế & Bảo hiểm bắt buộc', '§', [
+                $this->item('tax-administration', 'Hồ sơ thuế TNCN', 'admin.payroll.tax.employees.index', ['admin.payroll.tax.employees.*'], 'payroll.tax.view', $company),
                 $this->item('tax-policies', 'Chính sách thuế', 'admin.payroll.tax.policies.index', ['admin.payroll.tax.policies.*'], 'payroll.tax.view', $company),
-                $this->item('insurance-administration', 'Hồ sơ bảo hiểm', 'admin.payroll.insurance.employees.index', ['admin.payroll.insurance.employees.*'], 'payroll.insurance.view', $company),
+                $this->item('insurance-administration', 'Hồ sơ BHXH/BHYT/BHTN', 'admin.payroll.insurance.employees.index', ['admin.payroll.insurance.employees.*'], 'payroll.insurance.view', $company),
                 $this->item('insurance-policies', 'Chính sách bảo hiểm', 'admin.payroll.insurance.policies.index', ['admin.payroll.insurance.policies.*'], 'payroll.insurance.view', $company),
+                $this->item('annual-tax', 'Đối soát thuế TNCN năm', 'admin.payroll.annual-tax.index', ['admin.payroll.annual-tax.*'], 'payroll.annual_tax.view', $company),
+                $this->item('government', 'Government Filing', 'admin.payroll.government-filings.index', ['admin.payroll.government-filings.*'], 'government.filing.view', $company),
+            ]),
+            $this->group('finance', 'Tài chính', '₫', [
+                $this->item('branch-financial-performance', 'Hiệu quả tài chính chi nhánh', 'admin.finance.branch-performance', ['admin.finance.branch-performance'], 'payroll.assignment.view', $company),
                 $this->item('accounting', 'Kế toán và bút toán', 'admin.payroll.accounting.journals.index', ['admin.payroll.accounting.journals.*'], 'payroll.accounting.view', $company),
                 $this->item('accounting-configuration', 'Cấu hình kế toán', 'admin.payroll.accounting.policies.index', ['admin.payroll.accounting.policies.*', 'admin.payroll.accounting.accounts.*', 'admin.payroll.accounting.mappings.*'], 'payroll.accounting.view', $company),
                 $this->item('erp', 'ERP Export', 'admin.payroll.erp.exports.index', ['admin.payroll.erp.exports.*'], 'erp.integration.view', $company),
                 $this->item('erp-configuration', 'Kết nối ERP', 'admin.payroll.erp.connections.index', ['admin.payroll.erp.connections.*', 'admin.payroll.erp.mappings.*'], 'erp.integration.connection.view', $company),
-                $this->item('government', 'Government Filing', 'admin.payroll.government-filings.index', ['admin.payroll.government-filings.*'], 'government.filing.view', $company),
+            ]),
+            $this->group('analytics-planning', 'Analytics & Planning', '▥', [
+                $this->item('analytics', 'Enterprise Analytics', 'admin.analytics.workforce', ['admin.analytics.workforce', 'admin.analytics.export', 'admin.analytics.generate', 'admin.analytics.mutate'], 'analytics.view', $company),
+                $this->item('forecasting', 'Workforce Forecasting', 'admin.analytics.forecasting', ['admin.analytics.forecasting*'], 'analytics.view', $company),
+                $this->item('executive-planning', 'Executive Planning', 'admin.planning.executive', ['admin.planning.executive', 'admin.planning.export'], 'analytics.view', $company),
+                $this->item('planning-execution', 'Planning Execution', 'admin.planning.execution', ['admin.planning.execution*'], 'analytics.view', $company),
+                $this->item('enterprise-reports', 'Enterprise Reports', 'admin.reports.index', ['admin.reports.*'], 'analytics.view', $company),
             ]),
             $this->group('automation', 'Tự động hóa doanh nghiệp', '⌁', [
                 $this->item('workflow', 'Workflow Center', 'admin.workflows.dashboard', ['admin.workflows.dashboard', 'admin.workflows.instances.*'], 'workflow.view', $company),
@@ -132,17 +141,16 @@ final class AdminNavigation
                 $this->item('go-live-readiness', 'Go-Live Readiness', 'admin.operations.go-live', ['admin.operations.go-live'], 'operations.view'),
                 $this->item('api-documentation', 'API Documentation', 'admin.operations.api-documentation', ['admin.operations.api-documentation'], 'api.documentation.view'),
             ]),
-            $this->group('content', 'Nội dung', '▤', [
-                $this->item('articles', 'Kho nội dung', 'articles.index', ['articles.index', 'articles.edit'], 'article.view', $company),
-                $this->item('article-create', 'Viết bài mới', 'articles.create', ['articles.create'], 'article.create', $company),
-            ]),
-            $this->group('seller', 'Seller Center', '▣', [
+            $this->group('seller', 'CRM & Commerce', '▣', [
                 $this->item('seller-dashboard', 'Tổng quan Seller', 'admin.seller.dashboard', ['admin.seller.dashboard'], 'commerce.store.view'),
                 $this->item('store-profile', 'Hồ sơ cửa hàng', 'admin.seller.store', ['admin.seller.store*'], 'commerce.store.view'),
                 $this->item('products', 'Sản phẩm', 'admin.products.index', ['admin.products.*'], 'product.view'),
                 $this->item('seller-inventory', 'Tồn kho', 'admin.seller.inventory', ['admin.seller.inventory*'], 'inventory.view'),
+                $this->item('seller-orders', 'Đơn hàng', 'admin.seller.orders.index', ['admin.seller.orders.*'], 'commerce.store.view'),
                 $this->item('product-categories', 'Danh mục sản phẩm', 'admin.product-categories.index', ['admin.product-categories.*'], 'product-category.view'),
                 $this->item('seller-governance', 'Quản trị Seller', 'admin.commerce.sellers.index', ['admin.commerce.sellers.*'], 'commerce.seller.governance.view'),
+                $this->item('articles', 'Kho nội dung', 'articles.index', ['articles.index', 'articles.edit'], 'article.view', $company),
+                $this->item('article-create', 'Viết bài mới', 'articles.create', ['articles.create'], 'article.create', $company),
             ]),
         ];
     }

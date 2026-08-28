@@ -939,4 +939,19 @@ COMMERCE C2.5 — IDENTITY / OAUTH2
 Commerce C3: quản trị lãnh đạo chi nhánh theo Employee/Position thực; tự cấp branch access idempotent; chống nâng Role vượt cấp; compensation analytics theo Level/Position; Article media 8K có giới hạn; Seller transition có chống tự duyệt.
 Commerce C4: Company create/edit có Branch rows transaction-safe; Branch Show, Employee List và Account Security dùng access/leadership canonical; IAM Role quyết định mutation. Seller Product Catalog có Category phân cấp, Product, generic Variant/SKU, Store inventory on_hand/reserved/available, ownership guard, unified cover/gallery media và public Product list/detail.
 
-Commerce C5: Marketplace public có search/filter/sort, Store page và Product gallery/Variant selector; Buyer có private Wishlist và multi-Store Cart kiểm tra lại giá/tồn/status; Seller có trang Tồn kho với ownership guard, row lock, atomic adjustment và Audit reason. Checkout/Order/Payment chưa được mở.
+Commerce C5: Marketplace public có search/filter/sort, Store page và Product gallery/Variant selector; Buyer có private Wishlist và multi-Store Cart kiểm tra lại giá/tồn/status; Seller có trang Tồn kho với ownership guard, row lock, atomic adjustment và Audit reason.
+
+COMMERCE C6 — CHECKOUT / ORDER
+- Buyer Address CRUD/default, Checkout responsive, local deterministic shipping and double-submit UI guard.
+- Multi-Store Order split with current-price/product/Seller/Store validation, integer VND totals and immutable snapshots.
+- Inventory Reservation uses transaction + `lockForUpdate`; insufficient stock rolls back the whole checkout and keeps Cart unchanged.
+- Buyer Order history/detail/cancel and Seller-owned Order list/detail/typed transitions; no live payment, bank, COD or shipping provider.
+
+ERP CONSOLIDATION — HRM / PAYROLL / BRANCH FINANCE
+- Employee Portal tự phục vụ chỉ đọc dữ liệu của Employee liên kết với session User; hỗ trợ check-in/out canonical, Attendance/Leave/OT và Payroll/Payslip của chính mình.
+- Effective Branch assignment tách operational allocation khỏi `branch_user_access`; Attendance và Payroll Input lưu Branch snapshot lịch sử bằng batch resolver, không query theo từng Employee.
+- Branch Bonus maker-checker, one-month salary component assignment sau approve; maker không tự duyệt và không sửa Payroll finalized.
+- Branch Financial Performance là management P&L read-only theo Branch, dùng grouped SQL và money integer; không được gọi là sổ thuế/kế toán pháp định.
+- Tax/Insurance policy lưu nguồn văn bản chính thức, jurisdiction và ngày kiểm chứng theo version; thiếu cấu hình hiển thị rõ thay vì tự suy đoán rate.
+- Bootstrap local phân bổ 33 Employee-owned demo theo Unit/Branch, tạo compensation theo Position, OT đã duyệt, nghỉ không lương và Branch Bonus maker-checker trên đúng quan hệ canonical; dữ liệu Employee thủ công ngoài dải `E0001`–`E0035` không bị seeder cập nhật.
+- Dữ liệu vận hành Phase 2 có nhiều tháng, giờ làm/trễ/OT/nghỉ biến thiên, PIT và BHXH/BHYT/BHTN do policy engine tính, Payslip khớp Payroll Item, và biểu đồ Dashboard/Branch P&L đọc cùng nguồn DB canonical.

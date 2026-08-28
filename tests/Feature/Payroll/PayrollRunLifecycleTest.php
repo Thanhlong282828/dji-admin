@@ -98,6 +98,20 @@ final class PayrollRunLifecycleTest extends TestCase
         self::assertSame(1000, $this->integer(DB::table('payroll_item_components')->where('payroll_item_id', $item->id)->where('source_type', 'tax_policy_bracket')->value('percentage_basis_points')));
     }
 
+    public function test_quantity_rate_components_take_quantity_from_immutable_workforce_input(): void
+    {
+        [$company, $employee, $creator,, $period, $snapshot] = $this->fixture();
+        $component = (int) DB::table('salary_components')->insertGetId(['company_id' => $company, 'code' => 'OT-SNAPSHOT', 'name' => 'OT from snapshot', 'category' => 'earning', 'calculation_type' => 'quantity_rate', 'value_type' => 'money', 'currency_code' => 'VND', 'affects_gross' => true, 'affects_net' => true, 'display_order' => 90, 'status' => 'active', 'system_key' => 'weekday_overtime_pay', 'version' => 1, 'created_by' => $creator, 'created_at' => now(), 'updated_at' => now()]);
+        DB::table('employee_salary_component_assignments')->insert(['company_id' => $company, 'employee_id' => $employee, 'salary_component_id' => $component, 'rate_minor' => 100, 'currency_code' => 'VND', 'effective_from' => '2026-01-01', 'source' => 'policy', 'status' => 'active', 'version' => 1, 'idempotency_key' => (string) Str::uuid(), 'created_by' => $creator, 'created_at' => now(), 'updated_at' => now()]);
+        DB::table('payroll_employee_inputs')->where('payroll_input_snapshot_id', $snapshot)->where('employee_id', $employee)->update(['weekday_overtime_minutes' => 120, 'approved_overtime_minutes' => 120]);
+
+        $run = app(PayrollRunService::class)->create($company, $period, $snapshot, 'RUN-WORKFORCE-QUANTITY', 'VND', (string) Str::uuid(), $creator);
+        $run = app(PayrollRunService::class)->calculate($company, $run->id, 1, (string) Str::uuid(), $creator);
+
+        self::assertSame(5900, $run->gross_total_minor);
+        self::assertSame(200, DB::table('payroll_item_components')->where('payroll_run_id', $run->id)->where('component_code_snapshot', 'OT-SNAPSHOT')->value('amount_minor'));
+    }
+
     /** @return array{int,int,int,int,int,int} */
     private function fixture(): array
     {

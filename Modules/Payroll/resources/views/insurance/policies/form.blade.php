@@ -145,6 +145,18 @@
             >
         </label>
 
+        <input type="hidden" name="jurisdiction" value="VN">
+
+        <label>
+            Nguồn pháp lý chính thức
+            <input type="url" name="source_reference" placeholder="https://vanban.chinhphu.vn/..." value="{{ old('source_reference', $d['source_reference'] ?? '') }}">
+        </label>
+
+        <label>
+            Ngày kiểm chứng nguồn
+            <input type="date" name="source_verified_at" value="{{ old('source_verified_at', isset($d['source_verified_at']) ? substr((string) $d['source_verified_at'], 0, 10) : '') }}">
+        </label>
+
 
         {{-- ============================================================
             STATUS

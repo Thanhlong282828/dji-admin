@@ -2,6 +2,8 @@
 
 namespace Modules\Payroll\Domain\Services;
 
+use App\Support\Employee\EmployeeBranchResolver;
+use Carbon\CarbonImmutable;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -12,7 +14,7 @@ use Modules\Payroll\Domain\Models\PayrollPeriod;
 
 final readonly class PayrollInputGenerationService
 {
-    public function __construct(private PayrollPeriodStateMachine $states, private PayrollOvertimeClassificationService $overtimeClassifier) {}
+    public function __construct(private PayrollPeriodStateMachine $states, private PayrollOvertimeClassificationService $overtimeClassifier, private EmployeeBranchResolver $branches) {}
 
     public function generate(int $companyId, int $periodId, int $expectedVersion, int $actorId): PayrollInputSnapshot
     {
@@ -30,7 +32,10 @@ final readonly class PayrollInputGenerationService
             $maximumVersion = PayrollInputSnapshot::query()->where('payroll_period_id', $period->id)->max('snapshot_version');
             $version = (is_numeric($maximumVersion) ? (int) $maximumVersion : 0) + 1;
             $snapshot = PayrollInputSnapshot::query()->create(['company_id' => $companyId, 'payroll_period_id' => $period->id, 'snapshot_version' => $version, 'status' => 'draft', 'generated_by' => $actorId, 'generated_at' => now()]);
-            $employees = DB::table('employees')->where('company_id', $companyId)->whereIn('employment_status', ['active', 'probation', 'preboarding'])->whereDate('join_date', '<=', $period->period_end)->cursor();
+            $employees = DB::table('employees')->where('company_id', $companyId)->whereIn('employment_status', ['active', 'probation', 'preboarding'])->whereDate('join_date', '<=', $period->period_end)->get();
+            $employeeIds = $employees->pluck('id')->filter(static fn (mixed $id): bool => is_numeric($id))->map(static fn (mixed $id): int => (int) $id)->values()->all();
+            $branchIds = $this->branches->resolveMany($companyId, $employeeIds, CarbonImmutable::parse((string) $period->period_end));
+            $branchNames = DB::table('branches')->where('company_id', $companyId)->whereIn('id', array_values(array_filter($branchIds, static fn (?int $id): bool => $id !== null)))->pluck('name', 'id');
             foreach ($employees as $employee) {
                 if (! is_numeric($employee->id ?? null)) {
                     continue;
@@ -61,6 +66,8 @@ final readonly class PayrollInputGenerationService
                 $assignment = DB::table('employee_assignments as a')->leftJoin('organization_units as o', 'o.id', '=', 'a.organization_unit_id')->leftJoin('job_positions as j', 'j.id', '=', 'a.job_position_id')->where('o.company_id', $companyId)->where('a.employee_id', $employeeId)->where('a.assignment_type', 'primary')->whereDate('a.effective_from', '<=', $period->period_end)->where(fn (Builder $q) => $q->whereNull('a.effective_to')->orWhereDate('a.effective_to', '>=', $period->period_start))->select(['a.id', 'a.organization_unit_id', 'a.job_position_id', 'a.effective_from', 'a.effective_to', 'o.name as organization_name', 'j.title as position_name'])->first();
                 $contract = DB::table('employment_contracts')->where('employee_id', $employeeId)->whereIn('status', ['active', 'draft'])->whereDate('starts_at', '<=', $period->period_end)->latest('starts_at')->value('id');
                 $profile = DB::table('employee_work_profiles')->where('company_id', $companyId)->where('employee_id', $employeeId)->whereDate('effective_from', '<=', $period->period_end)->latest('effective_from')->first();
+                $branchId = $branchIds[$employeeId] ?? null;
+                $branchName = $branchId === null ? null : $branchNames->get($branchId);
                 $scheduled = is_object($attendance) && is_numeric($attendance->scheduled ?? null) ? (int) $attendance->scheduled : 0;
                 $worked = is_object($attendance) && is_numeric($attendance->worked ?? null) ? (int) $attendance->worked : 0;
                 $readiness = array_values(array_unique(array_filter([is_numeric($contract) ? null : 'missing_contract', is_object($assignment) ? null : 'missing_assignment', ...$overtimeIssues])));
@@ -79,6 +86,7 @@ final readonly class PayrollInputGenerationService
                     $checksum = hash('sha256', json_encode([$this->integer($origin, 'id'), $this->string($origin, 'status'), $this->integer($origin, 'payable_minutes'), $this->string($origin, 'starts_at'), $this->string($origin, 'ends_at'), $this->string($origin, 'updated_at')], JSON_THROW_ON_ERROR));
                     DB::table('payroll_input_source_records')->insertOrIgnore(['company_id' => $companyId, 'payroll_input_snapshot_id' => $snapshot->id, 'payroll_employee_input_id' => $employeeInputId, 'source_type' => 'overtime', 'source_id' => $this->integer($origin, 'id'), 'source_date' => $segment['date'], 'source_status_at_capture' => $this->string($origin, 'status'), 'quantity_type' => 'payable_minutes', 'quantity_minutes' => $segment['minutes'], 'classification' => $segment['classification'], 'source_updated_at' => $this->string($origin, 'updated_at') ?: null, 'source_checksum' => $checksum, 'captured_at' => now(), 'metadata' => json_encode(['reason' => $segment['reason']], JSON_THROW_ON_ERROR), 'created_at' => now(), 'updated_at' => now()]);
                 }
+                DB::table('payroll_employee_inputs')->where('id', $employeeInputId)->update(['branch_id' => $branchId, 'branch_snapshot' => is_string($branchName) ? $branchName : null]);
             }$period->status = 'review';
             $period->version++;
             $period->save();

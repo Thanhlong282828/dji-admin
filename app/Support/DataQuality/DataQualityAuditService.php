@@ -42,6 +42,17 @@ final class DataQualityAuditService
             new DataQualityFinding('inventory.invalid_balance', 'Commerce/Inventory', 'critical', 'Inventory phải có on_hand/reserved không âm và reserved không vượt on_hand.', $this->invalidInventoryBalances()),
             new DataQualityFinding('cart.invalid_item', 'Commerce/Cart', 'critical', 'Cart item phải thuộc đúng Product/Variant và có quantity, price snapshot hợp lệ.', $this->invalidCartItems()),
             new DataQualityFinding('wishlist.invalid_item', 'Commerce/Wishlist', 'critical', 'Wishlist item phải trỏ đến Product hợp lệ.', $this->invalidWishlistItems()),
+            new DataQualityFinding('buyer_address.invalid_default', 'Commerce/Checkout', 'critical', 'Buyer có địa chỉ phải có đúng một địa chỉ mặc định.', $this->invalidAddressDefaults()),
+            new DataQualityFinding('checkout.duplicate_idempotency', 'Commerce/Checkout', 'critical', 'Idempotency key của cùng Buyer không được trùng.', $this->duplicateCheckoutIdempotency()),
+            new DataQualityFinding('order.invalid_ownership', 'Commerce/Order', 'critical', 'Order phải thuộc Buyer, Store và Seller owner hợp lệ.', $this->invalidOrderOwnership()),
+            new DataQualityFinding('order.total_mismatch', 'Commerce/Order', 'critical', 'Order subtotal/total phải khớp tổng line, shipping và discount.', $this->orderTotalMismatch()),
+            new DataQualityFinding('order_item.invalid_line', 'Commerce/Order', 'critical', 'Order item phải có quantity dương và line total khớp snapshot price.', $this->invalidOrderItems()),
+            new DataQualityFinding('reservation.invalid_reference', 'Commerce/Inventory', 'critical', 'Reservation phải trỏ đúng Order item/Variant/Balance và có quantity dương.', $this->invalidReservations()),
+            new DataQualityFinding('reservation.balance_mismatch', 'Commerce/Inventory', 'critical', 'Tổng reservation active không được vượt inventory reserved.', $this->reservationBalanceMismatch()),
+            new DataQualityFinding('reservation.cancelled_active', 'Commerce/Inventory', 'critical', 'Order đã hủy không được còn reservation active.', $this->cancelledActiveReservations()),
+            new DataQualityFinding('branch_assignment.cross_tenant', 'HRM/Branch', 'critical', 'Phân công chi nhánh vận hành phải cùng công ty với Employee và Branch.', $this->crossTenantBranchAssignments()),
+            new DataQualityFinding('branch_assignment.overlap', 'HRM/Branch', 'critical', 'Employee không được có hai primary Branch assignment chồng thời gian.', $this->overlappingBranchAssignments()),
+            new DataQualityFinding('branch_bonus.invalid_scope', 'Payroll/Branch', 'critical', 'Branch bonus phải thuộc đúng Employee, Branch access và company.', $this->invalidBranchBonusScope()),
         ];
         $rows = array_map(static fn (DataQualityFinding $finding): array => $finding->toArray(), $findings);
         $failed = count(array_filter($rows, static fn (array $row): bool => $row['count'] > 0 && $row['severity'] === 'critical'));
@@ -54,7 +65,7 @@ final class DataQualityAuditService
             'orphans' => $rows[1]['count'] + $rows[8]['count'] + $rows[10]['count'],
             'cross_tenant' => $rows[4]['count'], 'manager_issues' => $rows[3]['count'], 'invalid_career_levels' => $rows[7]['count'],
             'attendance_issues' => $rows[8]['count'] + $rows[9]['count'], 'payroll_issues' => $rows[10]['count'] + $rows[11]['count'] + $rows[12]['count'], 'compensation_issues' => $rows[13]['count'] + $rows[14]['count'] + $rows[15]['count'],
-            'commerce_issues' => $rows[16]['count'] + $rows[17]['count'] + $rows[18]['count'] + $rows[19]['count'] + $rows[24]['count'] + $rows[25]['count'] + $rows[26]['count'] + $rows[27]['count'] + $rows[28]['count'] + $rows[29]['count'],
+            'commerce_issues' => array_sum(array_column(array_slice($rows, 16, 4), 'count')) + array_sum(array_column(array_slice($rows, 24), 'count')),
             'identity_issues' => $rows[20]['count'] + $rows[21]['count'] + $rows[22]['count'] + $rows[23]['count'],
             'score' => max(0, 100 - ($failed * 10) - ($warnings * 3)), 'checksum' => $checksum, 'findings' => $rows,
         ];
@@ -141,7 +152,15 @@ final class DataQualityAuditService
 
     private function invalidCompensationMoney(): int
     {
-        return DB::table('employee_salary_component_assignments as a')->join('salary_components as c', 'c.id', '=', 'a.salary_component_id')->where('c.value_type', 'money')->where(static fn (Builder $query): Builder => $query->whereNull('a.amount_minor')->orWhere('a.amount_minor', '<', 0))->count();
+        $snapshotQuantityKeys = ['weekday_overtime_pay', 'weekend_overtime_pay', 'holiday_overtime_pay', 'unpaid_leave_deduction', 'late_time_deduction'];
+
+        return DB::table('employee_salary_component_assignments as a')->join('salary_components as c', 'c.id', '=', 'a.salary_component_id')->where('c.value_type', 'money')->where(static function (Builder $query) use ($snapshotQuantityKeys): void {
+            $query->where(static fn (Builder $fixed): Builder => $fixed->where('c.calculation_type', 'fixed')->where(static fn (Builder $amount): Builder => $amount->whereNull('a.amount_minor')->orWhere('a.amount_minor', '<', 0)))
+                ->orWhere(static fn (Builder $percentage): Builder => $percentage->where('c.calculation_type', 'percentage')->where(static fn (Builder $rate): Builder => $rate->whereNull('a.percentage_basis_points')->orWhere('a.percentage_basis_points', '<', 0)))
+                ->orWhere(static fn (Builder $quantity): Builder => $quantity->where('c.calculation_type', 'quantity_rate')->where(static function (Builder $invalid) use ($snapshotQuantityKeys): void {
+                    $invalid->whereNull('a.rate_minor')->orWhere('a.rate_minor', '<', 0)->orWhere(static fn (Builder $missing): Builder => $missing->whereNull('a.quantity_basis_points')->whereNotIn('c.system_key', $snapshotQuantityKeys));
+                }));
+        })->count();
     }
 
     private function invalidCompensationCurrency(): int
@@ -260,5 +279,72 @@ final class DataQualityAuditService
     private function invalidWishlistItems(): int
     {
         return DB::table('wishlist_items as wi')->leftJoin('products as p', 'p.id', '=', 'wi.product_id')->whereNull('p.id')->count();
+    }
+
+    private function invalidAddressDefaults(): int
+    {
+        $invalid = DB::table('buyer_addresses')->select('user_id')->groupBy('user_id')->havingRaw('SUM(CASE WHEN is_default = 1 THEN 1 ELSE 0 END) <> 1');
+
+        return DB::query()->fromSub($invalid, 'invalid_address_defaults')->count();
+    }
+
+    private function duplicateCheckoutIdempotency(): int
+    {
+        $duplicates = DB::table('checkout_sessions')->select(['buyer_user_id', 'idempotency_key'])->groupBy('buyer_user_id', 'idempotency_key')->havingRaw('COUNT(*) > 1');
+
+        return DB::query()->fromSub($duplicates, 'duplicate_checkout_keys')->count();
+    }
+
+    private function invalidOrderOwnership(): int
+    {
+        return DB::table('orders as o')->leftJoin('users as u', 'u.id', '=', 'o.buyer_user_id')->leftJoin('stores as s', 's.id', '=', 'o.store_id')->leftJoin('seller_profiles as sp', 'sp.id', '=', 'o.seller_profile_id')->where(static fn (Builder $query): Builder => $query->whereNull('u.id')->orWhereNull('s.id')->orWhereNull('sp.id')->orWhereColumn('s.seller_profile_id', '<>', 'o.seller_profile_id'))->count();
+    }
+
+    private function orderTotalMismatch(): int
+    {
+        $lines = DB::table('order_items')->selectRaw('order_id, SUM(line_total_minor) AS line_total')->groupBy('order_id');
+
+        return DB::table('orders as o')->leftJoinSub($lines, 'lines', 'lines.order_id', '=', 'o.id')->whereRaw('o.subtotal_minor <> COALESCE(lines.line_total, 0) OR o.total_minor <> o.subtotal_minor + o.shipping_minor - o.discount_minor')->count();
+    }
+
+    private function invalidOrderItems(): int
+    {
+        return DB::table('order_items as oi')->leftJoin('orders as o', 'o.id', '=', 'oi.order_id')->where(static fn (Builder $query): Builder => $query->whereNull('o.id')->orWhere('oi.quantity', '<', 1)->orWhereRaw('oi.line_total_minor <> oi.unit_price_minor * oi.quantity'))->count();
+    }
+
+    private function invalidReservations(): int
+    {
+        return DB::table('inventory_reservations as r')->leftJoin('order_items as oi', 'oi.id', '=', 'r.order_item_id')->leftJoin('orders as o', 'o.id', '=', 'r.order_id')->leftJoin('inventory_balances as ib', 'ib.id', '=', 'r.inventory_balance_id')->where(static fn (Builder $query): Builder => $query->whereNull('oi.id')->orWhereNull('o.id')->orWhereNull('ib.id')->orWhere('r.quantity', '<', 1)->orWhereColumn('oi.order_id', '<>', 'r.order_id')->orWhereColumn('oi.product_variant_id', '<>', 'r.product_variant_id')->orWhereColumn('ib.product_variant_id', '<>', 'r.product_variant_id'))->count();
+    }
+
+    private function reservationBalanceMismatch(): int
+    {
+        $reserved = DB::table('inventory_reservations')->selectRaw('inventory_balance_id, SUM(quantity) AS quantity')->where('status', 'reserved')->groupBy('inventory_balance_id');
+
+        return DB::table('inventory_balances as ib')->joinSub($reserved, 'r', 'r.inventory_balance_id', '=', 'ib.id')->whereColumn('r.quantity', '>', 'ib.reserved')->count();
+    }
+
+    private function cancelledActiveReservations(): int
+    {
+        return DB::table('inventory_reservations as r')->join('orders as o', 'o.id', '=', 'r.order_id')->where('o.status', 'cancelled')->where('r.status', 'reserved')->count();
+    }
+
+    private function crossTenantBranchAssignments(): int
+    {
+        return DB::table('employee_branch_assignments as a')->join('employees as e', 'e.id', '=', 'a.employee_id')->join('branches as b', 'b.id', '=', 'a.branch_id')->where(static fn (Builder $query): Builder => $query->whereColumn('a.company_id', '<>', 'e.company_id')->orWhereColumn('a.company_id', '<>', 'b.company_id'))->count();
+    }
+
+    private function overlappingBranchAssignments(): int
+    {
+        return DB::table('employee_branch_assignments as a')->join('employee_branch_assignments as b', static function (JoinClause $join): void {
+            $join->on('a.company_id', '=', 'b.company_id')->on('a.employee_id', '=', 'b.employee_id')->on('a.assignment_type', '=', 'b.assignment_type')->whereColumn('a.id', '<', 'b.id');
+        })->where('a.assignment_type', 'primary')->whereRaw("a.effective_from <= COALESCE(b.effective_to, '9999-12-31')")->whereRaw("b.effective_from <= COALESCE(a.effective_to, '9999-12-31')")->count();
+    }
+
+    private function invalidBranchBonusScope(): int
+    {
+        return DB::table('branch_bonus_proposals as p')->join('branches as b', 'b.id', '=', 'p.branch_id')->join('employees as e', 'e.id', '=', 'p.employee_id')->leftJoin('employee_branch_assignments as a', static function (JoinClause $join): void {
+            $join->on('a.branch_id', '=', 'p.branch_id')->on('a.employee_id', '=', 'p.employee_id')->on('a.company_id', '=', 'p.company_id')->where('a.assignment_type', 'primary')->whereColumn('a.effective_from', '<=', 'p.effective_period')->where(static fn (Builder $query): Builder => $query->whereNull('a.effective_to')->orWhereColumn('a.effective_to', '>=', 'p.effective_period'));
+        })->where(static fn (Builder $query): Builder => $query->whereColumn('p.company_id', '<>', 'b.company_id')->orWhereColumn('p.company_id', '<>', 'e.company_id')->orWhereNull('a.id'))->count();
     }
 }

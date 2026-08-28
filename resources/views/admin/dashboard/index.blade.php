@@ -18,6 +18,41 @@
 </section>
 @endcan
 
+@if($branchSummary !== null)
+<section class="panel">
+    <small>BRANCH OPERATIONS · COMPANY SCOPE</small>
+    <h2>Vận hành chi nhánh</h2>
+    <div class="stats">
+        <article><span>Chi nhánh</span><strong>{{ number_format($branchSummary['branches']) }}</strong><i>ACTIVE SCOPE</i></article>
+        <article><span>Nhân sự có Branch hiệu lực</span><strong>{{ number_format($branchSummary['assigned_employees']) }}</strong><i>EFFECTIVE ASSIGNMENT</i></article>
+        <article><span>Chưa xác định Branch vận hành</span><strong>{{ number_format($branchSummary['unassigned_employees']) }}</strong><i>DATA ATTENTION</i></article>
+        @if($branchSummary['financials'] !== null)
+            <article><span>Lợi nhuận quản trị tháng</span><strong>{{ number_format($branchSummary['financials']['profit']) }} ₫</strong><i>NOT STATUTORY</i></article>
+        @endif
+    </div>
+    @if($branchSummary['financials'] !== null && $branchSummary['financial_trend'] !== [])
+        @php($maxTrend = max(1, ...array_map(static fn(array $row): int => max($row['revenue'], $row['payroll'], $row['operating'], abs($row['profit'])), $branchSummary['financial_trend'])))
+        <div class="erp-trend" aria-labelledby="erp-trend-title">
+            <header><div><small>ACTUAL DATABASE · VND</small><h3 id="erp-trend-title">Doanh thu · Payroll · Chi phí · Kết quả</h3></div><span>6 tháng gần nhất</span></header>
+            <div class="erp-trend__chart" role="img" aria-label="Biểu đồ tài chính quản trị sáu tháng theo dữ liệu Branch Finance">
+                @foreach($branchSummary['financial_trend'] as $point)
+                    <article>
+                        <div class="erp-trend__bars">
+                            <i class="is-revenue" style="--bar: {{ round($point['revenue'] * 100 / $maxTrend, 2) }}%" title="Doanh thu {{ number_format($point['revenue']) }} ₫"></i>
+                            <i class="is-payroll" style="--bar: {{ round($point['payroll'] * 100 / $maxTrend, 2) }}%" title="Payroll {{ number_format($point['payroll']) }} ₫"></i>
+                            <i class="is-operating" style="--bar: {{ round($point['operating'] * 100 / $maxTrend, 2) }}%" title="Chi phí {{ number_format($point['operating']) }} ₫"></i>
+                            <i class="is-profit" style="--bar: {{ round(abs($point['profit']) * 100 / $maxTrend, 2) }}%" title="Kết quả {{ number_format($point['profit']) }} ₫"></i>
+                        </div>
+                        <strong>{{ $point['month'] }}</strong><small>{{ $point['profit'] >= 0 ? 'Lãi' : 'Lỗ' }} {{ number_format(abs($point['profit'])) }} ₫</small>
+                    </article>
+                @endforeach
+            </div>
+            <footer><span><b class="is-revenue"></b>Doanh thu</span><span><b class="is-payroll"></b>Payroll</span><span><b class="is-operating"></b>Chi phí</span><span><b class="is-profit"></b>Kết quả</span></footer>
+        </div>
+    @endif
+</section>
+@endif
+
 <section class="dashboard-grid">
     <article class="panel executive-panel">
         <small>WORKFORCE INTELLIGENCE</small>

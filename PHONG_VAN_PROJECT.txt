@@ -643,3 +643,31 @@ Vì sao thêm Cart chưa reserve tồn? C5 chưa có Checkout/Order lifecycle. R
 Vì sao Wishlist và Cart thuộc User/Buyer, không thuộc Seller? Đây là dữ liệu riêng của người mua. Mọi query mutation đều scope qua authenticated user; Seller không có API duyệt danh sách riêng này.
 
 Vì sao điều chỉnh tồn kho cần transaction và row lock? Hai yêu cầu đồng thời có thể đọc cùng on_hand. Khóa hàng rồi tính/set trong một transaction ngăn lost update và bảo đảm reserved không vượt on_hand.
+
+COMMERCE C6 — CHECKOUT / ORDER
+
+Vì sao Cart không reserve nhưng Checkout phải reserve? Cart chỉ là ý định mua có thể tồn tại lâu. Checkout là ranh giới cam kết: server khóa Inventory Balance, kiểm tra available và tăng reserved trong cùng transaction tạo Order.
+
+Vì sao Order snapshot Product, SKU, giá và địa chỉ? Product/địa chỉ có thể đổi sau đó; snapshot giữ lịch sử Order giải thích được mà không phụ thuộc dữ liệu mutable.
+
+Multi-Store được cô lập cho Seller thế nào? Một checkout reference dùng chung nhưng tạo một Order cho mỗi Store. Seller query luôn đi qua Seller Profile/Store ownership nên không đọc Order Store khác.
+
+Idempotency ngăn double-order ra sao? `checkout_sessions` có unique Buyer + idempotency key. Retry đọc session completed và trả lại cùng Order IDs thay vì tạo/reserve lần nữa.
+
+Hủy Order hoàn tồn thế nào? Transition chỉ cho pending_payment/confirmed; transaction khóa Order và reservation, giảm Inventory reserved đúng quantity rồi chuyển reservation released và Order cancelled.
+
+Vì sao tiền dùng integer minor units? Nhân quantity và cộng subtotal/shipping/discount bằng integer tránh sai số float; formatted VND chỉ thuộc view.
+
+ERP CONSOLIDATION — CÂU HỎI PHỎNG VẤN
+
+Vì sao Branch Access và Branch Assignment là hai khái niệm? Access là quyền User được xem/thao tác Branch; assignment là Employee đang vận hành tại Branch nào trong một khoảng hiệu lực. Tách hai khái niệm giúp một User có nhiều quyền truy cập nhưng Payroll/Attendance vẫn có đúng snapshot Branch lịch sử.
+
+Vì sao Branch Bonus không ghi thẳng vào Payroll Item? Payroll Item của run finalized là bằng chứng bất biến. Bonus đi qua maker-checker rồi tạo salary component assignment đúng tháng; Payroll Input/Run kế tiếp mới thu nhận nó.
+
+Branch P&L khác báo cáo thuế thế nào? P&L này là management view từ doanh thu đã ghi nhận, Payroll cost, OPEX, rent, bonus và khấu hao quản trị. Nó không tự tính VAT/CIT, không thay thế sổ kế toán và không tạo nghĩa vụ pháp lý.
+
+Vì sao policy thuế cần source reference và effective date? Pháp luật thay đổi theo thời gian. Version policy phải chỉ ra jurisdiction, nguồn chính thức và ngày kiểm chứng để tái lập kết quả cũ; thiếu nguồn/rate thì fail-safe `CONFIGURATION_REQUIRED`, không đoán.
+
+Vì sao seeder chỉ tạo source mà không ghi thẳng số Payroll? Attendance, Leave, OT, bonus và Salary Assignment là input có lineage; Payroll engine phải tự resolve policy, quantity, rate, PIT và insurance. Ghi số cuối trong seeder sẽ tạo dữ liệu đẹp nhưng không kiểm chứng được nghiệp vụ.
+
+Idempotency của demo data bảo vệ dữ liệu thật thế nào? Mọi row synthetic có reference deterministic và ownership hẹp; bootstrap chỉ reconcile Employee `E0001`–`E0035` đang thuộc dataset, không sửa Employee/Attendance/Payroll finalized thủ công. Chạy lại cho cùng count và cùng business identity.

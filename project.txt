@@ -659,3 +659,18 @@ COMMERCE C5 — MARKETPLACE, CART AND WISHLIST
 - Seller Inventory is a separate permission/ownership-scoped page with atomic locked increase/decrease/set operations and Audit reason.
 - Public Product pages show active records only and fabricate no rating, review, promotion or Order claim.
 - One additive migration/four tables brings the target local matrix to 73 migrations / 252 tables; Data Quality has 30 read-only rules.
+
+COMMERCE C6 — CHECKOUT, ORDER AND INVENTORY RESERVATION
+- Buyer-owned Vietnamese addresses support transactional default selection and immutable Order address snapshots.
+- Selected Cart items are revalidated server-side, split into one Order per Store and committed atomically with item/price/SKU snapshots and locked inventory reservations.
+- Checkout idempotency, typed Order transitions, Buyer cancellation/release, Seller-owned Order views, bounded filters and safe Audit metadata are enforced without payment/shipping provider traffic.
+- One additive migration/five tables brings the target local matrix to 74 migrations / 257 tables; Data Quality has 38 read-only rules.
+
+ERP CONSOLIDATION HARDENING — HRM / PAYROLL / BRANCH FINANCE
+- Sidebar is regrouped by ERP domain while preserving every existing named route and permission-filtered destination; Employee Portal, Branch Bonus and Branch Financial Performance are real primary pages with dedicated contextual help.
+- Attendance and Payroll Input capture the effective operational Branch snapshot. Branch access remains authorization; `employee_branch_assignments` is the effective-dated workforce allocation and does not rewrite historical Payroll.
+- Branch Bonus uses maker-checker and creates one effective-month Payroll component assignment only after approval. Branch management P&L uses recognized revenue, eligible Payroll cost, approved OPEX/bonus, effective rent and straight-line management depreciation; it is not a statutory/tax ledger.
+- Tax and insurance policy versions persist jurisdiction, official-source reference and verification date. Unknown statutory inputs remain `CONFIGURATION_REQUIRED`; no legal rate is invented.
+- Four additive migrations bring the local contract to 78 migrations / 264 tables; Data Quality now has 41 deterministic rules.
+- Local demo enrichment is relational rather than view-local: all 33 bootstrap-owned active/probation/leave Employees have effective Branch allocation and Position-derived compensation; approved OT, unpaid leave and maker-checker Branch Bonus feed the canonical Payroll/Finance sources. Manual Employee codes outside `E0001`–`E0035` are excluded.
+- ERP realistic operating data Phase 2 spans multiple deterministic months. Attendance/Leave/OT quantities enter immutable Payroll Inputs; configured Salary Assignments plus effective tax/insurance policies produce Payroll Items, Payslips and Branch P&L without seeding final Payroll amounts.

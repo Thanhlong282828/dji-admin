@@ -96,8 +96,8 @@ final class EnterpriseReportingTest extends TestCase
         self::assertSame($before, $after);
         // Keep the current fixed read-model ceiling; before/after equality is the N+1 gate.
         // C4 adds two composed Commerce quality rules; the count stays fixed as volume grows.
-        // C5 adds two fixed Cart/Wishlist Data Quality reconciliation queries.
-        self::assertLessThanOrEqual(112, $after);
+        // C5 adds two fixed Cart/Wishlist checks; C6 adds eight fixed Checkout/Order/Reservation checks.
+        self::assertLessThanOrEqual(123, $after);
     }
 
     private function company(string $suffix): Company

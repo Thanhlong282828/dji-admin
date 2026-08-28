@@ -80,8 +80,8 @@ final class PlanningExecutionTest extends TestCase
         DB::disableQueryLog();
         self::assertSame($before, $after);
         // C4 Commerce quality ownership checks add fixed work, never per Employee.
-        // C5 adds two fixed Cart/Wishlist Data Quality reconciliation queries.
-        self::assertLessThanOrEqual(45, $after);
+        // C5 plus eight C6 Checkout/Order/Reservation reconciliation queries remain fixed.
+        self::assertLessThanOrEqual(56, $after);
     }
 
     private function company(string $suffix): Company

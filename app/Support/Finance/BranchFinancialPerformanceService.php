@@ -1,0 +1,75 @@
+<?php
+
+namespace App\Support\Finance;
+
+use Carbon\CarbonImmutable;
+use Illuminate\Database\ConnectionInterface;
+use Illuminate\Database\Query\Builder;
+use Illuminate\Database\Query\JoinClause;
+
+final readonly class BranchFinancialPerformanceService
+{
+    public function __construct(private ConnectionInterface $db) {}
+
+    /** @return array{month:string,rows:list<array<string,int|string>>,totals:array<string,int>} */
+    public function snapshot(int $companyId, string $month): array
+    {
+        $parsed = CarbonImmutable::createFromFormat('Y-m-d', $month.'-01');
+        if (! $parsed instanceof CarbonImmutable) {
+            throw new \InvalidArgumentException('Tháng báo cáo không hợp lệ.');
+        }
+        $start = $parsed->startOfMonth();
+        $end = $start->endOfMonth();
+        $branches = $this->db->table('branches')->where('company_id', $companyId)->whereNull('deleted_at')->orderBy('name')->get(['id', 'code', 'name']);
+        $revenues = $this->db->table('branch_management_revenues')->where('company_id', $companyId)->where('status', 'recognized')->whereBetween('recognized_on', [$start, $end])->groupBy('branch_id')->selectRaw('branch_id, SUM(amount_minor) total')->pluck('total', 'branch_id');
+        $expenses = $this->db->table('branch_operating_expenses')->where('company_id', $companyId)->where('status', 'approved')->whereBetween('incurred_on', [$start, $end])->groupBy('branch_id')->selectRaw('branch_id, SUM(amount_minor) total')->pluck('total', 'branch_id');
+        $rents = $this->db->table('branch_rent_contracts')->where('company_id', $companyId)->where('status', 'active')->whereDate('effective_from', '<=', $end)->where(fn (Builder $query): Builder => $query->whereNull('effective_to')->orWhereDate('effective_to', '>=', $start))->groupBy('branch_id')->selectRaw('branch_id, SUM(monthly_amount_minor) total')->pluck('total', 'branch_id');
+        $assets = $this->db->table('branch_assets')->where('company_id', $companyId)->where('status', 'active')->whereDate('acquired_on', '<=', $end)->get(['branch_id', 'acquisition_cost_minor', 'useful_life_months']);
+        $depreciation = [];
+        foreach ($assets as $asset) {
+            $branch = $this->integer($asset, 'branch_id');
+            $life = max(1, $this->integer($asset, 'useful_life_months'));
+            $depreciation[$branch] = ($depreciation[$branch] ?? 0) + intdiv($this->integer($asset, 'acquisition_cost_minor'), $life);
+        }
+        $payroll = $this->db->table('payroll_items as i')->join('payroll_runs as r', 'r.id', '=', 'i.payroll_run_id')->join('payroll_employee_inputs as pi', function (JoinClause $join): void {
+            $join->on('pi.employee_id', '=', 'i.employee_id')->on('pi.payroll_input_snapshot_id', '=', 'r.payroll_input_snapshot_id');
+        })
+            ->where('i.company_id', $companyId)->whereNotNull('pi.branch_id')->whereIn('r.status', ['calculated', 'submitted', 'approved', 'finalized', 'locked', 'paid'])->where('r.period_start', '<=', $end)->where('r.period_end', '>=', $start)->groupBy('pi.branch_id')->selectRaw('pi.branch_id, SUM(i.gross_amount_minor + i.employer_contribution_amount_minor) total')->pluck('total', 'pi.branch_id');
+        $bonuses = $this->db->table('branch_bonus_proposals')->where('company_id', $companyId)->where('status', 'approved')->whereDate('effective_period', $start)->groupBy('branch_id')->selectRaw('branch_id, SUM(amount_minor) total')->pluck('total', 'branch_id');
+        $rows = [];
+        $totals = ['revenue' => 0, 'payroll' => 0, 'operating' => 0, 'rent' => 0, 'bonus' => 0, 'depreciation' => 0, 'profit' => 0];
+        foreach ($branches as $branch) {
+            $id = $this->integer($branch, 'id');
+            $revenue = $this->numericValue($revenues->get($id));
+            $payrollCost = $this->numericValue($payroll->get($id));
+            $operating = $this->numericValue($expenses->get($id));
+            $rent = $this->numericValue($rents->get($id));
+            $bonus = $this->numericValue($bonuses->get($id));
+            $assetCost = (int) ($depreciation[$id] ?? 0);
+            $profit = $revenue - $payrollCost - $operating - $rent - $bonus - $assetCost;
+            $rows[] = ['branch_id' => $id, 'branch' => $this->text($branch, 'name'), 'code' => $this->text($branch, 'code'), 'revenue' => $revenue, 'payroll' => $payrollCost, 'operating' => $operating, 'rent' => $rent, 'bonus' => $bonus, 'depreciation' => $assetCost, 'profit' => $profit];
+            foreach (['revenue' => $revenue, 'payroll' => $payrollCost, 'operating' => $operating, 'rent' => $rent, 'bonus' => $bonus, 'depreciation' => $assetCost, 'profit' => $profit] as $key => $value) {
+                $totals[$key] += $value;
+            }
+        }
+
+        return ['month' => $start->format('Y-m'), 'rows' => $rows, 'totals' => $totals];
+    }
+
+    private function integer(object $row, string $key): int
+    {
+        return $this->numericValue($row->{$key} ?? null);
+    }
+
+    private function numericValue(mixed $value): int
+    {
+        return is_numeric($value) ? (int) $value : 0;
+    }
+
+    private function text(object $row, string $key): string
+    {
+        $value = $row->{$key} ?? null;
+
+        return is_string($value) ? $value : '';
+    }
+}

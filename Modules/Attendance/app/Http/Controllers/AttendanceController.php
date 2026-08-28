@@ -32,7 +32,7 @@ final readonly class AttendanceController
         abort_unless($dashboard instanceof AttendanceDashboard, 500);
 
         $filters = [];
-        foreach ($request->only(['range', 'search', 'attendance_status', 'approval_status', 'start_date', 'end_date']) as $key => $value) {
+        foreach ($request->only(['range', 'search', 'attendance_status', 'approval_status', 'branch_id', 'organization_unit_id', 'start_date', 'end_date']) as $key => $value) {
             if (is_string($key)) {
                 $filters[$key] = $value;
             }

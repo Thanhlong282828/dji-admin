@@ -3,6 +3,7 @@
 namespace Tests\Feature\Attendance;
 
 use App\Models\User;
+use App\Services\WorkforceCacheRegistry;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -55,6 +56,42 @@ final class AttendanceApprovalWorkflowTest extends TestCase
         $this->assertDatabaseHas('attendance_adjustment_requests', ['id' => $id, 'status' => 'approved']);
         self::assertSame($eventsBefore, DB::table('attendance_events')->count());
         self::assertSame(3, DB::table('attendance_adjustment_histories')->count());
+    }
+
+    public function test_adjustment_detail_only_renders_legal_next_actions(): void
+    {
+        [$company, $employee, $user, $record] = $this->context('ACTIONS');
+        $user->givePermissionTo(['attendance.view', 'attendance.adjust', 'attendance.approve']);
+        $draft = (int) DB::table('attendance_adjustment_requests')->insertGetId([
+            'company_id' => $company->id,
+            'attendance_record_id' => $record,
+            'employee_id' => $employee->id,
+            'requested_by' => $user->id,
+            'idempotency_key' => (string) Str::uuid(),
+            'expected_record_version' => 1,
+            'reason' => 'Kiểm tra action hợp lệ trên giao diện',
+            'status' => 'draft',
+            'version' => 1,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $response = $this->actingAs($user)->get("/admin/attendance/{$record}?company_id={$company->id}")->assertOk();
+        $content = $response->getContent();
+        self::assertIsString($content);
+        self::assertSame(1, substr_count($content, route('admin.attendance-adjustments.transition', [$draft, 'submit'])));
+        self::assertSame(1, substr_count($content, route('admin.attendance-adjustments.transition', [$draft, 'cancel'])));
+        self::assertSame(0, substr_count($content, route('admin.attendance-adjustments.transition', [$draft, 'approve'])));
+        self::assertSame(0, substr_count($content, route('admin.attendance-adjustments.transition', [$draft, 'reject'])));
+
+        DB::table('attendance_adjustment_requests')->where('id', $draft)->update(['status' => 'approved']);
+        app(WorkforceCacheRegistry::class)->invalidate((int) $company->id, 'attendance');
+        $response = $this->actingAs($user)->get("/admin/attendance/{$record}?company_id={$company->id}")->assertOk();
+        $content = $response->getContent();
+        self::assertIsString($content);
+        foreach (['submit', 'approve', 'reject', 'cancel'] as $action) {
+            self::assertSame(0, substr_count($content, route('admin.attendance-adjustments.transition', [$draft, $action])));
+        }
     }
 
     public function test_self_approval_and_stale_version_are_blocked(): void

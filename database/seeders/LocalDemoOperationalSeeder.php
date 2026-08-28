@@ -4,6 +4,7 @@ namespace Database\Seeders;
 
 use App\Models\User;
 use App\Support\Compensation\PositionCompensationReference;
+use App\Support\Payroll\BranchBonusService;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
@@ -24,6 +25,7 @@ use Modules\Payroll\Domain\Services\EmployeePaymentAccountService;
 use Modules\Payroll\Domain\Services\ErpAdministrationService;
 use Modules\Payroll\Domain\Services\ErpExportService;
 use Modules\Payroll\Domain\Services\GovernmentTaxFilingService;
+use Modules\Payroll\Domain\Services\InsuranceManagementService;
 use Modules\Payroll\Domain\Services\PayrollAccountingJournalService;
 use Modules\Payroll\Domain\Services\PayrollAdjustmentManagementService;
 use Modules\Payroll\Domain\Services\PayrollAnnualTaxLifecycleService;
@@ -49,18 +51,137 @@ final class LocalDemoOperationalSeeder extends Seeder
         $admin = User::query()->whereIn('email', ['admin@local.test', 'admin@schema.vn'])->orderByRaw("email = 'admin@local.test' DESC")->firstOrFail();
         $this->actors($company->id);
         $this->positionLevels($company->id);
-        $employees = Employee::query()->where('company_id', $company->id)->whereIn('employment_status', ['active', 'probation', 'leave'])->orderBy('employee_code')->limit(18)->get();
+        $this->commerceFoundation($admin);
+        // Only the deterministic E000x bootstrap workforce is enriched. Ad-hoc/manual
+        // employees in schema_admin remain user-owned and are never rewritten here.
+        $employees = Employee::query()->where('company_id', $company->id)
+            ->whereBetween('employee_code', ['E0001', 'E0035'])
+            ->whereIn('employment_status', ['active', 'probation', 'leave'])
+            ->orderBy('employee_code')->get();
         $employeeIds = array_values($employees->pluck('id')->map(fn (mixed $id): int => $this->requiredId($id, 'employee'))->all());
+        $this->erpConsolidation($company->id, $employeeIds, $admin->id);
         $this->workforce($company->id, $employeeIds, $admin->id);
+        $this->resetMutableDemoPayroll($company->id, 'LOCAL-2026-08');
+        $this->branchBonuses($company->id, $admin);
         $this->payroll($company->id, $employeeIds, $admin->id);
         $this->notifications($company->id, $admin->id);
         $this->integration($company->id, $admin->id);
         $this->iam($company->id, $admin->id);
         $this->workflow($company->id, $admin->id);
-        $this->commerceFoundation($admin);
         $this->commerceCatalog();
         $this->commerceBuyerExperience();
+        $this->commerceOrders();
         app(AuditRecorderInterface::class)->record(new AuditEventData($company->id, 'user', $admin->id, 'bootstrap', 'LocalDemo', 'LocalDemoBootstrapCompleted', 'local_demo_dataset', 'SCHEMA-LOCAL-DEMO', [], ['status' => 'ready'], ['synthetic_demo' => true, 'external_delivery' => false], 'local-demo-bootstrap-v1', $this->uuid(701)));
+    }
+
+    /** @param list<int> $employeeIds */
+    private function erpConsolidation(int $companyId, array $employeeIds, int $actorId): void
+    {
+        $branches = DB::table('branches')->where('company_id', $companyId)->whereNull('deleted_at')->orderBy('id')->get(['id', 'code', 'name']);
+        if ($branches->isEmpty()) {
+            return;
+        }
+
+        $branchesBySuffix = $branches->keyBy(static function (object $branch): string {
+            $code = is_string($branch->code ?? null) ? $branch->code : '';
+
+            return str_ends_with($code, '-HN') ? 'HN' : (str_ends_with($code, '-DN') ? 'DN' : 'HCM');
+        });
+        foreach ($employeeIds as $index => $employeeId) {
+            $unitCode = DB::table('employee_assignments as a')->join('organization_units as u', 'u.id', '=', 'a.organization_unit_id')
+                ->where('a.employee_id', $employeeId)->where('a.assignment_type', 'primary')->whereNull('a.effective_to')
+                ->latest('a.effective_from')->value('u.code');
+            $preferred = match ($unitCode) {
+                'SALES-DEPT' => $index % 3 === 0 ? 'HCM' : 'HN',
+                'DEVOPS', 'MOBILE' => $index % 3 === 0 ? 'HCM' : 'DN',
+                'BACKEND', 'FRONTEND' => ['HCM', 'HN', 'DN'][$index % 3],
+                default => 'HCM', // HR, Finance and Marketing are centred at HQ.
+            };
+            $branch = $branchesBySuffix->get($preferred) ?? $branches[$index % $branches->count()];
+            $userId = DB::table('employees')->where('company_id', $companyId)->where('id', $employeeId)->value('user_id');
+            if (is_numeric($userId)) {
+                DB::table('branch_user_access')->updateOrInsert(['branch_id' => $branch->id, 'user_id' => (int) $userId], ['created_at' => now(), 'updated_at' => now()]);
+            }
+            DB::table('employee_branch_assignments')->updateOrInsert(
+                ['company_id' => $companyId, 'employee_id' => $employeeId, 'assignment_type' => 'primary', 'effective_from' => '2026-01-01'],
+                ['branch_id' => $branch->id, 'effective_to' => null, 'source' => 'local_demo', 'created_by' => $actorId, 'created_at' => now(), 'updated_at' => now()],
+            );
+            DB::table('attendance_records')->where('company_id', $companyId)->where('employee_id', $employeeId)->whereNull('branch_id')->update(['branch_id' => $branch->id]);
+            DB::table('attendance_events')->where('company_id', $companyId)->where('employee_id', $employeeId)->whereNull('branch_id')->update(['branch_id' => $branch->id]);
+            DB::table('payroll_employee_inputs')->where('company_id', $companyId)->where('employee_id', $employeeId)->whereNull('branch_id')->update(['branch_id' => $branch->id, 'branch_snapshot' => $branch->name]);
+        }
+
+        foreach ($branches as $index => $branch) {
+            $suffix = is_string($branch->code ?? null) ? $branch->code : (string) $branch->id;
+            DB::table('branch_management_revenues')->where('company_id', $companyId)->where('reference', 'LOCAL-REV-'.$suffix)->delete();
+            DB::table('branch_operating_expenses')->where('company_id', $companyId)->where('reference', 'LOCAL-OPEX-'.$suffix)->delete();
+            $monthlyFactors = [3 => 100, 4 => 104, 5 => 97, 6 => 109, 7 => 116, 8 => 112, 10 => 124];
+            $baseRevenue = [1_850_000_000, 1_250_000_000, 820_000_000][$index] ?? 750_000_000;
+            foreach ($monthlyFactors as $month => $factor) {
+                $date = sprintf('2026-%02d-01', $month);
+                DB::table('branch_management_revenues')->updateOrInsert(
+                    ['company_id' => $companyId, 'reference' => sprintf('LOCAL-REV-2026-%02d-%s', $month, $suffix)],
+                    ['branch_id' => $branch->id, 'source_type' => 'management_ledger', 'amount_minor' => intdiv($baseRevenue * $factor, 100), 'currency_code' => 'VND', 'recognized_on' => $date, 'status' => 'recognized', 'description' => 'Doanh thu quản trị synthetic đã ghi nhận; không phải doanh thu thuế.', 'created_by' => $actorId, 'created_at' => now(), 'updated_at' => now()],
+                );
+                foreach ([['utilities', 18_000_000], ['software_internet', 12_000_000], ['marketing_transport', 24_000_000]] as $categoryIndex => [$category, $baseExpense]) {
+                    if (($month + $index + $categoryIndex) % 4 === 0 && $category === 'marketing_transport') {
+                        continue;
+                    }
+                    $amount = $baseExpense + ($index * 2_500_000) + (($month % 3) * 1_500_000);
+                    DB::table('branch_operating_expenses')->updateOrInsert(
+                        ['company_id' => $companyId, 'reference' => sprintf('LOCAL-OPEX-2026-%02d-%s-%s', $month, $suffix, strtoupper($category))],
+                        ['branch_id' => $branch->id, 'category' => $category, 'amount_minor' => $amount, 'currency_code' => 'VND', 'incurred_on' => $date, 'status' => 'approved', 'description' => 'Chi phí vận hành synthetic có chứng từ nội bộ demo.', 'created_by' => $actorId, 'created_at' => now(), 'updated_at' => now()],
+                    );
+                }
+            }
+            $rent = [120_000_000, 88_000_000, 62_000_000][$index] ?? 55_000_000;
+            DB::table('branch_rent_contracts')->updateOrInsert(['company_id' => $companyId, 'contract_reference' => 'LOCAL-RENT-'.$suffix], ['branch_id' => $branch->id, 'monthly_amount_minor' => $rent, 'currency_code' => 'VND', 'effective_from' => '2026-01-01', 'effective_to' => null, 'status' => 'active', 'created_at' => now(), 'updated_at' => now()]);
+            foreach ([['LAPTOP', 'Laptop nhân viên', 'computer_equipment', 180_000_000, 36], ['NETWORK', 'Thiết bị mạng chi nhánh', 'network_equipment', 95_000_000, 48], ['FURNITURE', 'Bàn ghế và tủ hồ sơ', 'office_furniture', 75_000_000, 60]] as [$assetSuffix, $name, $category, $cost, $life]) {
+                DB::table('branch_assets')->updateOrInsert(['company_id' => $companyId, 'asset_code' => 'LOCAL-ASSET-'.$suffix.'-'.$assetSuffix], ['branch_id' => $branch->id, 'name' => $name.' (Demo)', 'category' => $category, 'acquisition_cost_minor' => $cost + ($index * 15_000_000), 'currency_code' => 'VND', 'acquired_on' => '2026-01-01', 'useful_life_months' => $life, 'depreciation_method' => 'straight_line', 'status' => 'active', 'created_at' => now(), 'updated_at' => now()]);
+            }
+        }
+    }
+
+    private function branchBonuses(int $companyId, User $checker): void
+    {
+        $maker = User::query()->where('email', 'payroll.manager@local.test')->firstOrFail();
+        $service = app(BranchBonusService::class);
+        $branches = DB::table('branches')->where('company_id', $companyId)->whereNull('deleted_at')->orderBy('id')->get(['id', 'code']);
+
+        foreach (['2026-08-01', '2026-10-01'] as $effectivePeriod) {
+            foreach ($branches as $index => $branch) {
+                $employee = DB::table('employee_branch_assignments as a')->join('employees as e', 'e.id', '=', 'a.employee_id')
+                    ->where('a.company_id', $companyId)->where('a.branch_id', $branch->id)->where('a.assignment_type', 'primary')
+                    ->whereDate('a.effective_from', '<=', $effectivePeriod)->where(static fn ($query) => $query->whereNull('a.effective_to')->orWhereDate('a.effective_to', '>=', $effectivePeriod))
+                    ->where('e.employment_status', 'active')->orderBy('e.employee_code')->first(['e.id']);
+                if ($employee === null) {
+                    continue;
+                }
+                $periodLabel = substr($effectivePeriod, 0, 7);
+                $reference = 'LOCAL-BONUS-'.$periodLabel.'-'.(is_string($branch->code ?? null) ? $branch->code : $branch->id);
+                $id = DB::table('branch_bonus_proposals')->where('company_id', $companyId)->where('bonus_reference', $reference)->value('id');
+                if (! is_numeric($id)) {
+                    $id = $service->create($maker, [
+                        'company_id' => $companyId,
+                        'branch_id' => (int) $branch->id,
+                        'employee_id' => (int) $employee->id,
+                        'bonus_reference' => $reference,
+                        'amount_minor' => 2_000_000 + ($index * 500_000),
+                        'reason_category' => 'branch_performance',
+                        'reason' => 'Thưởng hiệu quả vận hành chi nhánh '.$periodLabel.' (local demo).',
+                        'effective_period' => $effectivePeriod,
+                    ]);
+                }
+                $proposal = DB::table('branch_bonus_proposals')->where('id', $id)->first(['status', 'version']);
+                if (($proposal->status ?? null) === 'draft') {
+                    $service->transition($maker, $companyId, (int) $id, 'submit', (int) $proposal->version, 'Trình duyệt theo kết quả chi nhánh '.$periodLabel.'.');
+                    $proposal = DB::table('branch_bonus_proposals')->where('id', $id)->first(['status', 'version']);
+                }
+                if (($proposal->status ?? null) === 'submitted') {
+                    $service->transition($checker, $companyId, (int) $id, 'approve', (int) $proposal->version, 'Duyệt dữ liệu local demo theo maker-checker.');
+                }
+            }
+        }
     }
 
     private function commerceFoundation(User $admin): void
@@ -211,18 +332,57 @@ final class LocalDemoOperationalSeeder extends Seeder
         }
     }
 
+    private function commerceOrders(): void
+    {
+        $buyerId = $this->requiredId(DB::table('users')->where('email', 'buyer@local.test')->value('id'), 'buyer');
+        DB::table('buyer_addresses')->updateOrInsert(
+            ['user_id' => $buyerId, 'label' => 'Nhà riêng'],
+            ['recipient_name' => 'Nguyễn Minh Anh', 'phone' => '0901000200', 'province' => 'TP. Hồ Chí Minh', 'district' => 'Quận 3', 'ward' => 'Phường Võ Thị Sáu', 'address_line' => '123 Đường Synthetic Demo', 'postal_code' => '700000', 'is_default' => true, 'created_at' => now(), 'updated_at' => now()],
+        );
+        $address = json_encode(['label' => 'Nhà riêng', 'recipient_name' => 'Nguyễn Minh Anh', 'phone' => '0901000200', 'province' => 'TP. Hồ Chí Minh', 'district' => 'Quận 3', 'ward' => 'Phường Võ Thị Sáu', 'address_line' => '123 Đường Synthetic Demo', 'postal_code' => '700000'], JSON_THROW_ON_ERROR);
+        $variants = DB::table('product_variants as v')->join('products as p', 'p.id', '=', 'v.product_id')->join('stores as s', 's.id', '=', 'p.store_id')->join('seller_profiles as sp', 'sp.id', '=', 's.seller_profile_id')->join('inventory_balances as ib', 'ib.product_variant_id', '=', 'v.id')->where('v.status', 'active')->where('p.status', 'active')->orderBy('v.id')->get(['v.id as variant_id', 'v.sku', 'v.name as variant_name', 'v.price_minor', 'p.id as product_id', 'p.name as product_name', 's.id as store_id', 's.name as store_name', 'sp.id as seller_profile_id', 'ib.id as balance_id']);
+        if ($variants->isEmpty()) {
+            return;
+        }
+        $statuses = ['pending_payment', 'confirmed', 'processing', 'cancelled'];
+        for ($index = 0; $index < 18; $index++) {
+            $variant = $variants[$index % $variants->count()];
+            $quantity = ($index % 2) + 1;
+            $status = $statuses[$index % count($statuses)];
+            $checkoutKey = 'local-demo-checkout-'.str_pad((string) ($index + 1), 2, '0', STR_PAD_LEFT);
+            DB::table('checkout_sessions')->updateOrInsert(['buyer_user_id' => $buyerId, 'idempotency_key' => $checkoutKey], ['checkout_reference' => $this->uuid(3001 + $index), 'status' => 'completed', 'total_minor' => ((int) $variant->price_minor * $quantity) + 30_000, 'currency' => 'VND', 'completed_at' => now()->subDays($index), 'created_at' => now()->subDays($index), 'updated_at' => now()]);
+            $sessionId = $this->requiredId(DB::table('checkout_sessions')->where('buyer_user_id', $buyerId)->where('idempotency_key', $checkoutKey)->value('id'), 'checkout session');
+            $orderNumber = 'ODR-DEMO-'.str_pad((string) ($index + 1), 4, '0', STR_PAD_LEFT);
+            $subtotal = (int) $variant->price_minor * $quantity;
+            DB::table('orders')->updateOrInsert(['order_number' => $orderNumber], ['checkout_session_id' => $sessionId, 'checkout_reference' => $this->uuid(3001 + $index), 'buyer_user_id' => $buyerId, 'store_id' => $variant->store_id, 'seller_profile_id' => $variant->seller_profile_id, 'store_name_snapshot' => $variant->store_name, 'shipping_address_snapshot' => $address, 'shipping_method' => 'standard', 'status' => $status, 'payment_status' => 'unpaid', 'currency' => 'VND', 'subtotal_minor' => $subtotal, 'shipping_minor' => 30_000, 'discount_minor' => 0, 'total_minor' => $subtotal + 30_000, 'placed_at' => now()->subDays($index), 'created_at' => now()->subDays($index), 'updated_at' => now()]);
+            $orderId = $this->requiredId(DB::table('orders')->where('order_number', $orderNumber)->value('id'), 'order');
+            DB::table('order_items')->updateOrInsert(['order_id' => $orderId, 'sku_snapshot' => $variant->sku], ['product_id' => $variant->product_id, 'product_variant_id' => $variant->variant_id, 'product_name_snapshot' => $variant->product_name, 'variant_label_snapshot' => $variant->variant_name, 'quantity' => $quantity, 'unit_price_minor' => $variant->price_minor, 'line_total_minor' => $subtotal, 'currency' => 'VND', 'created_at' => now(), 'updated_at' => now()]);
+            $itemId = $this->requiredId(DB::table('order_items')->where('order_id', $orderId)->where('sku_snapshot', $variant->sku)->value('id'), 'order item');
+            $reservationStatus = $status === 'cancelled' ? 'released' : 'reserved';
+            DB::table('inventory_reservations')->updateOrInsert(['reference' => $this->uuid(4001 + $index)], ['order_id' => $orderId, 'order_item_id' => $itemId, 'product_variant_id' => $variant->variant_id, 'inventory_balance_id' => $variant->balance_id, 'quantity' => $quantity, 'status' => $reservationStatus, 'reserved_at' => now()->subDays($index), 'released_at' => $reservationStatus === 'released' ? now()->subDays($index)->addHour() : null, 'consumed_at' => null, 'created_at' => now(), 'updated_at' => now()]);
+            if ($reservationStatus === 'reserved') {
+                DB::table('inventory_balances')->where('id', $variant->balance_id)->increment('reserved', $quantity, ['version' => DB::raw('version + 1'), 'updated_at' => now()]);
+            }
+        }
+    }
+
     /** @param list<int> $employeeIds */
     private function payroll(int $companyId, array $employeeIds, int $actorId): void
     {
         $componentDefinitions = [
-            'BASE-SALARY-DEMO' => ['name' => 'Lương cơ bản synthetic', 'display_order' => 10, 'system_key' => 'base_salary', 'category' => 'earning'],
-            'KPI-TARGET-DEMO' => ['name' => 'KPI mục tiêu synthetic', 'display_order' => 20, 'system_key' => 'kpi_target', 'category' => 'earning'],
-            'FIXED-ALLOWANCE-DEMO' => ['name' => 'Phụ cấp cố định synthetic', 'display_order' => 30, 'system_key' => 'fixed_allowance', 'category' => 'allowance'],
+            'BASE-SALARY-DEMO' => ['name' => 'Lương cơ bản synthetic', 'display_order' => 10, 'system_key' => 'base_salary', 'category' => 'earning', 'calculation_type' => 'fixed', 'taxable' => 'taxable', 'insurance' => 'included'],
+            'KPI-TARGET-DEMO' => ['name' => 'KPI mục tiêu synthetic', 'display_order' => 20, 'system_key' => 'kpi_target', 'category' => 'earning', 'calculation_type' => 'fixed', 'taxable' => 'taxable', 'insurance' => 'excluded'],
+            'FIXED-ALLOWANCE-DEMO' => ['name' => 'Phụ cấp cố định synthetic', 'display_order' => 30, 'system_key' => 'fixed_allowance', 'category' => 'earning', 'calculation_type' => 'fixed', 'taxable' => 'taxable', 'insurance' => 'excluded'],
+            'WEEKDAY-OT-DEMO' => ['name' => 'Tiền tăng ca ngày làm việc', 'display_order' => 40, 'system_key' => 'weekday_overtime_pay', 'category' => 'earning', 'calculation_type' => 'quantity_rate', 'taxable' => 'non_taxable', 'insurance' => 'excluded'],
+            'WEEKEND-OT-DEMO' => ['name' => 'Tiền tăng ca cuối tuần', 'display_order' => 41, 'system_key' => 'weekend_overtime_pay', 'category' => 'earning', 'calculation_type' => 'quantity_rate', 'taxable' => 'non_taxable', 'insurance' => 'excluded'],
+            'HOLIDAY-OT-DEMO' => ['name' => 'Tiền tăng ca ngày lễ', 'display_order' => 42, 'system_key' => 'holiday_overtime_pay', 'category' => 'earning', 'calculation_type' => 'quantity_rate', 'taxable' => 'non_taxable', 'insurance' => 'excluded'],
+            'UNPAID-LEAVE-DEMO' => ['name' => 'Khấu trừ nghỉ không lương', 'display_order' => 80, 'system_key' => 'unpaid_leave_deduction', 'category' => 'deduction', 'calculation_type' => 'quantity_rate', 'taxable' => 'excluded', 'insurance' => 'excluded'],
+            'LATE-TIME-DEMO' => ['name' => 'Khấu trừ thời gian đi trễ', 'display_order' => 81, 'system_key' => 'late_time_deduction', 'category' => 'deduction', 'calculation_type' => 'quantity_rate', 'taxable' => 'excluded', 'insurance' => 'excluded'],
         ];
         foreach ($componentDefinitions as $code => $definition) {
             DB::table('salary_components')->updateOrInsert(
                 ['company_id' => $companyId, 'code' => $code],
-                ['name' => $definition['name'], 'description' => 'LOCAL SYNTHETIC DEMO ONLY — không phải dữ liệu luật định hoặc Net Pay.', 'category' => $definition['category'], 'calculation_type' => 'fixed', 'value_type' => 'money', 'default_value_minor' => 0, 'currency_code' => 'VND', 'taxable_status' => 'not_configured', 'insurance_status' => 'not_configured', 'affects_gross' => true, 'affects_net' => true, 'display_order' => $definition['display_order'], 'effective_from' => '2026-01-01', 'status' => 'active', 'is_system' => false, 'system_key' => $definition['system_key'], 'version' => 1, 'created_by' => $actorId, 'updated_by' => $actorId, 'created_at' => now(), 'updated_at' => now()],
+                ['name' => $definition['name'], 'description' => 'LOCAL SYNTHETIC DEMO ONLY — rate do compensation policy cấu hình; quantity lấy từ Payroll Input snapshot.', 'category' => $definition['category'], 'calculation_type' => $definition['calculation_type'], 'value_type' => 'money', 'default_value_minor' => 0, 'currency_code' => 'VND', 'taxable_status' => $definition['taxable'], 'insurance_status' => $definition['insurance'], 'affects_gross' => $definition['category'] === 'earning', 'affects_net' => true, 'display_order' => $definition['display_order'], 'effective_from' => '2026-01-01', 'status' => 'active', 'is_system' => false, 'system_key' => $definition['system_key'], 'version' => 1, 'created_by' => $actorId, 'updated_by' => $actorId, 'created_at' => now(), 'updated_at' => now()],
             );
         }
         $components = DB::table('salary_components')->where('company_id', $companyId)->whereIn('code', array_keys($componentDefinitions))->pluck('id', 'code');
@@ -233,24 +393,57 @@ final class LocalDemoOperationalSeeder extends Seeder
                 continue;
             }
             $reference = $references->resolve((int) $position->career_level, (string) $position->unit_name, (string) $position->title, '2026-01-01');
-            foreach ([['BASE-SALARY-DEMO', $reference->baseSalaryMinor, 800], ['KPI-TARGET-DEMO', $reference->kpiTargetMinor, 1800], ['FIXED-ALLOWANCE-DEMO', $reference->fixedAllowanceMinor, 2800]] as [$code, $amount, $offset]) {
+            $hourlyRate = max(1, intdiv($reference->baseSalaryMinor, 176));
+            foreach ([['BASE-SALARY-DEMO', $reference->baseSalaryMinor, null, 800], ['KPI-TARGET-DEMO', $reference->kpiTargetMinor, null, 1800], ['FIXED-ALLOWANCE-DEMO', $reference->fixedAllowanceMinor, null, 2800], ['WEEKDAY-OT-DEMO', null, intdiv($hourlyRate * 150, 100), 4800], ['WEEKEND-OT-DEMO', null, $hourlyRate * 2, 5800], ['HOLIDAY-OT-DEMO', null, $hourlyRate * 3, 6800], ['UNPAID-LEAVE-DEMO', null, $hourlyRate, 7800], ['LATE-TIME-DEMO', null, $hourlyRate, 8800]] as [$code, $amount, $rate, $offset]) {
                 DB::table('employee_salary_component_assignments')->updateOrInsert(
                     ['company_id' => $companyId, 'idempotency_key' => $this->uuid($offset + $employeeId)],
-                    ['employee_id' => $employeeId, 'salary_component_id' => $this->requiredId($components[$code] ?? null, $code), 'amount_minor' => $amount, 'currency_code' => 'VND', 'effective_from' => '2026-01-01', 'source' => 'local_demo', 'status' => 'active', 'version' => 1, 'created_by' => $actorId, 'updated_by' => $actorId, 'created_at' => now(), 'updated_at' => now()],
+                    ['employee_id' => $employeeId, 'salary_component_id' => $this->requiredId($components[$code] ?? null, $code), 'amount_minor' => $amount, 'rate_minor' => $rate, 'quantity_basis_points' => null, 'currency_code' => 'VND', 'effective_from' => '2026-01-01', 'source' => 'local_demo', 'status' => 'active', 'version' => 1, 'created_by' => $actorId, 'updated_by' => $actorId, 'created_at' => now(), 'updated_at' => now()],
                 );
             }
         }
 
         $makerId = $this->requiredId(User::query()->where('email', 'payroll.manager@local.test')->value('id'), 'payroll manager');
-        foreach ([3 => PayrollRunStatus::Finalized, 4 => PayrollRunStatus::Approved, 5 => PayrollRunStatus::Submitted, 6 => PayrollRunStatus::Calculated, 8 => PayrollRunStatus::Calculated] as $month => $target) {
+        $this->statutoryProfiles($companyId, $employeeIds, $makerId);
+        foreach ([3 => PayrollRunStatus::Finalized, 4 => PayrollRunStatus::Approved, 5 => PayrollRunStatus::Submitted, 6 => PayrollRunStatus::Calculated, 8 => PayrollRunStatus::Finalized] as $month => $target) {
             $this->payrollMonth($companyId, $month, $makerId, $actorId, $target);
         }
         $this->payrollDelivery($companyId, $makerId, $actorId);
     }
 
+    private function resetMutableDemoPayroll(int $companyId, string $periodCode): void
+    {
+        $period = DB::table('payroll_periods')->where('company_id', $companyId)->where('code', $periodCode)->first(['id']);
+        if ($period === null) {
+            return;
+        }
+        $run = DB::table('payroll_runs')->where('company_id', $companyId)->where('payroll_period_id', $period->id)->first(['id', 'status']);
+        if ($run !== null
+            && DB::table('payroll_items')->where('company_id', $companyId)->where('payroll_run_id', $run->id)->where('insurance_employee_total_minor', '>', 0)->exists()
+            && DB::table('payroll_employee_inputs')->where('company_id', $companyId)->where('payroll_input_snapshot_id', DB::table('payroll_runs')->where('id', $run->id)->value('payroll_input_snapshot_id'))->where('approved_overtime_minutes', '>', 0)->exists()) {
+            return;
+        }
+        if ($run !== null && ! in_array($run->status, ['draft', 'calculated', 'validation_failed', 'failed', 'rejected'], true)) {
+            return;
+        }
+        DB::transaction(function () use ($companyId, $period, $run): void {
+            if ($run !== null) {
+                DB::table('payroll_item_components')->where('company_id', $companyId)->where('payroll_run_id', $run->id)->delete();
+                DB::table('payroll_validation_issues')->where('company_id', $companyId)->where('payroll_run_id', $run->id)->delete();
+                DB::table('payroll_items')->where('company_id', $companyId)->where('payroll_run_id', $run->id)->delete();
+                DB::table('payroll_run_histories')->where('company_id', $companyId)->where('payroll_run_id', $run->id)->delete();
+                DB::table('payroll_runs')->where('company_id', $companyId)->where('id', $run->id)->delete();
+            }
+            $snapshotIds = DB::table('payroll_input_snapshots')->where('company_id', $companyId)->where('payroll_period_id', $period->id)->pluck('id');
+            DB::table('payroll_input_source_records')->where('company_id', $companyId)->whereIn('payroll_input_snapshot_id', $snapshotIds)->delete();
+            DB::table('payroll_employee_inputs')->where('company_id', $companyId)->whereIn('payroll_input_snapshot_id', $snapshotIds)->delete();
+            DB::table('payroll_input_snapshots')->where('company_id', $companyId)->whereIn('id', $snapshotIds)->delete();
+            DB::table('payroll_periods')->where('company_id', $companyId)->where('id', $period->id)->update(['status' => 'collecting', 'version' => DB::raw('version + 1'), 'updated_at' => now()]);
+        });
+    }
+
     private function payrollDelivery(int $companyId, int $makerId, int $checkerId): void
     {
-        $run = PayrollRun::query()->where('company_id', $companyId)->where('status', PayrollRunStatus::Finalized)->orderBy('id')->first();
+        $run = PayrollRun::query()->where('company_id', $companyId)->where('status', PayrollRunStatus::Finalized)->orderByDesc('period_end')->first();
         if (! $run instanceof PayrollRun) {
             return;
         }
@@ -267,7 +460,9 @@ final class LocalDemoOperationalSeeder extends Seeder
         $payslips = app(PayslipGenerationService::class);
         foreach (DB::table('payroll_items')->where('company_id', $companyId)->where('payroll_run_id', $run->id)->orderBy('id')->limit(2)->pluck('id') as $index => $itemId) {
             if (is_numeric($itemId) && ! DB::table('payroll_payslips')->where('company_id', $companyId)->where('payroll_item_id', $itemId)->exists()) {
-                $payslips->requestItem($companyId, $run->id, (int) $itemId, $makerId, $this->uuid(1101 + $index));
+                // Scope the deterministic request key to the immutable run. A fixed
+                // key would incorrectly return a Payslip from an older finalized run.
+                $payslips->requestItem($companyId, $run->id, (int) $itemId, $makerId, $this->uuid(1_100_000 + ($run->id * 100) + $index));
             }
         }
         foreach (DB::table('payroll_payslips')->where('company_id', $companyId)->where('payroll_run_id', $run->id)->whereIn('status', ['pending', 'generating'])->orderBy('id')->limit(2)->pluck('id') as $payslipId) {
@@ -290,6 +485,73 @@ final class LocalDemoOperationalSeeder extends Seeder
         $this->payrollAnnualTaxAndGovernment($companyId, $run->id, $makerId, $checkerId);
     }
 
+    /** @param list<int> $employeeIds */
+    private function statutoryProfiles(int $companyId, array $employeeIds, int $actorId): void
+    {
+        $insurance = app(InsuranceManagementService::class);
+        $insurancePolicy = DB::table('insurance_policies')->where('company_id', $companyId)->where('code', 'LOCAL-VN-INS-2026')->value('id');
+        if (! is_numeric($insurancePolicy)) {
+            $insurancePolicy = $insurance->savePolicy($companyId, null, [
+                'code' => 'LOCAL-VN-INS-2026', 'name' => 'Bảo hiểm bắt buộc Việt Nam — local configured demo', 'version' => 1,
+                'effective_from' => '2026-01-01', 'effective_to' => null, 'status' => 'active', 'currency_code' => 'VND', 'jurisdiction' => 'VN',
+                'source_reference' => 'LOCAL-DEMO-CONFIG; verify against authoritative payroll advice before production', 'source_verified_at' => '2026-08-28',
+                'rounding_rule' => 'half_up', 'note' => 'Synthetic operational configuration; not legal advice.',
+                'rates' => [
+                    ['insurance_type' => 'social', 'employee_rate_basis_points' => 800, 'employer_rate_basis_points' => 1750],
+                    ['insurance_type' => 'health', 'employee_rate_basis_points' => 150, 'employer_rate_basis_points' => 300],
+                    ['insurance_type' => 'unemployment', 'employee_rate_basis_points' => 100, 'employer_rate_basis_points' => 100],
+                ],
+            ], $actorId);
+        }
+
+        $tax = app(TaxManagementService::class);
+        $taxPolicy = DB::table('tax_policies')->where('company_id', $companyId)->where('code', 'LOCAL-PIT-DEMO')->value('id');
+        $configuredTaxPolicy = is_numeric($taxPolicy)
+            && (int) DB::table('tax_policies')->where('id', $taxPolicy)->value('version') === 2
+            && DB::table('tax_policy_brackets')->where('tax_policy_id', $taxPolicy)->count() === 5;
+        $taxPolicyId = $configuredTaxPolicy ? (int) $taxPolicy : $tax->savePolicy($companyId, is_numeric($taxPolicy) ? (int) $taxPolicy : null, [
+            'code' => 'LOCAL-PIT-DEMO', 'name' => 'PIT progressive configured demo 2026', 'version' => 2,
+            'effective_from' => '2026-01-01', 'effective_to' => null, 'currency_code' => 'VND', 'jurisdiction' => 'VN',
+            'source_reference' => 'Luật 109/2025/QH15; local demo configuration requires production legal verification', 'source_verified_at' => '2026-08-28',
+            'tax_method' => 'progressive', 'residency_group' => 'resident', 'rounding_rule' => 'half_up', 'floor_taxable_income_at_zero' => true,
+            'flat_rate_basis_points' => null, 'status' => 'active', 'note' => 'Synthetic operational example; not a statutory filing claim.',
+            'brackets' => [
+                ['lower_bound_minor' => 0, 'upper_bound_minor' => 10_000_000, 'rate_basis_points' => 500],
+                ['lower_bound_minor' => 10_000_000, 'upper_bound_minor' => 30_000_000, 'rate_basis_points' => 1000],
+                ['lower_bound_minor' => 30_000_000, 'upper_bound_minor' => 60_000_000, 'rate_basis_points' => 2000],
+                ['lower_bound_minor' => 60_000_000, 'upper_bound_minor' => 100_000_000, 'rate_basis_points' => 3000],
+                ['lower_bound_minor' => 100_000_000, 'upper_bound_minor' => null, 'rate_basis_points' => 3500],
+            ],
+            'deductions' => [
+                ['code' => 'PERSONAL', 'name' => 'Giảm trừ cá nhân configured demo', 'deduction_type' => 'personal', 'amount_minor' => 15_500_000],
+                ['code' => 'DEPENDENT', 'name' => 'Giảm trừ người phụ thuộc configured demo', 'deduction_type' => 'dependent', 'amount_minor' => 6_200_000],
+                ['code' => 'EMPLOYEE-INSURANCE', 'name' => 'Bảo hiểm người lao động', 'deduction_type' => 'employee_insurance', 'amount_minor' => null],
+            ],
+        ], $actorId);
+
+        foreach ($employeeIds as $index => $employeeId) {
+            $employmentStatus = DB::table('employees')->where('company_id', $companyId)->where('id', $employeeId)->value('employment_status');
+            $insuranceProfile = DB::table('employee_insurance_profiles')->where('company_id', $companyId)->where('employee_id', $employeeId)->where('effective_from', '2026-01-01')->value('id');
+            $insurance->saveProfile($companyId, $employeeId, is_numeric($insuranceProfile) ? (int) $insuranceProfile : null, [
+                'insurance_policy_id' => (int) $insurancePolicy, 'participation_status' => $employmentStatus === 'probation' ? 'not_participating' : 'participating',
+                'effective_from' => '2026-01-01', 'effective_to' => null, 'insurance_number' => 'LOCAL-BH-'.str_pad((string) $employeeId, 8, '0', STR_PAD_LEFT),
+                'contribution_base_override_minor' => null, 'currency_code' => 'VND', 'exemption_reason' => $employmentStatus === 'probation' ? 'Local demo probation profile.' : null,
+            ], $actorId);
+            $taxProfile = DB::table('employee_tax_profiles')->where('company_id', $companyId)->where('employee_id', $employeeId)->where('effective_from', '2026-01-01')->value('id');
+            $tax->saveProfile($companyId, $employeeId, is_numeric($taxProfile) ? (int) $taxProfile : null, [
+                'tax_policy_id' => $taxPolicyId, 'tax_status' => 'taxable', 'residency_status' => 'resident', 'effective_from' => '2026-01-01', 'effective_to' => null,
+                'tax_identification_number' => 'LOCAL-PIT-'.str_pad((string) $employeeId, 8, '0', STR_PAD_LEFT), 'personal_deduction_eligible' => true,
+                'withholding_method' => 'policy', 'base_override_minor' => null, 'exemption_reason' => null,
+            ], $actorId);
+            if ($index % 5 === 0) {
+                DB::table('employee_tax_dependents')->updateOrInsert(
+                    ['company_id' => $companyId, 'employee_id' => $employeeId, 'reference_number' => 'LOCAL-DEPENDENT-'.$employeeId],
+                    ['name' => 'Người phụ thuộc synthetic '.$employeeId, 'relationship' => 'child', 'effective_from' => '2026-01-01', 'effective_to' => null, 'deduction_eligible' => true, 'approval_status' => 'approved', 'approved_by' => $actorId, 'approved_at' => now(), 'created_at' => now(), 'updated_at' => now()],
+                );
+            }
+        }
+    }
+
     private function payrollAccounting(int $companyId, int $runId, int $makerId, int $checkerId): int
     {
         $admin = app(AccountingAdministrationService::class);
@@ -299,7 +561,23 @@ final class LocalDemoOperationalSeeder extends Seeder
         $payableId = is_numeric($payable) ? (int) $payable : $admin->saveAccount($companyId, null, ['code' => '3341-DEMO', 'name' => 'Phải trả nhân viên synthetic', 'account_type' => 'liability', 'normal_balance' => 'credit', 'currency' => 'VND', 'allow_posting' => true, 'status' => 'active', 'effective_from' => '2026-01-01', 'effective_to' => null, 'parent_id' => null], $makerId);
         $policy = DB::table('payroll_accounting_policies')->where('company_id', $companyId)->where('code', 'LOCAL-PAYROLL-DEMO')->value('id');
         $policyId = is_numeric($policy) ? (int) $policy : $admin->savePolicy($companyId, null, ['code' => 'LOCAL-PAYROLL-DEMO', 'name' => 'Chính sách kế toán lương synthetic', 'version' => 1, 'currency' => 'VND', 'aggregation_strategy' => 'company', 'effective_from' => '2026-01-01', 'effective_to' => null, 'rounding_rule' => 'minor_unit', 'status' => 'active', 'note' => 'LOCAL DEMO ONLY'], $makerId);
-        foreach ([['earning_component', 'BASE-SALARY-DEMO', $expenseId, null], ['net_pay', 'NET_PAY', null, $payableId]] as [$type, $code, $debit, $credit]) {
+        $mappings = [
+            ['earning_component', 'BASE-SALARY-DEMO', $expenseId, null],
+            ['earning_component', 'KPI-TARGET-DEMO', $expenseId, null],
+            ['earning_component', 'FIXED-ALLOWANCE-DEMO', $expenseId, null],
+            ['earning_component', 'WEEKDAY-OT-DEMO', $expenseId, null],
+            ['earning_component', 'WEEKEND-OT-DEMO', $expenseId, null],
+            ['earning_component', 'HOLIDAY-OT-DEMO', $expenseId, null],
+            ['earning_component', 'BRANCH_BONUS', $expenseId, null],
+            ['other_deduction', 'UNPAID-LEAVE-DEMO', null, $payableId],
+            ['other_deduction', 'LATE-TIME-DEMO', null, $payableId],
+            ['employee_insurance', 'EMPLOYEE_INSURANCE', null, $payableId],
+            ['employer_insurance_expense', 'EMPLOYER_INSURANCE_EXPENSE', $expenseId, null],
+            ['employer_insurance_liability', 'EMPLOYER_INSURANCE_LIABILITY', null, $payableId],
+            ['personal_income_tax', 'PERSONAL_INCOME_TAX', null, $payableId],
+            ['net_pay', 'NET_PAY', null, $payableId],
+        ];
+        foreach ($mappings as [$type, $code, $debit, $credit]) {
             if (! DB::table('payroll_accounting_mappings')->where('company_id', $companyId)->where('accounting_policy_id', $policyId)->where('source_type', $type)->where('source_code', $code)->exists()) {
                 $admin->saveMapping($companyId, null, ['accounting_policy_id' => $policyId, 'source_type' => $type, 'source_code' => $code, 'debit_account_id' => $debit, 'credit_account_id' => $credit, 'cost_center_id' => null, 'organization_unit_id' => null, 'priority' => 100, 'effective_from' => '2026-01-01', 'effective_to' => null, 'status' => 'active'], $makerId);
             }
@@ -475,6 +753,9 @@ final class LocalDemoOperationalSeeder extends Seeder
             $role = Role::findByName($roleName, 'web');
             $user->syncRoles([$role]);
             DB::table('company_user_access')->updateOrInsert(['company_id' => $companyId, 'user_id' => $user->id], ['created_at' => now(), 'updated_at' => now()]);
+            if ($email === 'employee@local.test') {
+                DB::table('employees')->where('company_id', $companyId)->where('employee_code', 'E0002')->whereNull('user_id')->update(['user_id' => $user->id, 'updated_at' => now()]);
+            }
         }
     }
 
@@ -485,15 +766,55 @@ final class LocalDemoOperationalSeeder extends Seeder
         $calendarId = $this->requiredId(DB::table('work_calendars')->where('company_id', $companyId)->where('code', 'LOCAL-VN-5D')->value('id'), 'work calendar');
         DB::table('work_shifts')->updateOrInsert(['company_id' => $companyId, 'code' => 'LOCAL-OFFICE'], ['name' => 'Ca hành chính 08:30–17:30 (Demo)', 'timezone' => 'Asia/Ho_Chi_Minh', 'starts_at' => '08:30:00', 'ends_at' => '17:30:00', 'crosses_midnight' => false, 'planned_work_minutes' => 480, 'grace_in_minutes' => 5, 'grace_out_minutes' => 5, 'rounding_rule' => 'none', 'minimum_half_day_minutes' => 240, 'minimum_full_day_minutes' => 480, 'status' => 'active', 'version' => 1, 'rules' => json_encode(['synthetic_demo' => true], JSON_THROW_ON_ERROR), 'created_at' => now(), 'updated_at' => now()]);
         $shiftId = $this->requiredId(DB::table('work_shifts')->where('company_id', $companyId)->where('code', 'LOCAL-OFFICE')->value('id'), 'work shift');
+        foreach (range(1, 7) as $weekday) {
+            DB::table('work_calendar_days')->updateOrInsert(
+                ['work_calendar_id' => $calendarId, 'weekday' => $weekday],
+                ['is_working_day' => $weekday <= 5, 'planned_minutes' => $weekday <= 5 ? 480 : 0, 'default_shift_id' => $weekday <= 5 ? $shiftId : null, 'created_at' => now(), 'updated_at' => now()],
+            );
+        }
 
         foreach ($employeeIds as $index => $employeeId) {
             DB::table('employee_work_profiles')->updateOrInsert(['company_id' => $companyId, 'employee_id' => $employeeId, 'effective_from' => '2026-01-01'], ['timezone' => 'Asia/Ho_Chi_Minh', 'work_calendar_id' => $calendarId, 'default_shift_id' => $shiftId, 'weekly_minutes' => 2400, 'daily_minutes' => 480, 'fte_basis_points' => 10000, 'attendance_required' => true, 'overtime_eligible' => true, 'leave_eligible' => true, 'version' => 1, 'created_at' => now(), 'updated_at' => now()]);
-            for ($day = 1; $day <= 5; $day++) {
-                $date = today()->subDays($day);
-                $late = ($index + $day) % 5 === 0 ? 15 : 0;
-                $overtime = ($index + $day) % 7 === 0 ? 60 : 0;
-                DB::table('attendance_records')->updateOrInsert(['company_id' => $companyId, 'employee_id' => $employeeId, 'work_date' => $date->toDateString()], ['work_shift_id' => $shiftId, 'check_in_at' => $date->copy()->setTime(8, 30)->addMinutes($late), 'check_out_at' => $date->copy()->setTime(17, 30)->addMinutes($overtime), 'source' => 'local_demo', 'scheduled_minutes' => 480, 'worked_minutes' => 480 + $overtime - $late, 'break_minutes' => 60, 'late_minutes' => $late, 'early_leave_minutes' => 0, 'overtime_minutes' => $overtime, 'attendance_status' => $late > 0 ? 'late' : 'present', 'presence_status' => 'present', 'approval_status' => 'approved', 'calculation_status' => 'calculated', 'anomalies' => json_encode($late > 0 ? ['late_arrival'] : [], JSON_THROW_ON_ERROR), 'worked_hours' => number_format((480 + $overtime - $late) / 60, 2, '.', ''), 'overtime_hours' => number_format($overtime / 60, 2, '.', ''), 'version' => 1, 'created_at' => now(), 'updated_at' => now()]);
+            foreach ([3, 4, 5, 6, 7, 8, 10] as $month) {
+                $businessDay = 0;
+                for ($day = 1; $day <= 20 && $businessDay < 12; $day++) {
+                    $date = CarbonImmutable::parse(sprintf('2026-%02d-%02d', $month, $day));
+                    if (! $date->isWeekday()) {
+                        continue;
+                    }
+                    $businessDay++;
+                    $pattern = ($employeeId + $businessDay + $month) % 17;
+                    $late = match ($pattern) {
+                        0 => 55, 1 => 30, 2, 3 => 15, 4, 5, 6 => 7, default => 0
+                    };
+                    $early = ($employeeId + $businessDay + $month) % 29 === 0 ? 30 : 0;
+                    DB::table('attendance_records')->updateOrInsert(
+                        ['company_id' => $companyId, 'employee_id' => $employeeId, 'work_date' => $date->toDateString()],
+                        ['work_shift_id' => $shiftId, 'check_in_at' => $date->setTime(8, 30)->addMinutes($late), 'check_out_at' => $date->setTime(17, 30)->subMinutes($early), 'source' => 'local_demo', 'scheduled_minutes' => 480, 'worked_minutes' => max(0, 480 - $late - $early), 'break_minutes' => 60, 'late_minutes' => $late, 'early_leave_minutes' => $early, 'overtime_minutes' => 0, 'attendance_status' => $late > 0 ? 'late' : ($early > 0 ? 'early_leave' : 'present'), 'presence_status' => 'present', 'approval_status' => 'approved', 'calculation_status' => 'calculated', 'anomalies' => json_encode(array_values(array_filter([$late > 0 ? 'late_arrival' : null, $early > 0 ? 'early_leave' : null])), JSON_THROW_ON_ERROR), 'worked_hours' => number_format(max(0, 480 - $late - $early) / 60, 2, '.', ''), 'overtime_hours' => '0.00', 'version' => 1, 'created_at' => now(), 'updated_at' => now()],
+                    );
+                }
             }
+        }
+
+        DB::table('overtime_policies')->updateOrInsert(
+            ['company_id' => $companyId, 'code' => 'LOCAL-OT-STANDARD'],
+            ['name' => 'Tăng ca ngày làm việc (Demo)', 'minimum_minutes' => 30, 'rounding_rule' => 'nearest_15', 'daily_limit_minutes' => 240, 'weekly_limit_minutes' => 720, 'requires_preapproval' => true, 'eligible_day_types' => json_encode(['working_day'], JSON_THROW_ON_ERROR), 'status' => 'active', 'effective_from' => '2026-01-01', 'effective_to' => null, 'version' => 1, 'created_at' => now(), 'updated_at' => now()],
+        );
+        $overtimePolicyId = $this->requiredId(DB::table('overtime_policies')->where('company_id', $companyId)->where('code', 'LOCAL-OT-STANDARD')->value('id'), 'overtime policy');
+        foreach ($employeeIds as $employeeId) {
+            DB::table('employee_overtime_policy_assignments')->updateOrInsert(
+                ['company_id' => $companyId, 'idempotency_key' => $this->uuid(3800 + $employeeId)],
+                ['employee_id' => $employeeId, 'overtime_policy_id' => $overtimePolicyId, 'effective_from' => '2026-01-01', 'effective_to' => null, 'version' => 1, 'created_at' => now(), 'updated_at' => now()],
+            );
+        }
+        foreach (array_slice($employeeIds, 0, 8) as $index => $employeeId) {
+            $minutes = $index % 3 === 0 ? 120 : 60;
+            $workDate = CarbonImmutable::parse('2026-08-'.str_pad((string) (3 + $index), 2, '0', STR_PAD_LEFT));
+            $idempotencyKey = $this->uuid(3900 + $employeeId);
+            DB::table('overtime_requests')->updateOrInsert(
+                ['company_id' => $companyId, 'idempotency_key' => $idempotencyKey],
+                ['employee_id' => $employeeId, 'overtime_policy_id' => $overtimePolicyId, 'work_date' => $workDate->toDateString(), 'starts_at' => $workDate->setTime(17, 30)->utc(), 'ends_at' => $workDate->setTime(17, 30)->addMinutes($minutes)->utc(), 'requested_minutes' => $minutes, 'approved_minutes' => $minutes, 'actual_minutes' => $minutes, 'payable_minutes' => $minutes, 'reason' => $index % 2 === 0 ? 'Hoàn tất bản phát hành theo kế hoạch (local demo).' : 'Xử lý đơn hàng cuối ngày (local demo).', 'status' => 'approved', 'approver_id' => $actorId, 'version' => 3, 'calculation_status' => 'reconciled', 'calculation_version' => 1, 'reviewed_by' => $actorId, 'reviewed_at' => now(), 'review_comment' => 'Đã đối chiếu chấm công local demo.', 'created_at' => now(), 'updated_at' => now()],
+            );
         }
 
         DB::table('leave_types')->updateOrInsert(['company_id' => $companyId, 'code' => 'ANNUAL-DEMO'], ['name' => 'Nghỉ phép năm (Demo)', 'accrual_policy' => json_encode(['method' => 'annual', 'synthetic_demo' => true], JSON_THROW_ON_ERROR), 'carry_forward_policy' => json_encode(['maximum_minutes' => 960], JSON_THROW_ON_ERROR), 'is_paid' => true, 'created_at' => now(), 'updated_at' => now()]);
@@ -504,7 +825,24 @@ final class LocalDemoOperationalSeeder extends Seeder
             DB::table('leave_balances')->updateOrInsert(['company_id' => $companyId, 'employee_id' => $employeeId, 'leave_type_id' => $typeId, 'year' => 2026], ['opening' => 0, 'accrued' => 5760, 'used' => $index * 480, 'adjusted' => 0, 'carried' => 0, 'expired' => 0, 'reserved' => $index < 2 ? 480 : 0, 'remaining' => 5760 - ($index * 480), 'version' => 1, 'created_at' => now(), 'updated_at' => now()]);
             $status = ['pending', 'approved', 'rejected'][$index % 3];
             $key = '00000000-0000-4000-8000-'.str_pad((string) ($index + 1), 12, '0', STR_PAD_LEFT);
-            DB::table('leave_requests')->updateOrInsert(['idempotency_key' => $key], ['company_id' => $companyId, 'employee_id' => $employeeId, 'leave_type_id' => $typeId, 'leave_policy_id' => $policyId, 'starts_at' => today()->addDays($index + 3), 'ends_at' => today()->addDays($index + 3), 'timezone' => 'Asia/Ho_Chi_Minh', 'requested_minutes' => 480, 'duration_type' => 'full_day', 'days' => 1, 'reason' => 'Synthetic local demo leave request', 'status' => $status, 'version' => 1, 'approved_by' => $status === 'approved' ? $actorId : null, 'submitted_at' => now(), 'approved_at' => $status === 'approved' ? now() : null, 'rejected_at' => $status === 'rejected' ? now() : null, 'reviewed_at' => $status !== 'pending' ? now() : null, 'review_comment' => $status === 'rejected' ? 'Synthetic scheduling conflict' : null, 'created_at' => now(), 'updated_at' => now()]);
+            $leaveDate = CarbonImmutable::parse('2026-08-'.[3, 4, 5, 6, 7, 10][$index]);
+            DB::table('leave_requests')->updateOrInsert(['idempotency_key' => $key], ['company_id' => $companyId, 'employee_id' => $employeeId, 'leave_type_id' => $typeId, 'leave_policy_id' => $policyId, 'starts_at' => $leaveDate, 'ends_at' => $leaveDate, 'timezone' => 'Asia/Ho_Chi_Minh', 'requested_minutes' => 480, 'duration_type' => 'full_day', 'days' => 1, 'reason' => 'Nghỉ phép năm theo kế hoạch (local demo).', 'status' => $status, 'version' => 1, 'approved_by' => $status === 'approved' ? $actorId : null, 'submitted_at' => $leaveDate->subDays(7), 'approved_at' => $status === 'approved' ? $leaveDate->subDays(5) : null, 'rejected_at' => $status === 'rejected' ? $leaveDate->subDays(5) : null, 'reviewed_at' => $status !== 'pending' ? $leaveDate->subDays(5) : null, 'review_comment' => $status === 'rejected' ? 'Không đủ người thay ca trong ngày.' : null, 'created_at' => $leaveDate->subDays(8), 'updated_at' => now()]);
+            if ($status === 'approved') {
+                DB::table('attendance_records')->where('company_id', $companyId)->where('employee_id', $employeeId)->where('work_date', $leaveDate->toDateString())->where('source', 'local_demo')->delete();
+            }
+        }
+
+        DB::table('leave_types')->updateOrInsert(['company_id' => $companyId, 'code' => 'UNPAID-DEMO'], ['name' => 'Nghỉ không lương (Demo)', 'accrual_policy' => json_encode(['method' => 'none', 'synthetic_demo' => true], JSON_THROW_ON_ERROR), 'carry_forward_policy' => json_encode(['maximum_minutes' => 0], JSON_THROW_ON_ERROR), 'is_paid' => false, 'created_at' => now(), 'updated_at' => now()]);
+        $unpaidTypeId = $this->requiredId(DB::table('leave_types')->where('company_id', $companyId)->where('code', 'UNPAID-DEMO')->value('id'), 'unpaid leave type');
+        DB::table('leave_policies')->updateOrInsert(['company_id' => $companyId, 'code' => 'UNPAID-DEMO-2026'], ['leave_type_id' => $unpaidTypeId, 'name' => 'Chính sách nghỉ không lương synthetic 2026', 'unit' => 'minutes', 'accrual_method' => 'none', 'annual_entitlement_minutes' => 0, 'carry_forward_rule' => json_encode(['synthetic_demo' => true], JSON_THROW_ON_ERROR), 'maximum_carry_forward_minutes' => 0, 'negative_balance_allowed' => true, 'requires_attachment' => false, 'approval_workflow' => json_encode(['levels' => 1], JSON_THROW_ON_ERROR), 'status' => 'active', 'effective_from' => '2026-01-01', 'version' => 1, 'created_at' => now(), 'updated_at' => now()]);
+        $unpaidPolicyId = $this->requiredId(DB::table('leave_policies')->where('company_id', $companyId)->where('code', 'UNPAID-DEMO-2026')->value('id'), 'unpaid leave policy');
+        foreach (array_slice($employeeIds, 8, 3) as $index => $employeeId) {
+            $date = CarbonImmutable::parse('2026-08-'.str_pad((string) (5 + $index), 2, '0', STR_PAD_LEFT));
+            DB::table('leave_requests')->updateOrInsert(
+                ['idempotency_key' => $this->uuid(4000 + $employeeId)],
+                ['company_id' => $companyId, 'employee_id' => $employeeId, 'leave_type_id' => $unpaidTypeId, 'leave_policy_id' => $unpaidPolicyId, 'starts_at' => $date, 'ends_at' => $date, 'timezone' => 'Asia/Ho_Chi_Minh', 'requested_minutes' => 480, 'duration_type' => 'full_day', 'days' => 1, 'reason' => 'Nghỉ việc riêng không hưởng lương (local demo).', 'status' => 'approved', 'version' => 2, 'approved_by' => $actorId, 'submitted_at' => $date->subDays(5), 'approved_at' => $date->subDays(3), 'reviewed_at' => $date->subDays(3), 'review_comment' => 'Đã bố trí nhân sự thay thế trong ngày.', 'created_at' => $date->subDays(6), 'updated_at' => now()],
+            );
+            DB::table('attendance_records')->where('company_id', $companyId)->where('employee_id', $employeeId)->where('work_date', $date->toDateString())->where('source', 'local_demo')->delete();
         }
     }
 

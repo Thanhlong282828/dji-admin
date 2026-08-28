@@ -73,7 +73,7 @@ final readonly class PayrollRunService
             foreach ($inputs as $employeeInput) {
                 $employeeIds[] = $this->integer($employeeInput, 'employee_id');
             }
-            $assignments = DB::table('employee_salary_component_assignments as a')->join('salary_components as c', 'c.id', '=', 'a.salary_component_id')->where('a.company_id', $company)->whereIn('a.employee_id', $employeeIds)->where('a.status', 'active')->where('c.status', 'active')->whereDate('a.effective_from', '<=', $run->period_end)->where(fn (Builder $q) => $q->whereNull('a.effective_to')->orWhereDate('a.effective_to', '>=', $run->period_start))->select('a.*', 'c.code', 'c.name', 'c.category', 'c.calculation_type', 'c.insurance_status', 'c.taxable_status', 'c.affects_gross', 'c.affects_net', 'c.display_order')->orderBy('c.display_order')->get()->groupBy('employee_id');
+            $assignments = DB::table('employee_salary_component_assignments as a')->join('salary_components as c', 'c.id', '=', 'a.salary_component_id')->where('a.company_id', $company)->whereIn('a.employee_id', $employeeIds)->where('a.status', 'active')->where('c.status', 'active')->whereDate('a.effective_from', '<=', $run->period_end)->where(fn (Builder $q) => $q->whereNull('a.effective_to')->orWhereDate('a.effective_to', '>=', $run->period_start))->select('a.*', 'c.code', 'c.name', 'c.category', 'c.calculation_type', 'c.system_key', 'c.insurance_status', 'c.taxable_status', 'c.affects_gross', 'c.affects_net', 'c.display_order')->orderBy('c.display_order')->get()->groupBy('employee_id');
             $insuranceContext = $this->insuranceIntegrator->context($company, $employeeIds, (string) $run->period_end);
             $taxContext = $this->taxIntegrator->context($company, $employeeIds, (string) $run->period_end);
             DB::table('payroll_validation_issues')->where('payroll_run_id', $id)->delete();
@@ -92,7 +92,8 @@ final readonly class PayrollRunService
                         $invalid = true;
                         break;
                     }$componentId = $this->integer($a, 'salary_component_id');
-                    $componentInputs[] = new PayrollComponentInput($componentId, $this->text($a, 'code'), $this->text($a, 'name'), SalaryComponentCategory::from($this->text($a, 'category')), PayrollCalculationType::from($this->text($a, 'calculation_type')), $currency, $this->nullableInteger($a, 'amount_minor'), $this->nullableInteger($a, 'percentage_basis_points'), $this->nullableInteger($a, 'quantity_basis_points'), $this->nullableInteger($a, 'rate_minor'), $this->integer($a, 'affects_gross') === 1, $this->integer($a, 'affects_net') === 1);
+                    $quantity = $this->inputQuantityBasisPoints($this->nullableText($a, 'system_key'), $employeeInput, $this->nullableInteger($a, 'quantity_basis_points'));
+                    $componentInputs[] = new PayrollComponentInput($componentId, $this->text($a, 'code'), $this->text($a, 'name'), SalaryComponentCategory::from($this->text($a, 'category')), PayrollCalculationType::from($this->text($a, 'calculation_type')), $currency, $this->nullableInteger($a, 'amount_minor'), $this->nullableInteger($a, 'percentage_basis_points'), $quantity, $this->nullableInteger($a, 'rate_minor'), $this->integer($a, 'affects_gross') === 1, $this->integer($a, 'affects_net') === 1);
                     $insuranceStatuses[$componentId] = $this->text($a, 'insurance_status');
                 }
                 $result = $this->engine->calculate($componentInputs);
@@ -248,5 +249,23 @@ final readonly class PayrollRunService
         $value = $row->{$property} ?? null;
 
         return is_numeric($value) ? (int) $value : null;
+    }
+
+    private function inputQuantityBasisPoints(?string $systemKey, object $employeeInput, ?int $configured): ?int
+    {
+        $minutes = match ($systemKey) {
+            'weekday_overtime_pay' => $this->integer($employeeInput, 'weekday_overtime_minutes'),
+            'weekend_overtime_pay' => $this->integer($employeeInput, 'weekend_overtime_minutes'),
+            'holiday_overtime_pay' => $this->integer($employeeInput, 'holiday_overtime_minutes'),
+            'unpaid_leave_deduction' => $this->integer($employeeInput, 'unpaid_leave_minutes'),
+            'late_time_deduction' => $this->integer($employeeInput, 'late_minutes'),
+            default => null,
+        };
+        if ($minutes === null) {
+            return $configured;
+        }
+
+        // QuantityRate uses basis points; one hour is represented by 10,000.
+        return intdiv(($minutes * 10_000) + 30, 60);
     }
 }

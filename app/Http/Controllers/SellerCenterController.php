@@ -21,15 +21,18 @@ final readonly class SellerCenterController
     {
         $seller = DB::table('seller_profiles')->where('user_id', $request->user()?->id)->first();
         $stores = $seller === null ? collect() : DB::table('stores')->where('seller_profile_id', $seller->id)->whereNull('deleted_at')->get();
-        $metrics = ['products' => 0, 'active_products' => 0, 'low_stock' => 0, 'out_of_stock' => 0];
+        $metrics = ['products' => 0, 'active_products' => 0, 'low_stock' => 0, 'out_of_stock' => 0, 'orders' => 0, 'pending_orders' => 0];
         if ($seller !== null) {
             $stock = DB::table('inventory_balances')->select('product_variant_id', DB::raw('SUM(on_hand-reserved) as available'))->groupBy('product_variant_id');
             $threshold = config('commerce.inventory.low_stock_threshold', 5);
             $row = DB::table('products as p')->join('stores as s', 's.id', '=', 'p.store_id')->leftJoin('product_variants as v', 'v.product_id', '=', 'p.id')->leftJoinSub($stock, 'stock', 'stock.product_variant_id', '=', 'v.id')->where('s.seller_profile_id', $seller->id)->whereNull('p.deleted_at')->selectRaw('COUNT(DISTINCT p.id) as products, COUNT(DISTINCT CASE WHEN p.status = ? THEN p.id END) as active_products, COUNT(DISTINCT CASE WHEN COALESCE(stock.available,0) BETWEEN 1 AND ? THEN v.id END) as low_stock, COUNT(DISTINCT CASE WHEN COALESCE(stock.available,0) <= 0 THEN v.id END) as out_of_stock', ['active', max(0, is_numeric($threshold) ? (int) $threshold : 5)])->first();
             if ($row !== null) {
                 $values = (array) $row;
-                $metrics = ['products' => $this->integer($values['products'] ?? null), 'active_products' => $this->integer($values['active_products'] ?? null), 'low_stock' => $this->integer($values['low_stock'] ?? null), 'out_of_stock' => $this->integer($values['out_of_stock'] ?? null)];
+                $metrics = ['products' => $this->integer($values['products'] ?? null), 'active_products' => $this->integer($values['active_products'] ?? null), 'low_stock' => $this->integer($values['low_stock'] ?? null), 'out_of_stock' => $this->integer($values['out_of_stock'] ?? null), 'orders' => 0, 'pending_orders' => 0];
             }
+            $orders = (array) DB::table('orders')->where('seller_profile_id', $seller->id)->selectRaw('COUNT(*) as orders, COALESCE(SUM(CASE WHEN status = ? THEN 1 ELSE 0 END), 0) as pending_orders', ['pending_payment'])->first();
+            $metrics['orders'] = $this->integer($orders['orders'] ?? null);
+            $metrics['pending_orders'] = $this->integer($orders['pending_orders'] ?? null);
         }
 
         return view('admin.seller.dashboard', compact('seller', 'stores', 'metrics'));

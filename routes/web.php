@@ -1,9 +1,15 @@
 <?php
 
 use App\Http\Controllers\ArticleController;
+use App\Http\Controllers\BranchBonusController;
 use App\Http\Controllers\BranchController;
+use App\Http\Controllers\BranchFinancialPerformanceController;
+use App\Http\Controllers\BuyerAddressController;
+use App\Http\Controllers\BuyerOrderController;
 use App\Http\Controllers\CartController;
+use App\Http\Controllers\CheckoutController;
 use App\Http\Controllers\CompensationReferenceController;
+use App\Http\Controllers\EmployeePortalController;
 use App\Http\Controllers\Operations\ApiContractsController;
 use App\Http\Controllers\Operations\ApiDocumentationController;
 use App\Http\Controllers\Operations\ArchitectureController;
@@ -28,6 +34,7 @@ use App\Http\Controllers\PublicContentController;
 use App\Http\Controllers\SellerCenterController;
 use App\Http\Controllers\SellerGovernanceController;
 use App\Http\Controllers\SellerInventoryController;
+use App\Http\Controllers\SellerOrderController;
 use App\Http\Controllers\WishlistController;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
@@ -56,6 +63,7 @@ Route::get('/stores', [PublicContentController::class, 'stores'])->name('public.
 Route::get('/stores/{slug}', [PublicContentController::class, 'store'])->name('public.stores.show');
 
 Route::get('/dashboard', DashboardController::class)->middleware(['auth', 'verified', 'can:dashboard.view'])->name('dashboard');
+Route::get('/employee-portal', EmployeePortalController::class)->middleware(['auth', 'verified', 'permission:employee.portal.view'])->name('employee.portal');
 Route::get('/admin', fn () => to_route('dashboard'))->middleware(['auth', 'verified', 'can:dashboard.view'])->name('admin.index');
 Route::get('/admin/operations/reliability', ReliabilityController::class)->middleware(['auth', 'verified', 'permission:operations.view'])->name('admin.operations.reliability');
 Route::get('/admin/operations/observability', [ObservabilityController::class, 'index'])->middleware(['auth', 'verified', 'permission:operations.view'])->name('admin.operations.observability');
@@ -75,6 +83,7 @@ Route::get('/admin/operations/continuity', ContinuityController::class)->middlew
 Route::get('/admin/operations/security-assurance', SecurityAssuranceController::class)->middleware(['auth', 'verified', 'permission:operations.view'])->name('admin.operations.security-assurance');
 Route::get('/admin/operations/go-live', GoLiveReadinessController::class)->middleware(['auth', 'verified', 'permission:operations.view'])->name('admin.operations.go-live');
 Route::get('/admin/compensation-reference', CompensationReferenceController::class)->middleware(['auth', 'verified', 'permission:payroll.assignment.view'])->name('admin.compensation-reference');
+Route::get('/admin/finance/branch-performance', BranchFinancialPerformanceController::class)->middleware(['auth', 'verified', 'permission:payroll.assignment.view'])->name('admin.finance.branch-performance');
 
 Route::middleware('auth')->group(function () {
     Route::get('/admin/branches', [BranchController::class, 'index'])->middleware(['verified', 'permission:branch.view'])->name('admin.branches.index');
@@ -83,6 +92,9 @@ Route::middleware('auth')->group(function () {
     Route::get('/admin/branches/{branch}', [BranchController::class, 'show'])->middleware(['verified', 'permission:branch.view'])->whereNumber('branch')->name('admin.branches.show');
     Route::get('/admin/branches/{branch}/edit', [BranchController::class, 'edit'])->middleware(['verified', 'permission:branch.update'])->name('admin.branches.edit');
     Route::put('/admin/branches/{branch}', [BranchController::class, 'update'])->middleware(['verified', 'permission:branch.update'])->name('admin.branches.update');
+    Route::get('/admin/branch-bonuses', [BranchBonusController::class, 'index'])->middleware(['verified', 'permission:branch.bonus.view'])->name('admin.branch-bonuses.index');
+    Route::post('/admin/branch-bonuses', [BranchBonusController::class, 'store'])->middleware(['verified', 'permission:branch.bonus.create'])->defaults('action', 'create')->name('admin.branch-bonuses.store');
+    Route::post('/admin/branch-bonuses/{bonus}/{action}', [BranchBonusController::class, 'transition'])->middleware(['verified', 'permission:branch.bonus.view'])->whereIn('action', ['submit', 'approve', 'reject', 'cancel'])->whereNumber('bonus')->name('admin.branch-bonuses.transition');
     Route::get('/admin/seller', [SellerCenterController::class, 'dashboard'])->middleware(['verified', 'permission:commerce.store.view'])->name('admin.seller.dashboard');
     Route::get('/admin/seller/store', [SellerCenterController::class, 'storeProfile'])->middleware(['verified', 'permission:commerce.store.view'])->name('admin.seller.store');
     Route::put('/admin/seller/store', [SellerCenterController::class, 'saveStore'])->middleware(['verified', 'permission:commerce.store.update'])->name('admin.seller.store.update');
@@ -95,6 +107,9 @@ Route::middleware('auth')->group(function () {
     Route::put('/admin/products/{product}', [ProductCatalogController::class, 'update'])->middleware(['verified', 'permission:product.update'])->name('admin.products.update');
     Route::get('/admin/seller/inventory', [SellerInventoryController::class, 'index'])->middleware(['verified', 'permission:inventory.view'])->name('admin.seller.inventory');
     Route::patch('/admin/seller/inventory/{variant}', [SellerInventoryController::class, 'adjust'])->middleware(['verified', 'permission:inventory.update'])->name('admin.seller.inventory.adjust');
+    Route::get('/admin/seller/orders', [SellerOrderController::class, 'index'])->middleware(['verified', 'permission:commerce.store.view'])->name('admin.seller.orders.index');
+    Route::get('/admin/seller/orders/{order}', [SellerOrderController::class, 'show'])->middleware(['verified', 'permission:commerce.store.view'])->whereNumber('order')->name('admin.seller.orders.show');
+    Route::post('/admin/seller/orders/{order}/transition', [SellerOrderController::class, 'transition'])->middleware(['verified', 'permission:commerce.store.update'])->whereNumber('order')->name('admin.seller.orders.transition');
     Route::get('/admin/product-categories', [ProductCategoryController::class, 'index'])->middleware(['verified', 'permission:product-category.view'])->name('admin.product-categories.index');
     Route::post('/admin/product-categories', [ProductCategoryController::class, 'store'])->middleware(['verified', 'permission:product-category.create'])->name('admin.product-categories.store');
     Route::get('/articles', [ArticleController::class, 'index'])->middleware(['verified', 'can:article.view'])->name('articles.index');
@@ -115,6 +130,17 @@ Route::middleware('auth')->group(function () {
         Route::post('/wishlist/{product}', [WishlistController::class, 'like'])->whereNumber('product')->name('wishlist.like');
         Route::delete('/wishlist/{product}', [WishlistController::class, 'unlike'])->whereNumber('product')->name('wishlist.unlike');
         Route::post('/wishlist/{product}/cart', [WishlistController::class, 'addToCart'])->whereNumber('product')->name('wishlist.cart');
+        Route::get('/addresses', [BuyerAddressController::class, 'index'])->name('addresses.index');
+        Route::post('/addresses', [BuyerAddressController::class, 'store'])->name('addresses.store');
+        Route::patch('/addresses/{address}', [BuyerAddressController::class, 'update'])->whereNumber('address')->name('addresses.update');
+        Route::patch('/addresses/{address}/default', [BuyerAddressController::class, 'makeDefault'])->whereNumber('address')->name('addresses.default');
+        Route::delete('/addresses/{address}', [BuyerAddressController::class, 'destroy'])->whereNumber('address')->name('addresses.destroy');
+        Route::get('/checkout', [CheckoutController::class, 'show'])->name('checkout.show');
+        Route::post('/checkout', [CheckoutController::class, 'place'])->name('checkout.place');
+        Route::get('/orders', [BuyerOrderController::class, 'index'])->name('orders.index');
+        Route::get('/orders/success/{checkout}', [BuyerOrderController::class, 'success'])->name('orders.success');
+        Route::get('/orders/{order}', [BuyerOrderController::class, 'show'])->whereNumber('order')->name('orders.show');
+        Route::post('/orders/{order}/cancel', [BuyerOrderController::class, 'cancel'])->whereNumber('order')->name('orders.cancel');
     });
 });
 

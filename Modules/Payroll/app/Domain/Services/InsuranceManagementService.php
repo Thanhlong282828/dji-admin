@@ -25,7 +25,7 @@ final readonly class InsuranceManagementService
             if ($this->text($data, 'status') === 'active' && $overlap) {
                 throw ValidationException::withMessages(['effective_from' => 'Active insurance policy effective range bị overlap.']);
             }
-            $values = ['company_id' => $companyId, 'code' => strtoupper($this->text($data, 'code')), 'name' => $this->text($data, 'name'), 'version' => $this->integer($data, 'version', 1), 'effective_from' => $from, 'effective_to' => $to, 'status' => $this->text($data, 'status'), 'currency_code' => strtoupper($this->text($data, 'currency_code')), 'rounding_rule' => $this->text($data, 'rounding_rule'), 'note' => $this->nullableText($data, 'note'), 'updated_by' => $actorId, 'updated_at' => now()];
+            $values = ['company_id' => $companyId, 'code' => strtoupper($this->text($data, 'code')), 'name' => $this->text($data, 'name'), 'version' => $this->integer($data, 'version', 1), 'effective_from' => $from, 'effective_to' => $to, 'status' => $this->text($data, 'status'), 'currency_code' => strtoupper($this->text($data, 'currency_code')), 'jurisdiction' => $this->text($data, 'jurisdiction'), 'source_reference' => $this->nullableText($data, 'source_reference'), 'source_verified_at' => $this->nullableText($data, 'source_verified_at'), 'rounding_rule' => $this->text($data, 'rounding_rule'), 'note' => $this->nullableText($data, 'note'), 'updated_by' => $actorId, 'updated_at' => now()];
             $creating = $policyId === null;
             if ($creating) {
                 $values['created_by'] = $actorId;

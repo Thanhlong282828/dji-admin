@@ -4,7 +4,7 @@
 <section class="page-hero panel">
     <span class="eyebrow">Seller Center</span>
     <h2>{{ $seller?->display_name ?? 'Chưa có hồ sơ Seller' }}</h2>
-    <p>Trạng thái Seller, Store, Product và tín hiệu tồn kho thực tế. Không hiển thị doanh thu/Order khi Checkout chưa được triển khai.</p>
+    <p>Trạng thái Seller, Store, Product, tồn kho và Order thuộc chính Seller hiện tại.</p>
 </section>
 <section class="summary-grid">
     <article class="summary-card"><span>Seller status</span><strong>{{ $seller?->status ?? 'N/A' }}</strong></article>
@@ -12,12 +12,14 @@
     <article class="summary-card"><span>Sản phẩm active</span><strong>{{ $metrics['active_products'] }} / {{ $metrics['products'] }}</strong></article>
     <article class="summary-card"><span>Sắp hết hàng</span><strong>{{ $metrics['low_stock'] }}</strong></article>
     <article class="summary-card"><span>Hết hàng</span><strong>{{ $metrics['out_of_stock'] }}</strong></article>
+    <article class="summary-card"><span>Đơn hàng chờ xác nhận</span><strong>{{ $metrics['pending_orders'] }} / {{ $metrics['orders'] }}</strong></article>
 </section>
 @if($seller)
     <div class="button-row">
         <a class="button" href="{{ route('admin.seller.store') }}">Hồ sơ Store</a>
         @can('product.view') <a class="button secondary" href="{{ route('admin.products.index') }}">Sản phẩm</a> @endcan
         @can('inventory.view') <a class="button secondary" href="{{ route('admin.seller.inventory') }}">Tồn kho</a> @endcan
+        @can('commerce.store.view') <a class="button secondary" href="{{ route('admin.seller.orders.index') }}">Đơn hàng</a> @endcan
     </div>
 @else
     <div class="notice">Hồ sơ Seller cần được nền tảng khởi tạo/xét duyệt trước khi mở cửa hàng.</div>

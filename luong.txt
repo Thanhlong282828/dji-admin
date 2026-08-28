@@ -2511,3 +2511,136 @@ PATCH /admin/seller/inventory/{variant}
 → InventoryService::adjust
 → DB transaction + inventory row lock + invariant validation
 → inventory_balances + append-only Activity Log
+
+==================================================
+CHECKOUT / ORDER / RESERVATION — COMMERCE C6
+==================================================
+
+GET/POST/PATCH/DELETE /addresses
+→ routes/web.php
+→ BuyerAddressController
+→ BuyerAddressService transaction + authenticated Buyer ownership
+→ buyer_addresses default-address invariant
+→ resources/views/public/addresses/index.blade.php
+
+GET /checkout
+→ CheckoutController::show
+→ CheckoutService::preview
+→ CartService current Product/Variant/Store/Seller/Inventory read model
+→ config/checkout.php local shipping methods
+→ resources/views/public/checkout/show.blade.php
+
+POST /checkout
+→ CheckoutController::place validated address/method/idempotency key
+→ CheckoutService::place whole-checkout transaction
+→ checkout_sessions unique Buyer/key
+→ selected Cart Item + Product/Variant/Store/Seller revalidation
+→ inventory_balances lockForUpdate + availability check
+→ orders split by Store + order_items snapshots
+→ inventory_reservations + inventory reserved increment
+→ purchased selected cart_items removal + safe Audit event
+→ orders.success
+
+GET /orders, GET /orders/{order}
+→ BuyerOrderController
+→ OrderListFilter bounded search/status/date
+→ Buyer-owned orders + grouped item/media reads
+→ public Order cards/detail with address/item/price snapshots
+
+POST /orders/{order}/cancel
+→ BuyerOrderController::cancel
+→ CheckoutService::cancel transaction
+→ OrderStatus buyer cancellation policy
+→ reservation lock/released + inventory reserved decrement
+→ Order cancelled + safe Audit event
+
+GET /admin/seller/orders, GET /admin/seller/orders/{order}
+→ SellerOrderController
+→ Seller Profile/Store ownership query + OrderListFilter
+→ list-safe Buyer identity / detail-only shipping snapshot
+→ resources/views/admin/seller/orders
+
+POST /admin/seller/orders/{order}/transition
+→ SellerOrderController
+→ OrderTransitionService
+→ pending_payment → confirmed → processing typed transition
+→ seller-owned Order lock + Audit event
+
+================================================================================
+ERP CONSOLIDATION — HRM / PAYROLL / BRANCH FINANCE
+================================================================================
+
+GET /employee-portal
+→ routes/web.php | employee.portal
+→ EmployeePortalController@index
+→ EmployeePortalReadService@forUser
+→ authenticated User → linked Employee only
+→ Assignment / Branch Access / Attendance / Leave / Overtime / eligible Payroll Item / published Payslip grouped reads
+→ resources/views/employee-portal/index.blade.php
+
+ATTENDANCE CAPTURE → HISTORICAL BRANCH
+→ AttendanceCaptureService
+→ EmployeeBranchResolver@resolve
+→ effective employee_branch_assignments
+→ fallback only when exactly one branch_user_access exists
+→ AttendanceWriteRepositoryInterface@createEvent
+→ EloquentAttendanceWriteRepository
+→ attendance_events.branch_id
+→ GenerateAttendanceDailyRecordsJob batch resolveMany
+→ attendance_records.branch_id
+
+PAYROLL INPUT → HISTORICAL BRANCH
+→ PayrollInputGenerationService@generate
+→ EmployeeBranchResolver@resolveMany
+→ bounded effective Branch lookup for all eligible Employees
+→ payroll_employee_inputs.branch_id + branch_snapshot
+→ Payroll Run / Item reads immutable snapshot; finalized Payroll history is not rewritten
+
+GET /admin/branch-bonuses
+→ BranchBonusController@index
+→ BranchAccessService company scope + leader scope
+→ branch_bonus_proposals + Employee/Branch/Maker read
+→ resources/views/admin/branch-bonuses/index.blade.php
+
+POST /admin/branch-bonuses
+→ BranchBonusRequest
+→ BranchBonusController@store
+→ BranchBonusService@create
+→ Branch leader or bounded approver authority
+→ branch membership validation
+→ transaction: draft proposal + append-only history
+
+POST /admin/branch-bonuses/{bonus}/{action}
+→ BranchBonusController@transition
+→ BranchBonusService@transition
+→ draft → submitted/cancelled; submitted → approved/rejected
+→ maker-checker + optimistic version
+→ approve: BRANCH_BONUS component + one-month employee salary component assignment
+→ history append; no Payroll Item mutation
+
+GET /admin/finance/branch-performance
+→ BranchFinancialPerformanceController@index
+→ BranchFinancialPerformanceService@snapshot
+→ recognized management revenue
+→ eligible Payroll Item + Payroll Input Branch snapshot
+→ approved OPEX / effective rent / approved Branch Bonus / straight-line management depreciation
+→ integer VND management P&L ViewModel
+→ resources/views/admin/finance/branch-performance.blade.php
+
+TAX / INSURANCE POLICY SOURCE GOVERNANCE
+→ TaxAdministrationRequest / InsuranceAdministrationRequest
+→ TaxManagementService / InsuranceManagementService
+→ versioned jurisdiction + source_reference + source_verified_at
+→ official-source status in policy detail
+→ CONFIGURATION_REQUIRED when statutory source/rate is unknown; no invented tax formula
+
+LOCAL REALISTIC OPERATING DATA → PAYROLL / FINANCE
+→ LocalDemoOperationalSeeder (bootstrap-owned references only)
+→ Company / Branch / Employee / current Assignment
+→ varied Attendance + approved Leave + approved Overtime
+→ effective Salary Component Assignment + approved Branch Bonus
+→ PayrollInputGenerationService captures immutable quantities and Branch snapshot
+→ PayrollRunService resolves configured rates + TaxManagementService + InsuranceManagementService
+→ Payroll Item / PayslipGenerationService
+→ BranchFinancialPerformanceService derives Payroll cost with revenue/OPEX/rent/assets
+→ Dashboard and Employee Portal read the same canonical records

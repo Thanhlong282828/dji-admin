@@ -22,7 +22,7 @@ final class RolePermissionSeeder extends Seeder
         }
 
         foreach (['payroll.calculate', 'company.change-status', 'organization.tenant-all', 'cost-center.view', 'cost-center.create', 'cost-center.update', 'cost-center.delete', 'cost-center.export', 'cost-center.audit', 'organization-unit.view', 'organization-unit.create', 'organization-unit.update', 'organization-unit.move', 'organization-unit.delete', 'organization-unit.export', 'organization-unit.audit', 'job-position.view', 'job-position.create', 'job-position.update', 'job-position.delete', 'job-position.change-headcount', 'job-position.change-critical', 'job-position.export', 'job-position.audit',
-            'employee.view-sensitive', 'employee.restore', 'employee.change-status', 'employee.assign-manager', 'employee.link-user', 'employee.unlink-user', 'employee.upload-avatar',
+            'employee.portal.view', 'employee.view-sensitive', 'employee.restore', 'employee.change-status', 'employee.assign-manager', 'employee.link-user', 'employee.unlink-user', 'employee.upload-avatar',
             'employee-assignment.view', 'employee-assignment.create', 'employee-assignment.update', 'employee-assignment.end', 'employee-assignment.transfer', 'employee-assignment.promote',
             'employee-history.view', 'employee-history.create-manual', 'employee-history.export',
             'employee-credential.view', 'employee-credential.create', 'employee-credential.update', 'employee-credential.delete', 'employee-credential.download', 'employee-credential.export',
@@ -69,7 +69,7 @@ final class RolePermissionSeeder extends Seeder
             'integration.view', 'integration.connection.manage', 'integration.message.view', 'integration.retry', 'integration.deadletter.manage', 'integration.audit.view',
             'audit.view', 'audit.search', 'audit.export', 'audit.retention.manage',
             'operations.view', 'operations.manage', 'api.documentation.view',
-            'branch.view', 'branch.create', 'branch.update', 'branch.archive',
+            'branch.view', 'branch.create', 'branch.update', 'branch.archive', 'branch.bonus.view', 'branch.bonus.create', 'branch.bonus.approve',
             'commerce.store.view', 'commerce.store.create', 'commerce.store.update',
             'commerce.seller.governance.view', 'commerce.seller.governance.manage',
             'inventory.view', 'inventory.update',
@@ -112,6 +112,10 @@ final class RolePermissionSeeder extends Seeder
         Role::findByName('C&B')->syncPermissions(Permission::where(fn ($query) => $query->where('name', 'like', 'payroll-%')->orWhere('name', 'like', 'payroll.%')->orWhere('name', 'like', 'attendance.%')->orWhere('name', 'like', 'leave.%')->orWhere('name', 'like', 'overtime.%'))->get());
         Role::findByName('Content Admin')->syncPermissions(Permission::whereIn('name', collect(['article', 'article-category', 'product', 'product-category', 'media', 'page', 'menu', 'seo'])->crossJoin($actions)->map(fn ($pair) => implode('.', $pair)))->get());
         Role::findByName('Seller')->syncPermissions(['commerce.store.view', 'commerce.store.create', 'commerce.store.update', 'product.view', 'product.create', 'product.update', 'product-category.view', 'inventory.view', 'inventory.update']);
+        Role::findByName('Employee')->syncPermissions(['employee.portal.view', 'attendance.view-own', 'attendance.check-in', 'attendance.check-out', 'leave.view-own', 'leave.request', 'overtime.view-own', 'overtime.request', 'notification.view']);
+        Role::findByName('Manager')->syncPermissions(['employee.portal.view', 'attendance.view-own', 'attendance.check-in', 'attendance.check-out', 'leave.view-own', 'leave.request', 'overtime.view-own', 'overtime.request', 'notification.view']);
+        Role::findByName('Manager')->givePermissionTo(['branch.bonus.view', 'branch.bonus.create']);
+        Role::findByName('C&B')->givePermissionTo(['branch.bonus.view', 'branch.bonus.approve']);
         Role::findByName('HR Admin')->givePermissionTo(['branch.view', 'branch.create', 'branch.update', 'branch.archive']);
         Role::findByName('HR Manager')->givePermissionTo('branch.view');
         Role::findByName('Viewer')->syncPermissions(Permission::where('name', 'like', '%.view')->get());

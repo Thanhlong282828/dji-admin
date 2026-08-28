@@ -1194,3 +1194,5 @@ Không được báo hoàn thành nếu:
 * Test chưa chạy
 
 Bắt đầu audit và triển khai ngay.
+
+ERP consolidation: Organization Unit/Job Position continue to own workforce structure and career level. Branch is a Company operating location, not a replacement Organization Unit; effective Branch allocation is stored separately and snapshotted into Attendance/Payroll Input.

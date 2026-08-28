@@ -135,3 +135,15 @@ document.querySelectorAll('[data-product-purchase]').forEach((panel) => {
     selector.addEventListener('change', synchronize);
     synchronize();
 });
+
+document.querySelectorAll('[data-checkout-form]').forEach((form) => {
+    if (!(form instanceof HTMLFormElement) || form.dataset.checkoutBound === 'true') return;
+    form.dataset.checkoutBound = 'true';
+    form.addEventListener('submit', () => {
+        const button = form.querySelector('[data-place-order]');
+        if (!(button instanceof HTMLButtonElement)) return;
+        button.disabled = true;
+        button.setAttribute('aria-busy', 'true');
+        button.textContent = 'Đang tạo đơn…';
+    });
+});

@@ -88,8 +88,8 @@ final class ExecutivePlanningTest extends TestCase
 
         self::assertSame($before, $after);
         // Keep the current fixed read-model ceiling; before/after equality is the N+1 gate.
-        // C4 ownership plus C5 Cart/Wishlist checks add a fixed six-query composition cost.
-        self::assertLessThanOrEqual(44, $after);
+        // C4/C5 checks plus eight C6 Checkout/Order/Reservation checks remain fixed as Employee volume grows.
+        self::assertLessThanOrEqual(55, $after);
     }
 
     private function company(string $suffix): Company

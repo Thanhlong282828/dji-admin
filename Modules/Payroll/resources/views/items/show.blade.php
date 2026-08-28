@@ -44,6 +44,7 @@
             <p>
                 {{ $s['organization'] ?? '—' }}
                 · {{ $s['position'] ?? '—' }}
+                · Branch snapshot: {{ $s['branch'] ?? 'Chưa xác định' }}
             </p>
         </section>
 

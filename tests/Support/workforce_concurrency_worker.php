@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Models\User;
 use App\Services\WorkforceNotificationDeliveryService;
+use App\Support\Commerce\CheckoutService;
 use Carbon\CarbonImmutable;
 use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Foundation\Application;
@@ -109,6 +110,7 @@ if (! is_file($barrier)) {
 try {
     $result = match ($scenario) {
         'shift_assignment' => $app->make(WorkforceManagementService::class)->execute(new ManageWorkforceResourceCommand('assignment', 'created', requiredInt($payload, 'company_id'), null, ['employee_id' => requiredInt($payload, 'employee_id'), 'work_shift_id' => requiredInt($payload, 'shift_id'), 'assignment_type' => 'fixed', 'effective_from' => requiredString($payload, 'effective_from'), 'effective_to' => requiredString($payload, 'effective_to')], requiredInt($payload, 'actor_id'))),
+        'commerce_checkout' => checkoutPlace($app->make(CheckoutService::class), $payload),
         'attendance_workflow' => attendance($app->make(AttendanceWorkflowService::class), $payload),
         'leave_transition' => leaveTransition($app->make(LeaveWorkflowService::class), $payload),
         'leave_accrual' => $app->make(AutomatedLeaveLedgerService::class)->accrue(CarbonImmutable::parse(requiredString($payload, 'date'))),
@@ -202,6 +204,15 @@ try {
     fwrite(STDOUT, json_encode(['status' => 'rejected', 'type' => $throwable::class, 'message' => $throwable->getMessage()], JSON_THROW_ON_ERROR)."\n");
     @unlink($ready);
     exit(2);
+}
+
+/** @param array<string,bool|int|string|null> $payload */
+function checkoutPlace(CheckoutService $service, array $payload): int
+{
+    $user = User::query()->findOrFail(requiredInt($payload, 'user_id'));
+    $ids = $service->place($user, requiredInt($payload, 'address_id'), 'standard', requiredString($payload, 'idempotency_key'));
+
+    return $ids[0];
 }
 
 /** @param array<string,bool|int|string|null> $payload */
