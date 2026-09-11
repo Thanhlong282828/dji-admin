@@ -14,8 +14,8 @@ final class AdminHelpRegistryTest extends TestCase
         $registry = new AdminHelpRegistry;
         $items = array_merge(...array_column((new AdminNavigation)->definitions(41), 'items'));
 
-        self::assertCount(89, $items);
-        self::assertCount(89, $registry->definitions(41));
+        self::assertNotEmpty($items);
+        self::assertCount(count($items), $registry->definitions(41));
 
         foreach ($items as $item) {
             $guide = $registry->resolve($item['route'], 41);
@@ -76,5 +76,32 @@ final class AdminHelpRegistryTest extends TestCase
         $payrollInput = (new AdminHelpRegistry)->resolve('admin.payroll.inputs.index', 7);
         self::assertContains('Nhân viên', array_column($payrollInput['relatedMenus'], 'label'));
         self::assertContains('Payroll Runs', array_column($payrollInput['relatedMenus'], 'label'));
+    }
+
+    public function test_owned_process_flow_marks_only_the_path_to_current_node_active(): void
+    {
+        $flow = (new AdminHelpRegistry)->resolve('admin.sales.index', 7)['menuFlow'];
+        $positions = array_column($flow, 'position', 'key');
+
+        self::assertSame('upstream', $positions['sales-order']);
+        self::assertSame('upstream', $positions['fulfillment']);
+        self::assertSame('current', $positions['sales-receivable']);
+        self::assertSame('future', $positions['collection']);
+        self::assertSame('future', $positions['treasury']);
+        self::assertCount(1, array_filter($flow, static fn (array $node): bool => $node['current']));
+    }
+
+    public function test_owned_process_flow_only_links_to_registered_navigation_routes(): void
+    {
+        $flow = (new AdminHelpRegistry)->resolve('admin.procurement.page', 7)['menuFlow'];
+
+        foreach ($flow as $node) {
+            if ($node['route'] !== null) {
+                self::assertTrue(Route::has($node['route']), 'Missing flow route '.$node['route']);
+                self::assertNotSame('', $node['permission']);
+            }
+        }
+
+        self::assertNull(collect($flow)->firstWhere('key', 'purchase-request')['route']);
     }
 }

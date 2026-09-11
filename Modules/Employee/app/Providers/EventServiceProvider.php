@@ -5,11 +5,13 @@ namespace Modules\Employee\Providers;
 use Illuminate\Foundation\Support\Providers\EventServiceProvider as ServiceProvider;
 use Modules\Employee\Application\Listeners\EmployeeAssignmentChangeListener;
 use Modules\Employee\Application\Listeners\EmployeeChangeListener;
+use Modules\Employee\Application\Listeners\SendHrOperationsNotification;
 use Modules\Employee\Domain\Events\EmployeeAssignmentChanged;
 use Modules\Employee\Domain\Events\EmployeeCreated;
 use Modules\Employee\Domain\Events\EmployeeDeleted;
 use Modules\Employee\Domain\Events\EmployeeRestored;
 use Modules\Employee\Domain\Events\EmployeeUpdated;
+use Modules\Employee\Domain\Events\HrOperationsChanged;
 
 class EventServiceProvider extends ServiceProvider
 {
@@ -24,6 +26,7 @@ class EventServiceProvider extends ServiceProvider
         EmployeeUpdated::class => [EmployeeChangeListener::class],
         EmployeeDeleted::class => [EmployeeChangeListener::class],
         EmployeeRestored::class => [EmployeeChangeListener::class],
+        HrOperationsChanged::class => [SendHrOperationsNotification::class],
     ];
 
     /**

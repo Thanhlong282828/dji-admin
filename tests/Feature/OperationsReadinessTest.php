@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Support\HttpMetricsRecorder;
 use Illuminate\Contracts\Cache\Repository;
+use Illuminate\Support\Facades\DB;
 use RuntimeException;
 use Tests\TestCase;
 
@@ -27,6 +28,7 @@ final class OperationsReadinessTest extends TestCase
         config()->set('database.connections.mysql.options', [\PDO::ATTR_TIMEOUT => 1]);
         config()->set('database.connections.mysql.database', 'schema_admin_testing');
         config()->set('database.default', 'mysql');
+        DB::purge('mysql');
         config()->set('database.redis.default.host', '127.0.0.1');
         config()->set('database.redis.default.port', 1);
         config()->set('queue.default', 'sync');
@@ -51,6 +53,7 @@ final class OperationsReadinessTest extends TestCase
         config()->set('database.connections.mysql.options', [\PDO::ATTR_TIMEOUT => 1]);
         config()->set('database.connections.mysql.database', 'schema_admin_testing');
         config()->set('database.default', 'mysql');
+        DB::purge('mysql');
         config()->set('database.redis.default.host', '127.0.0.1');
         config()->set('database.redis.default.port', 1);
         config()->set('queue.default', 'redis');

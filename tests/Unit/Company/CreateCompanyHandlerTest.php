@@ -6,6 +6,7 @@ use Illuminate\Contracts\Events\Dispatcher;
 use Modules\Company\Application\Commands\CreateCompany\CreateCompanyCommand;
 use Modules\Company\Application\Commands\CreateCompany\CreateCompanyHandler;
 use Modules\Company\Application\Services\CompanyBranchService;
+use Modules\Company\Application\Services\CompanySellerAccountService;
 use Modules\Company\Domain\Models\Company;
 use Modules\Company\Domain\Repositories\CompanyWriteRepositoryInterface;
 use Tests\TestCase;
@@ -19,7 +20,7 @@ final class CreateCompanyHandlerTest extends TestCase
         $writer->expects(self::once())->method('create')->with(self::callback(fn (array $data): bool => $data['created_by'] === 7))->willReturn($company);
         $events = $this->createMock(Dispatcher::class);
         $events->expects(self::once())->method('dispatch');
-        $result = (new CreateCompanyHandler($writer, app(CompanyBranchService::class), $events))->handle(new CreateCompanyCommand(['code' => 'SCHEMA-UNIT', 'name' => 'Schema Unit'], 7));
+        $result = (new CreateCompanyHandler($writer, app(CompanyBranchService::class), app(CompanySellerAccountService::class), $events))->handle(new CreateCompanyCommand(['code' => 'SCHEMA-UNIT', 'name' => 'Schema Unit'], 7));
         $this->assertSame($company, $result);
     }
 }

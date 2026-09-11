@@ -98,6 +98,7 @@ services:
   horizon:
     <<: *app
     command: php artisan horizon
+    profiles: [horizon-only]
 
   reverb:
     <<: *app

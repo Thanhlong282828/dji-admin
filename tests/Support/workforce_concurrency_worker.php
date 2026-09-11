@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 use App\Models\User;
 use App\Services\WorkforceNotificationDeliveryService;
-use App\Support\Commerce\CheckoutService;
 use Carbon\CarbonImmutable;
 use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Foundation\Application;
@@ -24,6 +23,7 @@ use Modules\Audit\Domain\Contracts\AuditRecorderInterface;
 use Modules\Audit\Domain\Services\AuditExportService;
 use Modules\Audit\Domain\Services\AuditRetentionService;
 use Modules\Audit\Infrastructure\Ingestion\WorkflowAuditConsumer;
+use Modules\Commerce\Application\Services\CheckoutService;
 use Modules\Employee\Application\DTOs\LifecycleTransitionData;
 use Modules\Employee\Domain\Services\EmployeeLifecycleService;
 use Modules\Employee\Domain\Services\HRDataGovernanceService;

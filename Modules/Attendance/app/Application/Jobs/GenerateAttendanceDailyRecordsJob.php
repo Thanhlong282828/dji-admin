@@ -13,6 +13,13 @@ final class GenerateAttendanceDailyRecordsJob implements ShouldQueue
 {
     use Queueable;
 
+    public int $tries = 3;
+
+    public int $timeout = 300;
+
+    /** @var list<int> */
+    public array $backoff = [60, 300, 900];
+
     public function handle(EmployeeBranchResolver $branches): void
     {
         DB::table('employee_work_profiles')->where('attendance_required', true)->whereDate('effective_from', '<=', today())->where(static fn (Builder $query): Builder => $query->whereNull('effective_to')->orWhereDate('effective_to', '>=', today()))->orderBy('id')->chunkById(200, function ($profiles) use ($branches): void {

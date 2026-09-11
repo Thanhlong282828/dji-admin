@@ -55,6 +55,8 @@ final class PayrollInputOperationsTest extends TestCase
         self::assertSame(0, $this->integer($row->weekday_overtime_minutes));
         self::assertSame(90, $this->integer($row->weekend_overtime_minutes));
         self::assertSame(0, $this->integer($row->holiday_overtime_minutes));
+        self::assertSame($fixture['cost_center'], $this->integer($row->cost_center_id));
+        self::assertSame('CC-CAPTURE-A', $row->cost_center_code_snapshot);
         self::assertSame(3, DB::table('payroll_input_source_records')->where('payroll_employee_input_id', $row->id)->count());
         $this->actingAs($fixture['user'])->get(route('admin.payroll.inputs.employees.index', ['snapshot' => $snapshotId, 'company_id' => $fixture['company']]))->assertOk()->assertSee('Employee CAPTURE');
         $this->actingAs($fixture['user'])->get(route('admin.payroll.inputs.employees.show', ['snapshot' => $snapshotId, 'employeeInput' => $row->id, 'company_id' => $fixture['company']]))->assertOk()->assertSee('Weekday OT')->assertSee('weekend');
@@ -62,12 +64,16 @@ final class PayrollInputOperationsTest extends TestCase
         $this->actingAs($fixture['user'])->post(route('admin.payroll.inputs.store'), ['company_id' => $fixture['company'], 'payroll_period_id' => $fixture['period'], 'idempotency_key' => $key])->assertRedirect();
         self::assertSame(1, DB::table('payroll_input_snapshots')->where('company_id', $fixture['company'])->count());
         DB::table('attendance_records')->where('company_id', $fixture['company'])->update(['worked_minutes' => 300]);
+        $costCenterB = (int) DB::table('cost_centers')->insertGetId(['company_id' => $fixture['company'], 'code' => 'CC-CAPTURE-B', 'name' => 'Cost Center CAPTURE B', 'created_at' => now(), 'updated_at' => now()]);
+        DB::table('organization_units')->where('id', $fixture['unit'])->update(['cost_center_id' => $costCenterB, 'updated_at' => now()]);
         $this->actingAs($fixture['user'])->get(route('admin.payroll.inputs.show', ['snapshot' => $snapshotId, 'company_id' => $fixture['company']]))->assertOk()->assertSee('450');
         self::assertSame(450, $this->integer(DB::table('payroll_employee_inputs')->where('id', $row->id)->value('worked_minutes')));
         $this->actingAs($fixture['user'])->post(route('admin.payroll.inputs.versions.store', ['snapshot' => $snapshotId]), ['company_id' => $fixture['company'], 'idempotency_key' => (string) Str::uuid(), 'note' => 'Updated approved inputs'])->assertRedirect();
         self::assertSame([1, 2], DB::table('payroll_input_snapshots')->where('company_id', $fixture['company'])->orderBy('snapshot_version')->pluck('snapshot_version')->map(fn ($value): int => $this->integer($value))->all());
         self::assertSame(450, $this->integer(DB::table('payroll_employee_inputs')->where('payroll_input_snapshot_id', $snapshotId)->value('worked_minutes')));
         self::assertSame(300, $this->integer(DB::table('payroll_employee_inputs')->where('payroll_input_snapshot_id', '<>', $snapshotId)->value('worked_minutes')));
+        self::assertSame($fixture['cost_center'], $this->integer(DB::table('payroll_employee_inputs')->where('payroll_input_snapshot_id', $snapshotId)->value('cost_center_id')));
+        self::assertSame($costCenterB, $this->integer(DB::table('payroll_employee_inputs')->where('payroll_input_snapshot_id', '<>', $snapshotId)->value('cost_center_id')));
         $this->get('/admin/payroll/inputs/'.$snapshotId.'/edit?company_id='.$fixture['company'])->assertNotFound();
     }
 
@@ -87,6 +93,19 @@ final class PayrollInputOperationsTest extends TestCase
         self::assertSame($a['period'], $this->integer($run->payroll_period_id));
     }
 
+    public function test_generation_rejects_cross_company_cost_center_evidence(): void
+    {
+        $fixture = $this->fixture('FOREIGNCC', true);
+        $foreign = $this->fixture('FOREIGNCCB', false);
+        $foreignCostCenter = (int) DB::table('cost_centers')->insertGetId(['company_id' => $foreign['company'], 'code' => 'CC-FOREIGN', 'name' => 'Foreign Cost Center', 'created_at' => now(), 'updated_at' => now()]);
+        DB::table('organization_units')->where('id', $fixture['unit'])->update(['cost_center_id' => $foreignCostCenter, 'updated_at' => now()]);
+        $fixture['user']->givePermissionTo('payroll-input.generate');
+
+        $this->actingAs($fixture['user'])->post(route('admin.payroll.inputs.store'), ['company_id' => $fixture['company'], 'payroll_period_id' => $fixture['period'], 'idempotency_key' => (string) Str::uuid()])
+            ->assertSessionHasErrors('cost_center');
+        self::assertSame(0, DB::table('payroll_input_snapshots')->where('company_id', $fixture['company'])->count());
+    }
+
     public function test_overtime_classification_uses_effective_calendar_splits_midnight_and_prioritizes_holiday(): void
     {
         $fixture = $this->fixture('CLASSIFY', false);
@@ -104,7 +123,7 @@ final class PayrollInputOperationsTest extends TestCase
         self::assertSame(90, $holiday->holidayMinutes);
     }
 
-    /** @return array{company:int,user:User,employee:int,period:int} */
+    /** @return array{company:int,user:User,employee:int,period:int,unit:int,cost_center:int} */
     private function fixture(string $code, bool $eligible): array
     {
         $company = Company::query()->create(['uuid' => (string) Str::uuid(), 'code' => 'PI-'.$code, 'name' => 'Schema Payroll Input '.$code, 'country_code' => 'VN', 'timezone' => 'Asia/Ho_Chi_Minh', 'currency_code' => 'VND', 'currency' => 'VND', 'status' => 'active', 'is_active' => true]);
@@ -117,8 +136,11 @@ final class PayrollInputOperationsTest extends TestCase
         }
         DB::table('employee_work_profiles')->insert(['company_id' => $company->id, 'employee_id' => $employee->id, 'timezone' => 'Asia/Ho_Chi_Minh', 'work_calendar_id' => $calendar, 'weekly_minutes' => 2400, 'daily_minutes' => 480, 'fte_basis_points' => 10000, 'attendance_required' => true, 'overtime_eligible' => true, 'leave_eligible' => true, 'effective_from' => '2026-01-01', 'version' => 1, 'created_at' => now(), 'updated_at' => now()]);
         $period = (int) DB::table('payroll_periods')->insertGetId(['company_id' => $company->id, 'code' => '2026-07-'.$code, 'name' => 'July '.$code, 'period_start' => '2026-07-01', 'period_end' => '2026-07-31', 'cutoff_at' => '2026-08-01', 'payment_date' => '2026-08-05', 'status' => 'collecting', 'version' => 1, 'created_at' => now(), 'updated_at' => now()]);
+        $costCenter = 0;
+        $unit = 0;
         if ($eligible) {
-            $unit = (int) DB::table('organization_units')->insertGetId(['company_id' => $company->id, 'type' => 'department', 'code' => 'TECH-'.$code, 'name' => 'Technology '.$code, 'headcount_limit' => 10, 'effective_from' => '2026-01-01', 'created_at' => now(), 'updated_at' => now()]);
+            $costCenter = (int) DB::table('cost_centers')->insertGetId(['company_id' => $company->id, 'code' => 'CC-'.$code.'-A', 'name' => 'Cost Center '.$code.' A', 'created_at' => now(), 'updated_at' => now()]);
+            $unit = (int) DB::table('organization_units')->insertGetId(['company_id' => $company->id, 'cost_center_id' => $costCenter, 'type' => 'department', 'code' => 'TECH-'.$code, 'name' => 'Technology '.$code, 'headcount_limit' => 10, 'effective_from' => '2026-01-01', 'created_at' => now(), 'updated_at' => now()]);
             $position = (int) DB::table('job_positions')->insertGetId(['company_id' => $company->id, 'organization_unit_id' => $unit, 'code' => 'DEV-'.$code, 'title' => 'Developer '.$code, 'approved_headcount' => 10, 'budgeted_cost' => 0, 'is_critical' => false, 'created_at' => now(), 'updated_at' => now()]);
             DB::table('employee_assignments')->insert(['employee_id' => $employee->id, 'organization_unit_id' => $unit, 'job_position_id' => $position, 'assignment_type' => 'primary', 'allocation_percent' => 100, 'effective_from' => '2026-01-01', 'created_at' => now(), 'updated_at' => now()]);
             DB::table('employment_contracts')->insert(['employee_id' => $employee->id, 'contract_number' => 'CON-'.$code, 'type' => 'indefinite', 'starts_at' => '2026-01-01', 'base_salary' => 0, 'currency' => 'VND', 'terms' => '{}', 'status' => 'active', 'created_at' => now(), 'updated_at' => now()]);
@@ -129,7 +151,7 @@ final class PayrollInputOperationsTest extends TestCase
             DB::table('overtime_requests')->insert(['company_id' => $company->id, 'employee_id' => $employee->id, 'work_date' => '2026-07-04', 'starts_at' => '2026-07-04 18:00:00', 'ends_at' => '2026-07-04 19:30:00', 'requested_minutes' => 90, 'approved_minutes' => 90, 'actual_minutes' => 90, 'payable_minutes' => 90, 'calculation_status' => 'calculated', 'calculation_version' => 1, 'reason' => 'Release', 'status' => 'approved', 'version' => 1, 'idempotency_key' => (string) Str::uuid(), 'created_at' => now(), 'updated_at' => now()]);
         }
 
-        return ['company' => $company->id, 'user' => $user, 'employee' => $employee->id, 'period' => $period];
+        return ['company' => $company->id, 'user' => $user, 'employee' => $employee->id, 'period' => $period, 'unit' => $unit, 'cost_center' => $costCenter];
     }
 
     private function integer(mixed $value): int

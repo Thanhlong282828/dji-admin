@@ -1,0 +1,5 @@
+{
+    "name": "nwidart/finance",
+    "description": "Finance bounded context",
+    "autoload": {"psr-4": {"Modules\\Finance\\": "app/"}}
+}

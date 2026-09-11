@@ -1,0 +1,10 @@
+{
+    "name": "POS",
+    "alias": "pos",
+    "description": "Branch point-of-sale visits, checkout, receipts and sales read models.",
+    "keywords": ["pos", "checkout", "receipt"],
+    "priority": 0,
+    "requires": ["Core", "Company", "Commerce", "Product", "Inventory", "Finance"],
+    "providers": [],
+    "files": []
+}

@@ -2379,7 +2379,21 @@ SELLER / STORE — COMMERCE C1
 
 GET /admin/seller[/store]
 → SellerCenterController
-→ authenticated User resolves seller_profiles (no owner route ID)
+→ CompanyContextService validates selected Company access
+→ authenticated User resolves seller_profiles by (company_id, user_id), never by user alone
+→ Company → Seller Profile → Store/Product → Order → Payment → Fulfillment → recognized Branch revenue
+
+GET /admin/commerce/sales-history?company_id={company}
+→ CommerceSalesHistoryController::__invoke()
+→ BranchAccessService::company() tenant authorization
+→ OrderListFilter bounded search/status/date range
+→ grouped order_items + seller_profiles/stores + succeeded payment + fulfillment/Branch + recognized branch_management_revenues(order_id)
+→ resources/views/admin/commerce/sales-history.blade.php
+
+GET /admin/companies
+→ CompanyController::index() / GetCompanyListQuery
+→ one batched seller_profiles + users + Store count query for current paginator Company IDs
+→ Company list Seller accounts column; no per-Company query and no duplicate ownership field
 → owned stores/media_assets
 → Seller Dashboard / Store Profile Blade.
 
@@ -2391,8 +2405,9 @@ PUT /admin/seller/store
 → after-commit old cleanup / DB-failure compensation.
 
 PATCH /admin/commerce/sellers/{seller}/status
-→ SellerGovernanceController::transition()
-→ bounded status transition
+→ Modules/Commerce/app/Presentation/Http/Controllers/SellerGovernanceController::transition()
+→ Modules/Commerce/app/Application/Commands/ChangeSellerGovernanceStatusCommand
+→ Core CommandBus → ChangeSellerGovernanceStatusHandler → SellerGovernanceService
 → seller_profiles + Audit event.
 
 ==================================================
@@ -2429,7 +2444,16 @@ COMPANY / BRANCH / EMPLOYEE ACCESS — COMMERCE C4
 POST/PUT Company
 → CompanyController + Store/UpdateCompanyRequest
 → Create/UpdateCompanyCommand → Handler
-→ CompanyService + CompanyBranchService in one transaction
+→ Company repository + CompanyBranchService + CompanySellerAccountService in one transaction
+→ seller_accounts row mới: User → Role Seller → company_user_access → seller_profiles(status=pending)
+→ seller_accounts row hiện hữu: validate Profile thuộc Company → cập nhật User/Profile; không đổi governance status và không blind-delete
+→ Company Show/Index batch read seller_profiles + users + Store count → link Seller Governance theo company_id
+DELETE /admin/companies/{company}/seller-accounts/{seller}
+→ CompanyController::destroySellerAccount → CompanySellerAccountService::remove
+→ lock Profile + validate Company → block Store/Order/media → delete Profile → remove Role Seller only when User has no remaining Seller Profile; retain User IAM/company history
+DELETE /admin/branches/{branch}?company_id=...
+→ BranchController::destroy → BranchAccess + BranchAuthority + branch.archive
+→ block Assignment/Attendance/Payroll/Bonus/Finance/Inventory/Fulfillment dependencies → status archived + soft delete; never cascade operational history
 → companies + validated Branch upsert + creator branch_user_access
 → omitted Branch remains unchanged.
 
@@ -2458,21 +2482,23 @@ PRODUCT CATALOG / INVENTORY — COMMERCE C4
 ==================================================
 
 GET /admin/products
-→ ProductCatalogController::index
+→ Modules/Product/app/Presentation/Http/Controllers/ProductCatalogController::index
 → permission + Seller-owned Store scope
 → grouped products/categories/variants/inventory
 → resources/views/admin/products/index.blade.php.
 
 POST/PUT /admin/products[/{product}]
 → ProductRequest
-→ ProductCatalogController::store/update
+→ Modules/Product/app/Presentation/Http/Controllers/ProductCatalogController::store/update
+→ Modules/Product/app/Application/Commands/SaveProductCatalogCommand → Core CommandBus → Handler
 → Product + Variant/SKU + Store inventory transaction
-→ InventoryService locked balance update
+→ Modules/Inventory/app/Domain/Services/InventoryService locked balance update
 → MediaService attach/after-commit cleanup or failure compensation
 → Audit → Product list.
 
 GET/POST /admin/product-categories
-→ ProductCategoryController::index/store
+→ Modules/Product/app/Presentation/Http/Controllers/ProductCategoryController::index/store
+→ Modules/Product/app/Application/Commands/SaveProductCategoryCommand → Core CommandBus → Handler
 → validated parent + unique slug
 → product_categories hierarchy → Blade.
 
@@ -2518,8 +2544,8 @@ CHECKOUT / ORDER / RESERVATION — COMMERCE C6
 
 GET/POST/PATCH/DELETE /addresses
 → routes/web.php
-→ BuyerAddressController
-→ BuyerAddressService transaction + authenticated Buyer ownership
+→ Modules/Commerce/app/Presentation/Http/Controllers/BuyerAddressController
+→ Modules/Commerce/Application Command → Core CommandBus → BuyerAddressService transaction + authenticated Buyer ownership
 → buyer_addresses default-address invariant
 → resources/views/public/addresses/index.blade.php
 
@@ -2644,3 +2670,345 @@ LOCAL REALISTIC OPERATING DATA → PAYROLL / FINANCE
 → Payroll Item / PayslipGenerationService
 → BranchFinancialPerformanceService derives Payroll cost with revenue/OPEX/rent/assets
 → Dashboard and Employee Portal read the same canonical records
+
+GET /admin/finance/payroll-reconciliation
+→ PayrollFinanceReconciliationController
+→ PayrollFinanceReconciliationService
+→ Payroll Runs/Items + immutable Payroll Input Branch snapshot
+→ active original Accounting Journal debit/credit
+→ Branch Finance employer payroll cost
+→ Difference read model → resources/views/admin/finance/payroll-reconciliation.blade.php
+
+GET /admin/finance/tax-dashboard
+→ FinanceTaxDashboardController
+→ FinanceTaxRuntimeService
+→ Payroll PIT + BHXH/BHYT/BHTN components
+→ effective source-governed PIT/Insurance policies
+→ BranchFinancialPerformanceService accounting profit
+→ VAT/CIT readiness boundary (CONFIGURATION_REQUIRED when source is absent)
+→ resources/views/admin/finance/tax-dashboard.blade.php
+
+
+Mục tiêu lần này là sau khi Codex chạy xong, bạn vào từng menu sẽ thấy cùng một công ty đang vận hành, chứ không phải:
+Attendance có người A
+Payroll lại có người B
+Finance lại lấy số C
+Dashboard lại hard-code số D
+Nguyễn Văn A
+Chi nhánh HCM
+        ↓
+Tháng 08 đi làm 22 ngày
+        ↓
+Trễ 37 phút
+OT 6 giờ
+Nghỉ không lương 1 ngày
+        ↓
+Payroll Input
+        ↓
+Base       18.000.000
+Allowance   2.000.000
+OT            +xxx
+Bonus         +xxx
+Late          -xxx
+Unpaid Leave  -xxx
+BHXH          -xxx
+BHYT          -xxx
+BHTN          -xxx
+PIT           -xxx
+        ↓
+Net Pay
+        ↓
+Payslip của chính A
+        ↓
+Payroll Cost của HCM
+        ↓
+Branch P&L HCM
+        ↓
+Dashboard tháng 08
+Một điểm rất đáng làm ngay ở phase đó là thêm reconciliation screen kiểu:
+Payroll Run August
+        ↓
+Gross Payroll             1,045,754,537
+Employer Insurance          xxx
+Bonus                        xxx
+        ↓
+Expected Payroll Cost        xxx
+        ↓
+Accounting Journal           xxx
+        ↓
+Branch Finance               xxx
+        ↓
+Difference                     0
+Nếu khác 0, ERP phải hiện Data Quality issue thay vì im lặng.
+
+COMMERCE — PAYMENT / FULFILLMENT / REVENUE
+
+GET /admin/commerce/payments
+→ CommercePaymentController::index()
+→ BranchAccessService::company()
+→ orders + commerce_payment_records grouped by Company
+→ resources/views/admin/commerce/payments/index.blade.php
+
+POST /admin/commerce/payments
+→ CommercePaymentController::store()
+→ validated Order/method/settlement/idempotency input
+→ CommercePaymentService::recordSucceeded()
+→ lock Order + verify Seller Company scope
+→ commerce_payment_records + orders.payment_status/paid_at
+→ CommerceRevenueRecognitionService::recognizeIfEligible() (no revenue until delivered)
+
+POST /admin/seller/orders/{order}/fulfillment
+→ Modules/Commerce/app/Presentation/Http/Controllers/CommerceFulfillmentController::store()
+→ Modules/Commerce/app/Application/Services/CommerceFulfillmentService::create()
+→ Seller Order ownership + paid/confirmed invariant
+→ inventory reservation Branch validation
+→ commerce_fulfillments
+
+POST /admin/seller/orders/{order}/fulfillment/transition
+→ Modules/Commerce/app/Presentation/Http/Controllers/CommerceFulfillmentController::transition()
+→ pending → packed → shipped → delivered
+→ ship: lock/consume inventory_reservations and decrement inventory_balances on_hand/reserved once
+→ deliver: Order fulfilled → CommerceRevenueRecognitionService
+→ branch_management_revenues (unique order_id, source_type=commerce_order, subtotal only)
+
+BRANCH COMMERCE / WALK-IN POS
+
+GET /admin/branch-commerce/warehouse
+→ Modules/POS/app/Presentation/Http/Controllers/BranchCommerceController::warehouse()
+→ Modules/Company Domain BranchAccessService Company/Branch scope
+→ Store/Product/Variant + inventory_location(branch_id) + inventory_balance + media_assets
+→ resources/views/admin/branch-commerce/warehouse.blade.php
+
+POST /admin/branch-commerce/checkins
+→ Modules/POS/app/Presentation/Http/Controllers/BranchCommerceController::storeCheckin()
+→ Modules/POS/app/Domain/Services/BranchPosService::checkIn()
+→ commerce_customers + customer_visits(checked_in)
+
+POST /admin/branch-commerce/checkout/{visit}/services|products
+→ BranchCommerceController validated action
+→ BranchPosService::addService()/addProduct()
+→ Company service or Branch inventory ownership/availability
+→ immutable visit line snapshot
+
+POST /admin/branch-commerce/checkout/{visit}/finalize
+→ Modules/POS/app/Presentation/Http/Controllers/BranchCommerceController::finalize()
+→ Modules/POS Application Command → Core CommandBus → Handler
+→ Modules/POS Domain BranchPosService::checkout() transaction + visit lock/idempotency
+→ Modules/Inventory Domain InventoryService::adjust(decrease) for each Product line
+→ branch_pos_receipts (paid)
+→ branch_management_revenues (recognized, source_type=branch_pos)
+→ customer_visits(checked_out)
+→ Branch Financial Performance / Dashboard / Reporting read the same revenue source
+
+GET /admin/branch-commerce/sales
+→ Modules/POS Presentation BranchCommerceController::sales()
+→ Modules/POS Application GetBranchCommercePageQuery
+→ QueryBusInterface::ask()
+→ Modules/POS Application GetBranchCommercePageHandler::handle()
+→ Modules/POS Application BranchCommerceReadService::page('sales')
+→ Company/Branch permission scope
+→ receipt + customer + branch + canonical revenue grouped read
+→ resources/views/admin/branch-commerce/sales.blade.php
+
+CQRS POS WRITE STANDARDIZATION
+
+POST Customer/Service/Check-in/Visit line/Checkout
+→ Modules/POS Presentation BranchCommerceController (authorization + validated explicit payload)
+→ Modules/POS Application MutateBranchCommerceCommand
+→ CommandBusInterface::dispatch()
+→ Modules/POS Application MutateBranchCommerceHandler::handle()
+→ Modules/POS Domain BranchPosService
+→ canonical customer/service/visit tables
+→ Checkout transaction: InventoryService locked adjustment
+→ inventory_movements (before/after/delta/source/idempotency)
+→ branch_pos_receipts + branch_management_revenues + checked_out Visit
+→ POS Sales / Branch Finance / Executive Dashboard read the same records.
+
+PATCH /admin/commerce/sellers/{seller}/transition
+→ Modules/Commerce Presentation SellerGovernanceController (validated status + reason)
+→ Modules/Commerce Application ChangeSellerGovernanceStatusCommand
+→ CommandBusInterface::dispatch()
+→ Modules/Commerce Application ChangeSellerGovernanceStatusHandler
+→ Modules/Commerce Application SellerGovernanceService state machine + row lock
+→ seller_profiles + activity audit
+→ Company/Seller/Store scopes reflect the canonical status. Recovery is controlled: banned → suspended → active; no direct DB status edit and no IAM role elevation.
+
+==================================================
+COMMERCE / POS / INVENTORY — MASTER INTEGRATION
+==================================================
+
+GET /admin/commerce/sales-history
+→ Modules/Commerce Presentation CommerceSalesHistoryController
+→ GetUnifiedSalesHistoryQuery
+→ QueryBusInterface::ask()
+→ GetUnifiedSalesHistoryHandler
+→ Company-scoped Marketplace paid Order + POS paid Receipt UNION
+→ line snapshots + fulfillment/receipt + revenue + reversal lineage
+→ resources/views/admin/commerce/sales-history.blade.php
+
+POST /admin/commerce/sales-history/{source}/{sale}/reverse
+→ CommerceSaleReversalController validated source/reason + commerce.payment.record
+→ ReverseCompletedSaleCommand
+→ CommandBusInterface::dispatch()
+→ ReverseCompletedSaleHandler
+→ SaleReversalService transaction + source row lock
+→ commerce_sale_reversals append-only unique source
+→ InventoryService restock movement idempotent
+→ Branch Finance / Dashboard read net recognized revenue; original sale remains immutable
+
+GET /admin/seller/inventory/movements
+→ SellerInventoryController
+→ GetInventoryMovementListQuery
+→ GetInventoryMovementListHandler
+→ inventory_stock_receipts + inventory_stock_transfers + inventory_movements
+→ resources/views/admin/seller/inventory-movements.blade.php
+
+POST Stock Receipt / Receive
+→ SellerInventoryController
+→ MutateInventoryOperationCommand(receipt/create|receive)
+→ MutateInventoryOperationHandler
+→ InventoryOperationsService
+→ draft receipt → received → InventoryService inbound movement → balance
+
+POST Stock Transfer / dispatch|receive
+→ SellerInventoryController
+→ MutateInventoryOperationCommand(transfer/create|transition)
+→ MutateInventoryOperationHandler
+→ InventoryOperationsService
+→ draft → in_transit + source outbound movement
+→ received + destination inbound movement
+→ unique reference/idempotency + total stock conservation
+
+GET /admin/branch-commerce
+GET /admin/branch-commerce/customers/{customer}
+GET /admin/branch-commerce/receipts
+GET /admin/branch-commerce/receipts/{receipt}
+→ BranchCommerceController
+→ GetBranchCommercePageQuery
+→ GetBranchCommercePageHandler
+→ BranchCommerceReadService dashboard/customer/receipts/receipt projections
+→ paid Receipt + immutable lines + Customer/Branch + canonical revenue
+→ POS Dashboard / Customer History / Receipt History/detail Blade
+
+ERP / FINANCE — POSTED GENERAL LEDGER & FINANCIAL STATEMENT SOURCE
+
+GET /admin/finance/financial-statements
+→ FinancialStatementController validates Company/date/account/page and BranchAccessService tenant boundary
+→ GetFinancialStatementsQuery
+→ QueryBusInterface::ask()
+→ GetFinancialStatementsHandler
+→ FinancialStatementReadService
+→ internally_posted/exported payroll_accounting_journals
+→ payroll_accounting_journal_lines + accounting_accounts grouped SQL
+→ Trial Balance + General Ledger + Income/Balance source coverage
+→ resources/views/admin/finance/financial-statements.blade.php
+
+Không có Command/write flow: posted Journal là immutable; correction đi qua reversal workflow hiện hữu. Income Statement/Balance Sheet giữ `PARTIAL`, Cash Flow unsupported cho đến khi Revenue/Asset/Equity/Cash có canonical posting source.
+PROCUREMENT / ACCOUNTS PAYABLE / INVENTORY COST
+GET Procurement page → ProcurementController → GetProcurementPageQuery → GetProcurementPageHandler → DB-backed read model → admin.procurement.index.
+POST Procurement action → ProcurementRequest → MutateProcurementCommand → MutateProcurementHandler → ProcurementService.
+Vendor → Purchase Request → submit → independent approve → Purchase Order → approve/send → Goods Receipt → InventoryService valued increase → SourceAccountingPostingService inventory accrual.
+Goods Receipt → Vendor Bill → independent approve → AP allocation → derived outstanding/AP aging → SourceAccountingPostingService payable/payment postings.
+Marketplace/POS recognized product sale → valued outbound InventoryService movement → revenue journal + COGS journal → FinancialStatementReadService. Sale reversal → original cost restoration → separate revenue/COGS reversal journals.
+FINANCE / EXPENSE · ASSET · BUDGET
+GET Finance Operations → FinanceOperationsController → FinanceOperationsService::read → grouped canonical Finance/Accounting tables → admin.finance.operations Blade.
+Expense Create → Draft → Submit → maker-checker Approve/Reject → SourceAccountingPostingService → balanced Expense/AP Journal → Paid internal-clearing Journal.
+Asset Create → Activate/acquisition Journal → effective-dated Assignment/Transfer → unique monthly Straight-line Depreciation → accumulated depreciation Journal → Dispose/history retained.
+Budget Create → monthly Branch/Account lines → maker-checker Approve → posted Journal Actual grouped by Company + Branch + Account + Month → Variance/variance basis points.
+Product 4K source → ProductRequest → Product Command/Handler → ProductCatalogWriteService → MediaService decoded validation → configured MediaStorage → media_assets → canonical media resolver.
+FINANCE / TREASURY
+AP Payment hoặc Expense Payment → owner service → SourceAccountingPostingService → balanced Journal → TreasuryService::recordSource (idempotent Company/source) → treasury_transactions → statement match → reconciliation complete → Period Close / General Ledger.
+
+FINANCE / ACCOUNTING PERIOD CLOSE
+GET /admin/finance/period-close → FinanceControlController → AccountingPeriodCloseService::read → Blade. Request → checklist snapshot (journal/expense/vendor bill/treasury/source uniqueness) → reviewer khác maker → accounting_periods status → SourceAccountingPostingService enforce.
+
+CORE / APPROVAL INBOX
+GET /admin/approvals → FinanceControlController → ApprovalInboxService bounded owner-table projection → owner deep-link. Inbox không chạy approve command và không thay owner authorization/state machine.
+
+FINANCE / BUDGET COMMITMENT
+Approved/sent/partially received PO line remaining quantity × unit cost → FinanceOperationsService grouped commitment → Budget - Commitment - posted Actual = Available. Goods Receipt giảm remaining commitment và journal Inventory Actual tăng, không double-count.
+
+CORE / CURRENT OPERATING DATA REPORT
+php artisan app:current-operating-data-report [--company] [--output]
+→ CurrentOperatingDataReportCommand validates scope/output
+→ CurrentOperatingDataReportService
+→ owner canonical tables + grouped read queries + DataQualityAuditService + CustomerMetricsService
+→ secret-safe Vietnamese formatter
+→ DU_LIEU_THUC_HIEN_TAI.txt.
+Command chỉ đọc, không bootstrap/seed/update business record và không dùng số tổng từ documentation.
+
+COMMERCE / CRM DETERMINISTIC METRICS
+Company → commerce_customers → paid Branch POS Receipts
++ matching Buyer email → paid Marketplace Orders of Seller Company
+→ first/last purchase + frequency + recognized spend + average basket + visit/preferred Branch
+→ configured NEW/ACTIVE/REPEAT/AT_RISK/DORMANT segment.
+Đây là read model; không ghi segment/score vào Customer và không dùng AI.
+
+GET /admin/branch-commerce/customers
+→ BranchCommerceController::customers
+→ GetBranchCommercePageQuery / GetBranchCommercePageHandler
+→ BranchCommerceReadService::page(customers)
+→ CustomerMetricsService::metrics + canonical Customer/POS/Marketplace reads
+→ Company/Branch/segment/search filter + paginator
+→ admin.branch-commerce.customers Blade.
+
+GET /admin/branch-commerce/customers/{customer}
+→ BranchCommerceController::customer
+→ GetBranchCommercePageQuery / GetBranchCommercePageHandler
+→ BranchCommerceReadService::page(customer)
+→ CustomerMetricsService + POS visits/receipts + paid Marketplace Orders scoped to Seller Company
+→ admin.branch-commerce.customer-show Blade.
+HR CONTRACT / SEPARATION FLOW
+GET/POST /admin/hr/operations
+→ HrOperationsController
+→ GetHrOperationsQuery | MutateHrOperationsCommand
+→ GetHrOperationsHandler | MutateHrOperationsHandler
+→ HrOperationsService
+→ EmploymentContractService | EmployeeAccountService
+→ employment_contract_renewals | employee_resignations | employee_offboarding_cases/items
+→ HrOperationsChanged
+→ SendHrOperationsNotification
+→ existing Notification Center.
+
+ACCOUNTING ADJUSTMENT FLOW
+GET/POST /admin/finance/accounting-adjustments
+→ AccountingAdjustmentController
+→ GetAccountingAdjustmentsQuery | MutateAccountingAdjustmentCommand
+→ handlers
+→ AccountingAdjustmentService
+→ immutable original posted journal + open target period
+→ balanced reversal journal with unique source evidence
+→ existing notification delivery + dashboard/report/Data Quality.
+ERP SALES / ACCOUNTS RECEIVABLE
+GET /admin/sales → SalesReceivableController → GetSalesReceivableQuery → QueryBus → GetSalesReceivableHandler → SalesReceivableService::read → Blade.
+POST /admin/sales → validation + company/permission guard → MutateSalesReceivableCommand → CommandBus → MutateSalesReceivableHandler → SalesReceivableService.
+Customer → Quotation draft → maker-checker accept → Sales Order → confirm (no stock mutation) → fulfill → InventoryService → Inventory Movement + COGS snapshot → SourceAccountingPostingService.
+Fulfilled Sales Order → Customer Invoice draft → maker-checker issue → Dr AR / Cr Revenue → partial Collection Allocation → TreasuryService inflow → Dr Cash / Cr AR.
+FinancialStatementReadService → posted GL + recorded Treasury movements → Trial Balance / P&L / partial Balance Sheet / partial Cash Flow.
+GET /admin/finance/overview → FinanceOverviewController → GetFinanceOverviewQuery/Handler → FinanceOverviewReadService → FinancialStatementReadService + Customer Invoice/Vendor Bill allocations + Treasury + Budget + open Purchase Order commitments → Blade. Company/Branch/period scope is preserved; 7/30/60/90 values are due-date forecast, not actual cash.
+
+DASHBOARD / SUPPLY CHAIN ORCHESTRATION
+GET /admin/supply-chain?company_id={company}
+→ SupplyChainOverviewController
+→ GetSupplyChainOverviewQuery
+→ QueryBus → GetSupplyChainOverviewHandler
+→ SupplyChainOverviewReadService
+→ grouped Procurement PO/GR/AP + Inventory balance/transfer + ERP Sales + Marketplace Fulfillment reads
+→ admin.supply-chain.index Blade.
+Trang chỉ đọc và deep-link về owner workflow; không ghi PO, Inventory Movement, Sales Order, Treasury hoặc Accounting.
+
+DASHBOARD / ENTERPRISE BI ANALYTICS
+GET /admin/analytics/enterprise?company_id={company}&branch_id={branch?}&date_from={date}&date_to={date}
+→ EnterpriseAnalyticsController
+→ GetEnterpriseAnalyticsQuery
+→ QueryBus → GetEnterpriseAnalyticsHandler
+→ EnterpriseAnalyticsReadService
+→ grouped Customer Invoice + recognized Marketplace/POS Revenue + finalized Payroll + Expense + Treasury + Finance Overview + SCM + CustomerMetrics reads
+→ admin.analytics.enterprise Blade.
+BI chỉ đọc; KPI catalog là metadata, không lưu numeric totals. Forecast chỉ từ AR/AP due date canonical.
+ENTERPRISE DOCUMENT
+POST /admin/documents → DocumentRequest → CreateDocumentCommand → CommandBus → EnterpriseDocumentService → metadata + immutable v1/SHA-256 → private storage → Activity Log.
+POST /admin/documents/{id}/versions → UploadDocumentVersionCommand → lock document → immutable vN → current_version pointer; phiên bản cũ không bị ghi đè.
+GET download → permission + Company scope → authorized private stream; raw storage path không xuất hiện ở UI.
+
+MAINTENANCE: MaintenanceController → MaintenanceRequest → explicit Maintenance Command/Query → Core Bus → Handler → MaintenanceService/MaintenanceReadService → finance_assets/employees; spare part → InventoryService → inventory_movements; evidence → Enterprise DMS.

@@ -1,0 +1,10 @@
+{
+    "name": "Finance",
+    "alias": "finance",
+    "description": "Branch financial performance, payroll reconciliation, posted general ledger and tax management read models.",
+    "keywords": ["finance", "reconciliation", "accounting", "ledger", "tax"],
+    "priority": 0,
+    "requires": ["Core", "Company", "Payroll"],
+    "providers": [],
+    "files": []
+}

@@ -21,6 +21,14 @@ trait CompanyRules
             'branches.*.city' => ['nullable', 'string', 'max:100'],
             'branches.*.status' => ['required_with:branches', Rule::in(['active', 'inactive', 'archived'])],
             'branches.*.timezone' => ['required_with:branches', 'timezone'],
+            'seller_accounts' => ['sometimes', 'array', 'max:10'],
+            'seller_accounts.*.id' => ['nullable', 'integer'],
+            'seller_accounts.*.display_name' => ['required_with:seller_accounts', 'string', 'max:255'],
+            'seller_accounts.*.account_name' => ['required_with:seller_accounts', 'string', 'max:255'],
+            'seller_accounts.*.email' => ['required_with:seller_accounts', 'email', 'max:255', 'distinct'],
+            'seller_accounts.*.phone_e164' => ['nullable', 'string', 'max:20', 'distinct'],
+            'seller_accounts.*.password' => [$companyId === null ? 'required_with:seller_accounts' : 'nullable', 'string', 'min:12', 'max:255'],
+            'seller_accounts.*.password_confirmation' => ['nullable', 'same:seller_accounts.*.password'],
         ];
     }
 
@@ -46,6 +54,35 @@ trait CompanyRules
                 $scopeCompany = $companyId;
                 if ($scopeCompany !== null && DB::table('branches')->where('company_id', $scopeCompany)->where('code', $code)->when($id !== null, fn ($query) => $query->where('id', '!=', $id))->exists()) {
                     $validator->errors()->add("branches.{$index}.code", 'Mã chi nhánh đã tồn tại trong Company.');
+                }
+            }
+
+            $sellerRows = $this->input('seller_accounts', []);
+            if (! is_array($sellerRows)) {
+                return;
+            }
+            foreach ($sellerRows as $index => $row) {
+                if (! is_array($row)) {
+                    continue;
+                }
+                $profileId = isset($row['id']) && is_numeric($row['id']) ? (int) $row['id'] : null;
+                $profile = $profileId === null ? null : DB::table('seller_profiles')->where('id', $profileId)->where('company_id', $companyId)->first();
+                if ($profileId !== null && $profile === null) {
+                    $validator->errors()->add("seller_accounts.{$index}.id", 'Seller account không thuộc Company đang chỉnh sửa.');
+
+                    continue;
+                }
+                if ($profile === null && (! isset($row['password']) || ! is_string($row['password']) || $row['password'] === '')) {
+                    $validator->errors()->add("seller_accounts.{$index}.password", 'Mật khẩu là bắt buộc khi tạo Seller account mới.');
+                }
+                $userId = $profile !== null && is_numeric($profile->user_id) ? (int) $profile->user_id : null;
+                $email = $row['email'] ?? null;
+                if (is_string($email) && DB::table('users')->where('email', $email)->when($userId !== null, fn ($query) => $query->where('id', '!=', $userId))->exists()) {
+                    $validator->errors()->add("seller_accounts.{$index}.email", 'Email tài khoản đã tồn tại.');
+                }
+                $phone = $row['phone_e164'] ?? null;
+                if (is_string($phone) && $phone !== '' && DB::table('users')->where('phone_e164', $phone)->when($userId !== null, fn ($query) => $query->where('id', '!=', $userId))->exists()) {
+                    $validator->errors()->add("seller_accounts.{$index}.phone_e164", 'Số điện thoại tài khoản đã tồn tại.');
                 }
             }
         });

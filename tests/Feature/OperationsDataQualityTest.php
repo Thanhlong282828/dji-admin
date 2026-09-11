@@ -35,7 +35,7 @@ final class OperationsDataQualityTest extends TestCase
         $first = app(DataQualityAuditService::class)->snapshot();
         $second = app(DataQualityAuditService::class)->snapshot();
         self::assertSame($first['checksum'], $second['checksum']);
-        self::assertSame(41, $first['rules']);
+        self::assertSame(102, $first['rules']);
         self::assertSame(0, $first['invalid_career_levels']);
         self::assertSame(0, $first['compensation_issues']);
         self::assertSame(0, Artisan::call('operations:data-quality-audit', ['--json' => true]));

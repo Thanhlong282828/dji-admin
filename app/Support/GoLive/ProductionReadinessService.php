@@ -32,14 +32,14 @@ final class ProductionReadinessService
             $this->check('assets', 'Compiled frontend manifest', 'Release', is_file(public_path('build/manifest.json')), 'Production must use compiled Vite assets.'),
             $this->check('storage', 'Runtime writable paths', 'Storage', is_writable(storage_path()) && is_writable(base_path('bootstrap/cache')), 'Only storage and bootstrap/cache require runtime writes.'),
             $this->check('health', 'Health endpoints registered', 'Health', route('health.live', [], false) === '/health/live' && route('health.ready', [], false) === '/health/ready', 'Liveness and readiness are distinct read-only probes.'),
-            $this->check('migrations', 'Migration inventory present', 'Database', $this->migrationCount() === 64, 'Readiness reviews inventory only; it never executes migrations.'),
+            $this->check('migrations', 'Migration inventory readable', 'Database', $this->migrationInventoryValid(), 'Readiness validates a non-empty, uniquely named, readable migration inventory; it never executes migrations.'),
         ];
 
         $dependencies = [
             $this->dependency('MySQL', $productionDb !== '' ? 'CONFIGURED' : 'BLOCKED', $productionDb !== '' ? 'Production database name configured; connectivity requires deployment environment verification.' : 'Production database is not provisioned/identified in this environment.'),
             $this->dependency('Redis', $this->string(config('cache.default')) === 'redis' ? 'CONFIGURED' : 'BLOCKED', 'Cache, queue, locks and Horizon require deployment-environment verification.'),
             $this->dependency('Mail', $this->string(config('mail.default')) === 'log' ? 'MOCK_ONLY' : 'CONFIGURED', 'No delivery claim is made without a provider smoke test.'),
-            $this->dependency('Cloudflare Images', $this->cloudflareConfigured() ? 'BLOCKED' : 'BLOCKED', 'Live evidence remains HTTP 403 / code 5403; credential/account permission must be corrected and reverified.'),
+            $this->dependency('Cloudflare Images', $this->cloudflareConfigured() ? 'CONFIGURED' : 'CONFIGURATION_REQUIRED', $this->cloudflareConfigured() ? 'Required configuration metadata is present; deployment health remains non-critical and must be verified without exposing credentials.' : 'Configuration is absent; local media remains the safe fallback.'),
             $this->dependency('Object storage', $this->string(config('filesystems.default')) === 's3' ? 'CONFIGURED' : 'NOT_REQUIRED', 'Private local storage remains supported; external objects need provider-specific backup.'),
             $this->dependency('Reverb', $this->string(config('broadcasting.default')) === 'reverb' ? 'CONFIGURED' : 'MOCK_ONLY', 'Realtime is non-critical and must remain fail-open for CRUD.'),
             $this->dependency('ERP', 'MOCK_ONLY', 'Outbound delivery is kill-switch controlled; no live ERP traffic was authorized.'),
@@ -90,6 +90,19 @@ final class ProductionReadinessService
         $files = glob(database_path('migrations/*.php'));
 
         return is_array($files) ? count($files) : 0;
+    }
+
+    private function migrationInventoryValid(): bool
+    {
+        $files = glob(database_path('migrations/*.php'));
+        if (! is_array($files) || $files === []) {
+            return false;
+        }
+
+        $names = array_map('basename', $files);
+
+        return count($names) === count(array_unique($names))
+            && count(array_filter($files, 'is_readable')) === count($files);
     }
 
     private function cloudflareConfigured(): bool

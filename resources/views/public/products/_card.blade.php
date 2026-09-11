@@ -6,9 +6,9 @@
 <article class="market-product-card">
     <a class="product-image" href="{{ route('public.products.show', $product->slug) }}">
         @if($cover?->delivery_url)
-            <img src="{{ $cover->delivery_url }}" alt="Ảnh {{ $product->name }}" loading="lazy">
+            <img src="{{ $cover->delivery_url }}" alt="Ảnh {{ $product->name }}" loading="lazy" data-media-image>
         @else
-            <span aria-hidden="true">▧</span>
+            <span data-media-state="no-media" aria-label="NO_MEDIA" title="Sản phẩm chưa có media">▧</span>
         @endif
         @if($available < 1)
             <em>Hết hàng</em>

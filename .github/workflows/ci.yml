@@ -59,6 +59,7 @@ jobs:
       - run: composer validate --strict
       - run: composer install --no-interaction --prefer-dist --no-progress
       - run: cp .env.example .env && php artisan key:generate
+      - run: php artisan optimize:clear
       - run: php artisan migrate --force
       - run: npm ci && npm run build
       - name: Test environment preflight

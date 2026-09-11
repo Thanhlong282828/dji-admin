@@ -33,9 +33,9 @@ final class OperationsObservabilityTest extends TestCase
         $user = User::factory()->create(['email_verified_at' => now()]);
         $user->givePermissionTo(Permission::findOrCreate('operations.view', 'web'));
 
-        $this->actingAs($user)->get('/admin/operations/observability')->assertOk()->assertSee('Enterprise Observability');
         $response = $this->actingAs($user)->getJson('/admin/operations/observability/metrics');
         $response->assertOk()->assertJsonPath('http.p95_ms', 100)->assertJsonMissingPath('database.host');
+        $this->actingAs($user)->get('/admin/operations/observability')->assertOk()->assertSee('Enterprise Observability');
         $content = $response->getContent();
         self::assertIsString($content);
         self::assertStringNotContainsString('DB_PASSWORD', $content);

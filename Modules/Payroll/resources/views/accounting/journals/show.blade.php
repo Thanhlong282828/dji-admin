@@ -36,9 +36,11 @@
     ================================================================ --}}
     <section class="panel page-hero">
         <span class="eyebrow">
-            {{ $j['run_number'] }}
-            ·
-            calculation v{{ $j['calculation_version'] }}
+            @if($j['is_generic_source'])
+                {{ $j['source_type'] }} #{{ $j['source_id'] }} · {{ $j['posting_type'] }}
+            @else
+                {{ $j['run_number'] }} · calculation v{{ $j['calculation_version'] }}
+            @endif
         </span>
 
         <h2>
@@ -46,12 +48,13 @@
         </h2>
 
         <p>
-            Policy {{ $j['policy_code'] }}
-            ·
-            v{{ $j['policy_version'] ?? '' }}
-            ·
-            resolution {{ $j['resolution_date'] }}.
-            Bút toán dùng integer minor units và exact persisted Payroll source.
+            @if($j['is_generic_source'])
+                Nguồn nghiệp vụ {{ $j['source_type'] }} #{{ $j['source_id'] }} · kỳ {{ $j['period_code'] }}.
+                Bút toán cân bằng dùng integer minor units và evidence của nguồn đã lưu.
+            @else
+                Policy {{ $j['policy_code'] }} · v{{ $j['policy_version'] ?? '' }} · resolution {{ $j['resolution_date'] }}.
+                Bút toán dùng integer minor units và exact persisted Payroll source.
+            @endif
         </p>
 
 
@@ -177,7 +180,7 @@
 
 
             {{-- Internally Posted → Export --}}
-            @if($j['status'] === 'internally_posted')
+            @if(! $j['is_generic_source'] && $j['status'] === 'internally_posted')
                 @can('payroll.accounting.journal.export')
                     <form
                         method="POST"

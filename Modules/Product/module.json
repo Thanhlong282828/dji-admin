@@ -1,11 +1,10 @@
 {
     "name": "Product",
     "alias": "product",
-    "description": "",
-    "keywords": [],
+    "description": "Product catalog, category, variant and SKU ownership.",
+    "keywords": ["product", "catalog", "variant"],
     "priority": 0,
-    "providers": [
-        "Modules\\Product\\Providers\\ProductServiceProvider"
-    ],
+    "requires": ["Core", "Commerce", "Company", "Inventory"],
+    "providers": [],
     "files": []
 }

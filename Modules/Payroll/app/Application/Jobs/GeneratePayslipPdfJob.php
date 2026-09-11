@@ -11,9 +11,14 @@ use Modules\Payroll\Domain\Services\PayslipGenerationService;
 
 final class GeneratePayslipPdfJob implements ShouldQueue
 {
-    use Dispatchable,InteractsWithQueue,Queueable,SerializesModels;
+    use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    public int $tries = 3; // public array $backoff = [10, 60, 300]; // job có thể chạy lại nếu thất bại
+    public int $tries = 3;
+
+    public int $timeout = 180;
+
+    /** @var list<int> */
+    public array $backoff = [10, 60, 300];
 
     public function __construct(public readonly int $payslipId) {}
 

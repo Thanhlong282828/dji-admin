@@ -37,7 +37,7 @@ final class ConsumeWorkflowNotificationOutboxCommand extends Command
             $title = match ($event) {
                 'workflow.task.assigned' => 'New workflow task','workflow.task.escalated' => 'Workflow task escalated','workflow.rejected' => 'Workflow rejected',default => 'Workflow completed'
             };
-            $delivery->queue(new QueueNotificationData($companyId, null, 'workflow', 'workflow_instance', $instanceId, $event, $title, 'A workflow item requires your attention or has changed state.', '/admin/workflows/instances/'.$instanceId, ['workflow_event' => $event, 'task_id' => is_numeric($payload['task_id'] ?? null) ? (int) $payload['task_id'] : null], [(int) $recipient], ['database', 'broadcast'], 'workflow-outbox:'.$this->text($data, 'event_id'), null));
+            $delivery->queue(new QueueNotificationData($companyId, null, 'workflow', 'workflow_instance', $instanceId, $event, $title, 'A workflow item requires your attention or has changed state.', '/admin/workflows/instances/'.$instanceId.'?company_id='.$companyId, ['workflow_event' => $event, 'task_id' => is_numeric($payload['task_id'] ?? null) ? (int) $payload['task_id'] : null], [(int) $recipient], ['database', 'broadcast'], 'workflow-outbox:'.$this->text($data, 'event_id'), null));
             DB::table('workflow_outbox')->where('id', $this->integer($data, 'id'))->whereNull('published_at')->update(['published_at' => now()]);
         }
         $this->info('Projected '.$rows->count().' Workflow outbox event(s).');

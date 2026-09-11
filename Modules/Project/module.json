@@ -1,0 +1,10 @@
+{
+    "name": "Project",
+    "alias": "project",
+    "description": "Company-scoped project, milestone, task, membership and timesheet control.",
+    "keywords": ["project", "task", "milestone", "timesheet"],
+    "priority": 0,
+    "requires": ["Core", "Company", "Employee", "Document", "Workflow", "Finance", "Procurement"],
+    "providers": ["Modules\\Project\\Providers\\ProjectServiceProvider"],
+    "files": []
+}

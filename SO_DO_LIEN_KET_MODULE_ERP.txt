@@ -1,0 +1,326 @@
+============================================================
+SƠ ĐỒ LIÊN KẾT MODULE ERP HIỆN TẠI
+============================================================
+
+Nhãn [DEPENDS] là code dependency trong module.json; [BUSINESS FLOW] là liên kết nghiệp vụ, không mặc nhiên là dependency.
+
+MODULE: Article
+Responsibility : Owner bounded context theo module runtime hiện tại.
+Status         : IMPLEMENTED
+Manifest       : Modules/Article/module.json
+Main routes    : Modules/Article/routes/web.php, Modules/Article/routes/api.php (alias article)
+Write boundary : Article-owned application/domain services and tables.
+Read boundary  : Query/read services; Dashboard/Reporting aggregate read-only.
+[DEPENDS] Article → Core
+
+MODULE: Attendance
+Responsibility : Owner bounded context theo module runtime hiện tại.
+Status         : IMPLEMENTED
+Manifest       : Modules/Attendance/module.json
+Main routes    : Modules/Attendance/routes/web.php, Modules/Attendance/routes/api.php (alias attendance)
+Write boundary : Attendance-owned application/domain services and tables.
+Read boundary  : Query/read services; Dashboard/Reporting aggregate read-only.
+[DEPENDS] Attendance → Core
+[DEPENDS] Attendance → Company
+[DEPENDS] Attendance → Employee
+[DEPENDS] Attendance → Organization
+
+MODULE: Audit
+Responsibility : Enterprise Audit Platform
+Status         : IMPLEMENTED
+Manifest       : Modules/Audit/module.json
+Main routes    : Modules/Audit/routes/web.php, Modules/Audit/routes/api.php (alias audit)
+Write boundary : Audit-owned application/domain services and tables.
+Read boundary  : Query/read services; Dashboard/Reporting aggregate read-only.
+[DEPENDS] Audit → Core
+[DEPENDS] Audit → Company
+[DEPENDS] Audit → Workflow
+[DEPENDS] Audit → Notification
+[DEPENDS] Audit → Iam
+[DEPENDS] Audit → Integration
+[DEPENDS] Audit → Employee
+[DEPENDS] Audit → Payroll
+
+MODULE: Commerce
+Responsibility : Seller, store, buyer, cart, checkout, order, payment and fulfillment bounded context.
+Status         : IMPLEMENTED
+Manifest       : Modules/Commerce/module.json
+Main routes    : Modules/Commerce/routes/web.php (alias commerce)
+Write boundary : Commerce-owned application/domain services and tables.
+Read boundary  : Query/read services; Dashboard/Reporting aggregate read-only.
+[DEPENDS] Commerce → Core
+[DEPENDS] Commerce → Company
+[DEPENDS] Commerce → Inventory
+[DEPENDS] Commerce → Finance
+
+MODULE: Company
+Responsibility : Owner bounded context theo module runtime hiện tại.
+Status         : IMPLEMENTED
+Manifest       : Modules/Company/module.json
+Main routes    : Modules/Company/routes/web.php, Modules/Company/routes/api.php (alias company)
+Write boundary : Company-owned application/domain services and tables.
+Read boundary  : Query/read services; Dashboard/Reporting aggregate read-only.
+[DEPENDS] Company → Core
+
+MODULE: Core
+Responsibility : Owner bounded context theo module runtime hiện tại.
+Status         : IMPLEMENTED
+Manifest       : Modules/Core/module.json
+Main routes    : Modules/Core/routes/web.php, Modules/Core/routes/api.php (alias core)
+Write boundary : Core-owned application/domain services and tables.
+Read boundary  : Query/read services; Dashboard/Reporting aggregate read-only.
+
+MODULE: Dashboard
+Responsibility : Owner bounded context theo module runtime hiện tại.
+Status         : IMPLEMENTED
+Manifest       : Modules/Dashboard/module.json
+Main routes    : Modules/Dashboard/routes/web.php, Modules/Dashboard/routes/api.php (alias dashboard)
+Write boundary : Dashboard-owned application/domain services and tables.
+Read boundary  : Query/read services; Dashboard/Reporting aggregate read-only.
+[DEPENDS] Dashboard → Core
+[DEPENDS] Dashboard → Company
+[DEPENDS] Dashboard → Employee
+[DEPENDS] Dashboard → Finance
+[DEPENDS] Dashboard → Commerce
+[DEPENDS] Dashboard → Project
+[DEPENDS] Dashboard → Maintenance
+
+MODULE: Document
+Responsibility : Enterprise private document metadata, immutable file versions and multi-domain evidence links.
+Status         : IMPLEMENTED
+Manifest       : Modules/Document/module.json
+Main routes    : Modules/Document/routes/web.php, Modules/Document/routes/api.php (alias document)
+Write boundary : Document-owned application/domain services and tables.
+Read boundary  : Query/read services; Dashboard/Reporting aggregate read-only.
+[DEPENDS] Document → Core
+[DEPENDS] Document → Company
+
+MODULE: Employee
+Responsibility : Owner bounded context theo module runtime hiện tại.
+Status         : IMPLEMENTED
+Manifest       : Modules/Employee/module.json
+Main routes    : Modules/Employee/routes/web.php, Modules/Employee/routes/api.php (alias employee)
+Write boundary : Employee-owned application/domain services and tables.
+Read boundary  : Query/read services; Dashboard/Reporting aggregate read-only.
+[DEPENDS] Employee → Core
+[DEPENDS] Employee → Company
+[DEPENDS] Employee → Organization
+
+MODULE: Finance
+Responsibility : Branch financial performance, payroll reconciliation, posted general ledger and tax management read models.
+Status         : IMPLEMENTED
+Manifest       : Modules/Finance/module.json
+Main routes    : No module-owned route file
+Write boundary : Finance-owned application/domain services and tables.
+Read boundary  : Query/read services; Dashboard/Reporting aggregate read-only.
+[DEPENDS] Finance → Core
+[DEPENDS] Finance → Company
+[DEPENDS] Finance → Payroll
+
+MODULE: Iam
+Responsibility : Enterprise Identity and Access Governance
+Status         : IMPLEMENTED
+Manifest       : Modules/Iam/module.json
+Main routes    : Modules/Iam/routes/web.php (alias iam)
+Write boundary : Iam-owned application/domain services and tables.
+Read boundary  : Query/read services; Dashboard/Reporting aggregate read-only.
+[DEPENDS] Iam → Core
+[DEPENDS] Iam → Company
+[DEPENDS] Iam → Workflow
+[DEPENDS] Iam → Notification
+
+MODULE: Integration
+Responsibility : Enterprise Integration Hub
+Status         : IMPLEMENTED
+Manifest       : Modules/Integration/module.json
+Main routes    : Modules/Integration/routes/web.php, Modules/Integration/routes/api.php (alias integration)
+Write boundary : Integration-owned application/domain services and tables.
+Read boundary  : Query/read services; Dashboard/Reporting aggregate read-only.
+[DEPENDS] Integration → Core
+[DEPENDS] Integration → Company
+[DEPENDS] Integration → Organization
+
+MODULE: Inventory
+Responsibility : Inventory locations, balances, reservations and append-only movements.
+Status         : IMPLEMENTED
+Manifest       : Modules/Inventory/module.json
+Main routes    : No module-owned route file
+Write boundary : Inventory-owned application/domain services and tables.
+Read boundary  : Query/read services; Dashboard/Reporting aggregate read-only.
+[DEPENDS] Inventory → Core
+[DEPENDS] Inventory → Company
+
+MODULE: Leave
+Responsibility : Owner bounded context theo module runtime hiện tại.
+Status         : IMPLEMENTED
+Manifest       : Modules/Leave/module.json
+Main routes    : Modules/Leave/routes/web.php, Modules/Leave/routes/api.php (alias leave)
+Write boundary : Leave-owned application/domain services and tables.
+Read boundary  : Query/read services; Dashboard/Reporting aggregate read-only.
+[DEPENDS] Leave → Core
+[DEPENDS] Leave → Company
+[DEPENDS] Leave → Employee
+[DEPENDS] Leave → Attendance
+
+MODULE: Maintenance
+Responsibility : Company-scoped asset maintenance requests, work orders and preventive schedules.
+Status         : IMPLEMENTED
+Manifest       : Modules/Maintenance/module.json
+Main routes    : Modules/Maintenance/routes/web.php (alias maintenance)
+Write boundary : Maintenance-owned application/domain services and tables.
+Read boundary  : Query/read services; Dashboard/Reporting aggregate read-only.
+[DEPENDS] Maintenance → Core
+[DEPENDS] Maintenance → Company
+[DEPENDS] Maintenance → Employee
+[DEPENDS] Maintenance → Finance
+[DEPENDS] Maintenance → Inventory
+[DEPENDS] Maintenance → Procurement
+[DEPENDS] Maintenance → Document
+[DEPENDS] Maintenance → Workflow
+
+MODULE: Notification
+Responsibility : Owner bounded context theo module runtime hiện tại.
+Status         : IMPLEMENTED
+Manifest       : Modules/Notification/module.json
+Main routes    : Modules/Notification/routes/web.php, Modules/Notification/routes/api.php (alias notification)
+Write boundary : Notification-owned application/domain services and tables.
+Read boundary  : Query/read services; Dashboard/Reporting aggregate read-only.
+[DEPENDS] Notification → Core
+[DEPENDS] Notification → Company
+[DEPENDS] Notification → Organization
+[DEPENDS] Notification → Workflow
+
+MODULE: Onboarding
+Responsibility : Owner bounded context theo module runtime hiện tại.
+Status         : IMPLEMENTED
+Manifest       : Modules/Onboarding/module.json
+Main routes    : Modules/Onboarding/routes/web.php, Modules/Onboarding/routes/api.php (alias onboarding)
+Write boundary : Onboarding-owned application/domain services and tables.
+Read boundary  : Query/read services; Dashboard/Reporting aggregate read-only.
+[DEPENDS] Onboarding → Core
+[DEPENDS] Onboarding → Employee
+[DEPENDS] Onboarding → Organization
+
+MODULE: Organization
+Responsibility : Owner bounded context theo module runtime hiện tại.
+Status         : IMPLEMENTED
+Manifest       : Modules/Organization/module.json
+Main routes    : Modules/Organization/routes/web.php, Modules/Organization/routes/api.php (alias organization)
+Write boundary : Organization-owned application/domain services and tables.
+Read boundary  : Query/read services; Dashboard/Reporting aggregate read-only.
+[DEPENDS] Organization → Core
+[DEPENDS] Organization → Company
+
+MODULE: POS
+Responsibility : Branch point-of-sale visits, checkout, receipts and sales read models.
+Status         : IMPLEMENTED
+Manifest       : Modules/POS/module.json
+Main routes    : No module-owned route file
+Write boundary : POS-owned application/domain services and tables.
+Read boundary  : Query/read services; Dashboard/Reporting aggregate read-only.
+[DEPENDS] POS → Core
+[DEPENDS] POS → Company
+[DEPENDS] POS → Commerce
+[DEPENDS] POS → Product
+[DEPENDS] POS → Inventory
+[DEPENDS] POS → Finance
+
+MODULE: Payroll
+Responsibility : Owner bounded context theo module runtime hiện tại.
+Status         : IMPLEMENTED
+Manifest       : Modules/Payroll/module.json
+Main routes    : Modules/Payroll/routes/web.php, Modules/Payroll/routes/api.php (alias payroll)
+Write boundary : Payroll-owned application/domain services and tables.
+Read boundary  : Query/read services; Dashboard/Reporting aggregate read-only.
+[DEPENDS] Payroll → Core
+[DEPENDS] Payroll → Company
+[DEPENDS] Payroll → Employee
+[DEPENDS] Payroll → Organization
+
+MODULE: Performance
+Responsibility : Owner bounded context theo module runtime hiện tại.
+Status         : IMPLEMENTED
+Manifest       : Modules/Performance/module.json
+Main routes    : Modules/Performance/routes/web.php, Modules/Performance/routes/api.php (alias performance)
+Write boundary : Performance-owned application/domain services and tables.
+Read boundary  : Query/read services; Dashboard/Reporting aggregate read-only.
+[DEPENDS] Performance → Core
+[DEPENDS] Performance → Company
+[DEPENDS] Performance → Organization
+[DEPENDS] Performance → Employee
+
+MODULE: Procurement
+Responsibility : Company-scoped vendor, purchase request, purchase order, goods receipt and accounts payable workflows.
+Status         : IMPLEMENTED
+Manifest       : Modules/Procurement/module.json
+Main routes    : No module-owned route file
+Write boundary : Procurement-owned application/domain services and tables.
+Read boundary  : Query/read services; Dashboard/Reporting aggregate read-only.
+[DEPENDS] Procurement → Core
+[DEPENDS] Procurement → Company
+[DEPENDS] Procurement → Inventory
+[DEPENDS] Procurement → Finance
+
+MODULE: Product
+Responsibility : Product catalog, category, variant and SKU ownership.
+Status         : IMPLEMENTED
+Manifest       : Modules/Product/module.json
+Main routes    : Modules/Product/routes/web.php, Modules/Product/routes/api.php (alias product)
+Write boundary : Product-owned application/domain services and tables.
+Read boundary  : Query/read services; Dashboard/Reporting aggregate read-only.
+[DEPENDS] Product → Core
+[DEPENDS] Product → Commerce
+[DEPENDS] Product → Company
+[DEPENDS] Product → Inventory
+
+MODULE: Project
+Responsibility : Company-scoped project, milestone, task, membership and timesheet control.
+Status         : IMPLEMENTED
+Manifest       : Modules/Project/module.json
+Main routes    : Modules/Project/routes/web.php (alias project)
+Write boundary : Project-owned application/domain services and tables.
+Read boundary  : Query/read services; Dashboard/Reporting aggregate read-only.
+[DEPENDS] Project → Core
+[DEPENDS] Project → Company
+[DEPENDS] Project → Employee
+[DEPENDS] Project → Document
+[DEPENDS] Project → Workflow
+[DEPENDS] Project → Finance
+[DEPENDS] Project → Procurement
+
+MODULE: Recruitment
+Responsibility : Owner bounded context theo module runtime hiện tại.
+Status         : IMPLEMENTED
+Manifest       : Modules/Recruitment/module.json
+Main routes    : Modules/Recruitment/routes/web.php, Modules/Recruitment/routes/api.php (alias recruitment)
+Write boundary : Recruitment-owned application/domain services and tables.
+Read boundary  : Query/read services; Dashboard/Reporting aggregate read-only.
+[DEPENDS] Recruitment → Core
+[DEPENDS] Recruitment → Employee
+[DEPENDS] Recruitment → Organization
+[DEPENDS] Recruitment → Onboarding
+
+MODULE: Workflow
+Responsibility : Owner bounded context theo module runtime hiện tại.
+Status         : IMPLEMENTED
+Manifest       : Modules/Workflow/module.json
+Main routes    : Modules/Workflow/routes/web.php, Modules/Workflow/routes/api.php (alias workflow)
+Write boundary : Workflow-owned application/domain services and tables.
+Read boundary  : Query/read services; Dashboard/Reporting aggregate read-only.
+[DEPENDS] Workflow → Core
+[DEPENDS] Workflow → Company
+[DEPENDS] Workflow → Organization
+
+REQUIRED BUSINESS FLOWS
+[BUSINESS FLOW] Recruitment → Employee → Assignment → Contract → Attendance → Payroll
+[BUSINESS FLOW] Employee → Attendance / Leave / Overtime / Salary Assignment → Payroll Input → Run → Item → Payslip → Tax / Insurance → Accounting
+[BUSINESS FLOW] Company → Vendor → Procurement → Goods Receipt → Inventory → Vendor Bill → AP → Treasury → Accounting → Financial Statements
+[BUSINESS FLOW] Commerce → Customer → Quotation → Sales Order → Inventory Fulfillment → COGS → Customer Invoice → AR → Collection → Treasury → Accounting → Financial Statements
+[BUSINESS FLOW] Marketplace → Payment → Fulfillment → Inventory → COGS → Revenue → Finance
+[BUSINESS FLOW] POS → Receipt → Customer History → Inventory → COGS → Revenue → Finance
+[BUSINESS FLOW] Employee / Procurement / Finance / Commerce → Enterprise Document → immutable Version + SHA-256 → Workflow / Approval Inbox → Notification / Audit → owner-domain Command
+[BUSINESS FLOW] Finance Asset → Assignment → Depreciation → Accounting → Financial Statements
+[BUSINESS FLOW] Expense → Approval → Treasury → Accounting → Budget Actual
+[BUSINESS FLOW] Budget → Commitment → Procurement / Expense → Actual → Budget vs Actual
+[BUSINESS FLOW] Source domains → SourceAccountingPostingService → Journal → GL → Trial Balance → Financial Statements
+[BUSINESS FLOW] Business domains → Events → Notifications / Approval Inbox / Data Quality / Executive Dashboard

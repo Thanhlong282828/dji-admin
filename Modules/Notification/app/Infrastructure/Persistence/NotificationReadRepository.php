@@ -23,7 +23,7 @@ final class NotificationReadRepository
             $query->where('m.category', $category);
         }
         $total = (clone $query)->count();
-        $rows = $query->select('m.id', 'm.uuid', 'm.category', 'm.entity_type', 'm.entity_id', 'm.action', 'm.title', 'm.body', 'm.navigation_reference', 'm.status', 'm.created_at', 's.read_at')->orderByDesc('m.id')->forPage($page, $perPage)->get();
+        $rows = $query->select('m.id', 'm.uuid', 'm.category', 'm.entity_type', 'm.entity_id', 'm.action', 'm.title', 'm.body', 'm.navigation_reference', 'm.status', 'm.created_at', 's.read_at', 'r.company_id')->orderByDesc('m.id')->forPage($page, $perPage)->get();
         $items = [];
         foreach ($rows as $row) {
             $items[] = $this->row($row);
@@ -34,7 +34,7 @@ final class NotificationReadRepository
 
     public function detail(int $companyId, int $userId, int $messageId): NotificationCenterViewModel
     {
-        $row = DB::table('notification_recipients as r')->join('notification_messages as m', 'm.id', '=', 'r.notification_message_id')->leftJoin('notification_read_states as s', fn (JoinClause $join): JoinClause => $join->on('s.notification_message_id', '=', 'm.id')->on('s.user_id', '=', 'r.user_id'))->where('r.company_id', $companyId)->where('r.user_id', $userId)->where('m.id', $messageId)->select('m.id', 'm.uuid', 'm.category', 'm.entity_type', 'm.entity_id', 'm.action', 'm.title', 'm.body', 'm.navigation_reference', 'm.status', 'm.created_at', 's.read_at')->first();
+        $row = DB::table('notification_recipients as r')->join('notification_messages as m', 'm.id', '=', 'r.notification_message_id')->leftJoin('notification_read_states as s', fn (JoinClause $join): JoinClause => $join->on('s.notification_message_id', '=', 'm.id')->on('s.user_id', '=', 'r.user_id'))->where('r.company_id', $companyId)->where('r.user_id', $userId)->where('m.id', $messageId)->select('m.id', 'm.uuid', 'm.category', 'm.entity_type', 'm.entity_id', 'm.action', 'm.title', 'm.body', 'm.navigation_reference', 'm.status', 'm.created_at', 's.read_at', 'r.company_id')->first();
         abort_if($row === null, 404);
 
         return new NotificationCenterViewModel([$this->row($row)], $this->unread($companyId, $userId), 1, 1, 1);
@@ -75,6 +75,11 @@ final class NotificationReadRepository
             if (is_string($key) && (is_scalar($value) || $value === null)) {
                 $out[$key] = $value;
             }
+        }
+        $navigation = $out['navigation_reference'] ?? null;
+        $company = $out['company_id'] ?? null;
+        if (is_string($navigation) && str_starts_with($navigation, '/admin/workflows/') && ! str_contains($navigation, 'company_id=') && (is_int($company) || (is_string($company) && ctype_digit($company)))) {
+            $out['navigation_reference'] = $navigation.(str_contains($navigation, '?') ? '&' : '?').'company_id='.(int) $company;
         }
 
         return $out;

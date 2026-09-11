@@ -17,13 +17,16 @@ final class CheckoutInventoryProcessConcurrencyTest extends TestCase
         self::assertSame('mysql', DB::connection()->getDriverName());
         $token = Str::lower(Str::random(10));
         $seller = User::factory()->create(['email' => "race-seller-{$token}@example.test", 'access_enabled' => true]);
+        $company = (int) DB::table('companies')->insertGetId(['uuid' => (string) Str::uuid(), 'code' => "RACE-{$token}", 'name' => 'Race Company', 'country_code' => 'VN', 'timezone' => 'Asia/Ho_Chi_Minh', 'currency_code' => 'VND', 'currency' => 'VND', 'status' => 'active', 'is_active' => true, 'created_at' => now(), 'updated_at' => now()]);
+        $branch = (int) DB::table('branches')->insertGetId(['company_id' => $company, 'code' => 'MAIN', 'name' => 'Race Branch', 'status' => 'active', 'created_at' => now(), 'updated_at' => now()]);
+        DB::table('company_user_access')->insert(['company_id' => $company, 'user_id' => $seller->id]);
         $buyers = [User::factory()->create(['email' => "race-a-{$token}@example.test", 'access_enabled' => true]), User::factory()->create(['email' => "race-b-{$token}@example.test", 'access_enabled' => true])];
-        $profile = (int) DB::table('seller_profiles')->insertGetId(['user_id' => $seller->id, 'display_name' => 'Race Seller', 'status' => 'active', 'created_at' => now(), 'updated_at' => now()]);
+        $profile = (int) DB::table('seller_profiles')->insertGetId(['company_id' => $company, 'user_id' => $seller->id, 'display_name' => 'Race Seller', 'status' => 'active', 'created_at' => now(), 'updated_at' => now()]);
         $store = (int) DB::table('stores')->insertGetId(['seller_profile_id' => $profile, 'name' => 'Race Store', 'slug' => "race-store-{$token}", 'status' => 'active', 'created_at' => now(), 'updated_at' => now()]);
         $category = (int) DB::table('product_categories')->insertGetId(['name' => 'Race Category', 'slug' => "race-category-{$token}", 'status' => 'active', 'sort_order' => 1, 'created_at' => now(), 'updated_at' => now()]);
         $product = (int) DB::table('products')->insertGetId(['store_id' => $store, 'product_category_id' => $category, 'code' => "RACE-{$token}", 'name' => 'Race Product', 'slug' => "race-product-{$token}", 'base_price_minor' => 100000, 'currency' => 'VND', 'status' => 'active', 'created_at' => now(), 'updated_at' => now()]);
         $variant = (int) DB::table('product_variants')->insertGetId(['product_id' => $product, 'sku' => "RACE-SKU-{$token}", 'name' => 'Default', 'price_minor' => 100000, 'status' => 'active', 'created_at' => now(), 'updated_at' => now()]);
-        $location = (int) DB::table('inventory_locations')->insertGetId(['store_id' => $store, 'code' => 'MAIN', 'name' => 'Main', 'status' => 'active', 'created_at' => now(), 'updated_at' => now()]);
+        $location = (int) DB::table('inventory_locations')->insertGetId(['store_id' => $store, 'branch_id' => $branch, 'code' => 'MAIN', 'name' => 'Main', 'status' => 'active', 'created_at' => now(), 'updated_at' => now()]);
         DB::table('inventory_balances')->insert(['product_variant_id' => $variant, 'inventory_location_id' => $location, 'on_hand' => 1, 'reserved' => 0, 'version' => 1, 'created_at' => now(), 'updated_at' => now()]);
         $payloads = [];
         foreach ($buyers as $index => $buyer) {
@@ -54,6 +57,9 @@ final class CheckoutInventoryProcessConcurrencyTest extends TestCase
             DB::table('product_categories')->where('id', $category)->delete();
             DB::table('stores')->where('id', $store)->delete();
             DB::table('seller_profiles')->where('id', $profile)->delete();
+            DB::table('company_user_access')->where('company_id', $company)->delete();
+            DB::table('branches')->where('id', $branch)->delete();
+            DB::table('companies')->where('id', $company)->delete();
             foreach ($buyers as $buyer) {
                 $buyer->delete();
             }

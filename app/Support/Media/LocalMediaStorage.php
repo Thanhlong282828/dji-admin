@@ -23,7 +23,9 @@ final class LocalMediaStorage implements MediaStorageInterface
             throw new RuntimeException('Không thể lưu media local.');
         }
 
-        return new StoredMedia('local', $stored, Storage::disk('public')->url($stored), (string) $file->getMimeType(), (int) $file->getSize(), MediaFileFingerprint::sha256($file));
+        // Persist an origin-independent URL. APP_URL belongs to the runtime request,
+        // not to media identity; absolute localhost URLs break on another port/host.
+        return new StoredMedia('local', $stored, '/storage/'.ltrim($stored, '/'), (string) $file->getMimeType(), (int) $file->getSize(), MediaFileFingerprint::sha256($file));
     }
 
     public function delete(string $assetId): void

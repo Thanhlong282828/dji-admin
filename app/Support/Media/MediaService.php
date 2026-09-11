@@ -5,15 +5,11 @@ namespace App\Support\Media;
 use Illuminate\Database\DatabaseManager;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Validation\ValidationException;
 use Throwable;
 
 final readonly class MediaService
 {
-    /** @var list<string> */
-    private const MIMES = ['image/jpeg', 'image/png', 'image/webp'];
-
-    public function __construct(private MediaStorageInterface $storage, private DatabaseManager $db) {}
+    public function __construct(private MediaStorageInterface $storage, private DatabaseManager $db, private MediaImageInspector $inspector = new MediaImageInspector) {}
 
     public function stage(UploadedFile $file, MediaPurpose $purpose): StoredMedia
     {
@@ -75,21 +71,12 @@ final readonly class MediaService
 
     private function validate(UploadedFile $file, MediaPurpose $purpose): void
     {
-        $mime = $file->getMimeType();
-        $dimensions = getimagesize($file->getRealPath());
-        if (! is_string($mime) || ! in_array($mime, self::MIMES, true)) {
-            throw ValidationException::withMessages(['media' => 'Media chỉ hỗ trợ JPEG, PNG hoặc WebP.']);
-        }
         [$maxBytes, $maxDimension] = match ($purpose) {
-            MediaPurpose::ArticleCover, MediaPurpose::ArticleImage => [15 * 1024 * 1024, 8192],
-            MediaPurpose::StoreBanner => [12 * 1024 * 1024, 8192],
+            MediaPurpose::ArticleCover, MediaPurpose::ArticleImage, MediaPurpose::StoreBanner => [10 * 1024 * 1024, 8192],
             MediaPurpose::ProductCover, MediaPurpose::ProductImage, MediaPurpose::ProductVariant => [10 * 1024 * 1024, 6000],
             default => [5 * 1024 * 1024, 6000],
         };
-        $exceedsPixelCeiling = $dimensions !== false && $dimensions[0] > 0 && $dimensions[1] > intdiv(67_108_864, $dimensions[0]);
-        if ($dimensions === false || $dimensions[0] > $maxDimension || $dimensions[1] > $maxDimension || $exceedsPixelCeiling || $file->getSize() > $maxBytes) {
-            throw ValidationException::withMessages(['media' => 'Kích thước media không hợp lệ hoặc vượt giới hạn.']);
-        }
+        $this->inspector->inspect($file, $maxBytes, $maxDimension);
     }
 
     private function deleteSafely(string $reference, string $operation): void

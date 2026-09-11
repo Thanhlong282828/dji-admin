@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\User;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Support\Collection;
+use Spatie\Permission\Models\Permission;
 
 final readonly class WorkforceNotificationRecipientResolver
 {
@@ -13,7 +14,9 @@ final readonly class WorkforceNotificationRecipientResolver
     /** @return Collection<int,User> */
     public function approvers(int $companyId, int $employeeId, string $permission): Collection
     {
-        $ids = User::permission($permission)->whereIn('id', $this->db->table('company_user_access')->where('company_id', $companyId)->pluck('user_id'))->pluck('id');
+        $ids = Permission::query()->where(['name' => $permission, 'guard_name' => 'web'])->exists()
+            ? User::permission($permission)->whereIn('id', $this->db->table('company_user_access')->where('company_id', $companyId)->pluck('user_id'))->pluck('id')
+            : collect();
         $manager = $this->db->table('employees as e')->leftJoin('employees as m', 'm.id', '=', 'e.manager_id')->where('e.company_id', $companyId)->where('e.id', $employeeId)->value('m.user_id');
         if (is_numeric($manager) && $this->db->table('company_user_access')->where('company_id', $companyId)->where('user_id', (int) $manager)->exists()) {
             $ids->push((int) $manager);

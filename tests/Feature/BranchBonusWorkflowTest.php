@@ -3,7 +3,6 @@
 namespace Tests\Feature;
 
 use App\Models\User;
-use App\Support\Payroll\BranchBonusService;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -11,6 +10,7 @@ use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Modules\Company\Domain\Models\Company;
 use Modules\Employee\Domain\Models\Employee;
+use Modules\Payroll\Application\Services\BranchBonusService;
 use Tests\TestCase;
 
 final class BranchBonusWorkflowTest extends TestCase

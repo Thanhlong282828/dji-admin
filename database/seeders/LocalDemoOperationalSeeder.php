@@ -4,18 +4,30 @@ namespace Database\Seeders;
 
 use App\Models\User;
 use App\Support\Compensation\PositionCompensationReference;
-use App\Support\Payroll\BranchBonusService;
+use App\Support\Media\MediaPurpose;
+use App\Support\Media\MediaService;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Seeder;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Modules\Audit\Application\DTOs\AuditEventData;
 use Modules\Audit\Domain\Contracts\AuditRecorderInterface;
+use Modules\Commerce\Application\Services\CommerceFulfillmentService;
+use Modules\Commerce\Application\Services\CommercePaymentService;
+use Modules\Commerce\Application\Services\OrderTransitionService;
+use Modules\Commerce\Application\Services\SalesReceivableService;
 use Modules\Company\Domain\Models\Company;
+use Modules\Employee\Domain\Enums\ContractType;
+use Modules\Employee\Domain\Enums\EmploymentType;
 use Modules\Employee\Domain\Models\Employee;
+use Modules\Finance\Application\Services\FinanceOperationsService;
+use Modules\Finance\Application\Services\TreasuryService;
+use Modules\Maintenance\Application\Services\MaintenanceService;
 use Modules\Payroll\Application\Commands\CreateAnnualTaxReconciliation\CreateAnnualTaxReconciliationCommand;
 use Modules\Payroll\Application\Commands\CreatePayrollAdjustment\CreatePayrollAdjustmentCommand;
 use Modules\Payroll\Application\DTOs\ErpAdministrationData;
+use Modules\Payroll\Application\Services\BranchBonusService;
 use Modules\Payroll\Domain\Enums\PayrollRunStatus;
 use Modules\Payroll\Domain\Models\PayrollInputSnapshot;
 use Modules\Payroll\Domain\Models\PayrollPeriod;
@@ -37,6 +49,15 @@ use Modules\Payroll\Domain\Services\PayrollPeriodOperationsService;
 use Modules\Payroll\Domain\Services\PayrollRunService;
 use Modules\Payroll\Domain\Services\PayslipGenerationService;
 use Modules\Payroll\Domain\Services\TaxManagementService;
+use Modules\POS\Domain\Services\BranchPosService;
+use Modules\Procurement\Application\Services\ProcurementService;
+use Modules\Recruitment\Application\DTOs\CandidateOfferData;
+use Modules\Recruitment\Application\DTOs\HireCandidateData;
+use Modules\Recruitment\Domain\Enums\CandidateOfferStatus;
+use Modules\Recruitment\Domain\Models\Application as RecruitmentApplication;
+use Modules\Recruitment\Domain\Models\CandidateOffer;
+use Modules\Recruitment\Domain\Services\CandidateOfferService;
+use Modules\Recruitment\Domain\Services\HireCandidateService;
 use Modules\Workflow\Application\DTOs\StartWorkflowData;
 use Modules\Workflow\Application\DTOs\WorkflowDefinitionData;
 use Modules\Workflow\Domain\Services\WorkflowDefinitionService;
@@ -52,6 +73,7 @@ final class LocalDemoOperationalSeeder extends Seeder
         $this->actors($company->id);
         $this->positionLevels($company->id);
         $this->commerceFoundation($admin);
+        $this->recruitmentHandoff($company->id, $admin);
         // Only the deterministic E000x bootstrap workforce is enriched. Ad-hoc/manual
         // employees in schema_admin remain user-owned and are never rewritten here.
         $employees = Employee::query()->where('company_id', $company->id)
@@ -69,9 +91,374 @@ final class LocalDemoOperationalSeeder extends Seeder
         $this->iam($company->id, $admin->id);
         $this->workflow($company->id, $admin->id);
         $this->commerceCatalog();
+        $this->commerceProductMedia($company->id);
         $this->commerceBuyerExperience();
         $this->commerceOrders();
+        $this->commercePointOfSale($company->id, $admin);
+        $this->procurementAccountingChain($company->id, $admin);
+        $this->salesReceivableChain($company->id, $admin);
+        $this->financeOperationsChain($company->id, $admin);
+        $this->maintenanceScenario($company->id, $admin);
+        $this->treasuryOperatingScenario($company->id, $admin);
         app(AuditRecorderInterface::class)->record(new AuditEventData($company->id, 'user', $admin->id, 'bootstrap', 'LocalDemo', 'LocalDemoBootstrapCompleted', 'local_demo_dataset', 'SCHEMA-LOCAL-DEMO', [], ['status' => 'ready'], ['synthetic_demo' => true, 'external_delivery' => false], 'local-demo-bootstrap-v1', $this->uuid(701)));
+    }
+
+    private function maintenanceScenario(int $companyId, User $maker): void
+    {
+        $asset = DB::table('finance_assets')->where(['company_id' => $companyId, 'asset_code' => 'LOCAL-ASSET-SERVER-01'])->first();
+        $checker = User::query()->where('email', 'finance@local.test')->first()
+            ?? User::query()->where('email', 'hr.manager@local.test')->first();
+        $technician = DB::table('employees')->where('company_id', $companyId)->whereIn('employment_status', ['active', 'probation'])->orderBy('employee_code')->value('id');
+        if ($asset === null || ! $checker instanceof User || ! is_numeric($technician)) {
+            return;
+        }
+        $assetId = $this->requiredId(get_object_vars($asset)['id'] ?? null, 'maintenance asset');
+        $service = app(MaintenanceService::class);
+        $request = DB::table('maintenance_requests')->where(['company_id' => $companyId, 'code' => 'LOCAL-MR-SERVER-01'])->value('id');
+        if (! is_numeric($request)) {
+            $request = $service->createRequest(['company_id' => $companyId, 'asset_id' => $assetId, 'code' => 'LOCAL-MR-SERVER-01', 'title' => 'Kiểm tra hệ thống làm mát máy chủ', 'description' => 'Nhiệt độ vận hành cao hơn ngưỡng theo dõi nội bộ.', 'priority' => 'HIGH'], (int) $maker->id);
+            $service->submitRequest($companyId, (int) $request, (int) $maker->id);
+            $service->approveRequest($companyId, (int) $request, (int) $checker->id, true);
+        }
+        $order = $service->convertRequest($companyId, (int) $request, (int) $checker->id);
+        $status = DB::table('maintenance_work_orders')->where('id', $order)->value('status');
+        if ($status === 'DRAFT') {
+            $service->assign($companyId, $order, (int) $technician, (int) $checker->id);
+            $service->transitionWorkOrder($companyId, $order, 'PLANNED', (int) $checker->id);
+        }
+        if (! DB::table('preventive_maintenance_plans')->where(['company_id' => $companyId, 'code' => 'LOCAL-PM-SERVER-01'])->exists()) {
+            $service->createPlan(['company_id' => $companyId, 'asset_id' => $assetId, 'code' => 'LOCAL-PM-SERVER-01', 'name' => 'Bảo trì máy chủ định kỳ', 'frequency_type' => 'MONTHLY', 'frequency_value' => 1, 'next_due_date' => '2026-09-30'], (int) $maker->id);
+        }
+    }
+
+    private function financeOperationsChain(int $companyId, User $maker): void
+    {
+        $checker = User::query()->where('email', 'finance@local.test')->first()
+            ?? User::query()->where('email', 'hr.manager@local.test')->firstOrFail();
+        $branchId = $this->requiredId(DB::table('branches')->where('company_id', $companyId)->where('status', 'active')->orderBy('id')->value('id'), 'finance operations branch');
+        $service = app(FinanceOperationsService::class);
+
+        DB::table('finance_expense_categories')->updateOrInsert(
+            ['company_id' => $companyId, 'code' => 'UTILITIES'],
+            ['name' => 'Điện, nước và Internet', 'status' => 'active', 'created_at' => now(), 'updated_at' => now()],
+        );
+        $expenseCategory = $this->requiredId(DB::table('finance_expense_categories')->where(['company_id' => $companyId, 'code' => 'UTILITIES'])->value('id'), 'expense category');
+        if (! DB::table('finance_expenses')->where(['company_id' => $companyId, 'reference' => 'LOCAL-EXP-2026-08'])->exists()) {
+            $expense = $service->mutate('expense.create', $companyId, $maker, ['branch_id' => $branchId, 'expense_category_id' => $expenseCategory, 'reference' => 'LOCAL-EXP-2026-08', 'amount_minor' => 8_750_000, 'expense_date' => '2026-08-25', 'description' => 'Chi phí điện, nước và Internet chi nhánh tháng 08/2026.']);
+            $service->mutate('expense.transition', $companyId, $maker, ['id' => $expense, 'to' => 'submitted']);
+            $service->mutate('expense.transition', $companyId, $checker, ['id' => $expense, 'to' => 'approved']);
+        }
+
+        DB::table('finance_asset_categories')->updateOrInsert(
+            ['company_id' => $companyId, 'code' => 'IT-EQUIPMENT'],
+            ['name' => 'Thiết bị CNTT', 'status' => 'active', 'created_at' => now(), 'updated_at' => now()],
+        );
+        $assetCategory = $this->requiredId(DB::table('finance_asset_categories')->where(['company_id' => $companyId, 'code' => 'IT-EQUIPMENT'])->value('id'), 'asset category');
+        $asset = DB::table('finance_assets')->where(['company_id' => $companyId, 'asset_code' => 'LOCAL-ASSET-SERVER-01'])->value('id');
+        if (! is_numeric($asset)) {
+            $asset = $service->mutate('asset.create', $companyId, $maker, ['asset_category_id' => $assetCategory, 'branch_id' => $branchId, 'asset_code' => 'LOCAL-ASSET-SERVER-01', 'name' => 'Máy chủ vận hành chi nhánh', 'acquisition_cost_minor' => 120_000_000, 'residual_value_minor' => 0, 'acquisition_date' => '2026-08-01', 'in_service_date' => '2026-08-01', 'useful_life_months' => 60]);
+            $service->mutate('asset.activate', $companyId, $maker, ['id' => (int) $asset]);
+        }
+        $service->mutate('asset.depreciate', $companyId, $maker, ['id' => (int) $asset, 'period_month' => '2026-08-01']);
+
+        $budget = DB::table('finance_budgets')->where(['company_id' => $companyId, 'year' => 2026, 'name' => 'LOCAL Operating Budget 2026'])->value('id');
+        if (! is_numeric($budget)) {
+            $budget = $service->mutate('budget.create', $companyId, $maker, ['year' => 2026, 'name' => 'LOCAL Operating Budget 2026']);
+            foreach (['5100' => 10_000_000, '5200' => 2_000_000] as $code => $amount) {
+                $account = $this->requiredId(DB::table('accounting_accounts')->where(['company_id' => $companyId, 'code' => $code])->value('id'), 'budget account');
+                $service->mutate('budget.line', $companyId, $maker, ['budget_id' => (int) $budget, 'branch_id' => $branchId, 'account_id' => $account, 'month' => 8, 'amount_minor' => $amount]);
+            }
+            $service->mutate('budget.approve', $companyId, $checker, ['id' => (int) $budget]);
+        }
+    }
+
+    private function treasuryOperatingScenario(int $companyId, User $maker): void
+    {
+        $checker = User::query()->where('email', 'finance@local.test')->first()
+            ?? User::query()->where('email', 'hr.manager@local.test')->firstOrFail();
+        $finance = app(FinanceOperationsService::class);
+        $treasury = app(TreasuryService::class);
+        $expense = DB::table('finance_expenses')->where(['company_id' => $companyId, 'reference' => 'LOCAL-EXP-2026-08'])->first();
+        if ($expense !== null && $expense->status === 'approved') {
+            $finance->mutate('expense.transition', $companyId, $checker, ['id' => (int) $expense->id, 'to' => 'paid']);
+        }
+        foreach (DB::table('ap_payments')->where('company_id', $companyId)->where('reference', 'like', 'LOCAL-%')->get() as $payment) {
+            $journal = DB::table('payroll_accounting_journals')->where(['company_id' => $companyId, 'source_type' => 'ap_payment', 'source_id' => $payment->id, 'posting_type' => 'vendor_payment'])->first();
+            $branchId = DB::table('vendor_bills as b')->join('ap_payment_allocations as a', 'a.vendor_bill_id', '=', 'b.id')->where('a.payment_id', $payment->id)->value('b.branch_id');
+            if ($journal !== null && is_numeric($branchId)) {
+                $treasury->recordSource($companyId, (int) $branchId, 'ap_payment', (int) $payment->id, (int) $journal->id, (string) $payment->reference, (int) $payment->amount_minor, (string) $payment->payment_date.' 12:00:00', $maker->id);
+            }
+        }
+        foreach (DB::table('treasury_transactions')->where('company_id', $companyId)->where('reference', 'like', 'LOCAL-%')->where('status', 'recorded')->get() as $transaction) {
+            $session = DB::table('treasury_reconciliation_sessions')->where(['company_id' => $companyId, 'financial_account_id' => $transaction->financial_account_id, 'period_from' => '2026-08-01', 'period_to' => '2026-08-31'])->value('id');
+            $sessionId = is_numeric($session) ? (int) $session : $treasury->mutate('reconciliation.create', $companyId, $checker, ['financial_account_id' => (int) $transaction->financial_account_id, 'period_from' => '2026-08-01', 'period_to' => '2026-08-31']);
+            $external = 'LOCAL-BANK-'.$transaction->source_type.'-'.$transaction->source_id;
+            $line = DB::table('treasury_statement_lines')->where(['reconciliation_session_id' => $sessionId, 'external_reference' => $external])->value('id');
+            if (! is_numeric($line) && DB::table('treasury_reconciliation_sessions')->where('id', $sessionId)->value('status') !== 'open') {
+                continue;
+            }
+            $signedAmount = $transaction->direction === 'inflow' ? (int) $transaction->amount_minor : -((int) $transaction->amount_minor);
+            $lineId = is_numeric($line) ? (int) $line : $treasury->mutate('statement.create', $companyId, $checker, ['session_id' => $sessionId, 'external_reference' => $external, 'occurred_at' => $transaction->occurred_at, 'amount_minor' => $signedAmount]);
+            if (DB::table('treasury_statement_lines')->where('id', $lineId)->value('status') === 'unmatched') {
+                $treasury->mutate('statement.match', $companyId, $checker, ['line_id' => $lineId, 'transaction_id' => (int) $transaction->id]);
+            }
+        }
+        foreach (DB::table('treasury_reconciliation_sessions')->where('company_id', $companyId)->where('period_from', '2026-08-01')->where('period_to', '2026-08-31')->where('status', 'open')->pluck('id') as $sessionId) {
+            $treasury->mutate('reconciliation.complete', $companyId, $checker, ['session_id' => (int) $sessionId]);
+        }
+    }
+
+    private function procurementAccountingChain(int $companyId, User $maker): void
+    {
+        $checker = User::query()->where('email', 'finance@local.test')->first()
+            ?? User::query()->where('email', 'hr.manager@local.test')->firstOrFail();
+        $runtime = DB::table('inventory_locations as location')
+            ->join('branches as branch', 'branch.id', '=', 'location.branch_id')
+            ->join('stores as store', 'store.id', '=', 'location.store_id')
+            ->join('seller_profiles as seller', 'seller.id', '=', 'store.seller_profile_id')
+            ->join('products as product', 'product.store_id', '=', 'store.id')
+            ->join('product_variants as variant', 'variant.product_id', '=', 'product.id')
+            ->where('branch.company_id', $companyId)
+            ->where('seller.company_id', $companyId)
+            ->where('location.status', 'active')
+            ->where('product.status', 'active')
+            ->where('variant.status', 'active')
+            ->orderBy('location.id')
+            ->first(['branch.id as branch_id', 'location.id as location_id', 'variant.id as variant_id']);
+        if ($runtime === null) {
+            return;
+        }
+        $branchId = $this->requiredId($runtime->branch_id ?? null, 'local procurement branch');
+        $locationId = $this->requiredId($runtime->location_id ?? null, 'local procurement location');
+        $variantId = $this->requiredId($runtime->variant_id ?? null, 'local procurement variant');
+
+        $service = app(ProcurementService::class);
+        $vendor = DB::table('procurement_vendors')->where(['company_id' => $companyId, 'code' => 'LOCAL-VENDOR-001'])->value('id');
+        $vendorId = is_numeric($vendor) ? (int) $vendor : $service->mutate('vendor.create', $companyId, $maker, [
+            'code' => 'LOCAL-VENDOR-001', 'name' => 'Nhà cung cấp thiết bị vận hành Minh Long', 'tax_code' => 'LOCAL-PROCUREMENT', 'payment_terms_days' => 30,
+            'note' => 'Bootstrap-owned canonical Procurement → AP → Accounting proof.',
+        ]);
+        $request = DB::table('purchase_requests')->where(['company_id' => $companyId, 'reference' => 'LOCAL-PR-001'])->value('id');
+        if (! is_numeric($request)) {
+            $request = $service->mutate('request.create', $companyId, $maker, [
+                'branch_id' => $branchId, 'reference' => 'LOCAL-PR-001', 'requested_date' => '2026-08-20', 'needed_date' => '2026-08-28',
+                'reason' => 'Bổ sung tồn kho bán hàng theo ngưỡng vận hành.', 'product_variant_id' => $variantId,
+                'description' => 'Bổ sung SKU hiện hữu vào kho chi nhánh', 'quantity' => 5, 'estimated_unit_cost_minor' => 2_500_000,
+            ]);
+            $service->mutate('request.transition', $companyId, $maker, ['id' => (int) $request, 'to' => 'submitted']);
+            $service->mutate('request.transition', $companyId, $checker, ['id' => (int) $request, 'to' => 'approved']);
+        }
+        $order = DB::table('purchase_orders')->where(['company_id' => $companyId, 'reference' => 'LOCAL-PO-001'])->value('id');
+        if (! is_numeric($order)) {
+            $order = $service->mutate('order.create', $companyId, $maker, ['purchase_request_id' => (int) $request, 'vendor_id' => $vendorId, 'reference' => 'LOCAL-PO-001', 'order_date' => '2026-08-21', 'expected_date' => '2026-08-28', 'payment_terms_days' => 30]);
+            $service->mutate('order.transition', $companyId, $checker, ['id' => (int) $order, 'to' => 'approved']);
+        }
+        $receipt = DB::table('procurement_goods_receipts')->where(['company_id' => $companyId, 'reference' => 'LOCAL-GR-001'])->value('id');
+        if (! is_numeric($receipt)) {
+            $lineId = $this->requiredId(DB::table('purchase_order_lines')->where('purchase_order_id', (int) $order)->value('id'), 'local procurement PO line');
+            $receipt = $service->mutate('receipt.create', $companyId, $maker, ['purchase_order_id' => (int) $order, 'purchase_order_line_id' => $lineId, 'inventory_location_id' => $locationId, 'reference' => 'LOCAL-GR-001', 'receipt_date' => '2026-08-28', 'quantity' => 5]);
+            $service->mutate('receipt.receive', $companyId, $checker, ['id' => (int) $receipt]);
+        }
+        $bill = DB::table('vendor_bills')->where(['company_id' => $companyId, 'invoice_number' => 'LOCAL-INV-001'])->value('id');
+        if (! is_numeric($bill)) {
+            $bill = $service->mutate('bill.create', $companyId, $maker, ['purchase_order_id' => (int) $order, 'invoice_number' => 'LOCAL-INV-001', 'invoice_date' => '2026-08-29', 'due_date' => '2026-09-28']);
+            $service->mutate('bill.approve', $companyId, $checker, ['id' => (int) $bill]);
+        }
+        if (! DB::table('ap_payments')->where(['company_id' => $companyId, 'reference' => 'LOCAL-AP-PAY-001'])->exists()) {
+            $service->mutate('payment.allocate', $companyId, $checker, ['vendor_bill_id' => (int) $bill, 'payment_date' => '2026-08-30', 'amount_minor' => 5_000_000, 'method' => 'bank_clearing', 'reference' => 'LOCAL-AP-PAY-001']);
+        }
+    }
+
+    private function salesReceivableChain(int $companyId, User $maker): void
+    {
+        $checker = User::query()->where('email', 'hr.manager@local.test')->firstOrFail();
+        $runtime = DB::table('inventory_balances as balance')->join('product_variants as variant', 'variant.id', '=', 'balance.product_variant_id')->join('products as product', 'product.id', '=', 'variant.product_id')->join('inventory_locations as location', 'location.id', '=', 'balance.inventory_location_id')->join('branches as branch', 'branch.id', '=', 'location.branch_id')->join('stores as store', 'store.id', '=', 'product.store_id')->join('seller_profiles as seller', 'seller.id', '=', 'store.seller_profile_id')->where('seller.company_id', $companyId)->where('branch.company_id', $companyId)->where('balance.on_hand', '>=', 1)->orderBy('balance.id')->first(['variant.id as variant_id', 'location.id as location_id', 'branch.id as branch_id']);
+        $customerId = DB::table('commerce_customers')->where('company_id', $companyId)->orderBy('id')->value('id');
+        if ($runtime === null || ! is_numeric($customerId)) {
+            return;
+        }
+        $service = app(SalesReceivableService::class);
+        $quotation = DB::table('sales_quotations')->where(['company_id' => $companyId, 'reference' => 'LOCAL-ERP-QT-001'])->value('id');
+        $quotationId = is_numeric($quotation) ? (int) $quotation : $service->createQuotation($companyId, $maker, ['branch_id' => $this->requiredId($runtime->branch_id ?? null, 'sales branch'), 'customer_id' => (int) $customerId, 'product_variant_id' => $this->requiredId($runtime->variant_id ?? null, 'sales variant'), 'reference' => 'LOCAL-ERP-QT-001', 'quotation_date' => '2026-08-05', 'valid_until' => '2026-08-31', 'description' => 'Thiết bị bán doanh nghiệp synthetic có lineage', 'quantity' => 1, 'unit_price_minor' => 5_500_000, 'discount_minor' => 250_000]);
+        if (DB::table('sales_quotations')->where('id', $quotationId)->value('status') === 'draft') {
+            $service->acceptQuotation($companyId, $checker, ['id' => $quotationId]);
+        }
+        $orderId = $service->convertQuotationToSalesOrder($companyId, $maker, ['quotation_id' => $quotationId, 'reference' => 'LOCAL-ERP-SO-001', 'order_date' => '2026-08-06']);
+        if (DB::table('sales_orders')->where('id', $orderId)->value('status') === 'draft') {
+            $service->confirmSalesOrder($companyId, $maker, ['id' => $orderId]);
+        }
+        $lineId = $this->requiredId(DB::table('sales_order_lines')->where('sales_order_id', $orderId)->value('id'), 'sales order line');
+        if (! DB::table('sales_fulfillments')->where('reference', 'LOCAL-ERP-FUL-001')->exists()) {
+            $service->fulfillSalesOrder($companyId, $maker, ['sales_order_line_id' => $lineId, 'inventory_location_id' => $this->requiredId($runtime->location_id ?? null, 'sales location'), 'quantity' => 1, 'reference' => 'LOCAL-ERP-FUL-001', 'fulfilled_on' => '2026-08-07']);
+        }
+        $invoiceId = $service->createCustomerInvoice($companyId, $maker, ['sales_order_id' => $orderId, 'invoice_number' => 'LOCAL-ERP-CI-001', 'invoice_date' => '2026-08-08', 'due_date' => '2026-09-07']);
+        if (DB::table('customer_invoices')->where('id', $invoiceId)->value('status') === 'draft') {
+            $service->issueCustomerInvoice($companyId, $checker, ['id' => $invoiceId]);
+        }
+        if (! DB::table('customer_collections')->where('reference', 'LOCAL-ERP-COL-001')->exists()) {
+            $service->allocateCustomerCollection($companyId, $checker, ['customer_invoice_id' => $invoiceId, 'reference' => 'LOCAL-ERP-COL-001', 'collection_date' => '2026-08-20', 'amount_minor' => 3_000_000, 'method' => 'bank_transfer']);
+        }
+    }
+
+    private function recruitmentHandoff(int $companyId, User $approver): void
+    {
+        $application = RecruitmentApplication::query()
+            ->whereHas('candidate', static fn ($query) => $query->where('email', 'bui.gia.hung@example.test'))
+            ->whereHas('requisition.jobPosition', static fn ($query) => $query->where('company_id', $companyId))->first();
+        if ($application === null || $application->hired_employee_id !== null) {
+            return;
+        }
+
+        $offerService = app(CandidateOfferService::class);
+        $offer = CandidateOffer::query()->where('company_id', $companyId)->where('application_id', $application->id)->first();
+        if ($offer === null) {
+            $position = DB::table('recruitment_requisitions as requisition')->join('job_positions as position', 'position.id', '=', 'requisition.job_position_id')->join('organization_units as unit', 'unit.id', '=', 'position.organization_unit_id')->where('requisition.id', $application->recruitment_requisition_id)->first(['position.career_level', 'position.title', 'unit.name']);
+            if ($position === null) {
+                return;
+            }
+            $level = is_numeric($position->career_level ?? null) ? (int) $position->career_level : 1;
+            $unitName = is_string($position->name ?? null) ? $position->name : '';
+            $title = is_string($position->title ?? null) ? $position->title : '';
+            $compensation = app(PositionCompensationReference::class)->resolve($level, $unitName, $title, '2026-09-15');
+            $offer = $offerService->create($companyId, new CandidateOfferData(
+                (int) $application->id,
+                EmploymentType::FullTime->value,
+                (string) $compensation->baseSalaryMinor,
+                'VND',
+                CarbonImmutable::parse('2026-09-15'),
+                CarbonImmutable::parse('2026-11-15'),
+                CarbonImmutable::parse('2026-09-10 23:59:59'),
+                ['source' => 'local_demo', 'note' => 'Offer synthetic đi qua canonical Recruitment workflow.'],
+            ), (int) $approver->id);
+        }
+        if ($offer->hired_employee_id !== null) {
+            return;
+        }
+
+        $submitterId = $this->requiredId(DB::table('users')->where('email', 'recruiter@local.test')->value('id'), 'recruitment submitter');
+        $lifecycle = [CandidateOfferStatus::Draft, CandidateOfferStatus::PendingApproval, CandidateOfferStatus::Approved, CandidateOfferStatus::Sent, CandidateOfferStatus::Accepted];
+        $currentIndex = array_search($offer->status, $lifecycle, true);
+        foreach ($lifecycle as $index => $target) {
+            if ($index === 0 || (is_int($currentIndex) && $index <= $currentIndex)) {
+                continue;
+            }
+            $actorId = $target === CandidateOfferStatus::Approved ? (int) $approver->id : $submitterId;
+            $offer = $offerService->transition($companyId, (int) $offer->id, $target, $actorId, null, $offer->version);
+        }
+
+        $application->refresh();
+        app(HireCandidateService::class)->hire($companyId, (int) $offer->id, new HireCandidateData(
+            $offer->version,
+            $application->version,
+            'LOCAL-HIRE-001',
+            CarbonImmutable::parse('2026-09-15'),
+            (int) $offer->organization_unit_id,
+            (int) $offer->job_position_id,
+            EmploymentType::FullTime,
+            'Văn phòng chi nhánh',
+            null,
+            ContractType::Indefinite,
+            null,
+            null,
+            'Offer được chấp nhận và bàn giao sang Employee/Onboarding trong local demo.',
+            'local-demo-hire-bui-gia-hung-v1',
+        ), $submitterId);
+    }
+
+    private function commerceProductMedia(int $companyId): void
+    {
+        // Local bootstrap must remain network-free even when a deployment selects
+        // Cloudflare Images. Production media is uploaded by the real write flow.
+        if (config('media.driver') !== 'local' || ! extension_loaded('gd')) {
+            return;
+        }
+        $products = DB::table('products as product')->join('stores as store', 'store.id', '=', 'product.store_id')->join('seller_profiles as seller', 'seller.id', '=', 'store.seller_profile_id')
+            ->where('seller.company_id', $companyId)->whereNull('product.deleted_at')
+            ->where(static fn ($query) => $query->where('product.code', 'like', 'SV-%')->orWhere('product.code', 'like', 'DEMO-%'))
+            ->whereNotExists(static fn ($query) => $query->selectRaw('1')->from('media_assets as media')->whereColumn('media.owner_id', 'product.id')->where('media.owner_type', 'product')->where('media.purpose', MediaPurpose::ProductCover->value))
+            ->orderBy('product.id')->get(['product.id', 'product.code', 'product.name']);
+        $media = app(MediaService::class);
+        foreach ($products as $product) {
+            $productId = $this->requiredId($product->id ?? null, 'product media owner');
+            $code = is_string($product->code ?? null) ? $product->code : 'LOCAL-PRODUCT';
+            $name = is_string($product->name ?? null) ? $product->name : $code;
+            $path = tempnam(sys_get_temp_dir(), 'local-product-cover-');
+            if (! is_string($path)) {
+                continue;
+            }
+            $image = imagecreatetruecolor(1200, 900);
+            if ($image === false) {
+                @unlink($path);
+
+                continue;
+            }
+            $hash = crc32($code);
+            $background = imagecolorallocate($image, 18 + ($hash % 30), 35 + (($hash >> 4) % 45), 58 + (($hash >> 8) % 55));
+            $gold = imagecolorallocate($image, 220, 181, 83);
+            $white = imagecolorallocate($image, 245, 247, 250);
+            imagefilledrectangle($image, 0, 0, 1200, 900, $background);
+            imagefilledrectangle($image, 85, 80, 1115, 100, $gold);
+            imagestring($image, 5, 90, 670, strtoupper($code), $gold);
+            imagestring($image, 5, 90, 720, mb_strimwidth($name, 0, 60, '…'), $white);
+            imagestring($image, 3, 90, 790, 'LOCAL SYNTHETIC PRODUCT MEDIA', $white);
+            imagepng($image, $path, 8);
+            imagedestroy($image);
+            try {
+                $upload = new UploadedFile($path, strtolower($code).'.png', 'image/png', null, true);
+                $stored = $media->stage($upload, MediaPurpose::ProductCover);
+                $media->attach($companyId, 'product', $productId, MediaPurpose::ProductCover, $stored);
+            } finally {
+                @unlink($path);
+            }
+        }
+    }
+
+    private function commercePointOfSale(int $companyId, User $actor): void
+    {
+        $pos = app(BranchPosService::class);
+        $locations = DB::table('inventory_locations as location')
+            ->join('stores as store', 'store.id', '=', 'location.store_id')
+            ->join('seller_profiles as seller', 'seller.id', '=', 'store.seller_profile_id')
+            ->where('seller.company_id', $companyId)->where('location.status', 'active')
+            ->orderBy('location.id')->get(['location.id', 'location.branch_id']);
+
+        foreach ($locations as $index => $location) {
+            $phone = '090880'.str_pad((string) ($index + 1), 4, '0', STR_PAD_LEFT);
+            $customerId = DB::table('commerce_customers')->where(['company_id' => $companyId, 'phone' => $phone])->value('id');
+            if (! is_numeric($customerId)) {
+                $customerId = $pos->createCustomer($companyId, [
+                    'full_name' => ['Nguyễn Minh Anh', 'Trần Gia Hân', 'Lê Quốc Bảo'][$index % 3],
+                    'phone' => $phone,
+                    'email' => 'pos.customer.'.($index + 1).'@local.test',
+                    'notes' => 'Khách synthetic thuộc luồng POS local demo.',
+                ]);
+            }
+
+            $serviceCode = 'LOCAL-SVC-'.str_pad((string) ($index + 1), 2, '0', STR_PAD_LEFT);
+            $serviceId = DB::table('company_services')->where(['company_id' => $companyId, 'code' => $serviceCode])->value('id');
+            if (! is_numeric($serviceId)) {
+                $serviceId = $pos->createService($companyId, [
+                    'code' => $serviceCode,
+                    'name' => ['Cài đặt và bàn giao', 'Kiểm tra thiết bị', 'Hỗ trợ kỹ thuật tại quầy'][$index % 3],
+                    'description' => 'Dịch vụ synthetic được bán qua POS canonical.',
+                    'price_minor' => [250_000, 180_000, 320_000][$index % 3],
+                    'currency' => 'VND',
+                    'status' => 'active',
+                ]);
+            }
+
+            if (DB::table('branch_pos_receipts as receipt')->join('customer_visits as visit', 'visit.id', '=', 'receipt.customer_visit_id')->where('visit.customer_id', (int) $customerId)->exists()) {
+                continue;
+            }
+            $variant = DB::table('inventory_balances as balance')->join('product_variants as variant', 'variant.id', '=', 'balance.product_variant_id')->where('balance.inventory_location_id', $location->id)->whereRaw('balance.on_hand - balance.reserved > 0')->orderBy('variant.id')->first(['variant.id']);
+            if ($variant === null || ! is_numeric($variant->id ?? null)) {
+                continue;
+            }
+            $visitId = $pos->checkIn($companyId, $this->requiredId($location->branch_id ?? null, 'POS branch'), $this->requiredId($customerId, 'POS customer'), $actor);
+            $pos->addService($companyId, $visitId, $this->requiredId($serviceId, 'POS service'), 1);
+            $pos->addProduct($companyId, $visitId, $this->requiredId($variant->id ?? null, 'POS variant'), $this->requiredId($location->id ?? null, 'POS inventory location'), 1);
+            $pos->checkout($companyId, $visitId, $index % 2 === 0 ? 'cash' : 'bank_transfer', $actor);
+        }
     }
 
     /** @param list<int> $employeeIds */
@@ -119,10 +506,24 @@ final class LocalDemoOperationalSeeder extends Seeder
             $baseRevenue = [1_850_000_000, 1_250_000_000, 820_000_000][$index] ?? 750_000_000;
             foreach ($monthlyFactors as $month => $factor) {
                 $date = sprintf('2026-%02d-01', $month);
-                DB::table('branch_management_revenues')->updateOrInsert(
-                    ['company_id' => $companyId, 'reference' => sprintf('LOCAL-REV-2026-%02d-%s', $month, $suffix)],
-                    ['branch_id' => $branch->id, 'source_type' => 'management_ledger', 'amount_minor' => intdiv($baseRevenue * $factor, 100), 'currency_code' => 'VND', 'recognized_on' => $date, 'status' => 'recognized', 'description' => 'Doanh thu quản trị synthetic đã ghi nhận; không phải doanh thu thuế.', 'created_by' => $actorId, 'created_at' => now(), 'updated_at' => now()],
-                );
+                $monthlyRevenue = intdiv($baseRevenue * $factor, 100);
+                $revenueLines = [
+                    ['SERVICE', 'service_delivery', 55, 'Nghiệm thu dịch vụ/dự án nội bộ demo'],
+                    ['MANAGED', 'managed_services', 30, 'Dịch vụ vận hành định kỳ nội bộ demo'],
+                    ['SUPPORT', 'training_support', 15, 'Đào tạo và hỗ trợ kỹ thuật nội bộ demo'],
+                ];
+                $allocatedRevenue = 0;
+                foreach ($revenueLines as $lineIndex => [$lineSuffix, $sourceType, $percentage, $description]) {
+                    $amount = $lineIndex === array_key_last($revenueLines)
+                        ? $monthlyRevenue - $allocatedRevenue
+                        : intdiv($monthlyRevenue * $percentage, 100);
+                    $allocatedRevenue += $amount;
+                    DB::table('branch_management_revenues')->updateOrInsert(
+                        ['company_id' => $companyId, 'reference' => sprintf('LOCAL-REV-2026-%02d-%s-%s', $month, $suffix, $lineSuffix)],
+                        ['branch_id' => $branch->id, 'source_type' => $sourceType, 'amount_minor' => $amount, 'currency_code' => 'VND', 'recognized_on' => $date, 'status' => 'recognized', 'description' => $description.'; synthetic DB-backed, không phải Order/Payment hay doanh thu thuế.', 'created_by' => $actorId, 'created_at' => now(), 'updated_at' => now()],
+                    );
+                }
+                DB::table('branch_management_revenues')->where('company_id', $companyId)->where('reference', sprintf('LOCAL-REV-2026-%02d-%s', $month, $suffix))->delete();
                 foreach ([['utilities', 18_000_000], ['software_internet', 12_000_000], ['marketing_transport', 24_000_000]] as $categoryIndex => [$category, $baseExpense]) {
                     if (($month + $index + $categoryIndex) % 4 === 0 && $category === 'marketing_transport') {
                         continue;
@@ -206,10 +607,12 @@ final class LocalDemoOperationalSeeder extends Seeder
             }
         }
 
+        $companyId = $this->requiredId(DB::table('companies')->where('code', 'SCHEMA-TECH-VN')->value('id'), 'commerce company');
         $seller = User::query()->updateOrCreate(['email' => 'seller@local.test'], ['name' => 'Seller Synthetic Việt Nam', 'password' => Hash::make('LocalSeller123!'), 'email_verified_at' => now(), 'access_enabled' => true]);
         $seller->syncRoles(['Seller']);
-        DB::table('seller_profiles')->updateOrInsert(['user_id' => $seller->id], ['display_name' => 'Sao Việt Seller', 'status' => 'active', 'verified_at' => now(), 'verified_by' => $admin->id, 'created_at' => now(), 'updated_at' => now()]);
-        $sellerProfileId = (int) DB::table('seller_profiles')->where('user_id', $seller->id)->value('id');
+        DB::table('company_user_access')->updateOrInsert(['company_id' => $companyId, 'user_id' => $seller->id], ['created_at' => now(), 'updated_at' => now()]);
+        DB::table('seller_profiles')->updateOrInsert(['company_id' => $companyId, 'user_id' => $seller->id], ['display_name' => 'Sao Việt Seller', 'status' => 'active', 'verified_at' => now(), 'verified_by' => $admin->id, 'created_at' => now(), 'updated_at' => now()]);
+        $sellerProfileId = (int) DB::table('seller_profiles')->where('company_id', $companyId)->where('user_id', $seller->id)->value('id');
         DB::table('stores')->updateOrInsert(['slug' => 'sao-viet-technology-store'], ['seller_profile_id' => $sellerProfileId, 'name' => 'Sao Việt Technology Store', 'description' => 'Cửa hàng synthetic phục vụ kiểm thử Seller/Store local, chưa có Product hoặc Order.', 'status' => 'active', 'created_at' => now(), 'updated_at' => now()]);
 
         $buyer = User::query()->updateOrCreate(['email' => 'buyer@local.test'], ['name' => 'Buyer Synthetic Việt Nam', 'password' => Hash::make('LocalBuyer123!'), 'email_verified_at' => now(), 'access_enabled' => true]);
@@ -220,6 +623,11 @@ final class LocalDemoOperationalSeeder extends Seeder
 
     private function commerceCatalog(): void
     {
+        $companyId = $this->requiredId(DB::table('companies')->where('code', 'SCHEMA-TECH-VN')->value('id'), 'commerce company');
+        $branches = DB::table('branches')->where('company_id', $companyId)->whereNull('deleted_at')->orderBy('id')->pluck('id')->map(static fn (mixed $id): int => (int) $id)->values();
+        if ($branches->isEmpty()) {
+            return;
+        }
         $categories = [
             ['ELEC', 'Điện tử', null, 10],
             ['PHONE', 'Điện thoại', 'ELEC', 20],
@@ -241,9 +649,11 @@ final class LocalDemoOperationalSeeder extends Seeder
         }
 
         $storeId = $this->requiredId(DB::table('stores')->where('slug', 'sao-viet-technology-store')->value('id'), 'commerce store');
+        $primarySellerUserId = $this->requiredId(DB::table('stores as s')->join('seller_profiles as sp', 'sp.id', '=', 's.seller_profile_id')->where('s.id', $storeId)->value('sp.user_id'), 'primary seller user');
+        DB::table('company_user_access')->updateOrInsert(['company_id' => $companyId, 'user_id' => $primarySellerUserId], ['created_at' => now(), 'updated_at' => now()]);
         DB::table('inventory_locations')->updateOrInsert(
             ['store_id' => $storeId, 'code' => 'MAIN'],
-            ['name' => 'Kho chính', 'status' => 'active', 'created_at' => now(), 'updated_at' => now()],
+            ['branch_id' => $branches[0], 'name' => 'Kho chính', 'status' => 'active', 'created_at' => now(), 'updated_at' => now()],
         );
         $locationId = $this->requiredId(DB::table('inventory_locations')->where('store_id', $storeId)->where('code', 'MAIN')->value('id'), 'inventory location');
         $products = [
@@ -267,10 +677,11 @@ final class LocalDemoOperationalSeeder extends Seeder
                 ['product_id' => $productId, 'name' => $variantName, 'attributes' => json_encode(['label' => $variantName], JSON_THROW_ON_ERROR), 'price_minor' => $price, 'status' => 'active', 'created_at' => now(), 'updated_at' => now()],
             );
             $variantId = $this->requiredId(DB::table('product_variants')->where('sku', $code.'-DEFAULT')->value('id'), 'product variant');
-            DB::table('inventory_balances')->updateOrInsert(
-                ['product_variant_id' => $variantId, 'inventory_location_id' => $locationId],
-                ['on_hand' => $onHand, 'reserved' => min(2, $onHand), 'version' => 1, 'created_at' => now(), 'updated_at' => now()],
-            );
+            DB::table('inventory_balances')->insertOrIgnore([
+                'product_variant_id' => $variantId, 'inventory_location_id' => $locationId,
+                'on_hand' => $onHand, 'reserved' => min(2, $onHand), 'version' => 1,
+                'created_at' => now(), 'updated_at' => now(),
+            ]);
         }
 
         $additionalStores = [
@@ -281,8 +692,9 @@ final class LocalDemoOperationalSeeder extends Seeder
         foreach ($additionalStores as [$email, $sellerName, $storeSlug, $storeName]) {
             $seller = User::query()->updateOrCreate(['email' => $email], ['name' => $sellerName, 'password' => Hash::make('LocalSeller123!'), 'email_verified_at' => now(), 'access_enabled' => true]);
             $seller->syncRoles(['Seller']);
-            DB::table('seller_profiles')->updateOrInsert(['user_id' => $seller->id], ['display_name' => $sellerName, 'status' => 'active', 'verified_at' => now(), 'created_at' => now(), 'updated_at' => now()]);
-            $profileId = $this->requiredId(DB::table('seller_profiles')->where('user_id', $seller->id)->value('id'), 'seller profile');
+            DB::table('company_user_access')->updateOrInsert(['company_id' => $companyId, 'user_id' => $seller->id], ['created_at' => now(), 'updated_at' => now()]);
+            DB::table('seller_profiles')->updateOrInsert(['company_id' => $companyId, 'user_id' => $seller->id], ['display_name' => $sellerName, 'status' => 'active', 'verified_at' => now(), 'created_at' => now(), 'updated_at' => now()]);
+            $profileId = $this->requiredId(DB::table('seller_profiles')->where('company_id', $companyId)->where('user_id', $seller->id)->value('id'), 'seller profile');
             DB::table('stores')->updateOrInsert(['slug' => $storeSlug], ['seller_profile_id' => $profileId, 'name' => $storeName, 'description' => 'Cửa hàng synthetic phục vụ local marketplace demo.', 'status' => 'active', 'created_at' => now(), 'updated_at' => now()]);
             $storeIds[] = $this->requiredId(DB::table('stores')->where('slug', $storeSlug)->value('id'), 'commerce store');
         }
@@ -305,13 +717,15 @@ final class LocalDemoOperationalSeeder extends Seeder
             $code = 'DEMO-'.str_pad((string) ($index + 1), 3, '0', STR_PAD_LEFT);
             DB::table('products')->updateOrInsert(['store_id' => $targetStore, 'code' => $code], ['product_category_id' => $categoryIds[$categoryCode], 'name' => $name, 'slug' => strtolower($code), 'description' => 'Sản phẩm synthetic marketplace demo; không phải chào bán thương mại thật.', 'brand' => 'Thương hiệu Việt Demo', 'base_price_minor' => $price, 'currency' => 'VND', 'status' => 'active', 'created_at' => now(), 'updated_at' => now()]);
             $productId = $this->requiredId(DB::table('products')->where('store_id', $targetStore)->where('code', $code)->value('id'), 'product');
-            DB::table('inventory_locations')->updateOrInsert(['store_id' => $targetStore, 'code' => 'MAIN'], ['name' => 'Kho chính', 'status' => 'active', 'created_at' => now(), 'updated_at' => now()]);
+            $storeIndex = array_search($targetStore, $storeIds, true);
+            $branchId = $branches[(is_int($storeIndex) ? $storeIndex : 0) % $branches->count()];
+            DB::table('inventory_locations')->updateOrInsert(['store_id' => $targetStore, 'code' => 'MAIN'], ['branch_id' => $branchId, 'name' => 'Kho chính', 'status' => 'active', 'created_at' => now(), 'updated_at' => now()]);
             $targetLocation = $this->requiredId(DB::table('inventory_locations')->where('store_id', $targetStore)->where('code', 'MAIN')->value('id'), 'inventory location');
             foreach ([['STANDARD', 'Tiêu chuẩn', $price], ['PREMIUM', 'Cao cấp', $price + intdiv($price, 5)]] as [$suffix, $variantName, $variantPrice]) {
                 $sku = $code.'-'.$suffix;
                 DB::table('product_variants')->updateOrInsert(['sku' => $sku], ['product_id' => $productId, 'name' => $variantName, 'attributes' => json_encode(['edition' => $variantName], JSON_THROW_ON_ERROR), 'price_minor' => $variantPrice, 'status' => 'active', 'created_at' => now(), 'updated_at' => now()]);
                 $variantId = $this->requiredId(DB::table('product_variants')->where('sku', $sku)->value('id'), 'product variant');
-                DB::table('inventory_balances')->updateOrInsert(['product_variant_id' => $variantId, 'inventory_location_id' => $targetLocation], ['on_hand' => 8 + ($index % 20), 'reserved' => $index % 3, 'version' => 1, 'created_at' => now(), 'updated_at' => now()]);
+                DB::table('inventory_balances')->insertOrIgnore(['product_variant_id' => $variantId, 'inventory_location_id' => $targetLocation, 'on_hand' => 8 + ($index % 20), 'reserved' => $index % 3, 'version' => 1, 'created_at' => now(), 'updated_at' => now()]);
             }
         }
     }
@@ -344,25 +758,90 @@ final class LocalDemoOperationalSeeder extends Seeder
         if ($variants->isEmpty()) {
             return;
         }
-        $statuses = ['pending_payment', 'confirmed', 'processing', 'cancelled'];
+        $admin = User::query()->whereIn('email', ['admin@local.test', 'admin@schema.vn'])->orderByRaw("email = 'admin@local.test' DESC")->firstOrFail();
+        $companyId = $this->requiredId(DB::table('companies')->where('code', 'SCHEMA-TECH-VN')->value('id'), 'commerce company');
         for ($index = 0; $index < 18; $index++) {
             $variant = $variants[$index % $variants->count()];
             $quantity = ($index % 2) + 1;
-            $status = $statuses[$index % count($statuses)];
+            $initialStatus = $index >= 15 ? 'cancelled' : 'pending_payment';
             $checkoutKey = 'local-demo-checkout-'.str_pad((string) ($index + 1), 2, '0', STR_PAD_LEFT);
             DB::table('checkout_sessions')->updateOrInsert(['buyer_user_id' => $buyerId, 'idempotency_key' => $checkoutKey], ['checkout_reference' => $this->uuid(3001 + $index), 'status' => 'completed', 'total_minor' => ((int) $variant->price_minor * $quantity) + 30_000, 'currency' => 'VND', 'completed_at' => now()->subDays($index), 'created_at' => now()->subDays($index), 'updated_at' => now()]);
             $sessionId = $this->requiredId(DB::table('checkout_sessions')->where('buyer_user_id', $buyerId)->where('idempotency_key', $checkoutKey)->value('id'), 'checkout session');
             $orderNumber = 'ODR-DEMO-'.str_pad((string) ($index + 1), 4, '0', STR_PAD_LEFT);
             $subtotal = (int) $variant->price_minor * $quantity;
-            DB::table('orders')->updateOrInsert(['order_number' => $orderNumber], ['checkout_session_id' => $sessionId, 'checkout_reference' => $this->uuid(3001 + $index), 'buyer_user_id' => $buyerId, 'store_id' => $variant->store_id, 'seller_profile_id' => $variant->seller_profile_id, 'store_name_snapshot' => $variant->store_name, 'shipping_address_snapshot' => $address, 'shipping_method' => 'standard', 'status' => $status, 'payment_status' => 'unpaid', 'currency' => 'VND', 'subtotal_minor' => $subtotal, 'shipping_minor' => 30_000, 'discount_minor' => 0, 'total_minor' => $subtotal + 30_000, 'placed_at' => now()->subDays($index), 'created_at' => now()->subDays($index), 'updated_at' => now()]);
+            DB::table('orders')->insertOrIgnore(['order_number' => $orderNumber, 'checkout_session_id' => $sessionId, 'checkout_reference' => $this->uuid(3001 + $index), 'buyer_user_id' => $buyerId, 'store_id' => $variant->store_id, 'seller_profile_id' => $variant->seller_profile_id, 'store_name_snapshot' => $variant->store_name, 'shipping_address_snapshot' => $address, 'shipping_method' => 'standard', 'status' => $initialStatus, 'payment_status' => 'unpaid', 'currency' => 'VND', 'subtotal_minor' => $subtotal, 'shipping_minor' => 30_000, 'discount_minor' => 0, 'total_minor' => $subtotal + 30_000, 'placed_at' => now()->subDays($index), 'created_at' => now()->subDays($index), 'updated_at' => now()]);
             $orderId = $this->requiredId(DB::table('orders')->where('order_number', $orderNumber)->value('id'), 'order');
+            // This deterministic namespace represents one line per Order. Catalog
+            // ordering can evolve between bootstrap versions, so stale pre-ledger
+            // lines are removed only while the owned Order has no downstream evidence.
+            if (! DB::table('commerce_payment_records')->where('order_id', $orderId)->exists() && ! DB::table('commerce_fulfillments')->where('order_id', $orderId)->exists()) {
+                $staleItems = DB::table('order_items')->where('order_id', $orderId)->where('sku_snapshot', '<>', $variant->sku)->pluck('id');
+                if ($staleItems->isNotEmpty()) {
+                    DB::table('inventory_reservations')->whereIn('order_item_id', $staleItems)->delete();
+                    DB::table('order_items')->whereIn('id', $staleItems)->delete();
+                }
+                DB::table('orders')->where('id', $orderId)->update(['store_id' => $variant->store_id, 'seller_profile_id' => $variant->seller_profile_id, 'store_name_snapshot' => $variant->store_name, 'subtotal_minor' => $subtotal, 'shipping_minor' => 30_000, 'discount_minor' => 0, 'total_minor' => $subtotal + 30_000, 'updated_at' => now()]);
+            }
             DB::table('order_items')->updateOrInsert(['order_id' => $orderId, 'sku_snapshot' => $variant->sku], ['product_id' => $variant->product_id, 'product_variant_id' => $variant->variant_id, 'product_name_snapshot' => $variant->product_name, 'variant_label_snapshot' => $variant->variant_name, 'quantity' => $quantity, 'unit_price_minor' => $variant->price_minor, 'line_total_minor' => $subtotal, 'currency' => 'VND', 'created_at' => now(), 'updated_at' => now()]);
             $itemId = $this->requiredId(DB::table('order_items')->where('order_id', $orderId)->where('sku_snapshot', $variant->sku)->value('id'), 'order item');
-            $reservationStatus = $status === 'cancelled' ? 'released' : 'reserved';
-            DB::table('inventory_reservations')->updateOrInsert(['reference' => $this->uuid(4001 + $index)], ['order_id' => $orderId, 'order_item_id' => $itemId, 'product_variant_id' => $variant->variant_id, 'inventory_balance_id' => $variant->balance_id, 'quantity' => $quantity, 'status' => $reservationStatus, 'reserved_at' => now()->subDays($index), 'released_at' => $reservationStatus === 'released' ? now()->subDays($index)->addHour() : null, 'consumed_at' => null, 'created_at' => now(), 'updated_at' => now()]);
-            if ($reservationStatus === 'reserved') {
-                DB::table('inventory_balances')->where('id', $variant->balance_id)->increment('reserved', $quantity, ['version' => DB::raw('version + 1'), 'updated_at' => now()]);
+            $reservationStatus = $initialStatus === 'cancelled' ? 'released' : 'reserved';
+            DB::table('inventory_reservations')->insertOrIgnore(['reference' => $this->uuid(4001 + $index), 'order_id' => $orderId, 'order_item_id' => $itemId, 'product_variant_id' => $variant->variant_id, 'inventory_balance_id' => $variant->balance_id, 'quantity' => $quantity, 'status' => $reservationStatus, 'reserved_at' => now()->subDays($index), 'released_at' => $reservationStatus === 'released' ? now()->subDays($index)->addHour() : null, 'consumed_at' => null, 'created_at' => now(), 'updated_at' => now()]);
+
+            // Normalize only legacy bootstrap-owned Orders that have never entered
+            // the new payment/fulfillment ledger. This replaces old direct status
+            // seeding with the canonical transitions below without touching user data.
+            if (! DB::table('commerce_payment_records')->where('order_id', $orderId)->exists() && ! DB::table('commerce_fulfillments')->where('order_id', $orderId)->exists()) {
+                DB::table('orders')->where('id', $orderId)->where('order_number', $orderNumber)->update(['status' => $initialStatus, 'payment_status' => 'unpaid', 'paid_at' => null, 'fulfilled_at' => null, 'updated_at' => now()]);
+                DB::table('inventory_reservations')->where('order_id', $orderId)->update(['status' => $reservationStatus, 'released_at' => $reservationStatus === 'released' ? now()->subDays($index)->addHour() : null, 'consumed_at' => null, 'updated_at' => now()]);
             }
+
+            if ($index < 9) {
+                app(CommercePaymentService::class)->recordSucceeded($admin, $companyId, $orderId, 'internal_demo', 'LOCAL-SETTLEMENT-'.$orderNumber, 'local-payment-'.$orderNumber);
+            }
+            $seller = User::query()->whereKey(DB::table('seller_profiles')->where('id', $variant->seller_profile_id)->value('user_id'))->firstOrFail();
+            $orderStatus = (string) DB::table('orders')->where('id', $orderId)->value('status');
+            if ($index < 6 && $orderStatus === 'pending_payment') {
+                app(OrderTransitionService::class)->sellerTransition($seller, $orderId, 'confirm');
+                $orderStatus = 'confirmed';
+            }
+            // Compatibility repair for bootstrap-owned C6 rows that predate the
+            // Payment/Fulfillment state machine and were seeded directly as processing.
+            // User-created Orders are outside the deterministic ODR-DEMO namespace.
+            if ($index < 3 && $orderStatus === 'processing' && ! DB::table('commerce_fulfillments')->where('order_id', $orderId)->exists()) {
+                DB::table('orders')->where('id', $orderId)->where('order_number', $orderNumber)->update(['status' => 'confirmed', 'updated_at' => now()]);
+                $orderStatus = 'confirmed';
+            }
+            if ($index < 3 && $orderStatus !== 'fulfilled') {
+                $branchId = $this->requiredId(DB::table('inventory_balances as b')->join('inventory_locations as l', 'l.id', '=', 'b.inventory_location_id')->where('b.id', $variant->balance_id)->value('l.branch_id'), 'fulfillment branch');
+                app(CommerceFulfillmentService::class)->create($seller, $orderId, $branchId);
+                $fulfillmentStatus = (string) DB::table('commerce_fulfillments')->where('order_id', $orderId)->value('status');
+                if ($fulfillmentStatus === 'pending') {
+                    app(CommerceFulfillmentService::class)->transition($seller, $orderId, 'pack');
+                    $fulfillmentStatus = 'packed';
+                }
+                if ($fulfillmentStatus === 'packed') {
+                    app(CommerceFulfillmentService::class)->transition($seller, $orderId, 'ship', 'Local Demo Carrier', 'LOCAL-TRACK-'.$orderNumber);
+                    $fulfillmentStatus = 'shipped';
+                }
+                if ($fulfillmentStatus === 'shipped') {
+                    app(CommerceFulfillmentService::class)->transition($seller, $orderId, 'deliver');
+                }
+            }
+        }
+        $bootstrapBalanceIds = DB::table('inventory_balances as balance')->join('product_variants as variant', 'variant.id', '=', 'balance.product_variant_id')->join('products as product', 'product.id', '=', 'variant.product_id')
+            ->where(static fn ($query) => $query->where('product.code', 'like', 'SV-%')->orWhere('product.code', 'like', 'DEMO-%'))->pluck('balance.id');
+        foreach ($bootstrapBalanceIds as $balanceId) {
+            $reserved = (int) DB::table('inventory_reservations')->where('inventory_balance_id', $balanceId)->where('status', 'reserved')->sum('quantity');
+            $balance = DB::table('inventory_balances')->where('id', $balanceId)->first(['product_variant_id', 'inventory_location_id']);
+            if ($balance === null) {
+                continue;
+            }
+            $lastOnHand = DB::table('inventory_movements')->where('product_variant_id', $balance->product_variant_id)->where('inventory_location_id', $balance->inventory_location_id)->latest('id')->value('on_hand_after');
+            $changes = ['reserved' => $reserved, 'version' => DB::raw('version + 1'), 'updated_at' => now()];
+            if (is_numeric($lastOnHand)) {
+                $changes['on_hand'] = (int) $lastOnHand;
+            }
+            DB::table('inventory_balances')->where('id', $balanceId)->update($changes);
         }
     }
 
@@ -583,7 +1062,9 @@ final class LocalDemoOperationalSeeder extends Seeder
             }
         }
         $journals = app(PayrollAccountingJournalService::class);
-        $id = $journals->create($companyId, $runId, '2026-04-03', $makerId, $this->uuid(1120));
+        $periodEnd = DB::table('payroll_runs')->where('company_id', $companyId)->where('id', $runId)->value('period_end');
+        $postingDate = is_string($periodEnd) ? CarbonImmutable::parse($periodEnd)->addDays(3)->toDateString() : '2026-04-03';
+        $id = $journals->create($companyId, $runId, $postingDate, $makerId, $this->uuid(1_120_000 + $runId));
         $status = DB::table('payroll_accounting_journals')->where('id', $id)->value('status');
         if ($status === 'draft') {
             $journals->validate($companyId, $id, $makerId);

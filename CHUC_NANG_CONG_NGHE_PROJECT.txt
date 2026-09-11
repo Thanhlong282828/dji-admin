@@ -955,3 +955,59 @@ ERP CONSOLIDATION — HRM / PAYROLL / BRANCH FINANCE
 - Tax/Insurance policy lưu nguồn văn bản chính thức, jurisdiction và ngày kiểm chứng theo version; thiếu cấu hình hiển thị rõ thay vì tự suy đoán rate.
 - Bootstrap local phân bổ 33 Employee-owned demo theo Unit/Branch, tạo compensation theo Position, OT đã duyệt, nghỉ không lương và Branch Bonus maker-checker trên đúng quan hệ canonical; dữ liệu Employee thủ công ngoài dải `E0001`–`E0035` không bị seeder cập nhật.
 - Dữ liệu vận hành Phase 2 có nhiều tháng, giờ làm/trễ/OT/nghỉ biến thiên, PIT và BHXH/BHYT/BHTN do policy engine tính, Payslip khớp Payroll Item, và biểu đồ Dashboard/Branch P&L đọc cùng nguồn DB canonical.
+- Đối soát Payroll → Accounting → Branch Finance hiển thị difference theo kỳ; Tax Dashboard tổng hợp PIT/BHXH/BHYT/BHTN và hiển thị VAT/CIT `CONFIGURATION_REQUIRED` thay vì số liệu pháp lý giả.
+- Commerce Payment evidence theo Company, idempotency/unique settlement; Seller không được tự ghi payment.
+- Seller Governance theo Company: cùng một User có thể có Seller Profile riêng cho từng Company; Store/Product/Inventory/Order/Payment/Fulfillment/Revenue dùng chung tenant lineage, dashboard không clone doanh số.
+- Lịch sử đơn hàng đã bán theo Company nối Order Items, Payment evidence, Fulfillment Branch và recognized revenue; danh sách Công ty hiển thị Seller account bằng truy vấn batch.
+- Form Thêm/Sửa Công ty quản lý Seller account chuẩn (`users` + Role Seller + `company_user_access` + `seller_profiles`) theo transaction; trang Xem Công ty hiển thị account/Store và dẫn sang Seller Governance, không tự bypass trạng thái duyệt.
+- Menu Công ty có cột Tài khoản Seller và nút xóa có dependency guard; Branch chỉ soft-delete khi chưa phát sinh dữ liệu, còn Seller/Branch đã vận hành phải suspend/archive để giữ lịch sử.
+- Fulfillment theo Branch với trạng thái packed/shipped/delivered, carrier/tracking và tiêu thụ Inventory Reservation nguyên tử.
+- Chỉ Order paid + delivered tạo một `commerce_order` revenue theo subtotal; unpaid/undelivered bằng 0 và dashboard công khai source type.
+- Vận hành chi nhánh có kho Product/SKU kèm ảnh, tệp khách hàng, dịch vụ công ty, check-in/checkout và doanh số theo Branch. Checkout trừ tồn kho atomic và ghi receipt → recognized Branch Revenue; Finance/Dashboard đọc cùng nguồn.
+- Seller Governance dropdown chỉ hiển thị transition hợp lệ; Product archive giữ Order/media history. Media Product dùng Cloudflare Images qua unified driver khi cấu hình thật sẵn sàng.
+- POS/Bán hàng tại quầy là group riêng dùng chung Customer, Service, Product/SKU, Branch Inventory, Receipt và recognized Revenue; không clone dữ liệu từ Commerce/Finance.
+- Customer/Service/Visit/Checkout writes dùng CommandBus; Warehouse/Customer/Checkout/Sales reads dùng QueryBus và read service tenant-scoped.
+- Inventory Movement lưu before/after/delta/source/idempotency cho catalog/POS. Dashboard tổng hợp Commerce/POS từ canonical DB sources và drilldown, không dùng số/mảng JavaScript giả.
+- Seller bị banned có recovery governance kiểm soát qua suspended rồi active; reason/activity audit bắt buộc theo transition rủi ro và không tự nâng IAM role.
+Kiến trúc module nghiệp vụ: Core chỉ dispatch bus; Branch, Seller/Commerce, Product, Inventory, POS và Finance có owner module, handler và service riêng; architecture gate chặn tái tạo global business path.
+- Enterprise Sales History hợp nhất Marketplace + POS, hiển thị line snapshot/revenue lineage và full reversal theo quyền; reversal giữ chứng từ gốc, hoàn kho idempotent và cập nhật doanh thu thuần cho Finance/Dashboard.
+- Inventory Operations hỗ trợ phiếu nhập kho và chuyển kho chi nhánh theo lifecycle; movement ledger giải thích mọi thay đổi on-hand và transfer không làm thay đổi tổng tồn hệ thống.
+- POS có Dashboard, Customer History, Receipt History/detail; Product media có NO_MEDIA/BROKEN_MEDIA state và vẫn đi qua MediaService/adapter dùng chung.
+- Ảnh Product dùng presentation context thay vì kích thước intrinsic: thumbnail bảng/kho được giới hạn 64×48px desktop, 56×42px mobile; POS selector 88×66px/72×54px; catalog/detail responsive theo container. Browser gate đo geometry, asset load, overflow và BROKEN_MEDIA.
+- Cloudflare Images Hosted Images tái sử dụng `CloudflareImagesStorage`; local/testing không gọi ngoài. Chỉ chuyển sang provider thật khi driver, Account ID, token và delivery hash đầy đủ; không dùng R2 hoặc URL hard-code trong Blade.
+- Finance có General Ledger và Trial Balance permission-scoped từ bút toán Payroll đã post; lọc Company/ngày/tài khoản, đối chiếu Nợ/Có và truy Journal nguồn. Income Statement/Balance Sheet được đánh dấu PARTIAL, Cash Flow chưa hỗ trợ thay vì điền số giả khi Chart of Accounts chưa đủ Revenue/Asset/Equity/Cash.
+ERP Procurement & AP: quản lý Vendor, Purchase Request maker-checker, Purchase Order, Goods Receipt gắn movement kho, weighted-average inventory valuation, Vendor Bill, AP aging/payment allocation, period lock và source-idempotent double-entry posting. Marketplace/POS ghi nhận Revenue + COGS và reversal theo snapshot giá vốn gốc.
+TÀI CHÍNH VẬN HÀNH
+- Expense workflow maker-checker và bút toán cân; Asset register, effective-dated transfer, khấu hao đường thẳng, disposal; Budget vs Actual theo đúng tháng/chi nhánh/tài khoản.
+- Product media native 4K có decoded-image validation và provenance; provider được chọn qua MediaStorage binding, test không phát sinh external Cloudflare traffic.
+Finance Control Phase 2: Treasury/Cash control, manual bank-statement reconciliation, accounting period close checklist/maker-checker, Approval Inbox orchestration, và Budget/Committed/Actual/Available nối trực tiếp Procurement/AP/Expense/Accounting.
+Media Security: decode-only validation cho RGB/RGBA/palette PNG, JPEG, WebP và 4K; giữ nguyên byte/alpha, chặn fake/corrupt/oversized trước storage; PHPUnit không gọi Cloudflare.
+- Snapshot dữ liệu vận hành hiện tại: command read-only sinh TXT từ DB canonical, che contact account và không xuất credential/token/hash.
+- CRM metrics hợp nhất POS + Marketplace paid evidence theo Company, với segment deterministic có ngưỡng cấu hình và không ghi đè Customer.
+- Tệp khách hàng hiển thị cùng metric canonical, hỗ trợ lọc Branch/segment/tìm kiếm và detail nối POS history với paid Marketplace Orders; không có bảng CRM tổng hợp song song.
+- Snapshot vận hành phân biệt doanh thu `branch_pos`/`commerce_order`, bổ sung lifecycle, notification, Vendor/AP và Asset evidence; generic closed-journal adjustment vẫn được ghi rõ `NOT_IMPLEMENTED`.
+HR / FINANCE GOVERNED RUNTIME
+- Effective-dated contract renewal with historical lineage.
+- Voluntary resignation and mandatory HR/Payroll/IAM/Asset offboarding.
+- Idempotent maker-checker accounting reversal into an open period.
+- Existing Notification Center, executive dashboard, contextual help, reporting and Data Quality integration.
+ERP SELL-SIDE FINANCE
+- Quotation, Sales Order, inventory fulfillment and immutable COGS snapshot.
+- Customer Invoice, AR aging, partial Collection, Treasury inflow and balanced accounting posting.
+- Actual Treasury-based Cash Flow classification with explicit PARTIAL completeness and UNCLASSIFIED safety bucket.
+- Finance Overview is a read-only composition of posted GL, derived AR/AP, Treasury, Budget and Purchase Order commitments; Branch/date filters propagate to financial evidence and no copied KPI ledger is introduced.
+- Tenant isolation, maker-checker, idempotency and five canonical Sales/AR Data Quality invariants.
+- `app:erp-architecture-map` generates validated menu and module flow maps; route/permission metadata comes from AdminNavigation and `[DEPENDS]` edges come from enabled `module.json` manifests.
+ERP SUPPLY CHAIN ORCHESTRATION
+- Company-scoped Supply Chain overview composes Procurement, Inventory, ERP Sales and Marketplace fulfillment through one read-only Dashboard query boundary.
+- Canonical on-hand/reserved/available, inventory value, inbound supply, open demand and delivery evidence feed both operator and Executive Dashboard views without persisted summary totals.
+- Logistics provider/cost/on-time metrics remain explicitly NOT_CONNECTED, NOT_IMPLEMENTED or NOT_ENOUGH_EVIDENCE when their canonical source is absent.
+ERP DOCUMENT MANAGEMENT
+- Kho tài liệu doanh nghiệp: Company scope, phân loại, owner-domain link, private download, archive metadata và lịch sử phiên bản SHA-256 bất biến.
+- Tái sử dụng Workflow/Approval Inbox/Notification/Audit hiện hữu; không tạo BPM engine hoặc approval inbox thứ hai.
+PROJECT MANAGEMENT
+- Company-scoped Project overview/list/detail, Team, Milestone, Task dependency and Timesheet maker-checker.
+- Deterministic progress/health, completion blockers, cycle protection, DMS evidence and activity audit.
+- Explicit CQRS inside Modules/Project; no direct Finance/Procurement/Asset mutation.
+
+Maintenance/CMMS: corrective request, maker-checker, Work Order state machine, technician Employee, preventive scheduling idempotent, spare-part issue qua canonical Inventory, DMS evidence, Activity Log và tenant isolation.

@@ -37,10 +37,20 @@ These policies require legal verification before production use. Their output is
 
 Branch bonuses follow proposal, authorization, approval, effective compensation assignment, Payroll Input, and Payroll Item. Branch leadership never grants IAM privileges by itself.
 
-Branch revenue, operating expenses, rent contracts, and assets use deterministic monthly references. Payroll cost comes from Payroll Items, rent from effective contracts, and depreciation from the asset register. Branch P&L is management reporting, not legal/statutory accounting.
+Branch revenue, operating expenses, rent contracts, and assets use deterministic monthly references. Each local-demo monthly revenue total is composed from three traceable ledger lines (`service_delivery`, `managed_services`, and `training_support`) instead of one unexplained lump sum. Those lines remain synthetic DB-backed service evidence, not external payment-provider confirmation. A second source follows real Commerce lineage: nine Orders receive local settlement evidence, six are Seller-confirmed, and three traverse `packed → shipped → delivered`; only those three create `commerce_order` revenue (60,460,000 VND subtotal). Inventory is consumed once and unpaid/undelivered Orders contribute zero. Payroll cost comes from Payroll Items, rent from effective contracts, and depreciation from the asset register. Branch P&L is management reporting, not legal/statutory accounting.
 
 ## Idempotency and safety
 
 Repeated `php artisan app:bootstrap-local-demo` runs reconcile the same owned references. Mutable local-demo payroll may be regenerated through canonical services; submitted, approved, finalized, or non-local payroll is not rewritten. Duplicate owned references are a Data Quality failure.
 
 The command is guarded to the local manual/demo database contract and must not run in production or against PHPUnit/browser databases.
+
+## Commerce, media and recruitment lineage
+
+Bootstrap-owned Product covers are deterministic local PNG evidence generated only when the local media driver and GD are available. They are staged and attached through `MediaService`, carry the Product Company scope and never call Cloudflare. Missing/invalid media is rendered as an explicit `NO_MEDIA`/`BROKEN_MEDIA` state rather than a fabricated image.
+
+POS samples are not totals inserted for display. `BranchPosService` creates Customer → Service/Product Visit → paid Receipt → Inventory Movement → recognized Branch Revenue. Re-running the bootstrap reuses the same references, and Inventory Balance is reconciled from canonical movements/reservations instead of being reset by a catalog seeder.
+
+The hired recruitment example follows Candidate → Application → maker-checker Offer lifecycle → `HireCandidateService` → Employee → primary Assignment → Contract → Onboarding Case. The recruitment seeder preserves that completed linkage on subsequent runs and does not overwrite it with a naked stage value.
+
+Executive Dashboard metrics are computed at request time from those canonical sources. It owns no Employee, Payroll, Receipt, Revenue, Inventory or Recruitment totals.

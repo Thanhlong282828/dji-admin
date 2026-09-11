@@ -7,10 +7,12 @@ import '../ts/schema.ts';
 import '../ts/notification-center.ts';
 import '../ts/admin-navigation.ts';
 import '../ts/forecasting.ts';
+import { bootExecutiveDashboards } from './admin/executive-dashboard.js';
 
 window.Alpine = Alpine;
 
 Alpine.start();
+bootExecutiveDashboards();
 
 document.querySelectorAll('[data-company-branches]').forEach((section) => {
     const rows = section.querySelector('[data-company-branch-rows]');
@@ -23,6 +25,25 @@ document.querySelectorAll('[data-company-branches]').forEach((section) => {
         const index = rows.querySelectorAll('[data-company-branch-row]').length;
         const fragment = template.content.cloneNode(true);
         fragment.querySelectorAll('[data-name]').forEach((field) => field.setAttribute('name', `branches[${index}][${field.getAttribute('data-name')}]`));
+        bindRemove(fragment);
+        rows.append(fragment);
+    });
+});
+
+document.querySelectorAll('[data-company-sellers]').forEach((section) => {
+    const rows = section.querySelector('[data-company-seller-rows]');
+    const template = section.querySelector('[data-company-seller-template]');
+    const add = section.querySelector('[data-add-company-seller]');
+    if (!rows || !template || !add) return;
+    const bindRemove = (root) => root.querySelectorAll('[data-remove-company-seller]').forEach((button) => button.addEventListener('click', () => button.closest('[data-company-seller-row]')?.remove(), { once: true }));
+    bindRemove(section);
+    add.addEventListener('click', () => {
+        const index = rows.querySelectorAll('[data-company-seller-row]').length;
+        const fragment = template.content.cloneNode(true);
+        fragment.querySelectorAll('[data-name]').forEach((input) => {
+            input.name = `seller_accounts[${index}][${input.dataset.name}]`;
+            input.removeAttribute('data-name');
+        });
         bindRemove(fragment);
         rows.append(fragment);
     });
@@ -94,6 +115,47 @@ document.querySelectorAll('[data-gallery-thumb]').forEach((button) => {
         main.src = button.dataset.gallerySrc;
         document.querySelectorAll('[data-gallery-thumb]').forEach((item) => item.setAttribute('aria-pressed', String(item === button)));
     });
+});
+
+document.querySelectorAll('.product-image img, .product-gallery-market img, img.table-avatar, img[data-media-image]').forEach((image) => {
+    if (!(image instanceof HTMLImageElement) || image.dataset.mediaFallbackBound === 'true') return;
+    image.dataset.mediaFallbackBound = 'true';
+    image.addEventListener('error', () => {
+        image.hidden = true;
+        const fallback = document.createElement('span');
+        fallback.className = 'media-state-fallback is-broken';
+        fallback.dataset.mediaState = 'broken-media';
+        fallback.setAttribute('role', 'status');
+        fallback.textContent = 'BROKEN_MEDIA';
+        image.insertAdjacentElement('afterend', fallback);
+    }, { once: true });
+});
+
+document.querySelectorAll('.table-avatar-placeholder, .product-image > span, .gallery-main > span').forEach((fallback) => {
+    if (!(fallback instanceof HTMLElement)) return;
+    fallback.dataset.mediaState = 'no-media';
+    fallback.setAttribute('title', 'Sản phẩm chưa có media');
+    fallback.setAttribute('aria-label', 'NO_MEDIA');
+});
+
+document.querySelectorAll('[data-product-option-form]').forEach((form) => {
+    const select = form.querySelector('[data-product-option-select]');
+    const preview = form.querySelector('[data-product-option-preview]');
+    if (!(select instanceof HTMLSelectElement) || !(preview instanceof HTMLElement)) return;
+    const render = () => {
+        const option = select.selectedOptions[0];
+        const imageUrl = option?.dataset.image ?? '';
+        const productName = option?.dataset.productName ?? 'sản phẩm';
+        preview.replaceChildren();
+        if (!imageUrl) {
+            const empty = document.createElement('span'); empty.dataset.mediaState = 'no-media'; empty.textContent = 'NO_MEDIA'; empty.setAttribute('aria-label', 'NO_MEDIA'); preview.append(empty); return;
+        }
+        const image = document.createElement('img'); image.src = imageUrl; image.alt = `Ảnh ${productName}`; image.decoding = 'async'; image.dataset.mediaImage = 'true';
+        image.addEventListener('error', () => { image.hidden = true; const broken = document.createElement('span'); broken.dataset.mediaState = 'broken-media'; broken.className = 'media-state-fallback is-broken'; broken.textContent = 'BROKEN_MEDIA'; preview.append(broken); }, { once: true });
+        preview.append(image);
+    };
+    select.addEventListener('change', render);
+    render();
 });
 
 document.querySelectorAll('[data-commerce-quantity], [data-cart-quantity]').forEach((control) => {

@@ -1,6 +1,7 @@
 <?php
 
 use App\Contracts\ErrorTrackerInterface;
+use App\Http\Middleware\ApplySecurityHeaders;
 use App\Http\Middleware\EnsureAccountAccessEnabled;
 use App\Http\Middleware\RequestCorrelationContext;
 use Illuminate\Foundation\Application;
@@ -24,6 +25,7 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->append(RequestCorrelationContext::class);
+        $middleware->append(ApplySecurityHeaders::class);
         $middleware->alias([
             'permission' => PermissionMiddleware::class,
             'role' => RoleMiddleware::class,

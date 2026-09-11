@@ -22,10 +22,18 @@ final class EloquentDashboardReadRepository implements DashboardReadRepositoryIn
         }
 
         $recentActivities = [];
-        foreach (Activity::query()->latest()->limit(8)->get() as $activity) {
+        $activityQuery = Activity::query();
+        if ($companyId !== null) {
+            $activityQuery->where('properties->company_id', $companyId);
+        }
+        foreach ($activityQuery->latest()->limit(8)->get() as $activity) {
             $recentActivities[] = ['description' => $activity->description, 'subject_type' => class_basename((string) $activity->subject_type), 'created_at' => $activity->created_at?->toAtomString()];
         }
 
-        return new DashboardViewModel((clone $employees)->count(), (clone $employees)->where('employment_status', 'active')->count(), DB::table('leave_requests')->where('status', 'pending')->count(), DB::table('recruitment_requisitions')->where('status', 'open')->count(), Article::query()->count(), Article::query()->where('status', 'published')->count(), Article::query()->where('status', 'draft')->count(), Article::query()->where('featured', true)->count(), $statuses, $recentActivities);
+        $leave = DB::table('leave_requests')->when($companyId, fn ($query) => $query->where('company_id', $companyId));
+        $recruitment = DB::table('recruitment_requisitions as requisition')->join('job_positions as position', 'position.id', '=', 'requisition.job_position_id')->when($companyId, fn ($query) => $query->where('position.company_id', $companyId));
+        $articles = Article::query()->when($companyId, fn ($query) => $query->where('company_id', $companyId));
+
+        return new DashboardViewModel((clone $employees)->count(), (clone $employees)->where('employment_status', 'active')->count(), (clone $leave)->where('status', 'pending')->count(), (clone $recruitment)->where('requisition.status', 'open')->count(), (clone $articles)->count(), (clone $articles)->where('status', 'published')->count(), (clone $articles)->where('status', 'draft')->count(), (clone $articles)->where('featured', true)->count(), $statuses, $recentActivities);
     }
 }

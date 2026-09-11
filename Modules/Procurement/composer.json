@@ -1,0 +1,9 @@
+{
+    "name": "nwidart/procurement",
+    "description": "Procurement and accounts payable bounded context",
+    "autoload": {
+        "psr-4": {
+            "Modules\\Procurement\\": "app/"
+        }
+    }
+}

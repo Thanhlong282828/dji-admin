@@ -20,7 +20,7 @@ final class CostCenterController extends Controller
 {
     public function __construct(private CommandBusInterface $commands, private QueryBusInterface $queries, private CostCenterPolicy $policy) {}
 
-    public function index(Request $r): View // cơ câu tổ chức
+    public function index(Request $r): View
     {
         $c = $this->company($r);
         $this->allow($r, 'view', $c);
@@ -29,7 +29,7 @@ final class CostCenterController extends Controller
         return view('organization::cost-centers.index', ['items' => $items, 'companyId' => $c]);
     }
 
-    public function create(Request $r): View // kiểm tra companyid > nút post xuát: Thêm trung tâm chi phí
+    public function create(Request $r): View
     {
         $c = $this->company($r);
         $this->allow($r, 'create', $c);
@@ -37,7 +37,7 @@ final class CostCenterController extends Controller
         return view('organization::cost-centers.create', ['companyId' => $c]);
     }
 
-    public function store(StoreCostCenterRequest $r): RedirectResponse // tạo: Thêm trung tâm chi phí | Request|chặn > companyid > Command|khai báo- CommandBus - Hanler|truyền-event > Respository|khai báo > Respository|repo-up lên db >  > Model|khai báo thứ hiển thị-menu > Event|file chính<file Event nút:thêm,sửa,xoá | trung tâm chi phí | cơ cấu tổ chức | vị trí công việc
+    public function store(StoreCostCenterRequest $r): RedirectResponse
     {
         $c = $this->company($r);
         $this->allow($r, 'create', $c);
@@ -47,7 +47,7 @@ final class CostCenterController extends Controller
         return to_route('admin.cost-centers.index', ['company_id' => $c])->with('success', 'Đã tạo trung tâm chi phí.');
     }
 
-    public function show(Request $r, int $cost_center): View // cột: ngân sách namw
+    public function show(Request $r, int $cost_center): View
     {
         $c = $this->company($r);
         $this->allow($r, 'view', $c);
@@ -55,7 +55,7 @@ final class CostCenterController extends Controller
         return view('organization::cost-centers.show', ['item' => $this->queries->ask(new GetCostCenterDetailQuery($c, $cost_center)), 'companyId' => $c]);
     }
 
-    public function edit(Request $r, int $cost_center): View // sửa: trung tâm chi phí
+    public function edit(Request $r, int $cost_center): View
     {
         $c = $this->company($r);
         $this->allow($r, 'update', $c);

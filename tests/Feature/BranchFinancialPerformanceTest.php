@@ -3,12 +3,12 @@
 namespace Tests\Feature;
 
 use App\Models\User;
-use App\Support\Finance\BranchFinancialPerformanceService;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Modules\Company\Domain\Models\Company;
+use Modules\Finance\Application\Services\BranchFinancialPerformanceService;
 use Tests\TestCase;
 
 final class BranchFinancialPerformanceTest extends TestCase
@@ -34,12 +34,17 @@ final class BranchFinancialPerformanceTest extends TestCase
 
         $snapshot = app(BranchFinancialPerformanceService::class)->snapshot($company->id, '2026-08');
         self::assertSame(100_000_000, $snapshot['totals']['revenue']);
+        self::assertSame(1, $snapshot['totals']['revenue_records']);
+        self::assertSame(0, $snapshot['totals']['synthetic_revenue_records']);
+        self::assertSame('management_ledger', $snapshot['rows'][0]['revenue_source_types']);
         self::assertSame(10_000_000, $snapshot['totals']['operating']);
         self::assertSame(20_000_000, $snapshot['totals']['rent']);
         self::assertSame(10_000_000, $snapshot['totals']['depreciation']);
         self::assertSame(60_000_000, $snapshot['totals']['profit']);
 
-        $this->actingAs($user)->get('/admin/finance/branch-performance?company_id='.$company->id.'&month=2026-08')->assertOk()->assertSeeText('100.000.000 ₫')->assertSeeText('60.000.000 ₫');
+        $this->actingAs($user)->get('/admin/finance/branch-performance?company_id='.$company->id.'&month=2026-08')->assertOk()->assertSeeText('100.000.000 ₫')->assertSeeText('60.000.000 ₫')->assertSeeText('1 chứng từ');
+        $this->actingAs($user)->get('/admin/finance/payroll-reconciliation?company_id='.$company->id)->assertOk()->assertSeeText('Đối soát Payroll và Tài chính');
+        $this->actingAs($user)->get('/admin/finance/tax-dashboard?company_id='.$company->id.'&month=2026-08')->assertOk()->assertSeeText('CONFIGURATION_REQUIRED')->assertSeeText('Input VAT: NOT SUPPORTED');
     }
 
     public function test_financial_dashboard_requires_salary_permission(): void
@@ -54,7 +59,7 @@ final class BranchFinancialPerformanceTest extends TestCase
         $company = Company::query()->create(['uuid' => (string) Str::uuid(), 'code' => 'FIN', 'name' => 'Finance Company', 'country_code' => 'VN', 'timezone' => 'Asia/Ho_Chi_Minh', 'currency_code' => 'VND', 'currency' => 'VND', 'status' => 'active', 'is_active' => true]);
         $user = User::factory()->create();
         if ($financial) {
-            $user->givePermissionTo('payroll.assignment.view');
+            $user->givePermissionTo(['payroll.assignment.view', 'payroll.accounting.view', 'payroll.tax.view']);
         }
         DB::table('company_user_access')->insert(['company_id' => $company->id, 'user_id' => $user->id]);
         $branch = (int) DB::table('branches')->insertGetId(['company_id' => $company->id, 'code' => 'HCM', 'name' => 'HCM Branch', 'status' => 'active', 'created_at' => now(), 'updated_at' => now()]);

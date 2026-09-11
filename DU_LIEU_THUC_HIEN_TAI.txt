@@ -1,0 +1,923 @@
+ERP CURRENT OPERATING DATA SNAPSHOT
+================================================================================
+Generated At: 2026-09-11T02:14:16+00:00
+Environment: local
+Database: schema_admin
+Company count: 4
+Branch count: 3
+Employee count: 40
+Active user accounts: 16
+Migration count: 100
+Table count: 329
+Data Quality: 101/102 PASS
+
+LƯU Ý: Dữ liệu vận hành trong môi trường local có thể là dữ liệu synthetic/bootstrap-owned dùng để mô phỏng doanh nghiệp, không phải dữ liệu cá nhân thật ngoài đời.
+Các số liệu dưới đây được truy vấn tại thời điểm tạo báo cáo; KHÔNG phải tổng được chép từ tài liệu.
+Sơ đồ menu: SO_DO_LUONG_MENU_ERP.txt
+Sơ đồ module: SO_DO_LIEN_KET_MODULE_ERP.txt
+
+================================================================================
+TÓM TẮT HOẠT ĐỘNG DOANH NGHIỆP
+================================================================================
+Nhân sự: 40
+Nhân viên đi trễ: 35
+Gross / Net Payroll: 2.461.754.537 VND / 2.339.011.271 VND
+PIT / Employee Insurance / Employer Insurance: 38.463.114 VND / 77.303.625 VND / 158.288.375 VND
+Marketplace Orders / recognized revenue: 18 / 60.460.000 VND
+POS Receipts / revenue: 5 / 25.430.000 VND
+ERP Sales Orders / Customer Invoices / AR outstanding: 3 / 3 / 9.250.000 VND
+Products / SKUs / On-hand / Inventory value: 30 / 52 / 1054 / 15.614.286 VND
+Purchase Orders / AP outstanding: 4 / 8.500.000 VND
+Expenses / Assets / Treasury transactions: 5 / 2 / 8
+Posted Journals / Debit / Credit / Difference: 30 / 1.815.628.626 VND / 1.815.628.626 VND / 0 VND
+Contracts expiring 30 days: 0
+Pending resignations / employees offboarding: 0 / 0
+Pending accounting adjustments: 0
+Data Quality: 101/102 PASS
+
+================================================================================
+1 — COMPANY / BRANCH
+================================================================================
+Company: Schema Technology Vietnam (SCHEMA-TECH-VN)
+- Status: active
+- Branch count: 3
+- Employee count: 40
+- Active user count: 16
+- Payroll gross/net: 2.461.754.537 VND / 2.339.011.271 VND
+- AP outstanding: 8.500.000 VND
+- Inventory value: 15.614.286 VND
+- Expense: 15.050.000 VND
+- Revenue/operating result: KHÔNG ĐỦ BẰNG CHỨNG
+  Branch: Chi nhánh TP.HCM (SCHEMA-TECH-VN-HCM)
+  - Headcount: 19
+  - Attendance / late: 1603 / 612
+  - Inventory qty/value: 512 / 15.614.286 VND
+  - Expense: 15.050.000 VND
+  - POS receipts: 2
+  Branch: Chi nhánh Hà Nội (SCHEMA-TECH-VN-HN)
+  - Headcount: 7
+  - Attendance / late: 696 / 272
+  - Inventory qty/value: 248 / 0 VND
+  - Expense: 0 VND
+  - POS receipts: 1
+  Branch: Chi nhánh Đà Nẵng (SCHEMA-TECH-VN-DN)
+  - Headcount: 8
+  - Attendance / late: 788 / 297
+  - Inventory qty/value: 294 / 0 VND
+  - Expense: 0 VND
+  - POS receipts: 2
+
+
+================================================================================
+2 — CURRENT USER ACCOUNTS
+================================================================================
+Account #1: Nguyễn Minh Anh
+- Email: ad***@schema.vn
+- Status: active; email verified: YES
+- Roles: Super Admin
+- Effective permission count: 858
+- Employee: Nguyễn Minh Anh (E0001)
+- Company access count: 1
+Account #2: Schema Local Administrator
+- Email: ad***@local.test
+- Status: active; email verified: YES
+- Roles: Super Admin
+- Effective permission count: 858
+- Employee: N/A
+- Company access count: 4
+Account #3: HR Manager Demo
+- Email: hr********@local.test
+- Status: active; email verified: YES
+- Roles: HR Manager
+- Effective permission count: 31
+- Employee: N/A
+- Company access count: 1
+Account #4: HR Staff Demo
+- Email: hr******@local.test
+- Status: active; email verified: YES
+- Roles: HR Admin
+- Effective permission count: 119
+- Employee: N/A
+- Company access count: 1
+Account #5: Payroll Manager Demo
+- Email: pa*************@local.test
+- Status: active; email verified: YES
+- Roles: C&B
+- Effective permission count: 143
+- Employee: N/A
+- Company access count: 1
+Account #6: Recruiter Demo
+- Email: re*******@local.test
+- Status: active; email verified: YES
+- Roles: Recruiter
+- Effective permission count: 61
+- Employee: N/A
+- Company access count: 1
+Account #7: Line Manager Demo
+- Email: li**********@local.test
+- Status: active; email verified: YES
+- Roles: Manager
+- Effective permission count: 22
+- Employee: N/A
+- Company access count: 1
+Account #8: Employee Demo
+- Email: em******@local.test
+- Status: active; email verified: YES
+- Roles: Employee
+- Effective permission count: 11
+- Employee: Trần Hoàng Nam (E0002)
+- Company access count: 1
+Account #9: Auditor Demo
+- Email: au*****@local.test
+- Status: active; email verified: YES
+- Roles: Viewer
+- Effective permission count: 113
+- Employee: N/A
+- Company access count: 1
+Account #10: long
+- Email: la***********@gmail.com
+- Status: active; email verified: YES
+- Roles: Super Admin
+- Effective permission count: 858
+- Employee: long (E6555)
+- Company access count: 1
+Account #11: La Hoà Thành
+- Email: ly***********@gmail.com
+- Status: active; email verified: YES
+- Roles: Super Admin
+- Effective permission count: 858
+- Employee: La Hoà Thành (E0089)
+- Company access count: 1
+Account #12: Thành Hoà
+- Email: ly***********@gmail.com
+- Status: active; email verified: YES
+- Roles: Super Admin
+- Effective permission count: 858
+- Employee: Thành Hoà (6329)
+- Company access count: 1
+Account #13: Seller Synthetic Việt Nam
+- Email: se****@local.test
+- Status: active; email verified: YES
+- Roles: Seller
+- Effective permission count: 15
+- Employee: N/A
+- Company access count: 1
+Account #14: Buyer Synthetic Việt Nam
+- Email: bu***@local.test
+- Status: active; email verified: YES
+- Roles: Buyer
+- Effective permission count: 0
+- Employee: N/A
+- Company access count: 1
+Account #15: Nhà Việt Seller
+- Email: se*********@local.test
+- Status: active; email verified: YES
+- Roles: Seller
+- Effective permission count: 15
+- Employee: N/A
+- Company access count: 1
+Account #16: Mekong Office Seller
+- Email: se***********@local.test
+- Status: active; email verified: YES
+- Roles: Seller
+- Effective permission count: 15
+- Employee: N/A
+- Company access count: 1
+
+================================================================================
+3 — EMPLOYEE MASTER / ATTENDANCE / PAYROLL
+================================================================================
+--------------------------------------------------------------------------------
+NHÂN VIÊN: Thành Hoà (6329)
+Status: active; Company: Schema Technology Vietnam; Branch: Chi nhánh TP.HCM
+Assignment: Backend Developer / Phòng Backend / 2026-08-13
+Employment: full_time; Hire date: 2026-08-13; Termination: N/A
+Attendance: records 17, late 6 lần / 90 phút, OT 0 giờ
+Approved leave: 0 request / 0 ngày quy đổi
+Latest canonical payroll: N/A
+--------------------------------------------------------------------------------
+NHÂN VIÊN: Nguyễn Minh Anh (E0001)
+Status: active; Company: Schema Technology Vietnam; Branch: Chi nhánh TP.HCM
+Assignment: Department Manager / Phòng Backend / 2023-01-15
+Employment: full_time; Hire date: 2023-01-15; Termination: N/A
+Attendance: records 97, late 27 lần / 664 phút, OT 1 giờ
+Approved leave: 0 request / 0 ngày quy đổi
+Latest canonical payroll: LOCAL-2026-08 / finalized
+Gross 98.600.140 VND; deductions 7.921.237 VND; PIT 10.938.438 VND; net 79.740.465 VND
+Insurance employee/employer: 7.546.875 VND / 15.453.125 VND
+--------------------------------------------------------------------------------
+NHÂN VIÊN: Trần Hoàng Nam (E0002)
+Status: active; Company: Schema Technology Vietnam; Branch: Chi nhánh Hà Nội
+Assignment: Backend Developer / Phòng Backend / 2023-02-15
+Employment: full_time; Hire date: 2023-02-15; Termination: N/A
+Attendance: records 96, late 30 lần / 764 phút, OT 6 giờ
+Approved leave: 1 request / 1 ngày quy đổi
+Latest canonical payroll: LOCAL-2026-08 / finalized
+Gross 35.875.000 VND; deductions 2.984.505 VND; PIT 1.237.800 VND; net 31.652.695 VND
+Insurance employee/employer: 2.772.000 VND / 5.676.000 VND
+--------------------------------------------------------------------------------
+NHÂN VIÊN: Lê Thu Trang (E0003)
+Status: active; Company: Schema Technology Vietnam; Branch: Chi nhánh Đà Nẵng
+Assignment: Frontend Developer / Phòng Frontend / 2023-03-15
+Employment: full_time; Hire date: 2023-03-15; Termination: N/A
+Attendance: records 97, late 35 lần / 838 phút, OT 2 giờ
+Approved leave: 0 request / 0 ngày quy đổi
+Latest canonical payroll: LOCAL-2026-08 / finalized
+Gross 36.375.000 VND; deductions 3.022.005 VND; PIT 1.287.800 VND; net 32.065.195 VND
+Insurance employee/employer: 2.772.000 VND / 5.676.000 VND
+--------------------------------------------------------------------------------
+NHÂN VIÊN: Phạm Quốc Huy (E0004)
+Status: active; Company: Schema Technology Vietnam; Branch: Chi nhánh TP.HCM
+Assignment: Mobile Developer / Phòng Mobile / 2023-04-15
+Employment: full_time; Hire date: 2023-04-15; Termination: N/A
+Attendance: records 97, late 41 lần / 904 phút, OT 1 giờ
+Approved leave: 0 request / 0 ngày quy đổi
+Latest canonical payroll: LOCAL-2026-08 / finalized
+Gross 33.600.000 VND; deductions 3.097.005 VND; PIT 987.800 VND; net 29.515.195 VND
+Insurance employee/employer: 2.772.000 VND / 5.676.000 VND
+--------------------------------------------------------------------------------
+NHÂN VIÊN: Võ Thanh Hà (E0005)
+Status: active; Company: Schema Technology Vietnam; Branch: Chi nhánh Đà Nẵng
+Assignment: DevOps Engineer / Phòng DevOps / 2023-05-15
+Employment: full_time; Hire date: 2023-05-15; Termination: N/A
+Attendance: records 96, late 49 lần / 985 phút, OT 1 giờ
+Approved leave: 1 request / 1 ngày quy đổi
+Latest canonical payroll: LOCAL-2026-08 / finalized
+Gross 50.437.500 VND; deductions 4.559.243 VND; PIT 2.588.400 VND; net 43.289.857 VND
+Insurance employee/employer: 4.158.000 VND / 8.514.000 VND
+--------------------------------------------------------------------------------
+NHÂN VIÊN: Đặng Ngọc Lan (E0006)
+Status: active; Company: Schema Technology Vietnam; Branch: Chi nhánh TP.HCM
+Assignment: HR Specialist / Phòng Nhân sự / 2023-06-15
+Employment: full_time; Hire date: 2023-06-15; Termination: N/A
+Attendance: records 97, late 48 lần / 961 phút, OT 1 giờ
+Approved leave: 0 request / 0 ngày quy đổi
+Latest canonical payroll: LOCAL-2026-08 / finalized
+Gross 28.909.090 VND; deductions 2.672.522 VND; PIT 227.800 VND; net 26.008.768 VND
+Insurance employee/employer: 2.394.000 VND / 4.902.000 VND
+--------------------------------------------------------------------------------
+NHÂN VIÊN: Bùi Văn Phúc (E0007)
+Status: active; Company: Schema Technology Vietnam; Branch: Chi nhánh TP.HCM
+Assignment: Accountant / Phòng Tài chính / 2023-07-15
+Employment: full_time; Hire date: 2023-07-15; Termination: N/A
+Attendance: records 97, late 48 lần / 905 phút, OT 1 giờ
+Approved leave: 0 request / 0 ngày quy đổi
+Latest canonical payroll: LOCAL-2026-08 / finalized
+Gross 31.336.360 VND; deductions 2.885.675 VND; PIT 770.960 VND; net 27.679.725 VND
+Insurance employee/employer: 2.570.400 VND / 5.263.200 VND
+--------------------------------------------------------------------------------
+NHÂN VIÊN: Hoàng Gia Bảo (E0008)
+Status: active; Company: Schema Technology Vietnam; Branch: Chi nhánh Hà Nội
+Assignment: Sales Executive / Phòng Sales / 2023-08-15
+Employment: full_time; Hire date: 2023-08-15; Termination: N/A
+Attendance: records 97, late 48 lần / 882 phút, OT 1 giờ
+Approved leave: 0 request / 0 ngày quy đổi
+Latest canonical payroll: LOCAL-2026-08 / finalized
+Gross 18.671.447 VND; deductions 1.679.773 VND; PIT 77.688 VND; net 16.913.986 VND
+Insurance employee/employer: 1.496.250 VND / 3.063.750 VND
+--------------------------------------------------------------------------------
+NHÂN VIÊN: Nguyễn Mỹ Linh (E0009)
+Status: active; Company: Schema Technology Vietnam; Branch: Chi nhánh TP.HCM
+Assignment: Marketing Specialist / Phòng Marketing / 2023-09-15
+Employment: full_time; Hire date: 2023-09-15; Termination: N/A
+Attendance: records 96, late 46 lần / 812 phút, OT 6 giờ
+Approved leave: 1 request / 1 ngày quy đổi
+Latest canonical payroll: LOCAL-2026-08 / finalized
+Gross 31.170.000 VND; deductions 3.719.097 VND; PIT 820.040 VND; net 26.630.863 VND
+Insurance employee/employer: 2.469.600 VND / 5.056.800 VND
+--------------------------------------------------------------------------------
+NHÂN VIÊN: Đỗ Minh Khang (E0010)
+Status: probation; Company: Schema Technology Vietnam; Branch: Chi nhánh TP.HCM
+Assignment: Backend Developer / Phòng Backend / 2023-10-15
+Employment: full_time; Hire date: 2023-10-15; Termination: N/A
+Attendance: records 96, late 48 lần / 795 phút, OT 2 giờ
+Approved leave: 1 request / 1 ngày quy đổi
+Latest canonical payroll: LOCAL-2026-08 / finalized
+Gross 33.150.000 VND; deductions 1.347.495 VND; PIT 1.265.000 VND; net 30.537.505 VND
+Insurance employee/employer: 0 VND / 0 VND
+--------------------------------------------------------------------------------
+NHÂN VIÊN: Hồ Ngọc Ánh (E0011)
+Status: leave; Company: Schema Technology Vietnam; Branch: Chi nhánh Hà Nội
+Assignment: Frontend Developer / Phòng Frontend / 2023-11-15
+Employment: full_time; Hire date: 2023-11-15; Termination: N/A
+Attendance: records 96, late 40 lần / 620 phút, OT 1 giờ
+Approved leave: 1 request / 1 ngày quy đổi
+Latest canonical payroll: N/A
+--------------------------------------------------------------------------------
+NHÂN VIÊN: Dương Quốc Việt (E0012)
+Status: terminated; Company: Schema Technology Vietnam; Branch: N/A
+Assignment: Mobile Developer / Phòng Mobile / 2023-12-15
+Employment: full_time; Hire date: 2023-12-15; Termination: 2026-07-08
+Attendance: records 0, late 0 lần / 0 phút, OT 0 giờ
+Approved leave: 0 request / 0 ngày quy đổi
+Latest canonical payroll: N/A
+--------------------------------------------------------------------------------
+NHÂN VIÊN: Vũ Thanh Tâm (E0013)
+Status: active; Company: Schema Technology Vietnam; Branch: Chi nhánh Đà Nẵng
+Assignment: Backend Developer / Phòng Backend / 2024-01-15
+Employment: full_time; Hire date: 2024-01-15; Termination: N/A
+Attendance: records 97, late 30 lần / 439 phút, OT 1 giờ
+Approved leave: 0 request / 0 ngày quy đổi
+Latest canonical payroll: LOCAL-2026-08 / finalized
+Gross 33.150.000 VND; deductions 2.806.995 VND; PIT 987.800 VND; net 29.355.205 VND
+Insurance employee/employer: 2.772.000 VND / 5.676.000 VND
+--------------------------------------------------------------------------------
+NHÂN VIÊN: Mai Hoàng Long (E0014)
+Status: active; Company: Schema Technology Vietnam; Branch: Chi nhánh TP.HCM
+Assignment: DevOps Engineer / Phòng DevOps / 2024-02-15
+Employment: full_time; Hire date: 2024-02-15; Termination: N/A
+Attendance: records 97, late 26 lần / 380 phút, OT 1 giờ
+Approved leave: 0 request / 0 ngày quy đổi
+Latest canonical payroll: LOCAL-2026-08 / finalized
+Gross 50.100.000 VND; deductions 4.184.258 VND; PIT 2.588.400 VND; net 43.327.342 VND
+Insurance employee/employer: 4.158.000 VND / 8.514.000 VND
+--------------------------------------------------------------------------------
+NHÂN VIÊN: Ngô Thu Hương (E0015)
+Status: active; Company: Schema Technology Vietnam; Branch: Chi nhánh TP.HCM
+Assignment: HR Specialist / Phòng Nhân sự / 2024-03-15
+Employment: part_time; Hire date: 2024-03-15; Termination: N/A
+Attendance: records 97, late 24 lần / 414 phút, OT 1 giờ
+Approved leave: 0 request / 0 ngày quy đổi
+Latest canonical payroll: LOCAL-2026-08 / finalized
+Gross 28.650.000 VND; deductions 2.426.386 VND; PIT 575.600 VND; net 25.648.014 VND
+Insurance employee/employer: 2.394.000 VND / 4.902.000 VND
+--------------------------------------------------------------------------------
+NHÂN VIÊN: Lý Đức Minh (E0016)
+Status: active; Company: Schema Technology Vietnam; Branch: Chi nhánh TP.HCM
+Assignment: Accountant / Phòng Tài chính / 2024-04-15
+Employment: full_time; Hire date: 2024-04-15; Termination: N/A
+Attendance: records 97, late 28 lần / 545 phút, OT 1 giờ
+Approved leave: 0 request / 0 ngày quy đổi
+Latest canonical payroll: LOCAL-2026-08 / finalized
+Gross 30.780.000 VND; deductions 2.605.173 VND; PIT 770.960 VND; net 27.403.867 VND
+Insurance employee/employer: 2.570.400 VND / 5.263.200 VND
+--------------------------------------------------------------------------------
+NHÂN VIÊN: Tạ Phương Thảo (E0017)
+Status: active; Company: Schema Technology Vietnam; Branch: Chi nhánh TP.HCM
+Assignment: Sales Executive / Phòng Sales / 2024-05-15
+Employment: full_time; Hire date: 2024-05-15; Termination: N/A
+Attendance: records 97, late 24 lần / 556 phút, OT 6 giờ
+Approved leave: 0 request / 0 ngày quy đổi
+Latest canonical payroll: LOCAL-2026-08 / finalized
+Gross 18.550.000 VND; deductions 1.496.250 VND; PIT 0 VND; net 17.053.750 VND
+Insurance employee/employer: 1.496.250 VND / 3.063.750 VND
+--------------------------------------------------------------------------------
+NHÂN VIÊN: Trịnh Gia Hân (E0018)
+Status: active; Company: Schema Technology Vietnam; Branch: Chi nhánh TP.HCM
+Assignment: Marketing Specialist / Phòng Marketing / 2024-06-15
+Employment: full_time; Hire date: 2024-06-15; Termination: N/A
+Attendance: records 97, late 26 lần / 649 phút, OT 3 giờ
+Approved leave: 0 request / 0 ngày quy đổi
+Latest canonical payroll: LOCAL-2026-08 / finalized
+Gross 31.170.000 VND; deductions 2.592.104 VND; PIT 820.040 VND; net 27.757.856 VND
+Insurance employee/employer: 2.469.600 VND / 5.056.800 VND
+--------------------------------------------------------------------------------
+NHÂN VIÊN: Cao Tuấn Kiệt (E0019)
+Status: active; Company: Schema Technology Vietnam; Branch: Chi nhánh Đà Nẵng
+Assignment: Backend Developer / Phòng Backend / 2024-07-15
+Employment: full_time; Hire date: 2024-07-15; Termination: N/A
+Attendance: records 91, late 30 lần / 764 phút, OT 2 giờ
+Approved leave: 0 request / 0 ngày quy đổi
+Latest canonical payroll: LOCAL-2026-08 / finalized
+Gross 33.150.000 VND; deductions 2.984.505 VND; PIT 987.800 VND; net 29.177.695 VND
+Insurance employee/employer: 2.772.000 VND / 5.676.000 VND
+--------------------------------------------------------------------------------
+NHÂN VIÊN: Đinh Bảo Ngọc (E0020)
+Status: active; Company: Schema Technology Vietnam; Branch: Chi nhánh TP.HCM
+Assignment: Frontend Developer / Phòng Frontend / 2024-08-15
+Employment: full_time; Hire date: 2024-08-15; Termination: N/A
+Attendance: records 89, late 35 lần / 838 phút, OT 1 giờ
+Approved leave: 0 request / 0 ngày quy đổi
+Latest canonical payroll: LOCAL-2026-08 / finalized
+Gross 33.150.000 VND; deductions 3.022.005 VND; PIT 987.800 VND; net 29.140.195 VND
+Insurance employee/employer: 2.772.000 VND / 5.676.000 VND
+--------------------------------------------------------------------------------
+NHÂN VIÊN: Huỳnh Anh Khoa (E0021)
+Status: active; Company: Schema Technology Vietnam; Branch: Chi nhánh Đà Nẵng
+Assignment: Mobile Developer / Phòng Mobile / 2024-09-15
+Employment: full_time; Hire date: 2024-09-15; Termination: N/A
+Attendance: records 89, late 40 lần / 889 phút, OT 1 giờ
+Approved leave: 0 request / 0 ngày quy đổi
+Latest canonical payroll: LOCAL-2026-08 / finalized
+Gross 33.150.000 VND; deductions 3.059.505 VND; PIT 987.800 VND; net 29.102.695 VND
+Insurance employee/employer: 2.772.000 VND / 5.676.000 VND
+--------------------------------------------------------------------------------
+NHÂN VIÊN: Phan Quỳnh Chi (E0022)
+Status: probation; Company: Schema Technology Vietnam; Branch: Chi nhánh Đà Nẵng
+Assignment: Backend Developer / Phòng Backend / 2024-10-15
+Employment: full_time; Hire date: 2024-10-15; Termination: N/A
+Attendance: records 89, late 44 lần / 925 phút, OT 1 giờ
+Approved leave: 0 request / 0 ngày quy đổi
+Latest canonical payroll: LOCAL-2026-08 / finalized
+Gross 33.150.000 VND; deductions 304.995 VND; PIT 645.000 VND; net 32.200.005 VND
+Insurance employee/employer: 0 VND / 0 VND
+--------------------------------------------------------------------------------
+NHÂN VIÊN: Lâm Nhật Nam (E0023)
+Status: leave; Company: Schema Technology Vietnam; Branch: Chi nhánh TP.HCM
+Assignment: DevOps Engineer / Phòng DevOps / 2024-11-15
+Employment: full_time; Hire date: 2024-11-15; Termination: N/A
+Attendance: records 89, late 47 lần / 946 phút, OT 0 giờ
+Approved leave: 0 request / 0 ngày quy đổi
+Latest canonical payroll: N/A
+--------------------------------------------------------------------------------
+NHÂN VIÊN: Quách Minh Thư (E0024)
+Status: terminated; Company: Schema Technology Vietnam; Branch: N/A
+Assignment: HR Specialist / Phòng Nhân sự / 2024-12-15
+Employment: full_time; Hire date: 2024-12-15; Termination: 2026-07-08
+Attendance: records 0, late 0 lần / 0 phút, OT 0 giờ
+Approved leave: 0 request / 0 ngày quy đổi
+Latest canonical payroll: N/A
+--------------------------------------------------------------------------------
+NHÂN VIÊN: Châu Hoàng Phúc (E0025)
+Status: active; Company: Schema Technology Vietnam; Branch: Chi nhánh TP.HCM
+Assignment: Accountant / Phòng Tài chính / 2023-01-15
+Employment: full_time; Hire date: 2023-01-15; Termination: N/A
+Attendance: records 89, late 48 lần / 882 phút, OT 0 giờ
+Approved leave: 0 request / 0 ngày quy đổi
+Latest canonical payroll: LOCAL-2026-08 / finalized
+Gross 30.780.000 VND; deductions 2.885.675 VND; PIT 770.960 VND; net 27.123.365 VND
+Insurance employee/employer: 2.570.400 VND / 5.263.200 VND
+--------------------------------------------------------------------------------
+NHÂN VIÊN: Tô Khánh An (E0026)
+Status: active; Company: Schema Technology Vietnam; Branch: Chi nhánh Hà Nội
+Assignment: Sales Executive / Phòng Sales / 2023-02-15
+Employment: full_time; Hire date: 2023-02-15; Termination: N/A
+Attendance: records 89, late 46 lần / 812 phút, OT 1 giờ
+Approved leave: 0 request / 0 ngày quy đổi
+Latest canonical payroll: LOCAL-2026-08 / finalized
+Gross 18.550.000 VND; deductions 1.605.553 VND; PIT 77.688 VND; net 16.866.759 VND
+Insurance employee/employer: 1.496.250 VND / 3.063.750 VND
+--------------------------------------------------------------------------------
+NHÂN VIÊN: Kiều Gia Linh (E0027)
+Status: active; Company: Schema Technology Vietnam; Branch: Chi nhánh TP.HCM
+Assignment: Marketing Specialist / Phòng Marketing / 2023-03-15
+Employment: full_time; Hire date: 2023-03-15; Termination: N/A
+Attendance: records 89, late 43 lần / 712 phút, OT 1 giờ
+Approved leave: 0 request / 0 ngày quy đổi
+Latest canonical payroll: LOCAL-2026-08 / finalized
+Gross 31.170.000 VND; deductions 2.583.191 VND; PIT 820.040 VND; net 27.766.769 VND
+Insurance employee/employer: 2.469.600 VND / 5.056.800 VND
+--------------------------------------------------------------------------------
+NHÂN VIÊN: Hà Quốc Trung (E0028)
+Status: active; Company: Schema Technology Vietnam; Branch: Chi nhánh Hà Nội
+Assignment: Backend Developer / Phòng Backend / 2023-04-15
+Employment: full_time; Hire date: 2023-04-15; Termination: N/A
+Attendance: records 89, late 39 lần / 605 phút, OT 1 giờ
+Approved leave: 0 request / 0 ngày quy đổi
+Latest canonical payroll: LOCAL-2026-08 / finalized
+Gross 33.150.000 VND; deductions 2.862.000 VND; PIT 433.900 VND; net 29.854.100 VND
+Insurance employee/employer: 2.772.000 VND / 5.676.000 VND
+--------------------------------------------------------------------------------
+NHÂN VIÊN: La Mỹ Duyên (E0029)
+Status: active; Company: Schema Technology Vietnam; Branch: Chi nhánh Đà Nẵng
+Assignment: Frontend Developer / Phòng Frontend / 2023-05-15
+Employment: full_time; Hire date: 2023-05-15; Termination: N/A
+Attendance: records 89, late 35 lần / 538 phút, OT 1 giờ
+Approved leave: 0 request / 0 ngày quy đổi
+Latest canonical payroll: LOCAL-2026-08 / finalized
+Gross 33.150.000 VND; deductions 2.824.500 VND; PIT 987.800 VND; net 29.337.700 VND
+Insurance employee/employer: 2.772.000 VND / 5.676.000 VND
+--------------------------------------------------------------------------------
+NHÂN VIÊN: Chu Minh Đức (E0030)
+Status: active; Company: Schema Technology Vietnam; Branch: Chi nhánh TP.HCM
+Assignment: Mobile Developer / Phòng Mobile / 2023-06-15
+Employment: part_time; Hire date: 2023-06-15; Termination: N/A
+Attendance: records 89, late 30 lần / 439 phút, OT 1 giờ
+Approved leave: 0 request / 0 ngày quy đổi
+Latest canonical payroll: LOCAL-2026-08 / finalized
+Gross 33.150.000 VND; deductions 2.806.995 VND; PIT 987.800 VND; net 29.355.205 VND
+Insurance employee/employer: 2.772.000 VND / 5.676.000 VND
+--------------------------------------------------------------------------------
+NHÂN VIÊN: Lương Thanh Vân (E0031)
+Status: active; Company: Schema Technology Vietnam; Branch: Chi nhánh Hà Nội
+Assignment: Backend Developer / Phòng Backend / 2023-07-15
+Employment: full_time; Hire date: 2023-07-15; Termination: N/A
+Attendance: records 89, late 26 lần / 380 phút, OT 0 giờ
+Approved leave: 0 request / 0 ngày quy đổi
+Latest canonical payroll: LOCAL-2026-08 / finalized
+Gross 33.150.000 VND; deductions 2.789.505 VND; PIT 987.800 VND; net 29.372.695 VND
+Insurance employee/employer: 2.772.000 VND / 5.676.000 VND
+--------------------------------------------------------------------------------
+NHÂN VIÊN: Thái Anh Tú (E0032)
+Status: active; Company: Schema Technology Vietnam; Branch: Chi nhánh Đà Nẵng
+Assignment: DevOps Engineer / Phòng DevOps / 2023-08-15
+Employment: full_time; Hire date: 2023-08-15; Termination: N/A
+Attendance: records 89, late 23 lần / 399 phút, OT 0 giờ
+Approved leave: 0 request / 0 ngày quy đổi
+Latest canonical payroll: LOCAL-2026-08 / finalized
+Gross 50.100.000 VND; deductions 4.158.000 VND; PIT 2.588.400 VND; net 43.353.600 VND
+Insurance employee/employer: 4.158.000 VND / 8.514.000 VND
+--------------------------------------------------------------------------------
+NHÂN VIÊN: Ninh Thuỳ Dương (E0033)
+Status: active; Company: Schema Technology Vietnam; Branch: Chi nhánh TP.HCM
+Assignment: HR Specialist / Phòng Nhân sự / 2023-09-15
+Employment: full_time; Hire date: 2023-09-15; Termination: N/A
+Attendance: records 89, late 22 lần / 455 phút, OT 1 giờ
+Approved leave: 0 request / 0 ngày quy đổi
+Latest canonical payroll: LOCAL-2026-08 / finalized
+Gross 28.650.000 VND; deductions 2.394.000 VND; PIT 227.800 VND; net 26.028.200 VND
+Insurance employee/employer: 2.394.000 VND / 4.902.000 VND
+--------------------------------------------------------------------------------
+NHÂN VIÊN: Tăng Gia Huy (E0034)
+Status: probation; Company: Schema Technology Vietnam; Branch: Chi nhánh TP.HCM
+Assignment: Accountant / Phòng Tài chính / 2023-10-15
+Employment: full_time; Hire date: 2023-10-15; Termination: N/A
+Attendance: records 89, late 23 lần / 541 phút, OT 1 giờ
+Approved leave: 0 request / 0 ngày quy đổi
+Latest canonical payroll: LOCAL-2026-08 / finalized
+Gross 30.780.000 VND; deductions 0 VND; PIT 1.028.000 VND; net 29.752.000 VND
+Insurance employee/employer: 0 VND / 0 VND
+--------------------------------------------------------------------------------
+NHÂN VIÊN: Mạc Bảo Trâm (E0035)
+Status: leave; Company: Schema Technology Vietnam; Branch: Chi nhánh Hà Nội
+Assignment: Sales Executive / Phòng Sales / 2023-11-15
+Employment: full_time; Hire date: 2023-11-15; Termination: N/A
+Attendance: records 89, late 26 lần / 649 phút, OT 1 giờ
+Approved leave: 0 request / 0 ngày quy đổi
+Latest canonical payroll: N/A
+--------------------------------------------------------------------------------
+NHÂN VIÊN: Lưu Đức Thịnh (E0036)
+Status: terminated; Company: Schema Technology Vietnam; Branch: N/A
+Assignment: Marketing Specialist / Phòng Marketing / 2023-12-15
+Employment: full_time; Hire date: 2023-12-15; Termination: 2026-07-08
+Attendance: records 0, late 0 lần / 0 phút, OT 0 giờ
+Approved leave: 0 request / 0 ngày quy đổi
+Latest canonical payroll: N/A
+--------------------------------------------------------------------------------
+NHÂN VIÊN: La Hoà Thành (E0089)
+Status: active; Company: Schema Technology Vietnam; Branch: N/A
+Assignment: Frontend Developer / Phòng Frontend / 2026-08-20
+Employment: full_time; Hire date: 2026-08-20; Termination: N/A
+Attendance: records 0, late 0 lần / 0 phút, OT 0 giờ
+Approved leave: 0 request / 0 ngày quy đổi
+Latest canonical payroll: N/A
+--------------------------------------------------------------------------------
+NHÂN VIÊN: long (E6555)
+Status: active; Company: Schema Technology Vietnam; Branch: N/A
+Assignment: Backend Developer / Phòng Backend / 2026-08-15
+Employment: full_time; Hire date: 2026-08-15; Termination: N/A
+Attendance: records 5, late 1 lần / 15 phút, OT 0 giờ
+Approved leave: 0 request / 0 ngày quy đổi
+Latest canonical payroll: N/A
+--------------------------------------------------------------------------------
+NHÂN VIÊN: Bùi Gia Hưng (LOCAL-HIRE-001)
+Status: preboarding; Company: Schema Technology Vietnam; Branch: N/A
+Assignment: Mobile Developer / Phòng Mobile / 2026-09-15
+Employment: full_time; Hire date: 2026-09-15; Termination: N/A
+Attendance: records 0, late 0 lần / 0 phút, OT 0 giờ
+Approved leave: 0 request / 0 ngày quy đổi
+Latest canonical payroll: N/A
+
+================================================================================
+4–6 — ATTENDANCE / LEAVE / OT / PAYROLL / STATUTORY
+================================================================================
+Attendance records: 3092
+Late occurrences/minutes: 1182 / 22992
+Approved overtime records/minutes: 8 / 660
+Approved leave requests/minutes: 5 / 2400
+Payroll LOCAL-2026-08: finalized / FINALIZED - IMMUTABLE
+- Employees 30; Gross 1.045.754.537 VND; deductions 84.280.152 VND; PIT 38.463.114 VND; net 923.011.271 VND; employer contribution 158.288.375 VND
+- Payslips: 3
+Payroll LOCAL-2026-06: calculated
+- Employees 30; Gross 354.000.000 VND; deductions 0 VND; PIT 0 VND; net 354.000.000 VND; employer contribution 0 VND
+- Payslips: 0
+Payroll LOCAL-2026-05: submitted
+- Employees 30; Gross 354.000.000 VND; deductions 0 VND; PIT 0 VND; net 354.000.000 VND; employer contribution 0 VND
+- Payslips: 0
+Payroll LOCAL-2026-04: approved
+- Employees 30; Gross 354.000.000 VND; deductions 0 VND; PIT 0 VND; net 354.000.000 VND; employer contribution 0 VND
+- Payslips: 0
+Payroll LOCAL-2026-03: finalized / FINALIZED - IMMUTABLE
+- Employees 30; Gross 354.000.000 VND; deductions 0 VND; PIT 0 VND; net 354.000.000 VND; employer contribution 0 VND
+- Payslips: 2
+PIT > 0 rows / PIT = 0 rows / total: 29 / 121 / 38.463.114 VND
+Insurance employee/employer: 77.303.625 VND / 158.288.375 VND
+VAT/CIT/Government filing: chỉ hiển thị theo policy và filing runtime; không có bằng chứng gửi cơ quan nhà nước.
+
+================================================================================
+7 — RECRUITMENT / ONBOARDING
+================================================================================
+recruitment_requisitions: 5
+candidates: 8
+applications: 8
+application_interviews: 0
+candidate_offers: 1
+onboarding_cases: 5
+Canonical hire lineage is retained by employees.source_candidate_id/source_application_id/source_offer_id when available.
+
+================================================================================
+8–12 — PRODUCTS / INVENTORY / MARKETPLACE / POS / CRM
+================================================================================
+products: 30
+product_categories: 9
+product_variants: 52
+inventory_balances: 69
+inventory_movements: 76
+orders: 18
+order_items: 18
+branch_pos_receipts: 5
+commerce_customers: 7
+customer_visits: 5
+Inventory on-hand/value: 1054 / 15.614.286 VND
+Recognized marketplace revenue: 60.460.000 VND
+Product media LOCAL/CLOUDFLARE/NO_MEDIA: 28 / 3 / 0
+BROKEN_MEDIA: 0
+CRM deterministic customer metrics: 7 customers; recognized spend 25.430.000 VND.
+- Segment NEW: 7
+- Customer Nguyễn Minh Anh: NEW; first 2026-08-31; last 2026-08-31; purchases 1; visits 1; recognized 9.240.000 VND; average basket 9.240.000 VND; preferred Branch 1
+- Customer Trần Gia Hân: NEW; first 2026-08-31; last 2026-08-31; purchases 1; visits 1; recognized 3.670.000 VND; average basket 3.670.000 VND; preferred Branch 2
+- Customer Lê Quốc Bảo: NEW; first 2026-08-31; last 2026-08-31; purchases 1; visits 1; recognized 4.510.000 VND; average basket 4.510.000 VND; preferred Branch 3
+- Customer Nguyễn Minh Anh: NEW; first 2026-08-31; last 2026-08-31; purchases 1; visits 1; recognized 840.000 VND; average basket 840.000 VND; preferred Branch 3
+- Customer Trần Gia Hân: NEW; first 2026-08-31; last 2026-08-31; purchases 1; visits 1; recognized 7.170.000 VND; average basket 7.170.000 VND; preferred Branch 1
+- Customer Lê Quốc Bảo: NEW; first N/A; last N/A; purchases 0; visits 0; recognized 0 VND; average basket 0 VND; preferred Branch N/A
+- Customer Nguyễn Minh Anh: NEW; first N/A; last N/A; purchases 0; visits 0; recognized 0 VND; average basket 0 VND; preferred Branch N/A
+
+================================================================================
+SALES / ACCOUNTS RECEIVABLE / COLLECTION / CASH FLOW
+================================================================================
+Quotations: 3; Accepted/Converted: 3; Sales Orders: 3; Confirmed/Fulfilled: 3 / 3
+Customer Invoices: 3; Invoice value: 18.750.000 VND; COGS snapshot: 1.785.714 VND; Gross Profit: 16.964.286 VND
+Collections: 2; Collected / Allocated / Unallocated: 9.500.000 VND / 9.500.000 VND / 0 VND; AR outstanding: 9.250.000 VND; Overdue AR: 9.250.000 VND
+AR Aging Current / 1–30 / 31–60 / 61–90 / 90+: 0 VND / 9.250.000 VND / 0 VND / 0 VND / 0 VND
+Cash Flow operating_inflow: 9.500.000 VND
+Cash Flow operating_outflow: 5.750.000 VND
+Cash Flow investing_inflow: 0 VND
+Cash Flow investing_outflow: 0 VND
+Cash Flow financing_inflow: 0 VND
+Cash Flow financing_outflow: 0 VND
+Cash Flow unclassified: 0 VND
+Cash Flow completeness: PARTIAL — actual Treasury evidence is classified, but no canonical opening cash/equity evidence exists.
+
+================================================================================
+SUPPLY CHAIN
+================================================================================
+Open PO / Pending GR / Inbound qty / Inbound value: 2 / 0 / 12 / 4.000.000 VND
+Inventory SKU / On hand / Reserved / Available / In transit / Value: 52 / 1054 / 18 / 1036 / 0 / 15.614.286 VND
+Low stock / Out of stock / Pending transfers: 1 / 6 / 0
+Demand ERP open / remaining units / Marketplace pending: 0 / 0 / 3
+Logistics ready / in transit / delivered / failed / returned: 0 / 0 / 3 / 0 / 0
+External carrier integration: NOT_CONNECTED; delivery performance: NOT_ENOUGH_EVIDENCE; logistics cost: NOT_IMPLEMENTED.
+
+================================================================================
+BI / ANALYTICS
+================================================================================
+Latest / Previous month: 2026-09 / 2026-08
+Revenue current / previous / variance: 0 VND / 91.140.000 VND / -91.140.000 VND
+ERP Sales / Marketplace / POS current: 0 VND / 0 VND / 0 VND
+COGS / Gross Profit / Operating Result: 1.785.714 VND / 16.964.286 VND / -1.559.128.626 VND
+Payroll / OPEX current: 0 VND / 0 VND
+AR / AP / Net cash movement: 9.250.000 VND / 8.500.000 VND / 3.750.000 VND
+Headcount / Late records / OT minutes: 36 / 1015 / 2940
+Inventory value / Out of stock: 15.614.286 VND / 6
+CRM NEW / ACTIVE / REPEAT / AT_RISK / DORMANT: 7 / 0 / 0 / 0 / 0
+Forecast: AR/AP due-date only; future revenue and inventory turnover: NOT_ENOUGH_EVIDENCE.
+
+================================================================================
+DOCUMENT MANAGEMENT
+================================================================================
+Documents / Active / Archived / Versions: 3 / 3 / 0 / 3
+Missing SHA / Missing current version: 0 / 0
+Storage: LOCAL_PRIVATE; external private object provider: CONFIGURATION_REQUIRED.
+Documents by domain: Finance=1, Maintenance=1, Project=1
+
+================================================================================
+WORKFLOW / APPROVAL
+================================================================================
+Workflow definitions / instances / tasks: 1 / 1 / 1
+Owner-domain Commands retain business mutation ownership; DMS stores private evidence only.
+
+================================================================================
+PROJECT MANAGEMENT
+================================================================================
+Projects / Active / Completed / On Hold / Cancelled / At Risk / Overdue: 1 / 1 / 0 / 0 / 0 / 1 / 0
+Tasks total / Todo / In Progress / Blocked / Done / Overdue: 2 / 0 / 1 / 0 / 1 / 0
+Milestones total / Open / Completed / Overdue: 1 / 1 / 0 / 1
+Active members: 2
+Timesheets Draft / Submitted / Approved / Rejected / Approved minutes: 0 / 0 / 1 / 0 / 420
+Planned project budget: 12.000.000 VND; approved Expense actual: 1.250.000 VND.
+Owner documents — Expense / Purchase Request / Asset: 1 / 0 / 0.
+Expense linkage: PASS; Procurement linkage: PASS; Asset source trace: PARTIAL; Revenue/Billing: NOT_IMPLEMENTED; Workflow/Notification: PARTIAL.
+Documents: 1; pending approvals: 0.
+
+================================================================================
+MAINTENANCE / CMMS
+================================================================================
+Requests Total / Submitted / Approved / Converted: 1 / 0 / 0 / 1
+Work Orders Total / Draft / Planned / In Progress / On Hold / Completed / Cancelled / Overdue: 3 / 1 / 1 / 0 / 0 / 1 / 0 / 0
+Preventive Plans / Active / Due: 2 / 2 / 0
+Downtime minutes: 0; Parts cost: 0 VND; approved external cost: 0 VND.
+Owner documents — Expense / Purchase Request: 0 / 0.
+Inventory linkage: PASS; Procurement: PASS; Expense: PASS; Accounting: PARTIAL (Expense posts canonically; spare-part consumption posting chưa có policy); DMS: PASS; Workflow/Notification: PARTIAL.
+MTTR / MTBF: NOT_ENOUGH_EVIDENCE / NOT_ENOUGH_EVIDENCE.
+
+================================================================================
+13–18 — PROCUREMENT / AP / TREASURY / EXPENSE / ASSET / BUDGET
+================================================================================
+procurement_vendors: 1
+purchase_requests: 4
+purchase_orders: 4
+procurement_goods_receipts: 3
+vendor_bills: 3
+vendor_bill_payments: 0
+treasury_financial_accounts: 1
+treasury_transactions: 8
+treasury_reconciliation_sessions: 1
+treasury_statement_lines: 2
+finance_expenses: 5
+finance_assets: 2
+finance_depreciation_entries: 2
+finance_budgets: 3
+AP billed / outstanding: 16.600.000 VND / 8.500.000 VND
+Expense total/paid: 15.050.000 VND / 11.400.000 VND
+Asset acquisition/depreciation: 156.000.000 VND / 3.000.000 VND
+Treasury LOCAL-EXP-2026-08: outflow 8.750.000 VND; source finance_expense_payment#1; journal 9; status reconciled
+Treasury LOCAL-AP-PAY-001: outflow 5.000.000 VND; source ap_payment#1; journal 5; status reconciled
+Treasury LOCAL-ERP-COL-001: inflow 3.000.000 VND; source customer_collection#1; journal 12; status recorded
+Treasury OPS-COL-2026-06-001: inflow 6.500.000 VND; source customer_collection#2; journal 15; status recorded
+Treasury OPS-AP-PARTIAL-2026-07: outflow 600.000 VND; source ap_payment#2; journal 20; status recorded
+Treasury OPS-AP-CLOSED-2026-08: outflow 2.500.000 VND; source ap_payment#3; journal 23; status recorded
+Treasury OPS-CC-OPEX-TECH-2026-06: outflow 1.800.000 VND; source finance_expense_payment#2; journal 25; status recorded
+Treasury OPS-CC-OPEX-FIN-2026-08: outflow 850.000 VND; source finance_expense_payment#4; journal 28; status recorded
+Vendor Nhà cung cấp thiết bị vận hành Minh Long: active; PO 4; billed 16.600.000 VND; paid 8.100.000 VND; outstanding 8.500.000 VND; last purchase 2026-09-03
+Asset LOCAL-ASSET-SERVER-01 · Máy chủ vận hành chi nhánh: status active; branch 1; cost center N/A; accumulated depreciation 2.000.000 VND; book value 118.000.000 VND; assignments 1
+Asset OPS-ASSET-TECH-2026 · Máy trạm kỹ thuật vận hành hệ thống: status active; branch 1; cost center 2; accumulated depreciation 1.000.000 VND; book value 35.000.000 VND; assignments 1
+Budget invariant: Consumed = Realized Actual + Open Commitment; Remaining = Approved Budget - Consumed; GRNI/AP/Payment are not counted again.
+
+================================================================================
+19–21 — ACCOUNTING / GENERAL LEDGER / FINANCIAL STATEMENTS
+================================================================================
+Accounting accounts: 13
+Accounting periods: 4
+Journals (payroll_accounting_journals): 31
+Trial Balance debit/credit/difference: 1.815.628.626 VND / 1.815.628.626 VND / 0 VND
+P&L posted GL Revenue / COGS / Gross Profit: 18.750.000 VND / 1.785.714 VND / 16.964.286 VND
+P&L posted GL Payroll / OPEX / Depreciation / Operating Result: 1.558.042.912 VND / 15.050.000 VND / 3.000.000 VND / -1.559.128.626 VND
+Balance Sheet posted GL Assets / Liabilities / Equity evidence / Difference: 167.864.286 VND / 1.726.992.912 VND / 0 VND / -1.559.128.626 VND
+Income Statement and Balance Sheet use posted journal evidence; Equity: NOT_CANONICALLY_AVAILABLE when no canonical equity account evidence exists.
+Balance Sheet Completeness: PARTIAL; Cash Flow: PARTIAL (actual Treasury movements; opening cash evidence unavailable).
+
+================================================================================
+EMPLOYEE LIFECYCLE EVENTS / NOTIFICATIONS / ACCOUNTING ADJUSTMENTS
+================================================================================
+Lifecycle employee.hired: employee Thành Hoà (6329); offer_created → hired; effective 2026-08-13 12:25:00; actor 2
+Lifecycle employee.onboarding_started: employee Thành Hoà (6329); hired → onboarding; effective 2026-08-13 12:25:00; actor 2
+Lifecycle employee.onboarded: employee Thành Hoà (6329); onboarding → active; effective 2026-08-13 12:25:00; actor 2
+Lifecycle employee.hired: employee long (E6555); offer_created → hired; effective 2026-08-13 18:18:00; actor 1
+Lifecycle employee.onboarding_started: employee long (E6555); hired → onboarding; effective 2026-08-13 18:19:00; actor 1
+Lifecycle employee.onboarded: employee long (E6555); onboarding → active; effective 2026-08-13 18:19:00; actor 1
+Lifecycle employee.hired: employee Nguyễn Minh Anh (E0001); offer_created → hired; effective 2026-08-13 20:21:00; actor 1
+Lifecycle employee.onboarding_started: employee Nguyễn Minh Anh (E0001); hired → onboarding; effective 2026-08-13 20:22:00; actor 1
+Lifecycle employee.onboarded: employee Nguyễn Minh Anh (E0001); onboarding → active; effective 2026-08-13 20:22:00; actor 1
+Lifecycle employee.hired: employee La Hoà Thành (E0089); offer_created → hired; effective 2026-08-20 00:00:00; actor 1
+Lifecycle employee.onboarding_started: employee La Hoà Thành (E0089); hired → onboarding; effective 2026-08-20 00:00:00; actor 1
+Lifecycle employee.onboarded: employee La Hoà Thành (E0089); onboarding → active; effective 2026-08-20 00:00:00; actor 1
+Notification messages: 4; database notifications unread/read: 78 / 0
+- Notification local_demo: 3
+- Notification workflow: 1
+
+================================================================================
+HỢP ĐỒNG LAO ĐỘNG
+================================================================================
+Total contracts: 37
+Active: 33; Expiring 30 days: 0; Renewal pending: 0; Renewed: 0
+
+================================================================================
+NGHỈ VIỆC / OFFBOARDING
+================================================================================
+Pending resignation: 0; Approved: 0; Completed: 0; Employees in offboarding: 0
+
+================================================================================
+ACCOUNTING ADJUSTMENT
+================================================================================
+Requests: 0; Draft: 0; Submitted: 0; Approved: 0; Rejected: 0; Posted: 0
+
+================================================================================
+22–24 — DATA QUALITY / FEATURE STATUS / EXTERNAL INTEGRATIONS
+================================================================================
+Data Quality rules/passed/failed/warnings/score: 102 / 101 / 1 / 0 / 90
+- employee.duplicate_code: PASS
+- employee.orphan_user: PASS
+- employee.missing_company_access: PASS
+- employee.invalid_manager: PASS
+- assignment.cross_tenant: PASS
+- assignment.position_unit_mismatch: PASS
+- assignment.duplicate_primary: PASS
+- position.invalid_career_level: PASS
+- attendance.orphan_employee: PASS
+- attendance.invalid_time: PASS
+- payroll.orphan_employee: PASS
+- payroll.snapshot_count_mismatch: PASS
+- payroll.run_count_mismatch: PASS
+- compensation.invalid_money: PASS
+- compensation.invalid_currency: PASS
+- compensation.overlap: PASS
+- branch.cross_company_access: PASS
+- seller.orphan_owner: PASS
+- store.orphan_seller: PASS
+- media.orphan_owner: PASS
+- media.invalid_delivery_metadata: PASS
+- identity.orphan_user: PASS
+- identity.duplicate_provider_id: PASS
+- identity.duplicate_verified_phone: PASS
+- identity.invalid_verified_phone: FAIL
+- branch.invalid_leader: PASS
+- branch.leader_missing_access: PASS
+- product.invalid_ownership: PASS
+- inventory.invalid_balance: PASS
+- cart.invalid_item: PASS
+- wishlist.invalid_item: PASS
+- buyer_address.invalid_default: PASS
+- checkout.duplicate_idempotency: PASS
+- order.invalid_ownership: PASS
+- order.total_mismatch: PASS
+- order_item.invalid_line: PASS
+- reservation.invalid_reference: PASS
+- reservation.balance_mismatch: PASS
+- reservation.cancelled_active: PASS
+- order.multiple_reservation_branches: PASS
+- payment.order_mismatch: PASS
+- fulfillment.invalid_branch: PASS
+- fulfillment.active_reservation: PASS
+- revenue.order_lineage_mismatch: PASS
+- branch_assignment.cross_tenant: PASS
+- branch_assignment.overlap: PASS
+- branch_bonus.invalid_scope: PASS
+- finance.payroll_branch_mismatch: PASS
+- finance.payroll_accounting_mismatch: PASS
+- accounting.duplicate_active_journal: PASS
+- accounting.insurance_liability_mismatch: PASS
+- accounting.pit_liability_mismatch: PASS
+- seller.invalid_company_scope: PASS
+- commerce.order_company_mismatch: PASS
+- pos.receipt_total_mismatch: PASS
+- pos.receipt_revenue_mismatch: PASS
+- commerce.reversal_lineage_mismatch: PASS
+- inventory.movement_balance_mismatch: PASS
+- media.product_company_mismatch: PASS
+- recruitment.hire_lineage_mismatch: PASS
+- accounting.posted_journal_unbalanced: PASS
+- accounting.duplicate_source_posting: PASS
+- procurement.receipt_missing_inventory: PASS
+- inventory.value_mismatch: PASS
+- commerce.sale_missing_gl: PASS
+- ap.invalid_allocation: PASS
+- accounting.closed_period_posting: PASS
+- commerce.reversal_missing_gl: PASS
+- finance.expense_missing_gl: PASS
+- finance.depreciation_mismatch: PASS
+- finance.disposed_future_depreciation: PASS
+- finance.asset_cross_tenant: PASS
+- finance.budget_cross_tenant: PASS
+- treasury.source_lineage_mismatch: PASS
+- treasury.reconciliation_mismatch: PASS
+- accounting.period_closed_with_blocker: PASS
+- hr.contract_renewal_invalid_lineage: PASS
+- hr.offboarding_incomplete_mandatory: PASS
+- hr.completed_resignation_open_assignment: PASS
+- accounting.adjustment_invalid_posting: PASS
+- sales.invoice_missing_gl: PASS
+- sales.invoice_outstanding_mismatch: PASS
+- sales.fulfillment_missing_inventory_cogs: PASS
+- sales.collection_missing_treasury_gl: PASS
+- sales.ar_gl_mismatch: PASS
+- document.missing_current_version: PASS
+- document.version_missing_sha: PASS
+- project.invalid_company_scope: PASS
+- project.invalid_task_link: PASS
+- project.invalid_dependency: PASS
+- project.invalid_timesheet: PASS
+- project.invalid_completion: PASS
+- maintenance.invalid_company_scope: PASS
+- maintenance.invalid_request_conversion: PASS
+- maintenance.invalid_work_order_timeline: PASS
+- maintenance.invalid_preventive_occurrence: PASS
+- maintenance.part_missing_inventory: PASS
+- integration.project_source_invalid: PASS
+- integration.maintenance_source_invalid: PASS
+- integration.duplicate_source_action: PASS
+- procurement.invalid_realization_quantity: PASS
+- procurement.invalid_budget_dimension: PASS
+Organization/Employee/Attendance/Payroll: COMPLETE_FOR_CURRENT_SCOPE
+Marketplace/POS/Inventory: COMPLETE_FOR_CURRENT_SCOPE
+Procurement/AP/Treasury/Budget/Asset: COMPLETE_FOR_CURRENT_SCOPE
+Accounting/Financial Statements: PARTIAL
+CRM deterministic segmentation: COMPLETE_FOR_CURRENT_SCOPE
+Banking/Government filing: CONFIGURATION_REQUIRED
+Notification Center: COMPLETE_FOR_CURRENT_SCOPE
+Cloudflare Images: CONFIGURED runtime provider; assets 3; secret values omitted.
+Mail: CONFIGURATION_REQUIRED/local-log; SMS: CONFIGURATION_REQUIRED; Banking: NOT_CONNECTED; Government: NOT_CONNECTED.
+
+================================================================================
+25 — CURRENT PROJECT SCALE
+================================================================================
+Modules: 46
+Routes: 696
+Commands: 298
+Queries: 156
+Handlers: 438
+Services: 168
+Controllers: 141
+Permissions / Roles: 858 / 16
+Migrations / Tables: 100 / 329
+PHPUnit test files: 209
+Runtime assertion count: KHÔNG ĐỦ BẰNG CHỨNG (chỉ có khi chạy PHPUnit; không dùng số tài liệu cũ).

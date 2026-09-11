@@ -70,20 +70,30 @@ final class CommerceFoundationTest extends TestCase
 
     public function test_seller_cannot_edit_another_seller_store_and_governance_transition_is_bounded(): void
     {
-        [$seller] = $this->actor('commerce.store.view', 'commerce.store.update');
+        [$seller, $company] = $this->actor('commerce.store.view', 'commerce.store.update');
         $other = User::factory()->create(['email_verified_at' => now()]);
-        $sellerProfile = (int) DB::table('seller_profiles')->insertGetId(['user_id' => $seller->id, 'display_name' => 'Seller One', 'status' => 'active', 'created_at' => now(), 'updated_at' => now()]);
-        $otherProfile = (int) DB::table('seller_profiles')->insertGetId(['user_id' => $other->id, 'display_name' => 'Seller Two', 'status' => 'active', 'created_at' => now(), 'updated_at' => now()]);
+        DB::table('company_user_access')->insert(['company_id' => $company->id, 'user_id' => $other->id, 'created_at' => now(), 'updated_at' => now()]);
+        $sellerProfile = (int) DB::table('seller_profiles')->insertGetId(['company_id' => $company->id, 'user_id' => $seller->id, 'display_name' => 'Seller One', 'status' => 'active', 'created_at' => now(), 'updated_at' => now()]);
+        $otherProfile = (int) DB::table('seller_profiles')->insertGetId(['company_id' => $company->id, 'user_id' => $other->id, 'display_name' => 'Seller Two', 'status' => 'active', 'created_at' => now(), 'updated_at' => now()]);
         DB::table('stores')->insert(['seller_profile_id' => $otherProfile, 'name' => 'Other Store', 'slug' => 'other-store', 'status' => 'active', 'created_at' => now(), 'updated_at' => now()]);
 
-        $this->actingAs($seller)->put(route('admin.seller.store.update'), ['name' => 'Own Store', 'description' => 'Owned by current seller'])->assertRedirect();
+        $this->actingAs($seller)->put(route('admin.seller.store.update'), ['company_id' => $company->id, 'name' => 'Own Store', 'description' => 'Owned by current seller'])->assertRedirect();
         $this->assertDatabaseHas('stores', ['seller_profile_id' => $sellerProfile, 'name' => 'Own Store']);
         $this->assertDatabaseHas('stores', ['seller_profile_id' => $otherProfile, 'name' => 'Other Store']);
 
         [$governor] = $this->actor('commerce.seller.governance.view', 'commerce.seller.governance.manage');
-        $pending = (int) DB::table('seller_profiles')->insertGetId(['user_id' => User::factory()->create()->id, 'display_name' => 'Pending', 'status' => 'pending', 'created_at' => now(), 'updated_at' => now()]);
-        $this->actingAs($governor)->patch(route('admin.commerce.sellers.transition', $pending), ['status' => 'active'])->assertStatus(422);
-        $this->actingAs($governor)->patch(route('admin.commerce.sellers.transition', $pending), ['status' => 'verified'])->assertRedirect();
+        DB::table('company_user_access')->insert(['company_id' => $company->id, 'user_id' => $governor->id, 'created_at' => now(), 'updated_at' => now()]);
+        $pendingUser = User::factory()->create();
+        DB::table('company_user_access')->insert(['company_id' => $company->id, 'user_id' => $pendingUser->id, 'created_at' => now(), 'updated_at' => now()]);
+        $pending = (int) DB::table('seller_profiles')->insertGetId(['company_id' => $company->id, 'user_id' => $pendingUser->id, 'display_name' => 'Pending', 'status' => 'pending', 'created_at' => now(), 'updated_at' => now()]);
+        $this->actingAs($governor)->patch(route('admin.commerce.sellers.transition', $pending), ['company_id' => $company->id, 'status' => 'active'])->assertStatus(422);
+        $this->actingAs($governor)->patch(route('admin.commerce.sellers.transition', $pending), ['company_id' => $company->id, 'status' => 'verified'])->assertRedirect();
+
+        DB::table('seller_profiles')->where('id', $pending)->update(['status' => 'banned']);
+        $this->actingAs($governor)->patch(route('admin.commerce.sellers.transition', $pending), ['company_id' => $company->id, 'status' => 'suspended', 'reason' => 'Đã tiếp nhận hồ sơ khôi phục và chuyển sang theo dõi.'])->assertRedirect()->assertSessionHasNoErrors();
+        $this->assertDatabaseHas('seller_profiles', ['id' => $pending, 'status' => 'suspended']);
+        $this->actingAs($governor)->patch(route('admin.commerce.sellers.transition', $pending), ['company_id' => $company->id, 'status' => 'active'])->assertRedirect()->assertSessionHasNoErrors();
+        $this->assertDatabaseHas('seller_profiles', ['id' => $pending, 'status' => 'active']);
     }
 
     public function test_article_uploads_cover_and_gallery_through_unified_media_and_public_page(): void
@@ -162,6 +172,38 @@ final class CommerceFoundationTest extends TestCase
 
         $this->expectException(ValidationException::class);
         $service->stage(UploadedFile::fake()->image('article-too-wide.jpg', 8193, 1), MediaPurpose::ArticleImage);
+    }
+
+    public function test_product_media_accepts_native_4k_source_without_external_provider_call(): void
+    {
+        $storage = new class implements MediaStorageInterface
+        {
+            public int $uploads = 0;
+
+            /** @var array{0:int,1:int}|null */
+            public ?array $dimensions = null;
+
+            public function upload(UploadedFile $file, MediaPurpose $purpose): StoredMedia
+            {
+                $this->uploads++;
+                $dimensions = getimagesize($file->getRealPath());
+                if (is_array($dimensions)) {
+                    $this->dimensions = [(int) $dimensions[0], (int) $dimensions[1]];
+                }
+
+                return new StoredMedia('fake', 'product-4k', '/media/product-4k', (string) $file->getMimeType(), (int) $file->getSize(), hash_file('sha256', $file->getRealPath()));
+            }
+
+            public function delete(string $assetId): void {}
+        };
+        $service = new MediaService($storage, app('db'));
+        $stored = $service->stage(UploadedFile::fake()->image('product-4k.jpg', 3840, 2160), MediaPurpose::ProductCover);
+
+        self::assertSame(1, $storage->uploads);
+        self::assertSame([3840, 2160], $storage->dimensions);
+        self::assertSame('product-4k', $stored->assetId);
+        self::assertSame('image/jpeg', $stored->mimeType);
+        self::assertNotSame('', $stored->checksum);
     }
 
     /** @return array{User,Company} */

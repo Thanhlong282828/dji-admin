@@ -12,7 +12,7 @@ final class RolePermissionSeeder extends Seeder
     public function run(): void
     {
         app(PermissionRegistrar::class)->forgetCachedPermissions();
-        $modules = ['company', 'organization', 'employee', 'position', 'recruitment', 'onboarding', 'contract', 'attendance', 'shift', 'leave', 'payroll', 'insurance', 'tax', 'performance', 'training', 'benefit', 'succession', 'labor-relation', 'offboarding', 'workflow', 'report', 'document', 'integration', 'security', 'notification', 'audit', 'setting', 'article', 'article-category', 'product', 'product-category', 'media', 'page', 'menu', 'dashboard', 'seo', 'system'];
+        $modules = ['company', 'organization', 'employee', 'position', 'recruitment', 'onboarding', 'contract', 'attendance', 'shift', 'leave', 'payroll', 'insurance', 'tax', 'performance', 'training', 'benefit', 'succession', 'labor-relation', 'offboarding', 'workflow', 'report', 'document', 'project', 'maintenance', 'integration', 'security', 'notification', 'audit', 'setting', 'article', 'article-category', 'product', 'product-category', 'media', 'page', 'menu', 'dashboard', 'seo', 'system'];
         $actions = ['view', 'create', 'update', 'delete', 'export', 'import', 'approve', 'reject', 'publish', 'restore', 'audit'];
 
         foreach ($modules as $module) {
@@ -34,7 +34,7 @@ final class RolePermissionSeeder extends Seeder
             'employee-credential.archive', 'employee-credential.restore', 'employee-credential.view-sensitive', 'employee-credential.audit',
             'employment-contract.cancel', 'employment-contract.renew', 'employment-contract.export',
             'data-consent.export', 'data-consent.audit',
-            'employee-document.archive', 'employee-document.restore',
+            'employee-document.archive', 'employee-document.restore', 'document.upload', 'document.download', 'document.archive',
             'employee-user.view', 'employee-user.link', 'employee-user.unlink', 'employee-user.create', 'employee-user.invite', 'employee-user.disable', 'employee-user.audit',
             'recruitment-requisition.view', 'recruitment-requisition.create', 'recruitment-requisition.update', 'recruitment-requisition.submit', 'recruitment-requisition.approve', 'recruitment-requisition.reject', 'recruitment-requisition.open', 'recruitment-requisition.pause', 'recruitment-requisition.fill', 'recruitment-requisition.cancel', 'recruitment-requisition.duplicate', 'recruitment-requisition.export', 'recruitment-requisition.audit', 'recruitment-requisition.override-headcount',
             'candidate.view', 'candidate.create', 'candidate.update', 'candidate.archive', 'candidate.restore', 'candidate.merge', 'candidate.view-sensitive', 'candidate.upload-resume', 'candidate.download-resume', 'candidate.manage-consent', 'candidate.export', 'candidate.audit',
@@ -71,8 +71,21 @@ final class RolePermissionSeeder extends Seeder
             'operations.view', 'operations.manage', 'api.documentation.view',
             'branch.view', 'branch.create', 'branch.update', 'branch.archive', 'branch.bonus.view', 'branch.bonus.create', 'branch.bonus.approve',
             'commerce.store.view', 'commerce.store.create', 'commerce.store.update',
+            'commerce.payment.view', 'commerce.payment.record', 'commerce.fulfillment.view', 'commerce.fulfillment.update',
             'commerce.seller.governance.view', 'commerce.seller.governance.manage',
             'inventory.view', 'inventory.update',
+            'procurement.view', 'procurement.manage',
+            'vendor.view', 'vendor.manage', 'purchase-request.view', 'purchase-request.create', 'purchase-request.submit', 'purchase-request.approve', 'purchase-request.cancel',
+            'purchase-order.view', 'purchase-order.create', 'purchase-order.approve', 'purchase-order.send', 'purchase-order.cancel',
+            'goods-receipt.view', 'goods-receipt.create', 'goods-receipt.receive', 'vendor-bill.view', 'vendor-bill.create', 'vendor-bill.approve',
+            'ap-payment.view', 'ap-payment.create', 'accounting-period.view', 'accounting.period.manage', 'financial-statement.view',
+            'finance.operations.view', 'finance.operations.manage', 'finance.operations.approve',
+            'treasury.view', 'treasury.manage', 'treasury.reconcile', 'accounting.period.view', 'accounting.period.close.request', 'accounting.period.close.approve', 'accounting.period.reopen', 'approval.inbox.view',
+            'accounting.adjustment.view', 'accounting.adjustment.create', 'accounting.adjustment.submit', 'accounting.adjustment.approve', 'accounting.adjustment.reject', 'accounting.adjustment.post',
+            'sales.view', 'sales.manage', 'customer-invoice.view', 'customer-invoice.manage', 'ar.view', 'collection.view', 'collection.create', 'cash-flow.view',
+            'branch-commerce.view', 'branch-commerce.manage', 'branch-commerce.checkout',
+            'project.manage-members', 'project.manage-task', 'project.timesheet.create', 'project.timesheet.approve', 'project.complete',
+            'maintenance.request.create', 'maintenance.request.submit', 'maintenance.request.approve', 'maintenance.work-order.create', 'maintenance.work-order.assign', 'maintenance.work-order.execute', 'maintenance.part.issue', 'maintenance.plan.manage',
         ] as $permission) {
             Permission::query()->firstOrCreate(['name' => $permission, 'guard_name' => 'web']);
         }
@@ -89,6 +102,7 @@ final class RolePermissionSeeder extends Seeder
         Role::findByName('HR Admin')->syncPermissions(Permission::whereIn('name', ['company.view', 'company.create', 'company.update', 'company.change-status', 'cost-center.view', 'cost-center.create', 'cost-center.update', 'organization-unit.view', 'organization-unit.create', 'organization-unit.update', 'organization-unit.move', 'job-position.view', 'job-position.create', 'job-position.update', 'job-position.change-headcount', 'job-position.change-critical', 'employee.view', 'employee.create', 'employee.update', 'employee.restore', 'employee.change-status', 'employee.assign-manager', 'employee.link-user', 'employee.unlink-user', 'employee.upload-avatar', 'employee-assignment.view', 'employee-assignment.create', 'employee-assignment.update', 'employee-assignment.end', 'employee-assignment.transfer', 'employee-assignment.promote', 'employee-history.view', 'employee-credential.view', 'employee-credential.create', 'employee-credential.update', 'employment-contract.view', 'employment-contract.create', 'employment-contract.update', 'data-consent.view', 'data-consent.grant', 'data-consent.withdraw', 'employee-document.view', 'employee-document.upload', 'employee-document.download'])->get());
         Role::findByName('HR Manager')->syncPermissions(Permission::whereIn('name', ['company.view', 'cost-center.view', 'organization-unit.view', 'job-position.view', 'employee.view', 'employee-assignment.view', 'employee-history.view', 'employee-credential.view', 'employment-contract.view', 'data-consent.view', 'employee-document.view'])->get());
         Role::findByName('HR Admin')->givePermissionTo(Permission::where('name', 'like', 'hr.lifecycle.%')->get());
+        Role::findByName('HR Admin')->givePermissionTo(['employment-contract.submit', 'employment-contract.approve', 'employment-contract.activate', 'employment-contract.terminate', 'employment-contract.renew']);
         Role::findByName('HR Manager')->givePermissionTo('hr.lifecycle.view');
         Role::findByName('HR Admin')->givePermissionTo(Permission::where('name', 'like', 'talent.%')->get());
         Role::findByName('HR Manager')->givePermissionTo(['talent.performance.view', 'talent.goal.create', 'talent.goal.update', 'talent.review.submit']);
@@ -111,10 +125,15 @@ final class RolePermissionSeeder extends Seeder
         Role::findByName('Recruiter')->syncPermissions(Permission::where(fn ($query) => $query->where('name', 'like', 'recruitment-requisition.%')->orWhere('name', 'like', 'candidate.%')->orWhere('name', 'like', 'application.%')->orWhere('name', 'like', 'interview.%')->orWhere('name', 'like', 'candidate-offer.%'))->whereNotIn('name', ['recruitment-requisition.override-headcount', 'candidate-offer.approve', 'candidate-offer.view-salary'])->get());
         Role::findByName('C&B')->syncPermissions(Permission::where(fn ($query) => $query->where('name', 'like', 'payroll-%')->orWhere('name', 'like', 'payroll.%')->orWhere('name', 'like', 'attendance.%')->orWhere('name', 'like', 'leave.%')->orWhere('name', 'like', 'overtime.%'))->get());
         Role::findByName('Content Admin')->syncPermissions(Permission::whereIn('name', collect(['article', 'article-category', 'product', 'product-category', 'media', 'page', 'menu', 'seo'])->crossJoin($actions)->map(fn ($pair) => implode('.', $pair)))->get());
-        Role::findByName('Seller')->syncPermissions(['commerce.store.view', 'commerce.store.create', 'commerce.store.update', 'product.view', 'product.create', 'product.update', 'product-category.view', 'inventory.view', 'inventory.update']);
-        Role::findByName('Employee')->syncPermissions(['employee.portal.view', 'attendance.view-own', 'attendance.check-in', 'attendance.check-out', 'leave.view-own', 'leave.request', 'overtime.view-own', 'overtime.request', 'notification.view']);
-        Role::findByName('Manager')->syncPermissions(['employee.portal.view', 'attendance.view-own', 'attendance.check-in', 'attendance.check-out', 'leave.view-own', 'leave.request', 'overtime.view-own', 'overtime.request', 'notification.view']);
+        Role::findByName('Seller')->syncPermissions(['commerce.store.view', 'commerce.store.create', 'commerce.store.update', 'commerce.fulfillment.view', 'commerce.fulfillment.update', 'product.view', 'product.create', 'product.update', 'product.delete', 'product-category.view', 'inventory.view', 'inventory.update', 'branch-commerce.view', 'branch-commerce.manage', 'branch-commerce.checkout']);
+        Role::findByName('Finance')->syncPermissions(Permission::whereIn('name', ['commerce.payment.view', 'commerce.payment.record', 'payroll.assignment.view', 'payroll.accounting.view', 'payroll.tax.view', 'procurement.view', 'procurement.manage', 'vendor.view', 'vendor.manage', 'purchase-request.view', 'purchase-request.create', 'purchase-request.submit', 'purchase-request.approve', 'purchase-request.cancel', 'purchase-order.view', 'purchase-order.create', 'purchase-order.approve', 'purchase-order.send', 'purchase-order.cancel', 'goods-receipt.view', 'goods-receipt.create', 'goods-receipt.receive', 'vendor-bill.view', 'vendor-bill.create', 'vendor-bill.approve', 'ap-payment.view', 'ap-payment.create', 'accounting-period.view', 'accounting.period.manage', 'financial-statement.view', 'finance.operations.view', 'finance.operations.manage', 'finance.operations.approve', 'treasury.view', 'treasury.manage', 'treasury.reconcile', 'accounting.period.view', 'accounting.period.close.request', 'accounting.period.close.approve', 'accounting.period.reopen', 'approval.inbox.view', 'accounting.adjustment.view', 'accounting.adjustment.create', 'accounting.adjustment.submit', 'accounting.adjustment.approve', 'accounting.adjustment.reject', 'accounting.adjustment.post'])->get());
+        Role::findByName('Finance')->givePermissionTo(['sales.view', 'sales.manage', 'customer-invoice.view', 'customer-invoice.manage', 'ar.view', 'collection.view', 'collection.create', 'cash-flow.view']);
+        Role::findByName('Employee')->syncPermissions(['employee.portal.view', 'attendance.view-own', 'attendance.check-in', 'attendance.check-out', 'leave.view-own', 'leave.request', 'overtime.view-own', 'overtime.request', 'notification.view', 'project.view', 'project.timesheet.create']);
+        Role::findByName('Manager')->syncPermissions(['employee.portal.view', 'attendance.view-own', 'attendance.check-in', 'attendance.check-out', 'leave.view-own', 'leave.request', 'overtime.view-own', 'overtime.request', 'notification.view', 'project.view', 'project.create', 'project.update', 'project.manage-members', 'project.manage-task', 'project.timesheet.create', 'project.timesheet.approve', 'project.complete']);
         Role::findByName('Manager')->givePermissionTo(['branch.bonus.view', 'branch.bonus.create']);
+        Role::findByName('Manager')->givePermissionTo(['maintenance.view', 'maintenance.request.create', 'maintenance.request.submit']);
+        Role::findByName('HR Admin')->givePermissionTo(['maintenance.view', 'maintenance.work-order.assign']);
+        Role::findByName('Finance')->givePermissionTo('maintenance.view');
         Role::findByName('C&B')->givePermissionTo(['branch.bonus.view', 'branch.bonus.approve']);
         Role::findByName('HR Admin')->givePermissionTo(['branch.view', 'branch.create', 'branch.update', 'branch.archive']);
         Role::findByName('HR Manager')->givePermissionTo('branch.view');

@@ -43,7 +43,7 @@ final readonly class PayrollAccountingJournalService
             if (! is_object($policy)) {
                 throw new \LogicException('Policy resolution failed.');
             }
-            $mappings = $this->db->table('payroll_accounting_mappings as m')->leftJoin('accounting_accounts as d', 'd.id', '=', 'm.debit_account_id')->leftJoin('accounting_accounts as c', 'c.id', '=', 'm.credit_account_id')->where('m.company_id', $companyId)->where('m.accounting_policy_id', $this->i($policy, 'id'))->where('m.status', 'active')->whereDate('m.effective_from', '<=', $resolutionDate)->where(fn (Builder $q): Builder => $q->whereNull('m.effective_to')->orWhereDate('m.effective_to', '>=', $resolutionDate))->select(['m.*', 'd.code as debit_code', 'd.name as debit_name', 'd.status as debit_status', 'd.allow_posting as debit_postable', 'd.currency as debit_currency', 'c.code as credit_code', 'c.name as credit_name', 'c.status as credit_status', 'c.allow_posting as credit_postable', 'c.currency as credit_currency'])->orderByDesc('m.priority')->get();
+            $mappings = $this->db->table('payroll_accounting_mappings as m')->leftJoin('accounting_accounts as d', 'd.id', '=', 'm.debit_account_id')->leftJoin('accounting_accounts as c', 'c.id', '=', 'm.credit_account_id')->where('m.company_id', $companyId)->where('m.accounting_policy_id', $this->i($policy, 'id'))->where('m.status', 'active')->whereDate('m.effective_from', '<=', $resolutionDate)->where(fn (Builder $q): Builder => $q->whereNull('m.effective_to')->orWhereDate('m.effective_to', '>=', $resolutionDate))->select(['m.*', 'd.code as debit_code', 'd.name as debit_name', 'd.account_type as debit_account_type', 'd.status as debit_status', 'd.allow_posting as debit_postable', 'd.currency as debit_currency', 'c.code as credit_code', 'c.name as credit_name', 'c.account_type as credit_account_type', 'c.status as credit_status', 'c.allow_posting as credit_postable', 'c.currency as credit_currency'])->orderByDesc('m.priority')->get();
             $items = $this->db->table('payroll_items')->where('company_id', $companyId)->where('payroll_run_id', $runId)->where('calculation_version', $version)->orderBy('id')->get(['id', 'employee_id', 'gross_amount_minor', 'insurance_employee_total_minor', 'insurance_employer_total_minor', 'personal_income_tax_minor', 'net_after_personal_income_tax_minor', 'currency_code']);
             if ($items->isEmpty()) {
                 throw ValidationException::withMessages(['run' => 'ACCOUNTING_SOURCE_AMOUNT_MISSING']);
@@ -54,7 +54,7 @@ final readonly class PayrollAccountingJournalService
             $components = $this->db->table('payroll_item_components')->where('company_id', $companyId)->where('payroll_run_id', $runId)->whereIn('payroll_item_id', $itemIds)->orderBy('id')->get(['id', 'payroll_item_id', 'component_code_snapshot', 'component_name_snapshot', 'category', 'source_type', 'amount_minor']);
             $dimensions = $this->dimensions($companyId, $this->i($run, 'payroll_input_snapshot_id'));
             $journalId = (int) $this->db->table('payroll_accounting_journals')->insertGetId(['uuid' => (string) Str::uuid(), 'company_id' => $companyId, 'payroll_run_id' => $runId, 'payroll_period_id' => $this->i($run, 'payroll_period_id'), 'accounting_policy_id' => $this->i($policy, 'id'), 'policy_version' => $this->i($policy, 'version'), 'journal_number' => 'JRN-'.$this->s($run, 'period_code').'-'.Str::upper(Str::random(8)), 'journal_date' => $postingDate, 'posting_date' => $postingDate, 'resolution_date' => $resolutionDate, 'currency' => $currency, 'calculation_version' => $version, 'status' => 'draft', 'active_intent_key' => $intent, 'idempotency_key' => $idempotencyKey, 'created_by' => $actorId, 'created_at' => now(), 'updated_at' => now()]);
-            /** @var array<string,array{mapping:object,debit:int,credit:int,description:string,source_type:string,source_code:string,dimension:array{organization_unit_id:int|null,organization_code:string|null,organization_name:string|null,cost_center_id:int|null,cost_center_code:string|null,cost_center_name:string|null},sources:list<array{item:int,component:int|null,employee:int|null,amount:int,type:string,code:string}>}> $groups */
+            /** @var array<string,array{mapping:object,debit:int,credit:int,description:string,source_type:string,source_code:string,dimension:array{branch_id:int|null,branch_name:string|null,organization_unit_id:int|null,organization_code:string|null,organization_name:string|null,cost_center_id:int|null,cost_center_code:string|null,cost_center_name:string|null},sources:list<array{item:int,component:int|null,employee:int|null,amount:int,type:string,code:string}>}> $groups */
             $groups = [];
             foreach ($items as $item) {
                 $itemId = $this->i($item, 'id');
@@ -85,7 +85,7 @@ final readonly class PayrollAccountingJournalService
                 $mapping = $group['mapping'];
                 $isDebit = $group['debit'] > 0;
                 $accountId = $this->i($mapping, $isDebit ? 'debit_account_id' : 'credit_account_id');
-                $lineId = (int) $this->db->table('payroll_accounting_journal_lines')->insertGetId(['uuid' => (string) Str::uuid(), 'company_id' => $companyId, 'journal_id' => $journalId, 'line_number' => $lineNo, 'source_type' => $group['source_type'], 'source_code' => $group['source_code'], 'description' => $group['description'], 'account_id' => $accountId, 'account_code_snapshot' => $this->s($mapping, $isDebit ? 'debit_code' : 'credit_code'), 'account_name_snapshot' => $this->s($mapping, $isDebit ? 'debit_name' : 'credit_name'), 'debit_minor' => $group['debit'], 'credit_minor' => $group['credit'], 'currency' => $currency, 'cost_center_id' => $group['dimension']['cost_center_id'], 'cost_center_code_snapshot' => $group['dimension']['cost_center_code'], 'cost_center_name_snapshot' => $group['dimension']['cost_center_name'], 'organization_unit_id' => $group['dimension']['organization_unit_id'], 'organization_unit_code_snapshot' => $group['dimension']['organization_code'], 'organization_unit_name_snapshot' => $group['dimension']['organization_name'], 'mapping_id' => $this->i($mapping, 'id'), 'mapping_snapshot' => json_encode(['mapping_id' => $this->i($mapping, 'id'), 'priority' => $this->i($mapping, 'priority'), 'resolved_at' => $resolutionDate], JSON_THROW_ON_ERROR), 'source_count' => count($group['sources']), 'created_at' => now(), 'updated_at' => now()]);
+                $lineId = (int) $this->db->table('payroll_accounting_journal_lines')->insertGetId(['uuid' => (string) Str::uuid(), 'company_id' => $companyId, 'journal_id' => $journalId, 'line_number' => $lineNo, 'source_type' => $group['source_type'], 'source_code' => $group['source_code'], 'description' => $group['description'], 'account_id' => $accountId, 'account_code_snapshot' => $this->s($mapping, $isDebit ? 'debit_code' : 'credit_code'), 'account_name_snapshot' => $this->s($mapping, $isDebit ? 'debit_name' : 'credit_name'), 'debit_minor' => $group['debit'], 'credit_minor' => $group['credit'], 'currency' => $currency, 'branch_id' => $group['dimension']['branch_id'], 'branch_name_snapshot' => $group['dimension']['branch_name'], 'cost_center_id' => $group['dimension']['cost_center_id'], 'cost_center_code_snapshot' => $group['dimension']['cost_center_code'], 'cost_center_name_snapshot' => $group['dimension']['cost_center_name'], 'organization_unit_id' => $group['dimension']['organization_unit_id'], 'organization_unit_code_snapshot' => $group['dimension']['organization_code'], 'organization_unit_name_snapshot' => $group['dimension']['organization_name'], 'mapping_id' => $this->i($mapping, 'id'), 'mapping_snapshot' => json_encode(['mapping_id' => $this->i($mapping, 'id'), 'priority' => $this->i($mapping, 'priority'), 'resolved_at' => $resolutionDate], JSON_THROW_ON_ERROR), 'source_count' => count($group['sources']), 'created_at' => now(), 'updated_at' => now()]);
                 foreach ($group['sources'] as $source) {
                     $this->db->table('payroll_accounting_journal_sources')->insert(['company_id' => $companyId, 'journal_id' => $journalId, 'journal_line_id' => $lineId, 'payroll_item_id' => $source['item'], 'payroll_item_component_id' => $source['component'], 'employee_id' => $source['employee'], 'calculation_version' => $version, 'source_type' => $source['type'], 'source_code' => $source['code'], 'source_amount_minor' => $source['amount'], 'created_at' => now()]);
                 }
@@ -156,9 +156,9 @@ final readonly class PayrollAccountingJournalService
             $stream = fopen('php://temp', 'w+b');
             if ($stream === false) {
                 throw new \RuntimeException('Unable to create accounting CSV.');
-            } fputcsv($stream, ['Journal Number', 'Posting Date', 'Line Number', 'Account Code', 'Account Name', 'Description', 'Debit Minor', 'Credit Minor', 'Currency', 'Cost Center', 'Organization Unit', 'Source Code', 'Source Count']);
+            } fputcsv($stream, ['Journal Number', 'Posting Date', 'Line Number', 'Account Code', 'Account Name', 'Description', 'Debit Minor', 'Credit Minor', 'Currency', 'Branch', 'Cost Center', 'Organization Unit', 'Source Code', 'Source Count']);
             foreach ($lines as $line) {
-                fputcsv($stream, [$this->sanitizer->sanitize($this->s($j, 'journal_number')), $this->s($j, 'posting_date'), (string) $this->i($line, 'line_number'), $this->sanitizer->sanitize($this->s($line, 'account_code_snapshot')), $this->sanitizer->sanitize($this->s($line, 'account_name_snapshot')), $this->sanitizer->sanitize($this->s($line, 'description')), (string) $this->i($line, 'debit_minor'), (string) $this->i($line, 'credit_minor'), $this->s($line, 'currency'), $this->sanitizer->sanitize($this->s($line, 'cost_center_code_snapshot')), $this->sanitizer->sanitize($this->s($line, 'organization_unit_code_snapshot')), $this->sanitizer->sanitize($this->s($line, 'source_code')), (string) $this->i($line, 'source_count')]);
+                fputcsv($stream, [$this->sanitizer->sanitize($this->s($j, 'journal_number')), $this->s($j, 'posting_date'), (string) $this->i($line, 'line_number'), $this->sanitizer->sanitize($this->s($line, 'account_code_snapshot')), $this->sanitizer->sanitize($this->s($line, 'account_name_snapshot')), $this->sanitizer->sanitize($this->s($line, 'description')), (string) $this->i($line, 'debit_minor'), (string) $this->i($line, 'credit_minor'), $this->s($line, 'currency'), $this->sanitizer->sanitize($this->s($line, 'branch_name_snapshot')), $this->sanitizer->sanitize($this->s($line, 'cost_center_code_snapshot')), $this->sanitizer->sanitize($this->s($line, 'organization_unit_code_snapshot')), $this->sanitizer->sanitize($this->s($line, 'source_code')), (string) $this->i($line, 'source_count')]);
             } rewind($stream);
             $bytes = stream_get_contents($stream);
             fclose($stream);
@@ -230,9 +230,9 @@ final readonly class PayrollAccountingJournalService
     }
 
     /**
-     * @param  array<string,array{mapping:object,debit:int,credit:int,description:string,source_type:string,source_code:string,dimension:array{organization_unit_id:int|null,organization_code:string|null,organization_name:string|null,cost_center_id:int|null,cost_center_code:string|null,cost_center_name:string|null},sources:list<array{item:int,component:int|null,employee:int|null,amount:int,type:string,code:string}>}>  $groups
+     * @param  array<string,array{mapping:object,debit:int,credit:int,description:string,source_type:string,source_code:string,dimension:array{branch_id:int|null,branch_name:string|null,organization_unit_id:int|null,organization_code:string|null,organization_name:string|null,cost_center_id:int|null,cost_center_code:string|null,cost_center_name:string|null},sources:list<array{item:int,component:int|null,employee:int|null,amount:int,type:string,code:string}>}>  $groups
      * @param  Collection<int,\stdClass>  $mappings
-     * @param  array{organization_unit_id:int|null,organization_code:string|null,organization_name:string|null,cost_center_id:int|null,cost_center_code:string|null,cost_center_name:string|null}  $dimension
+     * @param  array{branch_id:int|null,branch_name:string|null,organization_unit_id:int|null,organization_code:string|null,organization_name:string|null,cost_center_id:int|null,cost_center_code:string|null,cost_center_name:string|null}  $dimension
      */
     private function aggregate(array &$groups, $mappings, string $type, string $code, string $description, int $amount, array $dimension, int $itemId, ?int $componentId, int $employeeId, string $currency): void
     {
@@ -262,30 +262,44 @@ final readonly class PayrollAccountingJournalService
         } if ($accountCurrency !== null && $accountCurrency !== $currency) {
             throw ValidationException::withMessages(['mapping' => 'ACCOUNTING_CURRENCY_MISMATCH']);
         }
-        $key = implode('|', [$this->i($mapping, 'id'), $isDebit ? 'D' : 'C', (string) ($dimension['cost_center_id'] ?? 0), (string) ($dimension['organization_unit_id'] ?? 0), $code]);
+        $lineDimension = $dimension;
+        if ($this->s($mapping, $isDebit ? 'debit_account_type' : 'credit_account_type') !== 'expense') {
+            $lineDimension['cost_center_id'] = null;
+            $lineDimension['cost_center_code'] = null;
+            $lineDimension['cost_center_name'] = null;
+        }
+        $key = implode('|', [$this->i($mapping, 'id'), $isDebit ? 'D' : 'C', (string) ($lineDimension['branch_id'] ?? 0), (string) ($lineDimension['cost_center_id'] ?? 0), (string) ($lineDimension['organization_unit_id'] ?? 0), $code]);
         if (! isset($groups[$key])) {
-            $groups[$key] = ['mapping' => $mapping, 'debit' => 0, 'credit' => 0, 'description' => $description, 'source_type' => $type, 'source_code' => $code, 'dimension' => $dimension, 'sources' => []];
+            $groups[$key] = ['mapping' => $mapping, 'debit' => 0, 'credit' => 0, 'description' => $description, 'source_type' => $type, 'source_code' => $code, 'dimension' => $lineDimension, 'sources' => []];
         }
         $groups[$key][$isDebit ? 'debit' : 'credit'] += $amount;
         $groups[$key]['sources'][] = ['item' => $itemId, 'component' => $componentId, 'employee' => $employeeId, 'amount' => $amount, 'type' => $type, 'code' => $code];
     }
 
-    /** @return array<int,array{organization_unit_id:int|null,organization_code:string|null,organization_name:string|null,cost_center_id:int|null,cost_center_code:string|null,cost_center_name:string|null}> */
+    /** @return array<int,array{branch_id:int|null,branch_name:string|null,organization_unit_id:int|null,organization_code:string|null,organization_name:string|null,cost_center_id:int|null,cost_center_code:string|null,cost_center_name:string|null}> */
     private function dimensions(int $companyId, int $snapshotId): array
     {
-        $rows = $this->db->table('payroll_employee_inputs as i')->leftJoin('organization_units as o', 'o.id', '=', 'i.organization_unit_id')->leftJoin('cost_centers as c', 'c.id', '=', 'o.cost_center_id')->where('i.company_id', $companyId)->where('i.payroll_input_snapshot_id', $snapshotId)->get(['i.employee_id', 'o.id as organization_id', 'o.code as organization_code', 'o.name as organization_name', 'c.id as cost_center_id', 'c.code as cost_center_code', 'c.name as cost_center_name']);
+        $rows = $this->db->table('payroll_employee_inputs as i')->leftJoin('branches as b', 'b.id', '=', 'i.branch_id')->leftJoin('organization_units as o', 'o.id', '=', 'i.organization_unit_id')->leftJoin('cost_centers as c', 'c.id', '=', 'i.cost_center_id')->where('i.company_id', $companyId)->where('i.payroll_input_snapshot_id', $snapshotId)->get(['i.employee_id', 'i.branch_id', 'i.branch_snapshot', 'b.company_id as branch_company_id', 'o.id as organization_id', 'o.code as organization_code', 'i.organization_unit_snapshot as organization_name', 'i.cost_center_id', 'i.cost_center_code_snapshot as cost_center_code', 'i.cost_center_name_snapshot as cost_center_name', 'c.company_id as cost_center_company_id']);
         $result = [];
         foreach ($rows as $r) {
-            $result[$this->i($r, 'employee_id')] = ['organization_unit_id' => $this->ni($r, 'organization_id'), 'organization_code' => $this->n($r, 'organization_code'), 'organization_name' => $this->n($r, 'organization_name'), 'cost_center_id' => $this->ni($r, 'cost_center_id'), 'cost_center_code' => $this->n($r, 'cost_center_code'), 'cost_center_name' => $this->n($r, 'cost_center_name')];
+            $branchId = $this->ni($r, 'branch_id');
+            if ($branchId !== null && $this->ni($r, 'branch_company_id') !== $companyId) {
+                throw ValidationException::withMessages(['branch' => 'PAYROLL_SNAPSHOT_BRANCH_COMPANY_MISMATCH']);
+            }
+            $costCenterId = $this->ni($r, 'cost_center_id');
+            if ($costCenterId !== null && $this->ni($r, 'cost_center_company_id') !== $companyId) {
+                throw ValidationException::withMessages(['cost_center' => 'PAYROLL_SNAPSHOT_COST_CENTER_COMPANY_MISMATCH']);
+            }
+            $result[$this->i($r, 'employee_id')] = ['branch_id' => $branchId, 'branch_name' => $this->n($r, 'branch_snapshot'), 'organization_unit_id' => $this->ni($r, 'organization_id'), 'organization_code' => $this->n($r, 'organization_code'), 'organization_name' => $this->n($r, 'organization_name'), 'cost_center_id' => $costCenterId, 'cost_center_code' => $this->n($r, 'cost_center_code'), 'cost_center_name' => $this->n($r, 'cost_center_name')];
         }
 
         return $result;
     }
 
-    /** @return array{organization_unit_id:null,organization_code:null,organization_name:null,cost_center_id:null,cost_center_code:null,cost_center_name:null} */
+    /** @return array{branch_id:null,branch_name:null,organization_unit_id:null,organization_code:null,organization_name:null,cost_center_id:null,cost_center_code:null,cost_center_name:null} */
     private function emptyDimension(): array
     {
-        return ['organization_unit_id' => null, 'organization_code' => null, 'organization_name' => null, 'cost_center_id' => null, 'cost_center_code' => null, 'cost_center_name' => null];
+        return ['branch_id' => null, 'branch_name' => null, 'organization_unit_id' => null, 'organization_code' => null, 'organization_name' => null, 'cost_center_id' => null, 'cost_center_code' => null, 'cost_center_name' => null];
     }
 
     /** @param array<string,mixed> $extra */

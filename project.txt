@@ -674,3 +674,99 @@ ERP CONSOLIDATION HARDENING — HRM / PAYROLL / BRANCH FINANCE
 - Four additive migrations bring the local contract to 78 migrations / 264 tables; Data Quality now has 41 deterministic rules.
 - Local demo enrichment is relational rather than view-local: all 33 bootstrap-owned active/probation/leave Employees have effective Branch allocation and Position-derived compensation; approved OT, unpaid leave and maker-checker Branch Bonus feed the canonical Payroll/Finance sources. Manual Employee codes outside `E0001`–`E0035` are excluded.
 - ERP realistic operating data Phase 2 spans multiple deterministic months. Attendance/Leave/OT quantities enter immutable Payroll Inputs; configured Salary Assignments plus effective tax/insurance policies produce Payroll Items, Payslips and Branch P&L without seeding final Payroll amounts.
+- ERP Finance/Tax runtime adds permission-scoped Payroll Reconciliation and Tax/Statutory dashboards. Finalized employer cost reconciles Payroll Items, balanced Accounting Journal and Branch Finance; VAT/CIT remain explicit CONFIGURATION_REQUIRED where transaction/policy evidence is absent.
+
+COMMERCE PAYMENT / FULFILLMENT / REVENUE LINEAGE
+- Finance records idempotent manual settlement evidence from immutable Order totals; Seller cannot record payment and can confirm only paid Orders.
+- Seller fulfillment is Branch-bound through inventory locations. Packed → shipped consumes reservation/on_hand once; delivered recognizes one Branch revenue from Order subtotal, excluding shipping.
+- Unpaid/undelivered Orders remain zero revenue. Local demo keeps synthetic management-service ledger lines visibly separate from `commerce_order` revenue and makes no external bank/provider claim.
+- Migration 79 adds Payment/Fulfillment lineage; migration 80 scopes Seller Profile by `(company_id, user_id)`. The local trio is 80 migrations / 266 tables. Data Quality is 53/53, including Seller Company access and Order→Branch→Payment→Fulfillment→Revenue Company reconciliation.
+- Seller Governance is Company-owned: Company → Seller account → Store → Product/Inventory → Order → Payment → Fulfillment → recognized Branch revenue. Dashboard totals query these canonical records and never clone a separate Seller sales ledger.
+- Company list shows linked Seller accounts in one batched query. The Company-scoped Sales History joins sold products, settlement evidence, fulfillment Branch and recognized revenue by `order_id`; primary navigation/help coverage is 93/93.
+- Company Create/Edit now creates or updates the canonical User + Seller Role + Company access + Seller Profile in the same Company transaction. New profiles remain `pending` for Seller Governance; Company Show displays the linked accounts and Store count without duplicating seller data.
+- Company list/show exposes explicit protected delete actions: empty Seller Profile can be unlinked while User IAM is retained; empty Branch is soft-deleted. Seller with Store/Order/media and Branch with operational history are blocked from deletion and must use governance/archive status.
+
+BRANCH COMMERCE RUNTIME — CUSTOMER / SERVICE / POS
+- Seller Governance dropdown now renders only state-machine transitions valid for the current Seller status; backend and UI share one matrix.
+- A separate permission-filtered “Vận hành chi nhánh” group provides branch Product warehouse, Company customer file, Company service catalog, customer check-in/checkout and branch sales.
+- POS checkout is transactional and idempotent: Company/Branch customer visit + service/product snapshots → canonical branch inventory decrement → paid receipt → one recognized `branch_management_revenues` row. Branch Finance and reporting consume that same revenue row, never a cloned sales total.
+- Product inventory is explicitly assigned to `inventory_locations.branch_id`; Product cover/gallery continues through unified MediaService (Cloudflare Images only when credentials are configured and verified).
+- Migration 81 adds six operational tables. Canonical local matrix is 81 migrations / 272 tables; `schema_admin_development` remains absent.
+
+UNIFIED OPERATING SYSTEM — CQRS / POS / DASHBOARD HARDENING
+- POS is a top-level navigation subsystem over canonical Company, Branch, Customer, Company Service, Product/SKU, Inventory, Receipt and Revenue sources; it does not own cloned product/customer/revenue tables.
+- All Branch Commerce mutations now dispatch `MutateBranchCommerceCommand`; reads dispatch `GetBranchCommercePageQuery`. Seller Governance transition dispatches a dedicated command and uses one audited state machine with controlled banned recovery.
+- Inventory on-hand changes now append `inventory_movements` with before/after/delta/source/actor/idempotency evidence. POS checkout writes one movement per product line, one paid Receipt and one recognized Revenue in the transaction.
+- Executive Dashboard reads Order, POS Receipt, Customer, Visit, Inventory and recognized Commerce/POS revenue from DB-backed read services. No view-specific metric arrays or independent dashboard totals were added.
+- Dashboard Employee/Leave/Recruitment/Article/activity metrics share the selected Company scope and are read fresh because a five-minute overview cache did not have complete cross-module invalidation.
+- Migration 82 adds the append-only inventory movement ledger. Current local contract is 82 migrations / 273 tables across all three active databases; `schema_admin_development` remains absent.
+CQRS BUSINESS MODULE OWNERSHIP: shared buses remain in Modules/Core; Company, Commerce, Product, Inventory, POS, Finance and Dashboard own their Commands/Queries/Handlers/Controllers/Services. Temporary global business CQRS/Support paths are prohibited by architecture test.
+Article writes and IAM profile writes/account-security reads now use their owner-module Command/Query handlers. Current architecture graph covers 43 declared modules with zero cycle, undeclared edge, layer, CQRS or external-boundary violation.
+
+MASTER BUSINESS INTEGRATION — SALES / INVENTORY / REVERSAL
+- Enterprise Sales History hợp nhất Marketplace paid/delivered Orders và POS paid Receipts bằng một QueryBus read model; source/Branch/reference/date filters và line snapshots đều truy ngược canonical transaction/revenue.
+- Inventory Operations có Stock Receipt draft→received và Branch Transfer draft→in_transit→received; tất cả thay đổi on-hand đi qua locked InventoryService movement, retry idempotent và transfer bảo toàn tổng tồn.
+- Full sale reversal giữ nguyên Order/Receipt/revenue gốc, tạo một chứng từ bù, hoàn kho một lần và giảm recognized revenue thuần trên Sales History, Branch Finance và Dashboard. Partial return/refund chưa được giả lập.
+- POS Dashboard, Receipt History/detail, Customer History và Inventory Movement/Operations là các primary page có permission/contextual help riêng. Browser 1280×800 và 390×844 đã xác nhận media thật qua local canonical adapter, 0 console/page error/overflow.
+- Migrations 83–85: opening movement evidence, stock receipt/transfer documents và append-only sale reversal. Canonical local matrix: 85 migrations / 276 tables; `schema_admin_development` absent, VPS untouched.
+
+MASTER OPERATING DATA INTEGRATION — MEDIA / RECRUITMENT / POS / DASHBOARD
+- Product cover của dữ liệu bootstrap đi qua cùng `MediaService` như runtime: `media_assets.company_id` khớp Store/Seller Company, URL local là `/storage/...` độc lập host/port; Cloudflare chỉ được dùng khi provider thật đã cấu hình và vẫn chưa được tuyên bố VERIFIED.
+- Recruitment demo dùng state machine Offer draft → pending approval → approved → sent → accepted rồi `HireCandidateService`; một Candidate hired nối đúng một Employee, primary Assignment, Contract và Onboarding Case, không seed trạng thái hired rời.
+- POS bootstrap tạo Customer, Service, Visit, Receipt, Inventory Movement và recognized Revenue bằng `BranchPosService`. Chạy lại không ghi đè Inventory Balance khỏi movement ledger và không tạo doanh thu trùng.
+- Executive Dashboard là read-only aggregate theo Company từ Organization, Recruitment, Attendance, finalized Payroll, Marketplace, POS, Inventory và Data Quality; Blade không chứa tổng/charts giả.
+- Migrations 86–87 backfill company scope cho Product media và chuẩn hóa local delivery URL. Canonical local matrix: 87 migrations / 276 tables; Data Quality 60/60.
+- Media UI hardening chuẩn hóa một pattern theo context: Product/Service/Inventory/Warehouse table 64×48px desktop và 56×42px mobile; POS selector 88×66px và 72×54px; public card/detail giữ responsive container. Browser geometry gate chặn ảnh tự phình theo cột/viewport và chặn `BROKEN_MEDIA`.
+- Cross-project integration audit xác nhận Recruitment→Employee, Workforce→Payroll, Payroll→Statutory/Finance, Marketplace/POS→Inventory/Revenue, Reversal→Finance/Dashboard cùng đọc canonical source. Cloudflare Hosted Images vẫn `CONFIGURATION_REQUIRED` vì runtime local và thiếu delivery hash; không có live upload giả.
+
+ERP ACCOUNTING CAPABILITY HARDENING
+- Finance có primary page `Sổ cái & Báo cáo tài chính` đọc duy nhất Accounting Journal trạng thái internally_posted/exported qua QueryBus và grouped SQL. Trang cung cấp General Ledger, Trial Balance, nguồn Income Statement/Balance Sheet và drill-down về Journal gốc; không ghi hoặc sửa Payroll/Journal.
+- Coverage được gắn nhãn PARTIAL vì Chart of Accounts hiện mới có Payroll expense/liability. Income Statement/Balance Sheet không được gọi là hoàn chỉnh và Cash Flow chưa được tuyên bố khi chưa có canonical Revenue/Asset/Equity/Cash/AR/AP posting.
+ERP PROCUREMENT / AP / INVENTORY VALUATION (2026-09-01)
+- Canonical Vendor → Purchase Request → Purchase Order → Goods Receipt → Inventory → Vendor Bill → AP Payment chain is implemented through CQRS/Application services.
+- Inventory uses weighted-average valuation and sale-time immutable COGS snapshots; Marketplace/POS revenue, COGS and reversal post into the existing double-entry journal platform.
+- General accounting periods block normal posting when closed. GL/Trial Balance include generic source journals. Income Statement and Balance Sheet remain honestly PARTIAL; Cash Flow is not implemented.
+FINANCE OPERATIONS RUNTIME (2026-09-01)
+- Expense maker-checker, Asset lifecycle/straight-line depreciation và governed Budget vs Actual đã nối vào posted Accounting Journal; Actual ghép Company + Branch + Account + Month, không nhập số clone.
+- Product media nhận source 4K 3840×2160 trong giới hạn 10 MiB/6000px, giữ checksum/MIME/size provenance; automated tests không gọi Cloudflare.
+ERP Finance Control Phase 2: Treasury financial accounts/transactions/manual statement reconciliation; Accounting Period close checklist + maker-checker; shared read-only Approval Inbox; Budget/Committed/Actual/Available from PO and posted journal sources. AR was audited and intentionally not fabricated because current sales are immediate-paid.
+Media ingress hardening: valid RGB/RGBA/palette PNG, JPEG, WebP and bounded 4K sources are content-decoded without re-encoding; local PHP upload ingress now exceeds the Product 10 MB application limit while automated tests remain local-media only.
+CURRENT OPERATING DATA SNAPSHOT: `app:current-operating-data-report` generates `DU_LIEU_THUC_HIEN_TAI.txt` from the active canonical database, masks account contacts and excludes secrets. It covers Company/Branch/Employee/Payroll/Commerce/POS/Inventory/Procurement/AP/Treasury/Finance/Accounting/Data Quality and states unsupported evidence honestly.
+CRM deterministic metrics now combine paid POS receipts with paid Marketplace Orders within the same Company/customer identity. NEW/ACTIVE/REPEAT/AT_RISK/DORMANT are configured recency-frequency classifications, not AI scores, and never mutate Customer records.
+CRM user flow now exposes those canonical metrics in the Customer list/detail with Company-safe search, Branch and segment filters; paid Marketplace evidence and POS history share one read service rather than cloned CRM totals. The operating snapshot also includes source-reconciled Company summary, lifecycle/notification, Vendor/AP and Asset evidence; generic closed-journal adjustment remains explicitly unsupported.
+HR SEPARATION + ACCOUNTING ADJUSTMENT RUNTIME
+- Contract renewal creates a new effective-dated contract and preserves the prior contract.
+- Voluntary resignation is distinct from termination; submission does not disable the Employee.
+- Mandatory offboarding checklist gates assignment closure and canonical IAM access disablement.
+- Posted accounting journals are corrected by maker-checker, open-period, idempotent reversal; originals remain immutable.
+- Executive KPIs and DU_LIEU_THUC_HIEN_TAI.txt read these canonical records directly.
+ERP SALES / AR / CASH FLOW (2026-09-07)
+- Canonical sell-side chain: Customer → Quotation → Sales Order → Inventory fulfillment/COGS → Customer Invoice → AR → Collection → Treasury → Accounting.
+- Invoice/collection balances are derived, tenant-scoped and integer VND; maker-checker protects quotation acceptance and invoice issue.
+- Financial Statements now classify actual Treasury movements; Cash Flow remains PARTIAL until opening cash/equity evidence exists.
+- Finance Overview composes posted GL, derived AR/AP, Treasury, approved Budget and PO commitments with Company/Branch/period scope; no dashboard-total table is cloned. AR exposes due-date aging while 7/30/60/90 cash outlook is forecast-only.
+- VAT is CONFIGURATION_REQUIRED when no verified effective transaction policy exists; no fabricated tax rate.
+- Architecture maps are generated by `app:erp-architecture-map`: `SO_DO_LUONG_MENU_ERP.txt` validates every AdminNavigation route/permission, while `SO_DO_LIEN_KET_MODULE_ERP.txt` distinguishes manifest `[DEPENDS]` edges from `[BUSINESS FLOW]` connections.
+ERP SCM ORCHESTRATION (2026-09-08)
+- `Tổng quan chuỗi cung ứng` is a Company-scoped, read-only Dashboard-module orchestration of Procurement supply, canonical Inventory availability/value/transfers, ERP Sales demand and Marketplace fulfillment.
+- Executive Dashboard and `DU_LIEU_THUC_HIEN_TAI.txt` reuse the same SCM read model; no SCM totals table or duplicate stock/logistics engine exists.
+- External carrier is NOT_CONNECTED, delivery performance is NOT_ENOUGH_EVIDENCE without a promised date, and logistics cost is not fabricated.
+ERP BI / MANAGEMENT ANALYTICS (2026-09-08)
+- Dashboard-owned `Phân tích điều hành` provides a validated KPI catalog and bounded monthly trends from canonical ERP Sales, Marketplace, POS, Payroll, Expense, Treasury, Finance, SCM and CRM sources.
+- Revenue variance is zero-safe; forecast is AR/AP due-date only. Inventory turnover, historical CRM segmentation and future revenue remain NOT_ENOUGH_EVIDENCE instead of receiving synthetic series.
+- BI stores no numeric totals and executes grouped source queries rather than query-per-month/employee/product.
+ERP ADMIN DESIGN SYSTEM (2026-09-08)
+- Central `--erp-*` tokens and shared page-header/KPI/status primitives modernize the existing dark enterprise shell with a restrained white-to-metallic-gold accent.
+- Semantic danger/success/warning/info colors remain distinct; sidebar ARIA, pre-paint restore, scroll persistence and mobile focus behavior are preserved.
+- Every completed operator-facing capability must be reachable from canonical Sidebar unless intentionally embedded as an action/sub-workspace of another reachable capability.
+ERP DOCUMENT EVIDENCE (2026-09-08)
+- `Modules/Document` owns Company-scoped enterprise document metadata and immutable numbered versions with SHA-256 on private local storage.
+- Existing Workflow, Approval Inbox, Notification Center and Activity Log remain canonical; DMS never mutates owner-domain business tables.
+- External private object storage is CONFIGURATION_REQUIRED; Cloudflare Images remains image-only.
+PROJECT MANAGEMENT (2026-09-08)
+- Modules/Project owns Project, Team, Milestone, Task, dependency and Project Timesheet runtime.
+- Progress is DONE/non-cancelled tasks; deterministic health uses target date and overdue task/milestone evidence.
+- DMS links PROJECT/PROJECT_MILESTONE/PROJECT_TASK. Finance linkage remains honest PARTIAL/NOT_IMPLEMENTED where owner tables have no project reference.
+- Sidebar has Project Overview and Project List; all actions stay in Project Detail.
+
+MAINTENANCE / CMMS: Finance Asset → Maintenance Request → maker-checker → Work Order → Employee technician → Inventory spare-part movement → DMS/Audit. Preventive occurrence idempotent; Procurement/Expense/Accounting/Workflow Notification giữ PARTIAL khi chưa có canonical Work Order reference.

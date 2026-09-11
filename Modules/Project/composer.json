@@ -1,0 +1,1 @@
+{"name":"nwidart/project","description":"Project Management bounded context","autoload":{"psr-4":{"Modules\\Project\\":"app/"}},"autoload-dev":{"psr-4":{"Modules\\Project\\Tests\\":"tests/"}}}

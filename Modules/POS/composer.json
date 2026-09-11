@@ -1,0 +1,9 @@
+{
+    "name": "nwidart/pos",
+    "description": "Branch point-of-sale bounded context",
+    "autoload": {
+        "psr-4": {
+            "Modules\\POS\\": "app/"
+        }
+    }
+}

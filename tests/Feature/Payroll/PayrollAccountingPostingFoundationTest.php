@@ -9,7 +9,9 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Modules\Company\Domain\Models\Company;
 use Modules\Employee\Domain\Models\Employee;
+use Modules\Finance\Application\Services\ExecutiveFinanceReadService;
 use Modules\Payroll\Domain\Enums\PayrollRunStatus;
+use Modules\Payroll\Domain\Services\PayrollAccountingJournalService;
 use Modules\Payroll\Domain\Services\PayrollRunService;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\PermissionRegistrar;
@@ -62,6 +64,10 @@ final class PayrollAccountingPostingFoundationTest extends TestCase
     public function test_exact_persisted_source_lifecycle_private_export_and_reversal(): void
     {
         [$company, $maker, $checker, $run, $employee] = $this->fixture('FLOW');
+        $branch = (int) DB::table('branches')->insertGetId(['company_id' => $company, 'code' => 'FLOW-HQ', 'name' => 'Flow HQ', 'status' => 'active', 'created_at' => now(), 'updated_at' => now()]);
+        $costCenter = (int) DB::table('cost_centers')->insertGetId(['company_id' => $company, 'code' => 'CC-FLOW', 'name' => 'Flow Cost Center', 'created_at' => now(), 'updated_at' => now()]);
+        $snapshot = $this->int(DB::table('payroll_runs')->where('id', $run)->value('payroll_input_snapshot_id'));
+        DB::table('payroll_employee_inputs')->where(['payroll_input_snapshot_id' => $snapshot, 'employee_id' => $employee])->update(['branch_id' => $branch, 'branch_snapshot' => 'Flow HQ', 'cost_center_id' => $costCenter, 'cost_center_code_snapshot' => 'CC-FLOW', 'cost_center_name_snapshot' => 'Flow Cost Center']);
         $maker->givePermissionTo($this->permissions);
         $checker->givePermissionTo($this->permissions);
         [$expense, $payable, $policy] = $this->configuration($company, $maker, 'FLOW');
@@ -87,7 +93,12 @@ final class PayrollAccountingPostingFoundationTest extends TestCase
         self::assertSame($this->int(DB::table('payroll_items')->where('payroll_run_id', $run)->sum('net_after_personal_income_tax_minor')), $this->int(DB::table('payroll_accounting_journal_lines')->where('journal_id', $journal)->where('source_type', 'net_pay')->sum('credit_minor')));
         self::assertSame(500000, $this->int(DB::table('payroll_accounting_journal_lines')->where('journal_id', $journal)->where('source_type', 'employee_insurance')->sum('credit_minor')));
         self::assertSame(700000, $this->int(DB::table('payroll_accounting_journal_lines')->where('journal_id', $journal)->where('source_type', 'employer_insurance_expense')->sum('debit_minor')));
+        self::assertSame($branch, $this->int(DB::table('payroll_accounting_journal_lines')->where('journal_id', $journal)->where('source_type', 'employer_insurance_expense')->value('branch_id')));
+        self::assertSame('Flow HQ', DB::table('payroll_accounting_journal_lines')->where('journal_id', $journal)->where('source_type', 'employer_insurance_expense')->value('branch_name_snapshot'));
+        self::assertSame($costCenter, $this->int(DB::table('payroll_accounting_journal_lines')->where('journal_id', $journal)->where('source_type', 'employer_insurance_expense')->value('cost_center_id')));
+        self::assertSame('Flow Cost Center', DB::table('payroll_accounting_journal_lines')->where('journal_id', $journal)->where('source_type', 'employer_insurance_expense')->value('cost_center_name_snapshot'));
         self::assertSame(700000, $this->int(DB::table('payroll_accounting_journal_lines')->where('journal_id', $journal)->where('source_type', 'employer_insurance_liability')->sum('credit_minor')));
+        self::assertNull(DB::table('payroll_accounting_journal_lines')->where('journal_id', $journal)->where('source_type', 'employer_insurance_liability')->value('cost_center_id'));
         self::assertSame(300000, $this->int(DB::table('payroll_accounting_journal_lines')->where('journal_id', $journal)->where('source_type', 'personal_income_tax')->sum('credit_minor')));
         self::assertSame(200000, $this->int(DB::table('payroll_accounting_journal_lines')->where('journal_id', $journal)->where('source_type', 'other_deduction')->sum('credit_minor')));
         $expenseSnapshot = $this->string(DB::table('payroll_accounting_journal_lines')->where('journal_id', $journal)->where('source_type', 'earning_component')->value('account_name_snapshot'));
@@ -119,6 +130,11 @@ final class PayrollAccountingPostingFoundationTest extends TestCase
         self::assertSame(strlen($csv), $this->int($stored->file_size));
         $this->actingAs($checker)->post(route('admin.payroll.accounting.journals.mutate', ['journal' => $journal, 'action' => 'export']), ['company_id' => $company])->assertRedirect();
         self::assertSame(1, DB::table('payroll_accounting_access_logs')->where('journal_id', $journal)->where('action', 'export')->count());
+        $this->actingAs($checker)->get(route('admin.finance.financial-statements', ['company_id' => $company, 'date_from' => '2026-07-01', 'date_to' => '2026-07-31']))
+            ->assertOk()->assertSeeText('Sổ cái & Báo cáo tài chính')->assertSeeText('Trial Balance')->assertSeeText('General Ledger')->assertSeeText($this->string($stored->journal_number))->assertSeeText('Coverage PARTIAL');
+        $foreign = User::factory()->create();
+        $foreign->givePermissionTo('payroll.accounting.view');
+        $this->actingAs($foreign)->get(route('admin.finance.financial-statements', ['company_id' => $company]))->assertNotFound();
         $this->actingAs($checker)->get(route('admin.payroll.accounting.journals.download', ['journal' => $journal, 'company_id' => $company]))->assertOk()->assertHeader('cache-control', 'no-store, private');
         $this->actingAs($checker)->post(route('admin.payroll.accounting.journals.reverse', ['journal' => $journal]), ['company_id' => $company, 'reason' => 'Controlled correction', 'idempotency_key' => (string) Str::uuid()])->assertRedirect();
         $reversal = $this->int(DB::table('payroll_accounting_journals')->where('reversal_of_journal_id', $journal)->value('id'));
@@ -139,6 +155,66 @@ final class PayrollAccountingPostingFoundationTest extends TestCase
         DB::table('payroll_runs')->where('id', $run)->update(['status' => 'approved']);
         $this->actingAs($maker)->post(route('admin.payroll.accounting.journals.store'), $payload + ['idempotency_key' => (string) Str::uuid()])->assertSessionHasErrors('run');
         self::assertSame(0, DB::table('payroll_accounting_journals')->where('company_id', $company)->count());
+    }
+
+    public function test_multi_branch_journal_uses_immutable_payroll_input_dimensions_and_keeps_totals_balanced(): void
+    {
+        [$company, $maker, $checker, $run, $employeeA] = $this->fixture('DIM');
+        $branchA = (int) DB::table('branches')->insertGetId(['company_id' => $company, 'code' => 'DIM-A', 'name' => 'Branch A', 'status' => 'active', 'created_at' => now(), 'updated_at' => now()]);
+        $branchB = (int) DB::table('branches')->insertGetId(['company_id' => $company, 'code' => 'DIM-B', 'name' => 'Branch B', 'status' => 'active', 'created_at' => now(), 'updated_at' => now()]);
+        $costCenterA = (int) DB::table('cost_centers')->insertGetId(['company_id' => $company, 'code' => 'CC-DIM-A', 'name' => 'Cost Center A', 'created_at' => now(), 'updated_at' => now()]);
+        $costCenterB = (int) DB::table('cost_centers')->insertGetId(['company_id' => $company, 'code' => 'CC-DIM-B', 'name' => 'Cost Center B', 'created_at' => now(), 'updated_at' => now()]);
+        $snapshot = $this->int(DB::table('payroll_runs')->where('id', $run)->value('payroll_input_snapshot_id'));
+        DB::table('payroll_employee_inputs')->where(['payroll_input_snapshot_id' => $snapshot, 'employee_id' => $employeeA])->update(['branch_id' => $branchA, 'branch_snapshot' => 'Branch A', 'cost_center_id' => $costCenterA, 'cost_center_code_snapshot' => 'CC-DIM-A', 'cost_center_name_snapshot' => 'Cost Center A']);
+        $employeeB = Employee::query()->create(['company_id' => $company, 'employee_code' => 'ACC-DIM-B', 'full_name' => 'Accounting Employee B', 'nationality' => 'VN', 'join_date' => '2026-01-01', 'employment_status' => 'active', 'employment_type' => 'full_time']);
+        DB::table('payroll_employee_inputs')->insert(['company_id' => $company, 'payroll_input_snapshot_id' => $snapshot, 'employee_id' => $employeeB->id, 'branch_id' => $branchB, 'branch_snapshot' => 'Branch B', 'cost_center_id' => $costCenterB, 'cost_center_code_snapshot' => 'CC-DIM-B', 'cost_center_name_snapshot' => 'Cost Center B', 'scheduled_minutes' => 480, 'worked_minutes' => 480, 'paid_leave_minutes' => 0, 'unpaid_leave_minutes' => 0, 'approved_overtime_minutes' => 0, 'late_minutes' => 0, 'early_leave_minutes' => 0, 'absence_minutes' => 0, 'fte_basis_points' => 10000, 'created_at' => now(), 'updated_at' => now()]);
+        $itemB = (int) DB::table('payroll_items')->insertGetId(['company_id' => $company, 'payroll_run_id' => $run, 'employee_id' => $employeeB->id, 'gross_salary' => 5000000, 'insurance' => 0, 'personal_income_tax' => 0, 'deductions' => 0, 'net_salary' => 5000000, 'breakdown' => '[]', 'calculation_version' => 1, 'currency_code' => 'VND', 'gross_amount_minor' => 5000000, 'net_before_personal_income_tax_minor' => 5000000, 'net_after_personal_income_tax_minor' => 5000000, 'net_amount_minor' => 5000000, 'calculation_status' => 'calculated', 'validation_status' => 'valid', 'version' => 1, 'created_at' => now(), 'updated_at' => now()]);
+        DB::table('payroll_item_components')->insert(['company_id' => $company, 'payroll_run_id' => $run, 'payroll_item_id' => $itemB, 'component_code_snapshot' => 'BASIC-DIM', 'component_name_snapshot' => 'Basic DIM', 'category' => 'earning', 'calculation_type' => 'fixed', 'source_type' => 'salary_component_assignment', 'amount_minor' => 5000000, 'currency_code' => 'VND', 'calculation_order' => 1, 'version' => 1, 'created_at' => now(), 'updated_at' => now()]);
+        $this->configuration($company, $maker, 'DIM');
+
+        // The current employee state changes after the immutable Payroll snapshot.
+        DB::table('employee_branch_assignments')->insert(['company_id' => $company, 'employee_id' => $employeeA, 'branch_id' => $branchB, 'assignment_type' => 'primary', 'effective_from' => '2026-08-01', 'created_by' => $maker->id, 'created_at' => now(), 'updated_at' => now()]);
+        $service = app(PayrollAccountingJournalService::class);
+        $key = (string) Str::uuid();
+        $journal = $service->create($company, $run, '2026-07-31', $maker->id, $key);
+        self::assertSame($journal, $service->create($company, $run, '2026-08-01', $maker->id, (string) Str::uuid()));
+        self::assertSame([$branchA, $branchB], DB::table('payroll_accounting_journal_lines')->where('journal_id', $journal)->distinct()->orderBy('branch_id')->pluck('branch_id')->map(fn (mixed $id): int => $this->int($id))->all());
+        self::assertSame(5000000, $this->int(DB::table('payroll_accounting_journal_lines')->where(['journal_id' => $journal, 'branch_id' => $branchA])->where('source_type', 'earning_component')->sum('debit_minor')));
+        self::assertSame(5000000, $this->int(DB::table('payroll_accounting_journal_lines')->where(['journal_id' => $journal, 'branch_id' => $branchB])->where('source_type', 'earning_component')->sum('debit_minor')));
+        self::assertSame([$costCenterA, $costCenterB], DB::table('payroll_accounting_journal_lines')->where('journal_id', $journal)->where('source_type', 'earning_component')->distinct()->orderBy('cost_center_id')->pluck('cost_center_id')->map(fn (mixed $id): int => $this->int($id))->all());
+        self::assertSame(10000000, $this->int(DB::table('payroll_accounting_journals')->where('id', $journal)->value('total_debit_minor')));
+        self::assertSame(10000000, $this->int(DB::table('payroll_accounting_journals')->where('id', $journal)->value('total_credit_minor')));
+
+        // Legacy posted lines had no line-level branch. Their immutable source/input
+        // lineage must still attribute each employee without consulting current state.
+        $service->validate($company, $journal, $maker->id);
+        $service->review($company, $journal, $maker->id);
+        $service->approve($company, $journal, $checker->id);
+        $service->post($company, $journal, $checker->id);
+        DB::table('payroll_accounting_journal_lines')->where('journal_id', $journal)->update(['branch_id' => null, 'branch_name_snapshot' => null]);
+        $finance = app(ExecutiveFinanceReadService::class)->read($company, null, '2026-07-01', '2026-07-31');
+        /** @var array{status:string,rows:list<array<string,int|string>>,unattributed:int} $profitability */
+        $profitability = $finance['branch_profitability'];
+        $payrollByBranch = collect($profitability['rows'])->pluck('payroll', 'branch_id');
+        self::assertSame(5000000, $payrollByBranch->get($branchA));
+        self::assertSame(5000000, $payrollByBranch->get($branchB));
+        self::assertSame(0, $profitability['unattributed']);
+        self::assertSame('PASS', $profitability['status']);
+    }
+
+    public function test_legacy_snapshot_without_cost_center_never_uses_current_organization_mapping(): void
+    {
+        [$company, $maker, , $run, $employee] = $this->fixture('LEGACYCC');
+        $costCenter = (int) DB::table('cost_centers')->insertGetId(['company_id' => $company, 'code' => 'CC-CURRENT', 'name' => 'Current Only', 'created_at' => now(), 'updated_at' => now()]);
+        $unit = (int) DB::table('organization_units')->insertGetId(['company_id' => $company, 'cost_center_id' => $costCenter, 'type' => 'department', 'code' => 'CURRENT-UNIT', 'name' => 'Current Unit', 'headcount_limit' => 10, 'effective_from' => '2026-08-01', 'created_at' => now(), 'updated_at' => now()]);
+        $position = (int) DB::table('job_positions')->insertGetId(['company_id' => $company, 'organization_unit_id' => $unit, 'code' => 'CURRENT-POS', 'title' => 'Current Position', 'approved_headcount' => 10, 'budgeted_cost' => 0, 'is_critical' => false, 'created_at' => now(), 'updated_at' => now()]);
+        DB::table('employee_assignments')->insert(['employee_id' => $employee, 'organization_unit_id' => $unit, 'job_position_id' => $position, 'assignment_type' => 'primary', 'allocation_percent' => 100, 'effective_from' => '2026-08-01', 'created_at' => now(), 'updated_at' => now()]);
+        $this->configuration($company, $maker, 'LEGACYCC');
+
+        $journal = app(PayrollAccountingJournalService::class)->create($company, $run, '2026-07-31', $maker->id, (string) Str::uuid());
+
+        self::assertSame(0, DB::table('payroll_accounting_journal_lines')->where('journal_id', $journal)->whereNotNull('cost_center_id')->count());
+        self::assertSame(5000000, $this->int(DB::table('payroll_accounting_journal_lines')->where('journal_id', $journal)->where('source_type', 'earning_component')->sum('debit_minor')));
     }
 
     /** @return array{int,User,User,int,int} */

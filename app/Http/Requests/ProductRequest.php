@@ -22,6 +22,7 @@ final class ProductRequest extends FormRequest
 
         return [
             'store_id' => ['required', 'integer', 'exists:stores,id'],
+            'branch_id' => ['required', 'integer', 'exists:branches,id'],
             'product_category_id' => ['nullable', 'integer', Rule::exists('product_categories', 'id')->where('status', 'active')],
             'code' => ['required', 'string', 'max:80', Rule::unique('products')->where(fn (Builder $query): Builder => $query->where('store_id', $this->integer('store_id')))->ignore(is_numeric($product) ? (int) $product : null)],
             'name' => ['required', 'string', 'max:255'], 'description' => ['nullable', 'string', 'max:10000'], 'brand' => ['nullable', 'string', 'max:100'],

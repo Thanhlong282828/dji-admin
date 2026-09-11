@@ -6,6 +6,7 @@ use App\Models\User;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 
 final class CartWishlistMarketplaceTest extends TestCase
@@ -88,7 +89,9 @@ final class CartWishlistMarketplaceTest extends TestCase
     {
         $seller = User::factory()->create(['email' => "seller-{$slug}@example.test", 'email_verified_at' => now()]);
         $seller->assignRole('Seller');
-        $profile = DB::table('seller_profiles')->insertGetId(['user_id' => $seller->id, 'display_name' => "Seller {$slug}", 'status' => 'active', 'created_at' => now(), 'updated_at' => now()]);
+        $company = DB::table('companies')->insertGetId(['uuid' => (string) Str::uuid(), 'code' => 'CART-'.strtoupper($slug), 'name' => "Company {$slug}", 'is_active' => true, 'created_at' => now(), 'updated_at' => now()]);
+        DB::table('company_user_access')->insert(['company_id' => $company, 'user_id' => $seller->id, 'created_at' => now(), 'updated_at' => now()]);
+        $profile = DB::table('seller_profiles')->insertGetId(['company_id' => $company, 'user_id' => $seller->id, 'display_name' => "Seller {$slug}", 'status' => 'active', 'created_at' => now(), 'updated_at' => now()]);
         $store = DB::table('stores')->insertGetId(['seller_profile_id' => $profile, 'name' => "Store {$slug}", 'slug' => "store-{$slug}", 'status' => 'active', 'created_at' => now(), 'updated_at' => now()]);
         $category = DB::table('product_categories')->insertGetId(['name' => "Danh mục {$slug}", 'slug' => "category-{$slug}", 'status' => 'active', 'sort_order' => 1, 'created_at' => now(), 'updated_at' => now()]);
         $product = DB::table('products')->insertGetId(['store_id' => $store, 'product_category_id' => $category, 'code' => "P-{$slug}", 'name' => "Sản phẩm {$slug}", 'slug' => "product-{$slug}", 'base_price_minor' => 100000, 'currency' => 'VND', 'status' => 'active', 'created_at' => now(), 'updated_at' => now()]);

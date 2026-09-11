@@ -4,8 +4,7 @@
     "description": "",
     "keywords": [],
     "priority": 0,
-    "providers": [
-        "Modules\\Article\\Providers\\ArticleServiceProvider"
-    ],
+    "requires": ["Core"],
+    "providers": [],
     "files": []
 }

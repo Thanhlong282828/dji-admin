@@ -26,13 +26,16 @@
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     @stack('styles')
 </head>
-<body>
+<body class="admin-shell">
 <a class="skip-link" href="#main-content">Bỏ qua điều hướng, đến nội dung chính</a>
 <button class="mobile-menu-button" type="button" aria-label="Mở điều hướng chính" aria-controls="admin-sidebar" aria-expanded="false" data-sidebar-open><span aria-hidden="true">☰</span><span>Menu</span></button>
 <div class="sidebar-overlay" data-sidebar-overlay hidden></div>
 <aside id="admin-sidebar" class="admin-sidebar" aria-label="Điều hướng quản trị" data-sidebar aria-hidden="false">
     <div class="sidebar-brand-row">
-        <a class="brand" href="{{ route('dashboard') }}">LA THÀNH<span>CONTROL CENTER</span></a>
+        <a class="brand" href="{{ route('dashboard') }}" aria-label="LA THÀNH Control Center">
+            <span class="brand-title" aria-hidden="true">LA THÀNH</span>
+            <span class="brand-subtitle" aria-hidden="true">CONTROL CENTER</span>
+        </a>
         <button class="sidebar-close" type="button" aria-label="Đóng điều hướng chính" data-sidebar-close><span aria-hidden="true">×</span></button>
     </div>
     @php
@@ -100,13 +103,22 @@
 </aside>
 <main id="main-content" tabindex="-1">
     <header class="admin-page-header">
-        <div><small>SCHEMA ENTERPRISE PLATFORM</small><h1>@yield('title')</h1></div>
+        <div><div class="erp-shell-label"><small>SCHEMA ENTERPRISE PLATFORM</small><span class="erp-context-chip">Company #{{ $navigationCompanyId }}</span></div><h1>@yield('title')</h1></div>
         <div class="header-actions">
             @can('payroll.assignment.view')<button type="button" class="header-icon-button" aria-label="Compensation Reference" title="Compensation Reference" data-compensation-reference-open data-url="{{ route('admin.compensation-reference',['company_id'=>$navigationCompanyId]) }}">$</button>@endcan
             @if($adminHelp !== null)<button type="button" class="header-icon-button" aria-label="Hướng dẫn sử dụng trang này" title="Hướng dẫn sử dụng trang này" data-admin-help-open>?</button>@endif
             @hasSection('header_action') @yield('header_action') @else @can('article.create')<a class="button" href="{{ route('articles.create',['company_id'=>$navigationCompanyId]) }}">+ Tạo bài viết</a>@endcan @endif
         </div>
     </header>
+    @if($adminHelp !== null)
+        @php
+            $pageProcessFlow = array_values(array_filter(
+                $adminHelp['menuFlow'],
+                fn (array $node): bool => $node['permission'] === '' || auth()->user()?->can($node['permission']) === true,
+            ));
+        @endphp
+        <x-admin-process-flow :nodes="$pageProcessFlow" />
+    @endif
     @if(session('success'))<div class="notice" role="status">{{ session('success') }}</div>@endif
     @if(isset($errors) && $errors->any())<div class="validation-summary" role="alert" aria-live="assertive"><strong>Vui lòng kiểm tra các lỗi sau:</strong><ul>@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul></div>@endif
     @yield('content')
@@ -329,7 +341,7 @@
         @php
             $visibleDownstream = array_values(array_filter($adminHelp['downstreamMenus'], fn (array $menu): bool => auth()->user()?->can($menu['permission']) === true));
             $visibleRelated = array_values(array_filter($adminHelp['relatedMenus'], fn (array $menu): bool => auth()->user()?->can($menu['permission']) === true));
-            $visibleFlow = array_values(array_filter($adminHelp['menuFlow'], fn (array $node): bool => auth()->user()?->can($node['permission']) === true));
+            $visibleFlow = array_values(array_filter($adminHelp['menuFlow'], fn (array $node): bool => $node['permission'] === '' || auth()->user()?->can($node['permission']) === true));
             $visiblePermissions = array_values(array_filter($adminHelp['permissions'], fn (string $permission): bool => auth()->user()?->can($permission) === true));
         @endphp
 
@@ -353,8 +365,10 @@
                             @if(!$loop->first)<span class="admin-menu-flow-arrow" aria-hidden="true">↓</span>@endif
                             @if($node['current'])
                                 <strong aria-current="page">{{ $node['label'] }} <span class="sr-only">(menu hiện tại)</span></strong>
-                            @else
+                            @elseif($node['route'] !== null && Route::has($node['route']))
                                 <a href="{{ route($node['route'], $node['parameters']) }}">{{ $node['label'] }}</a>
+                            @else
+                                <span>{{ $node['label'] }}</span>
                             @endif
                         </div>
                     @endforeach

@@ -13,4 +13,5 @@ Route::middleware(['auth', 'verified'])->prefix('admin/companies')->name('admin.
     Route::delete('/{company}', [CompanyController::class, 'destroy'])->middleware('permission:company.delete')->whereNumber('company')->name('destroy');
     Route::post('/{company}/restore', [CompanyController::class, 'restore'])->middleware('permission:company.restore')->whereNumber('company')->name('restore');
     Route::patch('/{company}/status', [CompanyController::class, 'changeStatus'])->middleware('permission:company.change-status')->whereNumber('company')->name('change-status');
+    Route::delete('/{company}/seller-accounts/{seller}', [CompanyController::class, 'destroySellerAccount'])->middleware('permission:commerce.seller.governance.manage')->whereNumber(['company', 'seller'])->name('seller-accounts.destroy');
 });

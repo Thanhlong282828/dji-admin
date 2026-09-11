@@ -3,12 +3,12 @@
 namespace Tests\Feature;
 
 use App\Models\User;
-use App\Support\Commerce\CheckoutService;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use Modules\Commerce\Application\Services\CheckoutService;
 use Tests\TestCase;
 
 final class CheckoutOrderReservationTest extends TestCase
@@ -143,12 +143,15 @@ final class CheckoutOrderReservationTest extends TestCase
     {
         $seller = User::factory()->create(['email' => "seller-{$slug}@example.test", 'email_verified_at' => now(), 'access_enabled' => true]);
         $seller->assignRole('Seller');
-        $profile = (int) DB::table('seller_profiles')->insertGetId(['user_id' => $seller->id, 'display_name' => "Seller {$slug}", 'status' => 'active', 'created_at' => now(), 'updated_at' => now()]);
+        $company = (int) DB::table('companies')->insertGetId(['uuid' => (string) Str::uuid(), 'code' => "COM-{$slug}", 'name' => "Company {$slug}", 'country_code' => 'VN', 'timezone' => 'Asia/Ho_Chi_Minh', 'currency_code' => 'VND', 'currency' => 'VND', 'status' => 'active', 'is_active' => true, 'created_at' => now(), 'updated_at' => now()]);
+        $branch = (int) DB::table('branches')->insertGetId(['company_id' => $company, 'code' => 'MAIN', 'name' => "Branch {$slug}", 'status' => 'active', 'created_at' => now(), 'updated_at' => now()]);
+        DB::table('company_user_access')->insert(['company_id' => $company, 'user_id' => $seller->id]);
+        $profile = (int) DB::table('seller_profiles')->insertGetId(['company_id' => $company, 'user_id' => $seller->id, 'display_name' => "Seller {$slug}", 'status' => 'active', 'created_at' => now(), 'updated_at' => now()]);
         $store = (int) DB::table('stores')->insertGetId(['seller_profile_id' => $profile, 'name' => "Store {$slug}", 'slug' => "store-{$slug}", 'status' => 'active', 'created_at' => now(), 'updated_at' => now()]);
         $category = (int) DB::table('product_categories')->insertGetId(['name' => "Category {$slug}", 'slug' => "category-{$slug}", 'status' => 'active', 'sort_order' => 1, 'created_at' => now(), 'updated_at' => now()]);
         $product = (int) DB::table('products')->insertGetId(['store_id' => $store, 'product_category_id' => $category, 'code' => "P-{$slug}", 'name' => "Product {$slug}", 'slug' => "product-{$slug}", 'base_price_minor' => $price, 'currency' => 'VND', 'status' => 'active', 'created_at' => now(), 'updated_at' => now()]);
         $variant = (int) DB::table('product_variants')->insertGetId(['product_id' => $product, 'sku' => "SKU-{$slug}", 'name' => 'Mặc định', 'price_minor' => $price, 'status' => 'active', 'created_at' => now(), 'updated_at' => now()]);
-        $location = (int) DB::table('inventory_locations')->insertGetId(['store_id' => $store, 'code' => 'MAIN', 'name' => 'Kho chính', 'status' => 'active', 'created_at' => now(), 'updated_at' => now()]);
+        $location = (int) DB::table('inventory_locations')->insertGetId(['store_id' => $store, 'branch_id' => $branch, 'code' => 'MAIN', 'name' => 'Kho chính', 'status' => 'active', 'created_at' => now(), 'updated_at' => now()]);
         DB::table('inventory_balances')->insert(['product_variant_id' => $variant, 'inventory_location_id' => $location, 'on_hand' => $stock, 'reserved' => 0, 'version' => 1, 'created_at' => now(), 'updated_at' => now()]);
 
         return [$product, $variant, $seller];
