@@ -37,7 +37,7 @@ final class OperationsDataQualityTest extends TestCase
         $first = app(DataQualityAuditService::class)->snapshot();
         $second = app(DataQualityAuditService::class)->snapshot();
         self::assertSame($first['checksum'], $second['checksum']);
-        self::assertSame(102, $first['rules']);
+        self::assertSame(104, $first['rules']);
         self::assertSame('testing', $first['environment']);
         self::assertSame('schema_admin_testing', $first['configured_database']);
         self::assertSame('schema_admin_testing', $first['actual_database']);

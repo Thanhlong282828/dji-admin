@@ -99,9 +99,9 @@ final class EnterpriseReportingTest extends TestCase
         $service->build($filter, true);
         $after = count(DB::getQueryLog());
         DB::disableQueryLog();
-        // Project and Maintenance integrity rules add twelve bounded Data Quality queries
+        // Project, Maintenance and Service Procurement integrity rules add sixteen bounded Data Quality queries
         // when the changed Employee fingerprint forces a fresh snapshot; none scales per Employee.
-        self::assertLessThanOrEqual($before + 12, $after);
+        self::assertLessThanOrEqual($before + 16, $after);
         // Keep the current fixed read-model ceiling; before/after equality is the N+1 gate.
         // C4 adds two composed Commerce quality rules; the count stays fixed as volume grows.
         // C5 adds two fixed Cart/Wishlist checks; C6 adds eight fixed Checkout/Order/Reservation checks.
@@ -119,7 +119,7 @@ final class EnterpriseReportingTest extends TestCase
         // Three cross-domain source rules add nine fixed lookups, independent of volume.
         // Procurement realization adds three fixed grouped DQ queries
         // (over-receipt, overbilling and dimension mapping), never per Employee.
-        self::assertLessThanOrEqual(203, $after);
+        self::assertLessThanOrEqual(207, $after);
     }
 
     private function company(string $suffix): Company

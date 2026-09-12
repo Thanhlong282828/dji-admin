@@ -84,9 +84,9 @@ final class PlanningExecutionTest extends TestCase
         $service->build($filter, true);
         $after = count(DB::getQueryLog());
         DB::disableQueryLog();
-        // Project and Maintenance integrity add twelve fixed Data Quality queries after
+        // Project, Maintenance and Service Procurement integrity add sixteen fixed Data Quality queries after
         // the Employee fingerprint changes; this ceiling remains independent of volume.
-        self::assertLessThanOrEqual($before + 12, $after);
+        self::assertLessThanOrEqual($before + 16, $after);
         // C4 Commerce quality ownership checks add fixed work, never per Employee.
         // Finance plus Payment/Fulfillment/Seller-Company and POS receipt/inventory movement
         // reconciliation plus Product-media, Recruitment-hire and Procurement/accounting
@@ -101,7 +101,7 @@ final class PlanningExecutionTest extends TestCase
         // Three cross-domain source rules add nine fixed lookups, independent of volume.
         // Procurement realization adds three fixed grouped DQ queries,
         // while the before/after growth assertion above remains the N+1 guard.
-        self::assertLessThanOrEqual(136, $after);
+        self::assertLessThanOrEqual(140, $after);
     }
 
     private function company(string $suffix): Company

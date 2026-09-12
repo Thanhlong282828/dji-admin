@@ -63,16 +63,24 @@ final readonly class CostCenterCostManagementReadService
         // presenting a reconstructed dimension as historical evidence.
         $legacyPayrollByCenter = $this->legacyPayrollByCostCenter($companyId, $dateFrom, $dateTo);
 
+        $acceptedServices = $this->db->table('service_acceptance_lines as sal')
+            ->join('service_acceptances as sa', 'sa.id', '=', 'sal.service_acceptance_id')
+            ->where('sa.status', 'approved')
+            ->selectRaw('sal.purchase_order_line_id, SUM(sal.accepted_quantity) accepted_quantity')
+            ->groupBy('sal.purchase_order_line_id');
+
         $openCommitments = $this->db->table('purchase_orders as po')->join('purchase_order_lines as l', 'l.purchase_order_id', '=', 'po.id')
+            ->leftJoinSub($acceptedServices, 'service_realization', 'service_realization.purchase_order_line_id', '=', 'l.id')
             ->where('po.company_id', $companyId)->whereIn('po.status', ['approved', 'sent', 'partially_received'])
             ->whereBetween('po.order_date', [$dateFrom, $dateTo])
             ->whereNotNull('l.cost_center_id')
             ->when($costCenterId, fn (Builder $query): Builder => $query->where('l.cost_center_id', $costCenterId))
-            ->selectRaw('l.cost_center_id, SUM((l.ordered_quantity-l.received_quantity)*l.unit_cost_minor) amount')
+            ->selectRaw("l.cost_center_id, SUM((l.ordered_quantity-CASE WHEN l.procurement_classification='operating_expense' THEN COALESCE(service_realization.accepted_quantity,0) ELSE l.received_quantity END)*l.unit_cost_minor) amount")
             ->groupBy('l.cost_center_id')->pluck('amount', 'cost_center_id');
         $unattributedCommitment = $this->integer($this->db->table('purchase_orders as po')->join('purchase_order_lines as l', 'l.purchase_order_id', '=', 'po.id')
+            ->leftJoinSub($acceptedServices, 'service_realization', 'service_realization.purchase_order_line_id', '=', 'l.id')
             ->where('po.company_id', $companyId)->whereIn('po.status', ['approved', 'sent', 'partially_received'])->whereBetween('po.order_date', [$dateFrom, $dateTo])->whereNull('l.cost_center_id')
-            ->selectRaw('COALESCE(SUM((l.ordered_quantity-l.received_quantity)*l.unit_cost_minor),0) aggregate')->value('aggregate'));
+            ->selectRaw("COALESCE(SUM((l.ordered_quantity-CASE WHEN l.procurement_classification='operating_expense' THEN COALESCE(service_realization.accepted_quantity,0) ELSE l.received_quantity END)*l.unit_cost_minor),0) aggregate")->value('aggregate'));
 
         $rows = [];
         foreach ($centers as $center) {

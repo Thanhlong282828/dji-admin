@@ -4,6 +4,7 @@ namespace App\Support\DataQuality;
 
 use Illuminate\Database\Query\Builder;
 use Illuminate\Database\Query\JoinClause;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 
 final class DataQualityAuditService
@@ -116,6 +117,8 @@ final class DataQualityAuditService
             new DataQualityFinding('integration.duplicate_source_action', 'Cross-domain', 'critical', 'Source idempotency key không được tạo nhiều owner document.', $this->duplicateIntegrationSourceActions()),
             new DataQualityFinding('procurement.invalid_realization_quantity', 'Procurement/Budget', 'critical', 'Received không được vượt ordered và billed không được vượt received.', $this->invalidProcurementRealizationQuantity()),
             new DataQualityFinding('procurement.invalid_budget_dimension', 'Procurement/Budget', 'critical', 'PO line classification, Account và Cost Center phải cùng Company và đúng canonical mapping.', $this->invalidProcurementBudgetDimension()),
+            new DataQualityFinding('procurement.service_acceptance_invalid', 'Procurement/Service', 'critical', 'Service Acceptance phải đúng tenant, không vượt PO và Acceptance đã duyệt phải có Journal cân.', $this->invalidServiceAcceptance()),
+            new DataQualityFinding('procurement.service_overbilling', 'Procurement/AP', 'critical', 'Service Vendor Bill không được vượt Acceptance đã duyệt hoặc mất lineage.', $this->invalidServiceBilling()),
         ];
         $rows = array_values(array_map(static fn (DataQualityFinding $finding): array => $finding->toArray(), $findings));
         $failed = count(array_filter($rows, static fn (array $row): bool => $row['count'] > 0 && $row['severity'] === 'critical'));
@@ -875,7 +878,7 @@ final class DataQualityAuditService
     private function invalidProcurementRealizationQuantity(): int
     {
         $overReceived = DB::table('purchase_order_lines')->whereColumn('received_quantity', '>', 'ordered_quantity')->count();
-        $billed = DB::table('vendor_bill_lines as l')->join('vendor_bills as b', 'b.id', '=', 'l.vendor_bill_id')->whereNotIn('b.status', ['cancelled', 'rejected'])->selectRaw('l.purchase_order_line_id, SUM(l.quantity) billed')->whereNotNull('l.purchase_order_line_id')->groupBy('l.purchase_order_line_id');
+        $billed = DB::table('vendor_bill_lines as l')->join('vendor_bills as b', 'b.id', '=', 'l.vendor_bill_id')->whereNotIn('b.status', ['cancelled', 'rejected'])->where('l.procurement_classification', 'inventory')->selectRaw('l.purchase_order_line_id, SUM(l.quantity) billed')->whereNotNull('l.purchase_order_line_id')->groupBy('l.purchase_order_line_id');
         $overBilled = DB::table('purchase_order_lines as p')->joinSub($billed, 'billed', 'billed.purchase_order_line_id', '=', 'p.id')->whereColumn('billed.billed', '>', 'p.received_quantity')->count();
 
         return $overReceived + $overBilled;
@@ -884,5 +887,47 @@ final class DataQualityAuditService
     private function invalidProcurementBudgetDimension(): int
     {
         return DB::table('purchase_order_lines as l')->join('purchase_orders as o', 'o.id', '=', 'l.purchase_order_id')->leftJoin('accounting_accounts as a', 'a.id', '=', 'l.account_id')->leftJoin('cost_centers as c', 'c.id', '=', 'l.cost_center_id')->whereNotNull('l.procurement_classification')->where(static fn (Builder $query): Builder => $query->whereNull('a.id')->orWhereColumn('a.company_id', '<>', 'o.company_id')->orWhere(static fn (Builder $center): Builder => $center->whereNotNull('l.cost_center_id')->whereColumn('c.company_id', '<>', 'o.company_id'))->orWhere(static fn (Builder $mapping): Builder => $mapping->where(static fn (Builder $inventory): Builder => $inventory->where('l.procurement_classification', 'inventory')->where('a.code', '<>', '1200'))->orWhere(static fn (Builder $asset): Builder => $asset->where('l.procurement_classification', 'asset')->where('a.code', '<>', '1300'))->orWhere(static fn (Builder $opex): Builder => $opex->where('l.procurement_classification', 'operating_expense')->where('a.account_type', '<>', 'expense'))))->count();
+    }
+
+    private function invalidServiceAcceptance(): int
+    {
+        try {
+            $scope = DB::table('service_acceptances as sa')->join('purchase_orders as po', 'po.id', '=', 'sa.purchase_order_id')->join('procurement_vendors as v', 'v.id', '=', 'sa.vendor_id')->join('branches as b', 'b.id', '=', 'sa.branch_id')->where(static fn (Builder $q): Builder => $q->whereColumn('po.company_id', '<>', 'sa.company_id')->orWhereColumn('v.company_id', '<>', 'sa.company_id')->orWhereColumn('b.company_id', '<>', 'sa.company_id'))->count();
+            $approved = DB::table('service_acceptance_lines as sal')->join('service_acceptances as sa', 'sa.id', '=', 'sal.service_acceptance_id')->where('sa.status', 'approved')->selectRaw('sal.purchase_order_line_id, SUM(sal.accepted_quantity) accepted')->groupBy('sal.purchase_order_line_id');
+            $over = DB::table('purchase_order_lines as pol')->joinSub($approved, 'accepted', 'accepted.purchase_order_line_id', '=', 'pol.id')->whereColumn('accepted.accepted', '>', 'pol.ordered_quantity')->count();
+            $journal = DB::table('service_acceptances as sa')->leftJoin('payroll_accounting_journals as j', 'j.id', '=', 'sa.accounting_journal_id')->where('sa.status', 'approved')->where(static fn (Builder $q): Builder => $q->whereNull('j.id')->orWhereColumn('j.company_id', '<>', 'sa.company_id')->orWhereColumn('j.total_debit_minor', '<>', 'sa.total_minor')->orWhereColumn('j.total_credit_minor', '<>', 'sa.total_minor'))->count();
+
+            return $scope + $over + $journal;
+        } catch (QueryException $exception) {
+            if ($this->isMissingServiceAcceptanceTable($exception)) {
+                return 0;
+            }
+
+            throw $exception;
+        }
+    }
+
+    private function invalidServiceBilling(): int
+    {
+        try {
+            $billed = DB::table('vendor_bill_lines as vbl')->join('vendor_bills as vb', 'vb.id', '=', 'vbl.vendor_bill_id')->whereNotIn('vb.status', ['cancelled', 'rejected'])->whereNotNull('vbl.service_acceptance_line_id')->selectRaw('vbl.service_acceptance_line_id, SUM(vbl.quantity) billed')->groupBy('vbl.service_acceptance_line_id');
+
+            return DB::table('service_acceptance_lines as sal')->joinSub($billed, 'billed', 'billed.service_acceptance_line_id', '=', 'sal.id')->join('service_acceptances as sa', 'sa.id', '=', 'sal.service_acceptance_id')->where(static fn (Builder $q): Builder => $q->where('sa.status', '<>', 'approved')->orWhereColumn('billed.billed', '>', 'sal.accepted_quantity'))->count();
+        } catch (QueryException $exception) {
+            if ($this->isMissingServiceAcceptanceTable($exception)) {
+                return 0;
+            }
+
+            throw $exception;
+        }
+    }
+
+    private function isMissingServiceAcceptanceTable(QueryException $exception): bool
+    {
+        $message = $exception->getMessage();
+
+        return str_contains($message, 'service_acceptances')
+            || str_contains($message, 'service_acceptance_lines')
+            || str_contains($message, 'service_acceptance_line_id');
     }
 }

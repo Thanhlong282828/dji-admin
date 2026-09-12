@@ -92,9 +92,9 @@ final class ExecutivePlanningTest extends TestCase
         $after = count(DB::getQueryLog());
         DB::disableQueryLog();
 
-        // Project and Maintenance integrity add twelve fixed Data Quality queries after
+        // Project, Maintenance and Service Procurement integrity add sixteen fixed Data Quality queries after
         // the Employee fingerprint changes; this ceiling remains independent of volume.
-        self::assertLessThanOrEqual($before + 12, $after);
+        self::assertLessThanOrEqual($before + 16, $after);
         // Keep the current fixed read-model ceiling; before/after equality is the N+1 gate.
         // Commerce payment/revenue, Seller-Company and POS receipt/inventory movement quality
         // checks, including Product-media and Recruitment-hire lineage, remain fixed as
@@ -109,7 +109,7 @@ final class ExecutivePlanningTest extends TestCase
         // Three cross-domain source rules add nine fixed lookups, independent of volume.
         // Procurement realization adds three fixed grouped DQ queries,
         // while the before/after growth assertion above remains the N+1 guard.
-        self::assertLessThanOrEqual(135, $after);
+        self::assertLessThanOrEqual(139, $after);
     }
 
     private function company(string $suffix): Company

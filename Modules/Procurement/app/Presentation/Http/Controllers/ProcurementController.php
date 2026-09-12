@@ -10,7 +10,10 @@ use Illuminate\View\View;
 use Modules\Company\Domain\Services\BranchAccessService;
 use Modules\Core\Application\Buses\CommandBusInterface;
 use Modules\Core\Application\Buses\QueryBusInterface;
+use Modules\Procurement\Application\Commands\ApproveServiceAcceptanceCommand;
+use Modules\Procurement\Application\Commands\CreateServiceAcceptanceCommand;
 use Modules\Procurement\Application\Commands\MutateProcurementCommand;
+use Modules\Procurement\Application\Commands\SubmitServiceAcceptanceCommand;
 use Modules\Procurement\Application\Queries\GetProcurementPageQuery;
 use Modules\Procurement\Presentation\Http\Requests\ProcurementRequest;
 
@@ -24,7 +27,7 @@ final readonly class ProcurementController
         abort_unless($user instanceof User, 401);
         $company = $request->integer('company_id', 1);
         abort_unless($this->access->company($user, $company), 404);
-        abort_unless(in_array($page, ['vendors', 'requests', 'orders', 'receipts', 'payables'], true), 404);
+        abort_unless(in_array($page, ['vendors', 'requests', 'orders', 'receipts', 'service-acceptances', 'payables'], true), 404);
         $data = $this->queries->ask(new GetProcurementPageQuery($company, $page));
         abort_unless(is_array($data), 500);
 
@@ -46,13 +49,22 @@ final readonly class ProcurementController
             'order.transition' => $request->string('to')->toString() === 'approved' ? 'purchase-order.approve' : ($request->string('to')->toString() === 'sent' ? 'purchase-order.send' : 'purchase-order.cancel'),
             'receipt.create' => 'goods-receipt.create',
             'receipt.receive' => 'goods-receipt.receive',
+            'service-acceptance.create' => 'service-acceptance.create',
+            'service-acceptance.submit' => 'service-acceptance.submit',
+            'service-acceptance.approve' => 'service-acceptance.approve',
             'bill.create' => 'vendor-bill.create',
             'bill.approve' => 'vendor-bill.approve',
             'payment.allocate' => 'ap-payment.create',
             default => abort(404),
         };
         Gate::forUser($user)->authorize($permission);
-        $this->commands->dispatch(new MutateProcurementCommand($action, $company, $user, $request->validated()));
+        $data = $request->validated();
+        match ($action) {
+            'service-acceptance.create' => $this->commands->dispatch(new CreateServiceAcceptanceCommand($company, $user, $data)),
+            'service-acceptance.submit' => $this->commands->dispatch(new SubmitServiceAcceptanceCommand($company, $request->integer('id'), $user)),
+            'service-acceptance.approve' => $this->commands->dispatch(new ApproveServiceAcceptanceCommand($company, $request->integer('id'), $user)),
+            default => $this->commands->dispatch(new MutateProcurementCommand($action, $company, $user, $data)),
+        };
 
         return back()->with('status', 'Procurement workflow đã cập nhật.');
     }

@@ -5,13 +5,14 @@ namespace Modules\Procurement\Application\Services;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
+use Modules\Finance\Application\Services\AccountingPostingPolicyResolver;
 use Modules\Finance\Application\Services\SourceAccountingPostingService;
 use Modules\Finance\Application\Services\TreasuryService;
 use Modules\Inventory\Domain\Services\InventoryService;
 
 final readonly class ProcurementService
 {
-    public function __construct(private InventoryService $inventory, private SourceAccountingPostingService $accounting, private TreasuryService $treasury) {}
+    public function __construct(private InventoryService $inventory, private SourceAccountingPostingService $accounting, private TreasuryService $treasury, private AccountingPostingPolicyResolver $postingPolicies) {}
 
     /** @param array<string,mixed> $data */
     public function mutate(string $action, int $companyId, User $actor, array $data): int
@@ -201,7 +202,7 @@ final readonly class ProcurementService
     {
         return DB::transaction(function () use ($companyId, $actor, $data): int {
             $orderId = $this->positive($data, 'purchase_order_id');
-            $order = DB::table('purchase_orders')->where(['id' => $orderId, 'company_id' => $companyId])->whereIn('status', ['partially_received', 'received', 'closed'])->lockForUpdate()->firstOrFail();
+            $order = DB::table('purchase_orders')->where(['id' => $orderId, 'company_id' => $companyId])->whereIn('status', ['approved', 'sent', 'partially_received', 'received', 'closed'])->lockForUpdate()->firstOrFail();
             $invoice = $this->text($data, 'invoice_number');
             $existing = DB::table('vendor_bills')->where(['company_id' => $companyId, 'vendor_id' => $this->id($order, 'vendor_id'), 'invoice_number' => $invoice])->first();
             if ($existing !== null) {
@@ -223,11 +224,25 @@ final readonly class ProcurementService
             $billLines = [];
             $subtotal = 0;
             foreach ($lines as $line) {
-                if ($this->nullableProperty($line, 'procurement_classification') !== 'inventory') {
-                    throw ValidationException::withMessages(['purchase_order_line_id' => 'Partial Vendor Bill hiện chỉ hỗ trợ inventory đã Goods Receipt.']);
+                $classification = $this->nullableProperty($line, 'procurement_classification');
+                $serviceAcceptanceLineId = null;
+                if ($classification === 'inventory') {
+                    $billed = $this->persistenceInteger($billedByLine->get($this->id($line, 'id')));
+                    $billable = $this->id($line, 'received_quantity') - $billed;
+                } elseif ($classification === 'operating_expense') {
+                    if ($requestedLine === null) {
+                        throw ValidationException::withMessages(['purchase_order_line_id' => 'Service Vendor Bill phải chọn đúng một PO line.']);
+                    }
+                    $serviceAcceptanceLineId = $this->positive($data, 'service_acceptance_line_id');
+                    $acceptanceLine = DB::table('service_acceptance_lines as sal')->join('service_acceptances as sa', 'sa.id', '=', 'sal.service_acceptance_id')
+                        ->where(['sal.id' => $serviceAcceptanceLineId, 'sal.purchase_order_line_id' => $this->id($line, 'id'), 'sa.company_id' => $companyId, 'sa.purchase_order_id' => $orderId, 'sa.status' => 'approved'])
+                        ->lockForUpdate()->firstOrFail(['sal.accepted_quantity']);
+                    $billed = (int) DB::table('vendor_bill_lines as vbl')->join('vendor_bills as vb', 'vb.id', '=', 'vbl.vendor_bill_id')
+                        ->where('vbl.service_acceptance_line_id', $serviceAcceptanceLineId)->whereNotIn('vb.status', ['cancelled', 'rejected'])->sum('vbl.quantity');
+                    $billable = $this->id($acceptanceLine, 'accepted_quantity') - $billed;
+                } else {
+                    throw ValidationException::withMessages(['purchase_order_line_id' => 'Procurement classification chưa hỗ trợ Vendor Bill.']);
                 }
-                $billed = $this->persistenceInteger($billedByLine->get($this->id($line, 'id')));
-                $billable = $this->id($line, 'received_quantity') - $billed;
                 $quantity = $requestedLine === null ? $billable : $this->positive($data, 'quantity');
                 if ($quantity > $billable) {
                     throw ValidationException::withMessages(['quantity' => 'Số lượng invoice vượt số lượng inventory đã nhận nhưng chưa billed.']);
@@ -237,7 +252,7 @@ final readonly class ProcurementService
                 }
                 $amount = $quantity * $this->id($line, 'unit_cost_minor');
                 $subtotal += $amount;
-                $billLines[] = ['line' => $line, 'quantity' => $quantity, 'amount' => $amount];
+                $billLines[] = ['line' => $line, 'quantity' => $quantity, 'amount' => $amount, 'service_acceptance_line_id' => $serviceAcceptanceLineId];
             }
             if ($billLines === []) {
                 throw ValidationException::withMessages(['quantity' => 'Purchase Order không còn số lượng đã nhận có thể lập Bill.']);
@@ -248,7 +263,7 @@ final readonly class ProcurementService
             $id = (int) DB::table('vendor_bills')->insertGetId(['company_id' => $companyId, 'branch_id' => $this->id($order, 'branch_id'), 'vendor_id' => $this->id($order, 'vendor_id'), 'purchase_order_id' => $orderId, 'cost_center_id' => $headerCostCenter, 'cost_center_code_snapshot' => $headerSource === null ? null : $this->nullableProperty($headerSource, 'cost_center_code_snapshot'), 'cost_center_name_snapshot' => $headerSource === null ? null : $this->nullableProperty($headerSource, 'cost_center_name_snapshot'), 'invoice_number' => $invoice, 'invoice_date' => $this->date($data, 'invoice_date'), 'due_date' => $this->date($data, 'due_date'), 'currency' => 'VND', 'subtotal_minor' => $subtotal, 'tax_minor' => 0, 'total_minor' => $subtotal, 'tax_status' => 'configuration_required', 'status' => 'draft', 'created_by' => $actor->id, 'created_at' => now(), 'updated_at' => now()]);
             foreach ($billLines as $item) {
                 $line = $item['line'];
-                DB::table('vendor_bill_lines')->insert(['vendor_bill_id' => $id, 'purchase_order_line_id' => $this->id($line, 'id'), 'goods_receipt_line_id' => null, 'cost_center_id' => $this->nullableId($line, 'cost_center_id'), 'cost_center_code_snapshot' => $this->nullableProperty($line, 'cost_center_code_snapshot'), 'cost_center_name_snapshot' => $this->nullableProperty($line, 'cost_center_name_snapshot'), 'procurement_classification' => $this->property($line, 'procurement_classification'), 'account_id' => $this->id($line, 'account_id'), 'account_code_snapshot' => $this->property($line, 'account_code_snapshot'), 'account_name_snapshot' => $this->property($line, 'account_name_snapshot'), 'description' => $this->property($line, 'description'), 'quantity' => $item['quantity'], 'unit_cost_minor' => $this->id($line, 'unit_cost_minor'), 'line_total_minor' => $item['amount'], 'created_at' => now(), 'updated_at' => now()]);
+                DB::table('vendor_bill_lines')->insert(['vendor_bill_id' => $id, 'purchase_order_line_id' => $this->id($line, 'id'), 'goods_receipt_line_id' => null, 'service_acceptance_line_id' => $item['service_acceptance_line_id'], 'cost_center_id' => $this->nullableId($line, 'cost_center_id'), 'cost_center_code_snapshot' => $this->nullableProperty($line, 'cost_center_code_snapshot'), 'cost_center_name_snapshot' => $this->nullableProperty($line, 'cost_center_name_snapshot'), 'procurement_classification' => $this->property($line, 'procurement_classification'), 'account_id' => $this->id($line, 'account_id'), 'account_code_snapshot' => $this->property($line, 'account_code_snapshot'), 'account_name_snapshot' => $this->property($line, 'account_name_snapshot'), 'description' => $this->property($line, 'description'), 'quantity' => $item['quantity'], 'unit_cost_minor' => $this->id($line, 'unit_cost_minor'), 'line_total_minor' => $item['amount'], 'created_at' => now(), 'updated_at' => now()]);
             }
 
             return $id;
@@ -268,9 +283,24 @@ final readonly class ProcurementService
             if ($this->property($bill, 'status') !== 'draft' || $this->id($bill, 'created_by') === $actor->id) {
                 throw ValidationException::withMessages(['actor' => 'Maker không được tự approve Vendor Bill.']);
             }
-            DB::table('vendor_bills')->where('id', $id)->update(['status' => 'approved', 'approved_by' => $actor->id, 'approved_at' => now(), 'updated_at' => now()]);
             $amount = $this->id($bill, 'total_minor');
-            $this->accounting->post($companyId, $this->id($bill, 'branch_id'), 'vendor_bill', $id, 'vendor_bill', $this->property($bill, 'invoice_date'), $this->property($bill, 'currency'), [['account_code' => '2150', 'debit' => $amount, 'credit' => 0, 'description' => 'Clear received not invoiced'], ['account_code' => '2100', 'debit' => 0, 'credit' => $amount, 'description' => 'Vendor payable']], $actor->id);
+            $classifications = DB::table('vendor_bill_lines')->where('vendor_bill_id', $id)->distinct()->pluck('procurement_classification');
+            if ($classifications->count() !== 1) {
+                throw ValidationException::withMessages(['lines' => 'Vendor Bill không được trộn Goods và Service.']);
+            }
+            $classification = $classifications->first();
+            $policyId = null;
+            $policyVersion = null;
+            if ($classification === 'operating_expense') {
+                $policy = $this->postingPolicies->resolve($companyId, 'SERVICE_VENDOR_BILL_POSTED', 'operating_expense', $this->property($bill, 'invoice_date'), $this->property($bill, 'currency'));
+                $lines = array_map(fn (array $line): array => ['account_code' => $line['account_code'], 'debit' => $line['entry_side'] === 'debit' ? $amount : 0, 'credit' => $line['entry_side'] === 'credit' ? $amount : 0, 'description' => 'Service vendor bill '.$line['line_role']], $policy['lines']);
+                $policyId = $policy['policy_id'];
+                $policyVersion = $policy['version'];
+            } else {
+                $lines = [['account_code' => '2150', 'debit' => $amount, 'credit' => 0, 'description' => 'Clear received not invoiced'], ['account_code' => '2100', 'debit' => 0, 'credit' => $amount, 'description' => 'Vendor payable']];
+            }
+            $journalId = $this->accounting->post($companyId, $this->id($bill, 'branch_id'), 'vendor_bill', $id, $classification === 'operating_expense' ? 'service_vendor_bill' : 'vendor_bill', $this->property($bill, 'invoice_date'), $this->property($bill, 'currency'), $lines, $actor->id);
+            DB::table('vendor_bills')->where('id', $id)->update(['status' => 'approved', 'accounting_posting_policy_id' => $policyId, 'accounting_posting_policy_version' => $policyVersion, 'accounting_journal_id' => $journalId, 'approved_by' => $actor->id, 'approved_at' => now(), 'updated_at' => now()]);
 
             return $id;
         }, 3);

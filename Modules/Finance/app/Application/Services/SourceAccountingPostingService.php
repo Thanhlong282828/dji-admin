@@ -93,11 +93,11 @@ final readonly class SourceAccountingPostingService
             '5100' => ['Operating Expense', 'expense', 'debit'], '5200' => ['Depreciation Expense', 'expense', 'debit'], '5300' => ['Asset Disposal Loss', 'expense', 'debit'],
             '1300' => ['Fixed Assets', 'asset', 'debit'], '1390' => ['Accumulated Depreciation', 'contra_asset', 'credit'],
         ];
-        if (! isset($definitions[$code])) {
-            throw ValidationException::withMessages(['accounting' => 'ACCOUNTING_ACCOUNT_PURPOSE_UNKNOWN: '.$code]);
-        }
-        $row = $this->db->table('accounting_accounts')->where(['company_id' => $companyId, 'code' => $code])->where('status', 'active')->first();
+        $row = $this->db->table('accounting_accounts')->where(['company_id' => $companyId, 'code' => $code, 'currency' => $currency, 'allow_posting' => true])->where('status', 'active')->first();
         if ($row === null) {
+            if (! isset($definitions[$code])) {
+                throw ValidationException::withMessages(['accounting' => 'ACCOUNTING_ACCOUNT_PURPOSE_UNKNOWN: '.$code]);
+            }
             [$name, $type, $normal] = $definitions[$code];
             $this->db->table('accounting_accounts')->insertOrIgnore(['uuid' => (string) Str::uuid(), 'company_id' => $companyId, 'parent_id' => null, 'code' => $code, 'name' => $name, 'account_type' => $type, 'normal_balance' => $normal, 'currency' => $currency, 'allow_posting' => true, 'status' => 'active', 'effective_from' => '2000-01-01', 'effective_to' => null, 'created_by' => $actorId, 'created_at' => now(), 'updated_at' => now()]);
             $row = $this->db->table('accounting_accounts')->where(['company_id' => $companyId, 'code' => $code])->firstOrFail();
