@@ -5,6 +5,7 @@ namespace Modules\Procurement\Application\Services;
 use App\Models\User;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Validation\ValidationException;
+use Modules\Finance\Application\Services\AccountingAdjustmentService;
 use Modules\Finance\Application\Services\AccountingPostingPolicyResolver;
 use Modules\Finance\Application\Services\SourceAccountingPostingService;
 
@@ -14,6 +15,7 @@ final readonly class ServiceAcceptanceService
         private ConnectionInterface $db,
         private AccountingPostingPolicyResolver $policies,
         private SourceAccountingPostingService $accounting,
+        private AccountingAdjustmentService $adjustments,
     ) {}
 
     /** @param array<string,mixed> $data */
@@ -128,6 +130,63 @@ final readonly class ServiceAcceptanceService
 
             return $acceptanceId;
         }, 3);
+    }
+
+    public function requestReversal(int $companyId, int $acceptanceId, int $targetPeriodId, string $reason, string $idempotencyKey, User $actor): int
+    {
+        return $this->db->transaction(function () use ($companyId, $acceptanceId, $targetPeriodId, $reason, $idempotencyKey, $actor): int {
+            $acceptance = $this->acceptance($companyId, $acceptanceId);
+            $status = $this->textValue($acceptance->status ?? null);
+            $existingKey = $this->nullableStringValue($acceptance->reversal_idempotency_key ?? null);
+            $existingAdjustment = $this->nullableIntegerValue($acceptance->reversal_adjustment_id ?? null);
+            if (in_array($status, ['reversal_requested', 'reversed'], true) && $existingKey === $idempotencyKey && $existingAdjustment !== null) {
+                return $existingAdjustment;
+            }
+            if ($status !== 'approved') {
+                throw ValidationException::withMessages(['status' => 'SERVICE_ACCEPTANCE_REVERSAL_TRANSITION_INVALID']);
+            }
+            if (trim($reason) === '') {
+                throw ValidationException::withMessages(['reason' => 'SERVICE_ACCEPTANCE_REVERSAL_REASON_REQUIRED']);
+            }
+            if ($this->hasBillingDependency($acceptanceId)) {
+                throw ValidationException::withMessages(['acceptance' => 'SERVICE_ACCEPTANCE_HAS_BILLING_DEPENDENCY']);
+            }
+            $journalId = $this->integer($acceptance->accounting_journal_id ?? null);
+            $reference = 'SA-REV-'.$acceptanceId.'-'.substr(hash('sha256', $idempotencyKey), 0, 10);
+            $adjustmentId = $this->adjustments->mutate('create', $companyId, $actor, ['original_journal_id' => $journalId, 'target_accounting_period_id' => $targetPeriodId, 'reference' => $reference, 'reason' => trim($reason)]);
+            $this->adjustments->mutate('submit', $companyId, $actor, ['id' => $adjustmentId]);
+            $this->db->table('service_acceptances')->where('id', $acceptanceId)->update(['status' => 'reversal_requested', 'reversal_idempotency_key' => $idempotencyKey, 'reversal_adjustment_id' => $adjustmentId, 'reversal_reason' => trim($reason), 'reversal_requested_by' => $actor->id, 'reversal_requested_at' => now(), 'updated_at' => now()]);
+
+            return $adjustmentId;
+        }, 3);
+    }
+
+    public function approveReversal(int $companyId, int $acceptanceId, User $actor): int
+    {
+        return $this->db->transaction(function () use ($companyId, $acceptanceId, $actor): int {
+            $acceptance = $this->acceptance($companyId, $acceptanceId);
+            $existingJournal = $this->nullableIntegerValue($acceptance->reversal_journal_id ?? null);
+            if ($this->textValue($acceptance->status ?? null) === 'reversed' && $existingJournal !== null) {
+                return $existingJournal;
+            }
+            if ($this->textValue($acceptance->status ?? null) !== 'reversal_requested') {
+                throw ValidationException::withMessages(['status' => 'SERVICE_ACCEPTANCE_REVERSAL_TRANSITION_INVALID']);
+            }
+            if ($this->hasBillingDependency($acceptanceId)) {
+                throw ValidationException::withMessages(['acceptance' => 'SERVICE_ACCEPTANCE_HAS_BILLING_DEPENDENCY']);
+            }
+            $adjustmentId = $this->integer($acceptance->reversal_adjustment_id ?? null);
+            $this->adjustments->mutate('approve', $companyId, $actor, ['id' => $adjustmentId]);
+            $reversalJournalId = $this->adjustments->mutate('post', $companyId, $actor, ['id' => $adjustmentId]);
+            $this->db->table('service_acceptances')->where('id', $acceptanceId)->update(['status' => 'reversed', 'reversal_journal_id' => $reversalJournalId, 'reversed_by' => $actor->id, 'reversed_at' => now(), 'updated_at' => now()]);
+
+            return $reversalJournalId;
+        }, 3);
+    }
+
+    private function hasBillingDependency(int $acceptanceId): bool
+    {
+        return $this->db->table('vendor_bill_lines as vbl')->join('vendor_bills as vb', 'vb.id', '=', 'vbl.vendor_bill_id')->join('service_acceptance_lines as sal', 'sal.id', '=', 'vbl.service_acceptance_line_id')->where('sal.service_acceptance_id', $acceptanceId)->whereNotIn('vb.status', ['cancelled', 'rejected'])->lockForUpdate()->exists();
     }
 
     private function acceptance(int $companyId, int $acceptanceId): object

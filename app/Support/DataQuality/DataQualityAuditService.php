@@ -892,10 +892,24 @@ final class DataQualityAuditService
     private function invalidServiceAcceptance(): int
     {
         try {
-            $scope = DB::table('service_acceptances as sa')->join('purchase_orders as po', 'po.id', '=', 'sa.purchase_order_id')->join('procurement_vendors as v', 'v.id', '=', 'sa.vendor_id')->join('branches as b', 'b.id', '=', 'sa.branch_id')->where(static fn (Builder $q): Builder => $q->whereColumn('po.company_id', '<>', 'sa.company_id')->orWhereColumn('v.company_id', '<>', 'sa.company_id')->orWhereColumn('b.company_id', '<>', 'sa.company_id'))->count();
+            $scopeIssues = DB::table('service_acceptances as sa')->join('purchase_orders as po', 'po.id', '=', 'sa.purchase_order_id')->join('procurement_vendors as v', 'v.id', '=', 'sa.vendor_id')->join('branches as b', 'b.id', '=', 'sa.branch_id')->where(static fn (Builder $q): Builder => $q->whereColumn('po.company_id', '<>', 'sa.company_id')->orWhereColumn('v.company_id', '<>', 'sa.company_id')->orWhereColumn('b.company_id', '<>', 'sa.company_id'))->selectRaw('1 issue_count');
+            $documentIssues = DB::table('enterprise_documents as document')->leftJoin('service_acceptances as sa', 'sa.id', '=', 'document.subject_id')->where('document.subject_type', 'SERVICE_ACCEPTANCE')->where(static fn (Builder $q): Builder => $q->whereNull('sa.id')->orWhereColumn('sa.company_id', '<>', 'document.company_id'))->selectRaw('1 issue_count');
+            $workflowIssues = DB::table('workflow_instances as workflow')->leftJoin('service_acceptances as sa', 'sa.id', '=', 'workflow.subject_id')->whereIn('workflow.subject_type', ['SERVICE_ACCEPTANCE_APPROVAL', 'SERVICE_ACCEPTANCE_REVERSAL_APPROVAL'])->where(static fn (Builder $q): Builder => $q->whereNull('sa.id')->orWhereColumn('sa.company_id', '<>', 'workflow.company_id'))->selectRaw('1 issue_count');
+            $duplicateWorkflowIssues = DB::table('workflow_instances')->whereIn('subject_type', ['SERVICE_ACCEPTANCE_APPROVAL', 'SERVICE_ACCEPTANCE_REVERSAL_APPROVAL'])->where('engine_status', 'running')->selectRaw('COUNT(*) - 1 issue_count')->groupBy('company_id', 'subject_type', 'subject_id')->havingRaw('COUNT(*) > 1');
+            $scope = $scopeIssues->unionAll($documentIssues)->unionAll($workflowIssues)->unionAll($duplicateWorkflowIssues)->get()->sum(static function (object $row): int {
+                $issueCount = $row->issue_count ?? null;
+
+                if (! is_int($issueCount) && ! is_string($issueCount)) {
+                    return 0;
+                }
+
+                return max(0, intval($issueCount));
+            });
             $approved = DB::table('service_acceptance_lines as sal')->join('service_acceptances as sa', 'sa.id', '=', 'sal.service_acceptance_id')->where('sa.status', 'approved')->selectRaw('sal.purchase_order_line_id, SUM(sal.accepted_quantity) accepted')->groupBy('sal.purchase_order_line_id');
             $over = DB::table('purchase_order_lines as pol')->joinSub($approved, 'accepted', 'accepted.purchase_order_line_id', '=', 'pol.id')->whereColumn('accepted.accepted', '>', 'pol.ordered_quantity')->count();
-            $journal = DB::table('service_acceptances as sa')->leftJoin('payroll_accounting_journals as j', 'j.id', '=', 'sa.accounting_journal_id')->where('sa.status', 'approved')->where(static fn (Builder $q): Builder => $q->whereNull('j.id')->orWhereColumn('j.company_id', '<>', 'sa.company_id')->orWhereColumn('j.total_debit_minor', '<>', 'sa.total_minor')->orWhereColumn('j.total_credit_minor', '<>', 'sa.total_minor'))->count();
+            $journal = DB::table('service_acceptances as sa')->leftJoin('payroll_accounting_journals as original', 'original.id', '=', 'sa.accounting_journal_id')->leftJoin('payroll_accounting_journals as reversal', 'reversal.id', '=', 'sa.reversal_journal_id')->whereIn('sa.status', ['approved', 'reversed'])->where(static fn (Builder $q): Builder => $q
+                ->where(static fn (Builder $approved): Builder => $approved->where('sa.status', 'approved')->where(static fn (Builder $invalid): Builder => $invalid->whereNull('original.id')->orWhereColumn('original.company_id', '<>', 'sa.company_id')->orWhereColumn('original.total_debit_minor', '<>', 'sa.total_minor')->orWhereColumn('original.total_credit_minor', '<>', 'sa.total_minor')))
+                ->orWhere(static fn (Builder $reversed): Builder => $reversed->where('sa.status', 'reversed')->where(static fn (Builder $invalid): Builder => $invalid->whereNull('reversal.id')->orWhereColumn('reversal.company_id', '<>', 'sa.company_id')->orWhereColumn('reversal.reversal_of_journal_id', '<>', 'original.id')->orWhereColumn('reversal.total_debit_minor', '<>', 'original.total_credit_minor')->orWhereColumn('reversal.total_credit_minor', '<>', 'original.total_debit_minor'))))->count();
 
             return $scope + $over + $journal;
         } catch (QueryException $exception) {
@@ -928,6 +942,7 @@ final class DataQualityAuditService
 
         return str_contains($message, 'service_acceptances')
             || str_contains($message, 'service_acceptance_lines')
-            || str_contains($message, 'service_acceptance_line_id');
+            || str_contains($message, 'service_acceptance_line_id')
+            || str_contains($message, 'reversal_journal_id');
     }
 }

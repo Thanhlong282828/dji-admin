@@ -5,19 +5,94 @@ namespace Tests\Feature;
 use App\Models\User;
 use Illuminate\Database\RecordNotFoundException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use Modules\Core\Application\Buses\CommandBusInterface;
+use Modules\Document\Application\Services\EnterpriseDocumentService;
 use Modules\Finance\Application\Services\AccountingPostingPolicyService;
+use Modules\Finance\Application\Services\ApprovalInboxService;
 use Modules\Finance\Application\Services\CostCenterCostManagementReadService;
 use Modules\Finance\Application\Services\SourceAccountingPostingService;
+use Modules\Procurement\Application\Commands\RequestServiceAcceptanceReversalCommand;
+use Modules\Procurement\Application\Commands\SubmitServiceAcceptanceCommand;
+use Modules\Procurement\Application\Services\ProcurementReconciliationReadService;
 use Modules\Procurement\Application\Services\ProcurementService;
 use Modules\Procurement\Application\Services\ServiceAcceptanceService;
+use Modules\Procurement\Application\Services\ServiceAcceptanceWorkflowOrchestrator;
+use Modules\Workflow\Application\DTOs\WorkflowDefinitionData;
+use Modules\Workflow\Domain\Services\WorkflowDefinitionService;
+use Modules\Workflow\Domain\Services\WorkflowTaskService;
+use Spatie\Permission\Models\Permission;
+use Spatie\Permission\Models\Role;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Tests\TestCase;
 
 final class ServiceProcurementRuntimeTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_canonical_workflow_orchestrates_acceptance_and_reversal_without_duplicate_side_effects(): void
+    {
+        $f = $this->fixture();
+        $this->workflowDefinition($f, ServiceAcceptanceWorkflowOrchestrator::APPROVAL);
+        $this->workflowDefinition($f, ServiceAcceptanceWorkflowOrchestrator::REVERSAL);
+        $acceptance = $this->acceptances()->create($f['company'], $f['maker'], $this->acceptanceData($f, 'SA-WORKFLOW', 4));
+        $commands = app(CommandBusInterface::class);
+
+        $commands->dispatch(new SubmitServiceAcceptanceCommand($f['company'], $acceptance, $f['maker']));
+        $commands->dispatch(new SubmitServiceAcceptanceCommand($f['company'], $acceptance, $f['maker']));
+        $approvalInstance = DB::table('workflow_instances')->where(['company_id' => $f['company'], 'subject_type' => ServiceAcceptanceWorkflowOrchestrator::APPROVAL, 'subject_id' => $acceptance])->firstOrFail();
+        self::assertSame(1, DB::table('workflow_instances')->where(['company_id' => $f['company'], 'subject_type' => ServiceAcceptanceWorkflowOrchestrator::APPROVAL, 'subject_id' => $acceptance])->count());
+        self::assertSame(1, DB::table('workflow_tasks')->where('workflow_instance_id', $approvalInstance->id)->count());
+        self::assertContains('Workflow Task', array_column(app(ApprovalInboxService::class)->read($f['company'], (int) $f['checker']->id)['pending'], 'type'));
+        self::assertContains('Service Acceptance Approval', array_column(app(ApprovalInboxService::class)->read($f['company'], (int) $f['checker']->id)['pending'], 'type'));
+        $approvalTask = DB::table('workflow_tasks')->where('workflow_instance_id', $approvalInstance->id)->firstOrFail();
+        app(WorkflowTaskService::class)->decide($f['company'], (int) $approvalTask->id, (int) $f['checker']->id, 'approved', null, 'sa-workflow-approve');
+        self::assertSame('approved', DB::table('service_acceptances')->where('id', $acceptance)->value('status'));
+        self::assertSame(['5100', '2160'], DB::table('payroll_accounting_journal_lines')->where('journal_id', DB::table('service_acceptances')->where('id', $acceptance)->value('accounting_journal_id'))->orderBy('line_number')->pluck('account_code_snapshot')->all());
+
+        $period = (int) DB::table('accounting_periods')->where(['company_id' => $f['company'], 'year' => 2026, 'month' => 9])->value('id');
+        $reversal = new RequestServiceAcceptanceReversalCommand($f['company'], $acceptance, $period, 'Workflow controlled reversal', 'sa-workflow-reversal', $f['maker']);
+        $commands->dispatch($reversal);
+        $commands->dispatch($reversal);
+        $reversalInstance = DB::table('workflow_instances')->where(['company_id' => $f['company'], 'subject_type' => ServiceAcceptanceWorkflowOrchestrator::REVERSAL, 'subject_id' => $acceptance])->firstOrFail();
+        self::assertSame(1, DB::table('workflow_instances')->where(['company_id' => $f['company'], 'subject_type' => ServiceAcceptanceWorkflowOrchestrator::REVERSAL, 'subject_id' => $acceptance])->count());
+        self::assertContains('Service Acceptance Reversal Approval', array_column(app(ApprovalInboxService::class)->read($f['company'], (int) $f['checker']->id)['pending'], 'type'));
+        $reversalTask = DB::table('workflow_tasks')->where('workflow_instance_id', $reversalInstance->id)->firstOrFail();
+        app(WorkflowTaskService::class)->decide($f['company'], (int) $reversalTask->id, (int) $f['checker']->id, 'approved', null, 'sa-workflow-reversal-approve');
+        self::assertSame('reversed', DB::table('service_acceptances')->where('id', $acceptance)->value('status'));
+        $reversalJournal = DB::table('service_acceptances')->where('id', $acceptance)->value('reversal_journal_id');
+        self::assertSame(4_000_000, (int) DB::table('payroll_accounting_journal_lines')->where(['journal_id' => $reversalJournal, 'account_code_snapshot' => '2160'])->sum('debit_minor'));
+        self::assertSame(4_000_000, (int) DB::table('payroll_accounting_journal_lines')->where(['journal_id' => $reversalJournal, 'account_code_snapshot' => '5100'])->sum('credit_minor'));
+        self::assertSame(4, DB::table('workflow_outbox')->whereIn('workflow_instance_id', [(int) $approvalInstance->id, (int) $reversalInstance->id])->count());
+    }
+
+    public function test_service_acceptance_evidence_reuses_private_dms_and_enforces_tenant_linkage(): void
+    {
+        Storage::fake('local');
+        $f = $this->fixture();
+        $acceptance = $this->acceptances()->create($f['company'], $f['maker'], $this->acceptanceData($f, 'SA-DMS', 2));
+        $documents = app(EnterpriseDocumentService::class);
+        $document = $documents->create([
+            'company_id' => $f['company'], 'document_type' => 'SERVICE_ACCEPTANCE_EVIDENCE', 'title' => 'Biên bản nghiệm thu',
+            'classification' => 'CONFIDENTIAL', 'owner_module' => 'Procurement', 'subject_type' => 'SERVICE_ACCEPTANCE', 'subject_id' => $acceptance,
+        ], UploadedFile::fake()->createWithContent('acceptance.pdf', "%PDF-1.4\nservice acceptance"), (int) $f['maker']->id);
+        $row = DB::table('enterprise_documents')->where('id', $document)->firstOrFail();
+        $version = DB::table('enterprise_document_versions')->where('document_id', $document)->firstOrFail();
+        self::assertSame('SERVICE_ACCEPTANCE', $row->subject_type);
+        self::assertSame($acceptance, (int) $row->subject_id);
+        self::assertSame(64, strlen((string) $version->sha256));
+        self::assertSame('local_private', $version->storage_driver);
+
+        $this->expectException(NotFoundHttpException::class);
+        $documents->create([
+            'company_id' => $f['foreign_company'], 'document_type' => 'SERVICE_ACCEPTANCE_EVIDENCE', 'title' => 'Foreign evidence',
+            'classification' => 'CONFIDENTIAL', 'owner_module' => 'Procurement', 'subject_type' => 'SERVICE_ACCEPTANCE', 'subject_id' => $acceptance,
+        ], UploadedFile::fake()->createWithContent('foreign.pdf', '%PDF-1.4'), (int) $f['maker']->id);
+    }
 
     public function test_partial_acceptance_bill_and_payment_preserve_canonical_lineage(): void
     {
@@ -33,6 +108,11 @@ final class ServiceProcurementRuntimeTest extends TestCase
         self::assertSame(6_000_000, $exposure['commitment']);
         self::assertSame(4_000_000, $exposure['actual']);
         self::assertSame(10_000_000, $exposure['consumed']);
+        $initialReport = $this->report($f['company']);
+        self::assertSame(['ordered' => 10_000_000, 'accepted' => 4_000_000, 'unaccepted' => 6_000_000, 'accrual' => 4_000_000], array_intersect_key($initialReport['service'], array_flip(['ordered', 'accepted', 'unaccepted', 'accrual'])));
+        self::assertSame(0, $initialReport['goods']['grni']);
+        self::assertSame('NO_BUDGET', $initialReport['budget']['status']);
+        self::assertNull($initialReport['budget']['remaining']);
 
         $tooMuch = $this->draftAcceptance($f, 'SA-TOO-MUCH', 7);
         $this->assertValidation(fn () => $this->acceptances()->approve($f['company'], $tooMuch, $f['checker']), 'accepted_quantity', 'SERVICE_ACCEPTANCE_EXCEEDS_ORDER');
@@ -49,6 +129,15 @@ final class ServiceProcurementRuntimeTest extends TestCase
         $payment = $this->procurement()->mutate('payment.allocate', $f['company'], $f['checker'], ['vendor_bill_id' => $bill, 'payment_date' => '2026-09-12', 'amount_minor' => 1_000_000, 'method' => 'bank_clearing', 'reference' => 'PAY-SERVICE-1']);
         self::assertSame($payment, $this->procurement()->mutate('payment.allocate', $f['company'], $f['checker'], ['vendor_bill_id' => $bill, 'payment_date' => '2026-09-12', 'amount_minor' => 1_000_000, 'method' => 'bank_clearing', 'reference' => 'PAY-SERVICE-1']));
         self::assertSame(2_000_000, (int) $billRow->total_minor - (int) DB::table('ap_payment_allocations')->where('vendor_bill_id', $bill)->sum('allocated_minor'));
+        $settlementReport = $this->report($f['company']);
+        self::assertSame(3_000_000, $settlementReport['service']['billed']);
+        self::assertSame(1_000_000, $settlementReport['ap']['paid']);
+        self::assertSame(2_000_000, $settlementReport['ap']['outstanding']);
+        self::assertSame(2_000_000, $settlementReport['ap']['gl']);
+        self::assertSame(7_000_000, $settlementReport['service']['accrual']);
+        self::assertSame(0, $settlementReport['budget']['open_commitment']);
+        self::assertSame(10_000_000, $settlementReport['budget']['actual']);
+        self::assertSame(10_000_000, $settlementReport['budget']['consumed']);
         self::assertSame(1, DB::table('treasury_transactions')->where(['source_type' => 'ap_payment', 'source_id' => $payment])->count());
         self::assertSame($inventoryBefore, DB::table('inventory_movements')->count());
         $afterSettlement = app(CostCenterCostManagementReadService::class)->read($f['company'], null, '2026-09-01', '2026-09-30')['totals'];
@@ -73,6 +162,26 @@ final class ServiceProcurementRuntimeTest extends TestCase
         $service->approve($f['foreign_company'], $id, $f['checker']);
     }
 
+    public function test_reconciliation_filters_are_tenant_scoped_and_query_count_is_bounded(): void
+    {
+        $f = $this->fixture();
+        $this->accept($f, 'SA-REPORT-FILTER', 4);
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+
+        $report = $this->report($f['company'], ['branch_id' => $f['branch'], 'cost_center_id' => $f['cost_center'], 'vendor_id' => $f['vendor'], 'classification' => 'operating_expense']);
+        $queryCount = count(DB::getQueryLog());
+        DB::disableQueryLog();
+
+        self::assertSame(10_000_000, $report['service']['ordered']);
+        self::assertSame(4_000_000, $report['service']['accepted']);
+        self::assertSame(0, $report['goods']['ordered']);
+        self::assertSame('PARTIAL_EVIDENCE', $report['budget']['status']);
+        self::assertNull($report['ap']['gl']);
+        self::assertLessThanOrEqual(25, $queryCount);
+        self::assertSame(0, $this->report($f['foreign_company'])['service']['ordered']);
+    }
+
     public function test_closed_period_blocks_approval_and_inventory_line_is_rejected(): void
     {
         $f = $this->fixture();
@@ -84,13 +193,57 @@ final class ServiceProcurementRuntimeTest extends TestCase
         $this->assertValidation(fn () => $this->acceptances()->create($f['company'], $f['maker'], $this->acceptanceData($f, 'SA-GOODS', 1)), 'purchase_order_line_id', 'SERVICE_ACCEPTANCE_LINE_NOT_ELIGIBLE');
     }
 
-    /** @return array{company:int,foreign_company:int,maker:User,checker:User,po:int,po_line:int} */
+    public function test_unbilled_acceptance_reversal_reuses_accounting_adjustment_and_restores_budget(): void
+    {
+        $f = $this->fixture();
+        $inventoryBefore = DB::table('inventory_movements')->count();
+        $acceptance = $this->accept($f, 'SA-REVERSIBLE', 4);
+        $period = (int) DB::table('accounting_periods')->where(['company_id' => $f['company'], 'year' => 2026, 'month' => 9])->value('id');
+        $before = app(CostCenterCostManagementReadService::class)->read($f['company'], null, '2026-09-01', '2026-09-30')['totals'];
+        self::assertSame(6_000_000, $before['commitment']);
+        self::assertSame(4_000_000, $before['actual']);
+
+        $service = $this->acceptances();
+        $adjustment = $service->requestReversal($f['company'], $acceptance, $period, 'Dịch vụ chưa hoàn thành theo biên bản', 'sa-reversal-key', $f['maker']);
+        self::assertSame($adjustment, $service->requestReversal($f['company'], $acceptance, $period, 'Dịch vụ chưa hoàn thành theo biên bản', 'sa-reversal-key', $f['maker']));
+        $this->assertValidation(fn () => $service->approveReversal($f['company'], $acceptance, $f['maker']), 'approval', 'MAKER_CHECKER_REQUIRED');
+        $journal = $service->approveReversal($f['company'], $acceptance, $f['checker']);
+        self::assertSame($journal, $service->approveReversal($f['company'], $acceptance, $f['checker']));
+        self::assertSame(['5100', '2160'], DB::table('payroll_accounting_journal_lines')->where('journal_id', $journal)->orderBy('line_number')->pluck('account_code_snapshot')->all());
+        self::assertSame([0, 4_000_000], DB::table('payroll_accounting_journal_lines')->where('journal_id', $journal)->orderBy('line_number')->pluck('debit_minor')->map(fn ($v): int => (int) $v)->all());
+        self::assertSame('reversed', DB::table('service_acceptances')->where('id', $acceptance)->value('status'));
+        self::assertSame(1, DB::table('payroll_accounting_journals')->where('reversal_of_journal_id', DB::table('service_acceptances')->where('id', $acceptance)->value('accounting_journal_id'))->count());
+        $after = app(CostCenterCostManagementReadService::class)->read($f['company'], null, '2026-09-01', '2026-09-30')['totals'];
+        self::assertSame(10_000_000, $after['commitment']);
+        self::assertSame(0, $after['actual']);
+        self::assertSame(10_000_000, $after['consumed']);
+        self::assertSame($inventoryBefore, DB::table('inventory_movements')->count());
+    }
+
+    public function test_billing_dependency_and_wrong_tenant_block_reversal(): void
+    {
+        $f = $this->fixture();
+        $acceptance = $this->accept($f, 'SA-BILLED', 4);
+        $line = DB::table('service_acceptance_lines')->where('service_acceptance_id', $acceptance)->firstOrFail();
+        $bill = $this->procurement()->mutate('bill.create', $f['company'], $f['maker'], ['purchase_order_id' => $f['po'], 'purchase_order_line_id' => $f['po_line'], 'service_acceptance_line_id' => (int) $line->id, 'quantity' => 1, 'invoice_number' => 'INV-BLOCK-REVERSAL', 'invoice_date' => '2026-09-12', 'due_date' => '2026-10-12']);
+        self::assertGreaterThan(0, $bill);
+        $period = (int) DB::table('accounting_periods')->where(['company_id' => $f['company'], 'year' => 2026, 'month' => 9])->value('id');
+        $this->assertValidation(fn () => $this->acceptances()->requestReversal($f['company'], $acceptance, $period, 'Sai nghiệm thu', 'blocked-key', $f['checker']), 'acceptance', 'SERVICE_ACCEPTANCE_HAS_BILLING_DEPENDENCY');
+        $this->expectException(RecordNotFoundException::class);
+        $this->acceptances()->requestReversal($f['foreign_company'], $acceptance, $period, 'Sai tenant', 'foreign-key', $f['checker']);
+    }
+
+    /** @return array{company:int,foreign_company:int,maker:User,checker:User,branch:int,cost_center:int,vendor:int,po:int,po_line:int} */
     private function fixture(): array
     {
         $maker = User::factory()->create();
         $checker = User::factory()->create();
         $company = (int) DB::table('companies')->insertGetId(['uuid' => (string) Str::uuid(), 'code' => 'SERVICE', 'name' => 'Service Company', 'is_active' => true, 'created_at' => now(), 'updated_at' => now()]);
         $foreign = (int) DB::table('companies')->insertGetId(['uuid' => (string) Str::uuid(), 'code' => 'FOREIGN', 'name' => 'Foreign Company', 'is_active' => true, 'created_at' => now(), 'updated_at' => now()]);
+        DB::table('company_user_access')->insert([
+            ['company_id' => $company, 'user_id' => $maker->id, 'created_at' => now(), 'updated_at' => now()],
+            ['company_id' => $company, 'user_id' => $checker->id, 'created_at' => now(), 'updated_at' => now()],
+        ]);
         $branch = (int) DB::table('branches')->insertGetId(['company_id' => $company, 'code' => 'HQ', 'name' => 'HQ', 'status' => 'active', 'timezone' => 'Asia/Ho_Chi_Minh', 'created_at' => now(), 'updated_at' => now()]);
         $center = (int) DB::table('cost_centers')->insertGetId(['company_id' => $company, 'code' => 'OPS', 'name' => 'Operations', 'created_at' => now(), 'updated_at' => now()]);
         $procurement = $this->procurement();
@@ -103,7 +256,24 @@ final class ServiceProcurementRuntimeTest extends TestCase
         $poLine = (int) DB::table('purchase_order_lines')->where('purchase_order_id', $po)->value('id');
         $this->policies($company, $maker, $checker);
 
-        return ['company' => $company, 'foreign_company' => $foreign, 'maker' => $maker, 'checker' => $checker, 'po' => $po, 'po_line' => $poLine];
+        return ['company' => $company, 'foreign_company' => $foreign, 'maker' => $maker, 'checker' => $checker, 'branch' => $branch, 'cost_center' => $center, 'vendor' => $vendor, 'po' => $po, 'po_line' => $poLine];
+    }
+
+    /** @param array{company:int,maker:User,checker:User} $f */
+    private function workflowDefinition(array $f, string $code): int
+    {
+        $permissionName = $code === ServiceAcceptanceWorkflowOrchestrator::APPROVAL ? 'service-acceptance.approve' : 'service-acceptance.reverse';
+        $permission = Permission::findOrCreate($permissionName, 'web');
+        $role = Role::findOrCreate('Service Workflow '.$permissionName, 'web');
+        $role->givePermissionTo($permission);
+        $f['checker']->assignRole($role);
+        $service = app(WorkflowDefinitionService::class);
+        $id = $service->create(new WorkflowDefinitionData($f['company'], (int) $f['maker']->id, $code, $code, null, 'sequential', [[
+            'key' => 'approve', 'name' => 'Approval', 'mode' => 'any_one', 'resolver_type' => 'permission', 'resolver_value' => $permissionName,
+        ]]));
+        $service->publish($f['company'], $id, (int) $f['maker']->id);
+
+        return $id;
     }
 
     private function policies(int $company, User $maker, User $checker): void
@@ -154,6 +324,12 @@ final class ServiceProcurementRuntimeTest extends TestCase
     private function acceptances(): ServiceAcceptanceService
     {
         return app(ServiceAcceptanceService::class);
+    }
+
+    /** @return array<string,mixed> */
+    private function report(int $company, array $filters = []): array
+    {
+        return app(ProcurementReconciliationReadService::class)->read($company, array_replace(['date_from' => '2026-09-01', 'date_to' => '2026-09-30', 'branch_id' => null, 'cost_center_id' => null, 'vendor_id' => null, 'classification' => null, 'currency' => 'VND'], $filters));
     }
 
     private function assertValidation(callable $operation, string $key, ?string $message = null): void

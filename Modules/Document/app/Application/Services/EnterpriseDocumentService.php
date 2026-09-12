@@ -96,7 +96,7 @@ final readonly class EnterpriseDocumentService
 
     private function validateSubject(int $companyId, string $type, int $id): void
     {
-        $tables = ['EMPLOYEE' => 'employees', 'EMPLOYEE_CONTRACT' => 'employment_contracts', 'PURCHASE_ORDER' => 'purchase_orders', 'GOODS_RECEIPT' => 'procurement_goods_receipts', 'VENDOR_INVOICE' => 'vendor_bills', 'EXPENSE' => 'finance_expenses', 'ASSET' => 'finance_assets', 'SALES_ORDER' => 'sales_orders', 'CUSTOMER_INVOICE' => 'customer_invoices', 'ACCOUNTING_ADJUSTMENT' => 'accounting_adjustment_requests', 'PROJECT' => 'projects', 'PROJECT_MILESTONE' => 'project_milestones', 'PROJECT_TASK' => 'project_tasks', 'MAINTENANCE_REQUEST' => 'maintenance_requests', 'MAINTENANCE_WORK_ORDER' => 'maintenance_work_orders', 'MAINTENANCE_PLAN' => 'preventive_maintenance_plans'];
+        $tables = ['EMPLOYEE' => 'employees', 'EMPLOYEE_CONTRACT' => 'employment_contracts', 'PURCHASE_ORDER' => 'purchase_orders', 'GOODS_RECEIPT' => 'procurement_goods_receipts', 'SERVICE_ACCEPTANCE' => 'service_acceptances', 'VENDOR_INVOICE' => 'vendor_bills', 'EXPENSE' => 'finance_expenses', 'ASSET' => 'finance_assets', 'SALES_ORDER' => 'sales_orders', 'CUSTOMER_INVOICE' => 'customer_invoices', 'ACCOUNTING_ADJUSTMENT' => 'accounting_adjustment_requests', 'PROJECT' => 'projects', 'PROJECT_MILESTONE' => 'project_milestones', 'PROJECT_TASK' => 'project_tasks', 'MAINTENANCE_REQUEST' => 'maintenance_requests', 'MAINTENANCE_WORK_ORDER' => 'maintenance_work_orders', 'MAINTENANCE_PLAN' => 'preventive_maintenance_plans'];
         $table = $tables[$type] ?? null;
         abort_unless(is_string($table), 422, 'Loại liên kết không được hỗ trợ.');
         if ($type === 'EMPLOYEE_CONTRACT') {

@@ -46,14 +46,14 @@ final readonly class CostCenterCostManagementReadService
             ->whereNotNull('l.cost_center_id')
             ->when($costCenterId, fn (Builder $query): Builder => $query->where('l.cost_center_id', $costCenterId))
             ->selectRaw("l.cost_center_id,
-                SUM(l.debit_minor-l.credit_minor) budget_actual,
-                SUM(CASE WHEN a.account_type='expense' THEN l.debit_minor-l.credit_minor ELSE 0 END) recognized_expense,
-                SUM(CASE WHEN l.source_type='earning_component' THEN l.debit_minor-l.credit_minor ELSE 0 END) payroll,
-                SUM(CASE WHEN l.source_type='employer_insurance_expense' THEN l.debit_minor-l.credit_minor ELSE 0 END) employer_statutory,
-                SUM(CASE WHEN l.source_type='goods_receipt' AND l.account_code_snapshot='1200' THEN l.debit_minor-l.credit_minor ELSE 0 END) inventory_acquisition,
-                SUM(CASE WHEN l.account_code_snapshot='5200' OR l.source_type LIKE 'depreciation%' THEN l.debit_minor-l.credit_minor ELSE 0 END) depreciation,
-                SUM(CASE WHEN fe.source_type='PROJECT' THEN l.debit_minor-l.credit_minor ELSE 0 END) project_cost,
-                SUM(CASE WHEN fe.source_type='MAINTENANCE' THEN l.debit_minor-l.credit_minor ELSE 0 END) maintenance_cost,
+                SUM(CAST(l.debit_minor AS SIGNED)-CAST(l.credit_minor AS SIGNED)) budget_actual,
+                SUM(CASE WHEN a.account_type='expense' THEN CAST(l.debit_minor AS SIGNED)-CAST(l.credit_minor AS SIGNED) ELSE 0 END) recognized_expense,
+                SUM(CASE WHEN l.source_type='earning_component' THEN CAST(l.debit_minor AS SIGNED)-CAST(l.credit_minor AS SIGNED) ELSE 0 END) payroll,
+                SUM(CASE WHEN l.source_type='employer_insurance_expense' THEN CAST(l.debit_minor AS SIGNED)-CAST(l.credit_minor AS SIGNED) ELSE 0 END) employer_statutory,
+                SUM(CASE WHEN l.source_type='goods_receipt' AND l.account_code_snapshot='1200' THEN CAST(l.debit_minor AS SIGNED)-CAST(l.credit_minor AS SIGNED) ELSE 0 END) inventory_acquisition,
+                SUM(CASE WHEN l.account_code_snapshot='5200' OR l.source_type LIKE 'depreciation%' THEN CAST(l.debit_minor AS SIGNED)-CAST(l.credit_minor AS SIGNED) ELSE 0 END) depreciation,
+                SUM(CASE WHEN fe.source_type='PROJECT' THEN CAST(l.debit_minor AS SIGNED)-CAST(l.credit_minor AS SIGNED) ELSE 0 END) project_cost,
+                SUM(CASE WHEN fe.source_type='MAINTENANCE' THEN CAST(l.debit_minor AS SIGNED)-CAST(l.credit_minor AS SIGNED) ELSE 0 END) maintenance_cost,
                 COALESCE(MAX(cash.amount),0) cash_paid")
             ->groupBy('l.cost_center_id')->get()->keyBy('cost_center_id');
 
@@ -111,7 +111,7 @@ final readonly class CostCenterCostManagementReadService
 
         $attributedActual = array_sum(array_column($rows, 'recognized_expense'));
         $budgetActual = array_sum(array_column($rows, 'actual'));
-        $companyActual = $this->integer($this->expenseLines($companyId, $dateFrom, $dateTo)->sum($this->db->raw('l.debit_minor-l.credit_minor')));
+        $companyActual = $this->integer($this->expenseLines($companyId, $dateFrom, $dateTo)->sum($this->db->raw('CAST(l.debit_minor AS SIGNED)-CAST(l.credit_minor AS SIGNED)')));
         $unattributedActual = $companyActual - $attributedActual;
         $legacyPayroll = $this->legacyPayrollUnattributed($companyId, $dateFrom, $dateTo);
         $totalBudget = array_sum(array_column($rows, 'budget'));

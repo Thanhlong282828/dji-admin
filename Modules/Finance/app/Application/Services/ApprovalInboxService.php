@@ -18,10 +18,11 @@ final readonly class ApprovalInboxService
         $submitted = [];
         /** @var list<array<string,int|string>> $history */
         $history = [];
-        $this->collect($pending, $submitted, $history, $companyId, $userId, 'purchase_requests', 'Purchase Request', 'requester_id', 'reviewed_by', 'reference', 'admin.procurement.page', ['page' => 'requests']);
-        $this->collect($pending, $submitted, $history, $companyId, $userId, 'purchase_orders', 'Purchase Order', 'created_by', 'approved_by', 'reference', 'admin.procurement.page', ['page' => 'orders']);
+        $this->collect($pending, $submitted, $history, $companyId, $userId, 'purchase_requests', 'Purchase Request', 'requester_id', 'reviewed_by', 'reference', 'admin.procurement.requests', []);
+        $this->collect($pending, $submitted, $history, $companyId, $userId, 'purchase_orders', 'Purchase Order', 'created_by', 'approved_by', 'reference', 'admin.procurement.orders', []);
         $this->collect($pending, $submitted, $history, $companyId, $userId, 'finance_expenses', 'Expense', 'created_by', 'reviewed_by', 'reference', 'admin.finance.operations', ['page' => 'expenses']);
-        $this->collect($pending, $submitted, $history, $companyId, $userId, 'vendor_bills', 'Vendor Bill', 'created_by', 'approved_by', 'invoice_number', 'admin.procurement.page', ['page' => 'payables']);
+        $this->collect($pending, $submitted, $history, $companyId, $userId, 'vendor_bills', 'Vendor Bill', 'created_by', 'approved_by', 'invoice_number', 'admin.procurement.payables', []);
+        $this->collectServiceAcceptances($pending, $submitted, $history, $companyId, $userId);
         $this->collect($pending, $submitted, $history, $companyId, $userId, 'accounting_period_close_requests', 'Accounting Period Close', 'requested_by', 'decided_by', 'id', 'admin.finance.period-close', []);
         $this->collectMaintenance($pending, $submitted, $history, $companyId, $userId);
         $this->collectProjectTimesheets($pending, $submitted, $history, $companyId, $userId);
@@ -29,6 +30,31 @@ final readonly class ApprovalInboxService
         $this->collectWorkflowTasks($pending, $history, $companyId, $userId);
 
         return ['pending' => $pending, 'submitted' => $submitted, 'history' => $history];
+    }
+
+    /**
+     * @param  list<array<string,int|string>>  $pending
+     * @param  list<array<string,int|string>>  $submitted
+     * @param  list<array<string,int|string>>  $history
+     */
+    private function collectServiceAcceptances(array &$pending, array &$submitted, array &$history, int $companyId, int $userId): void
+    {
+        foreach ($this->db->table('service_acceptances')->where('company_id', $companyId)->orderByDesc('updated_at')->limit(100)->get() as $row) {
+            $values = $this->values($row);
+            $status = strtolower($this->text($values['status'] ?? null));
+            $reversal = in_array($status, ['reversal_requested', 'reversed'], true);
+            $values['inbox_maker'] = $reversal ? ($values['reversal_requested_by'] ?? 0) : ($values['created_by'] ?? 0);
+            $values['inbox_approver'] = $reversal ? ($values['reversed_by'] ?? null) : ($values['approved_by'] ?? null);
+            $item = $this->item($reversal ? 'Service Acceptance Reversal Approval' : 'Service Acceptance Approval', $values, 'reference', 'inbox_maker', 'inbox_approver', 'admin.procurement.service-acceptances', ['company_id' => (string) $companyId]);
+            $makerId = $this->integer($values['inbox_maker']);
+            if (in_array($status, ['submitted', 'reversal_requested'], true) && $makerId !== $userId) {
+                $pending[] = $item;
+            } elseif ($makerId === $userId && in_array($status, ['draft', 'submitted', 'reversal_requested'], true)) {
+                $submitted[] = $item;
+            } elseif (in_array($status, ['approved', 'reversed'], true)) {
+                $history[] = $item;
+            }
+        }
     }
 
     /**

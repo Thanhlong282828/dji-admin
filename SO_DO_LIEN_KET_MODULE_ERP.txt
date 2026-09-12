@@ -260,6 +260,7 @@ Read boundary  : Query/read services; Dashboard/Reporting aggregate read-only.
 [DEPENDS] Procurement → Company
 [DEPENDS] Procurement → Inventory
 [DEPENDS] Procurement → Finance
+[DEPENDS] Procurement → Workflow
 
 MODULE: Product
 Responsibility : Product catalog, category, variant and SKU ownership.

@@ -4,6 +4,8 @@ namespace Tests\Feature;
 
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Spatie\Permission\Models\Permission;
 use Tests\TestCase;
 
@@ -68,5 +70,28 @@ final class AccessibilityGovernanceTest extends TestCase
         self::assertIsString($html);
         self::assertMatchesRegularExpression('/data-nav-group="operations"[^>]*data-route-active="true"/', $html);
         self::assertMatchesRegularExpression('/class="nav-item active"[^>]*aria-current="page"/', $html);
+    }
+
+    public function test_procurement_sidebar_and_subnavigation_only_render_authorized_destination(): void
+    {
+        $company = (int) DB::table('companies')->insertGetId([
+            'uuid' => (string) Str::uuid(), 'code' => 'NAV', 'name' => 'Navigation Company',
+            'country_code' => 'VN', 'timezone' => 'Asia/Ho_Chi_Minh', 'currency_code' => 'VND',
+            'currency' => 'VND', 'status' => 'active', 'is_active' => true,
+            'created_at' => now(), 'updated_at' => now(),
+        ]);
+        $user = User::factory()->create(['email_verified_at' => now()]);
+        $user->givePermissionTo(Permission::findOrCreate('service-acceptance.view', 'web'));
+        DB::table('company_user_access')->insert(['company_id' => $company, 'user_id' => $user->id, 'created_at' => now(), 'updated_at' => now()]);
+
+        $response = $this->actingAs($user)->get(route('admin.procurement.service-acceptances', ['company_id' => $company]));
+        $response->assertOk()
+            ->assertSee('data-nav-group="procurement"', false)
+            ->assertSee(route('admin.procurement.service-acceptances', ['company_id' => $company]), false)
+            ->assertDontSee(route('admin.procurement.receipts', ['company_id' => $company]), false)
+            ->assertDontSee(route('admin.procurement.payables', ['company_id' => $company]), false)
+            ->assertDontSee('service-reversals', false);
+
+        $this->actingAs($user)->get(route('admin.procurement.receipts', ['company_id' => $company]))->assertForbidden();
     }
 }

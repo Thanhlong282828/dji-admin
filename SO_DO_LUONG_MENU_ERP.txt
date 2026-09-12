@@ -277,6 +277,51 @@ THUẾ & BẢO HIỂM BẮT BUỘC
     Connects   : Owner workspace and canonical detail/action routes
     Status     : IMPLEMENTED
 
+MUA HÀNG
+│
+├── Nhà cung cấp
+│   Owner      : Procurement
+│   Route      : admin.procurement.vendors
+│   Permission : vendor.view
+│   Connects   : Owner workspace and canonical detail/action routes
+│   Status     : IMPLEMENTED
+├── Yêu cầu mua hàng
+│   Owner      : Procurement
+│   Route      : admin.procurement.requests
+│   Permission : purchase-request.view
+│   Connects   : Owner workspace and canonical detail/action routes
+│   Status     : IMPLEMENTED
+├── Đơn mua hàng
+│   Owner      : Procurement
+│   Route      : admin.procurement.orders
+│   Permission : purchase-order.view
+│   Connects   : Owner workspace and canonical detail/action routes
+│   Status     : IMPLEMENTED
+├── Phiếu nhận hàng
+│   Owner      : Procurement
+│   Route      : admin.procurement.receipts
+│   Permission : goods-receipt.view
+│   Connects   : Owner workspace and canonical detail/action routes
+│   Status     : IMPLEMENTED
+├── Nghiệm thu dịch vụ
+│   Owner      : Procurement
+│   Route      : admin.procurement.service-acceptances
+│   Permission : service-acceptance.view
+│   Connects   : Owner workspace and canonical detail/action routes
+│   Status     : IMPLEMENTED
+├── Hóa đơn NCC · AP
+│   Owner      : Procurement
+│   Route      : admin.procurement.payables
+│   Permission : vendor-bill.view
+│   Connects   : Owner workspace and canonical detail/action routes
+│   Status     : IMPLEMENTED
+└── Báo cáo mua hàng
+    Owner      : Procurement
+    Route      : admin.procurement.reports
+    Permission : procurement.view
+    Connects   : Owner workspace and canonical detail/action routes
+    Status     : IMPLEMENTED
+
 TÀI CHÍNH
 │
 ├── Tổng quan tài chính
@@ -296,12 +341,6 @@ TÀI CHÍNH
 │   Route      : admin.sales.index
 │   Permission : sales.view
 │   Connects   : Customer → Quotation → Sales Order → Inventory → Invoice → AR → Collection → Treasury
-│   Status     : IMPLEMENTED
-├── Mua hàng & Công nợ phải trả
-│   Owner      : Procurement
-│   Route      : admin.procurement.page
-│   Permission : procurement.view
-│   Connects   : Vendor → Purchase Request → Purchase Order → Receipt → Inventory → AP → Treasury
 │   Status     : IMPLEMENTED
 ├── Chi phí · Tài sản · Ngân sách
 │   Owner      : Finance

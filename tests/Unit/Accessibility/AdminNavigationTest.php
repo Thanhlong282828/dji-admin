@@ -19,7 +19,7 @@ final class AdminNavigationTest extends TestCase
     public function test_navigation_has_unique_group_item_and_route_keys_with_permission_metadata(): void
     {
         $groups = (new AdminNavigation)->definitions();
-        self::assertCount(17, $groups);
+        self::assertCount(18, $groups);
         self::assertSame(count($groups), count(array_unique(array_column($groups, 'key'))));
         $items = array_merge(...array_column($groups, 'items'));
         self::assertSame(count($items), count(array_unique(array_column($items, 'key'))));
@@ -70,7 +70,7 @@ final class AdminNavigationTest extends TestCase
         }
     }
 
-    public function test_fully_permitted_user_receives_seventeen_groups_and_sixteen_operations_children(): void
+    public function test_fully_permitted_user_receives_eighteen_groups_and_sixteen_operations_children(): void
     {
         $navigation = new AdminNavigation;
         $user = User::factory()->create();
@@ -80,10 +80,34 @@ final class AdminNavigationTest extends TestCase
         }
 
         $groups = $navigation->for($user, Request::create('/dashboard'), 1);
-        self::assertCount(17, $groups);
+        self::assertCount(18, $groups);
         $operations = array_values(array_filter($groups, static fn (array $group): bool => $group['key'] === 'operations'))[0];
         self::assertCount(16, $operations['items']);
         self::assertContains('admin.operations.data-quality', array_column($operations['items'], 'route'));
+    }
+
+    public function test_procurement_children_follow_lifecycle_order_and_are_permission_filtered(): void
+    {
+        $navigation = new AdminNavigation;
+        $definitions = $navigation->definitions();
+        $procurement = array_values(array_filter($definitions, static fn (array $group): bool => $group['key'] === 'procurement'))[0];
+
+        self::assertSame(
+            ['procurement-vendors', 'purchase-requests', 'purchase-orders', 'goods-receipts', 'service-acceptances', 'vendor-bills', 'procurement-reports'],
+            array_column($procurement['items'], 'key'),
+        );
+        self::assertNotContains('service-reversals', array_column($procurement['items'], 'key'));
+
+        $user = User::factory()->create();
+        $user->givePermissionTo(Permission::findOrCreate('service-acceptance.view', 'web'));
+        $request = Request::create('/admin/procurement/service-acceptances');
+        $route = Route::getRoutes()->match($request);
+        $request->setRouteResolver(static fn () => $route);
+        $groups = $navigation->for($user, $request, 1);
+        $visible = array_values(array_filter($groups, static fn (array $group): bool => $group['key'] === 'procurement'))[0];
+
+        self::assertSame(['service-acceptances'], array_column($visible['items'], 'key'));
+        self::assertTrue($visible['items'][0]['active']);
     }
 
     public function test_group_without_any_permitted_child_is_absent(): void

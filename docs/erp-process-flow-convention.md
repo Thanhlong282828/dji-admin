@@ -39,7 +39,7 @@ The wordmark, active upstream connectors, current-node border, primary brand but
 
 ## Ownership completeness
 
-All 122 canonical Sidebar destinations have an explicit module-owned or shared-Core definition. Normal business menus never use a centralized fallback: a missing owner definition fails fast. The only generic fallback is reserved for non-menu emergency help routes.
+All 127 canonical Sidebar destinations have an explicit module-owned or shared-Core definition. Normal business menus never use a centralized fallback: a missing owner definition fails fast. The only generic fallback is reserved for non-menu emergency help routes.
 
 Every definition declares a stable flow ID, category, current node, unique nodes and validated linear edges. Both contextual help and the visible strip consume the same resolved `menuFlow`.
 
@@ -92,7 +92,12 @@ Every definition declares a stable flow ID, category, current node, unique nodes
 | Tổng quan tài chính | `admin.finance.overview` | `READ_MODEL` | `Finance` | `Modules/Finance/resources/process-flows.php` | `finance.finance-overview` | `finance-overview` |
 | Chi phí theo Cost Center | `admin.finance.cost-center-costs` | `READ_MODEL` | `Finance` | `Modules/Finance/resources/process-flows.php` | `finance.cost-center-cost-management` | `cost-center-cost-management` |
 | Sales · AR · Collection | `admin.sales.index` | `BUSINESS_PROCESS` | `Commerce` | `Modules/Commerce/resources/process-flows.php` | `commerce.sales-receivable` | `sales-receivable` |
-| Mua hàng & Công nợ phải trả | `admin.procurement.page` | `BUSINESS_PROCESS` | `Procurement` | `Modules/Procurement/resources/process-flows.php` | `procurement.vendor-to-ap` | `procurement` |
+| Nhà cung cấp | `admin.procurement.vendors` | `BUSINESS_PROCESS` | `Procurement` | `Modules/Procurement/resources/process-flows.php` | `procurement.vendor-to-ap.procurement-vendors` | `procurement-vendors` |
+| Yêu cầu mua hàng | `admin.procurement.requests` | `BUSINESS_PROCESS` | `Procurement` | `Modules/Procurement/resources/process-flows.php` | `procurement.vendor-to-ap.purchase-requests` | `purchase-requests` |
+| Đơn mua hàng | `admin.procurement.orders` | `BUSINESS_PROCESS` | `Procurement` | `Modules/Procurement/resources/process-flows.php` | `procurement.vendor-to-ap.purchase-orders` | `purchase-orders` |
+| Phiếu nhận hàng | `admin.procurement.receipts` | `BUSINESS_PROCESS` | `Procurement` | `Modules/Procurement/resources/process-flows.php` | `procurement.vendor-to-ap.goods-receipts` | `goods-receipts` |
+| Nghiệm thu dịch vụ | `admin.procurement.service-acceptances` | `BUSINESS_PROCESS` | `Procurement` | `Modules/Procurement/resources/process-flows.php` | `procurement.vendor-to-ap.service-acceptances` | `service-acceptances` |
+| Hóa đơn NCC · AP | `admin.procurement.payables` | `BUSINESS_PROCESS` | `Procurement` | `Modules/Procurement/resources/process-flows.php` | `procurement.vendor-to-ap.vendor-bills` | `vendor-bills` |
 | Chi phí · Tài sản · Ngân sách | `admin.finance.operations` | `BUSINESS_PROCESS` | `Finance` | `Modules/Finance/resources/process-flows.php` | `finance.finance-operations` | `finance-operations` |
 | Treasury · Dòng tiền | `admin.finance.treasury` | `BUSINESS_PROCESS` | `Finance` | `Modules/Finance/resources/process-flows.php` | `finance.treasury` | `treasury` |
 | Accounting Period Close | `admin.finance.period-close` | `CONTROL` | `Finance` | `Modules/Finance/resources/process-flows.php` | `finance.accounting-period-close` | `accounting-period-close` |

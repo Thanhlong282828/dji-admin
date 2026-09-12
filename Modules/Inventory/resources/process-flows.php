@@ -3,7 +3,7 @@
 return [
     'seller-inventory' => ['id' => 'inventory.stock-availability', 'category' => 'READ_MODEL', 'current' => 'seller-inventory', 'nodes' => [
         ['key' => 'products', 'label' => 'Sản phẩm / SKU', 'icon' => 'SKU'],
-        ['key' => 'procurement', 'label' => 'Nhập mua / GR', 'icon' => 'GR'],
+        ['key' => 'goods-receipts', 'label' => 'Nhập mua / GR', 'icon' => 'GR'],
         ['key' => 'seller-inventory', 'label' => 'Tồn kho', 'icon' => 'KHO'],
         ['key' => 'inventory-movements', 'label' => 'Sổ chuyển động', 'icon' => 'MV'],
         ['key' => 'sales-receivable', 'label' => 'Fulfillment / COGS', 'icon' => 'COGS'],

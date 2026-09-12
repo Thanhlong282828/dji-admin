@@ -11,8 +11,10 @@ use Modules\Company\Domain\Services\BranchAccessService;
 use Modules\Core\Application\Buses\CommandBusInterface;
 use Modules\Core\Application\Buses\QueryBusInterface;
 use Modules\Procurement\Application\Commands\ApproveServiceAcceptanceCommand;
+use Modules\Procurement\Application\Commands\ApproveServiceAcceptanceReversalCommand;
 use Modules\Procurement\Application\Commands\CreateServiceAcceptanceCommand;
 use Modules\Procurement\Application\Commands\MutateProcurementCommand;
+use Modules\Procurement\Application\Commands\RequestServiceAcceptanceReversalCommand;
 use Modules\Procurement\Application\Commands\SubmitServiceAcceptanceCommand;
 use Modules\Procurement\Application\Queries\GetProcurementPageQuery;
 use Modules\Procurement\Presentation\Http\Requests\ProcurementRequest;
@@ -27,8 +29,15 @@ final readonly class ProcurementController
         abort_unless($user instanceof User, 401);
         $company = $request->integer('company_id', 1);
         abort_unless($this->access->company($user, $company), 404);
-        abort_unless(in_array($page, ['vendors', 'requests', 'orders', 'receipts', 'service-acceptances', 'payables'], true), 404);
-        $data = $this->queries->ask(new GetProcurementPageQuery($company, $page));
+        abort_unless(in_array($page, ['vendors', 'requests', 'orders', 'receipts', 'service-acceptances', 'payables', 'reports'], true), 404);
+        $data = $this->queries->ask(new GetProcurementPageQuery($company, $page, [
+            'date_from' => $request->query('date_from'),
+            'date_to' => $request->query('date_to'),
+            'branch_id' => $request->query('branch_id'),
+            'cost_center_id' => $request->query('cost_center_id'),
+            'vendor_id' => $request->query('vendor_id'),
+            'classification' => $request->query('classification'),
+        ]));
         abort_unless(is_array($data), 500);
 
         return view('admin.procurement.index', ['companyId' => $company, 'data' => $data]);
@@ -52,6 +61,7 @@ final readonly class ProcurementController
             'service-acceptance.create' => 'service-acceptance.create',
             'service-acceptance.submit' => 'service-acceptance.submit',
             'service-acceptance.approve' => 'service-acceptance.approve',
+            'service-acceptance.reversal.request', 'service-acceptance.reversal.approve' => 'service-acceptance.reverse',
             'bill.create' => 'vendor-bill.create',
             'bill.approve' => 'vendor-bill.approve',
             'payment.allocate' => 'ap-payment.create',
@@ -63,6 +73,8 @@ final readonly class ProcurementController
             'service-acceptance.create' => $this->commands->dispatch(new CreateServiceAcceptanceCommand($company, $user, $data)),
             'service-acceptance.submit' => $this->commands->dispatch(new SubmitServiceAcceptanceCommand($company, $request->integer('id'), $user)),
             'service-acceptance.approve' => $this->commands->dispatch(new ApproveServiceAcceptanceCommand($company, $request->integer('id'), $user)),
+            'service-acceptance.reversal.request' => $this->commands->dispatch(new RequestServiceAcceptanceReversalCommand($company, $request->integer('id'), $request->integer('target_accounting_period_id'), $request->string('reason')->toString(), $request->string('idempotency_key')->toString(), $user)),
+            'service-acceptance.reversal.approve' => $this->commands->dispatch(new ApproveServiceAcceptanceReversalCommand($company, $request->integer('id'), $user)),
             default => $this->commands->dispatch(new MutateProcurementCommand($action, $company, $user, $data)),
         };
 
