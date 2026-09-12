@@ -18,6 +18,7 @@ use Modules\Finance\Application\Services\CostCenterCostManagementReadService;
 use Modules\Finance\Application\Services\SourceAccountingPostingService;
 use Modules\Procurement\Application\Commands\RequestServiceAcceptanceReversalCommand;
 use Modules\Procurement\Application\Commands\SubmitServiceAcceptanceCommand;
+use Modules\Procurement\Application\Services\ProcurementExceptionReadService;
 use Modules\Procurement\Application\Services\ProcurementReconciliationReadService;
 use Modules\Procurement\Application\Services\ProcurementService;
 use Modules\Procurement\Application\Services\ServiceAcceptanceService;
@@ -49,6 +50,7 @@ final class ServiceProcurementRuntimeTest extends TestCase
         self::assertSame(1, DB::table('workflow_tasks')->where('workflow_instance_id', $approvalInstance->id)->count());
         self::assertContains('Workflow Task', array_column(app(ApprovalInboxService::class)->read($f['company'], (int) $f['checker']->id)['pending'], 'type'));
         self::assertContains('Service Acceptance Approval', array_column(app(ApprovalInboxService::class)->read($f['company'], (int) $f['checker']->id)['pending'], 'type'));
+        self::assertContains('WORKFLOW_APPROVAL_PENDING', array_column($this->exceptions($f['company'], $this->report($f['company']))['rows'], 'exception_type'));
         $approvalTask = DB::table('workflow_tasks')->where('workflow_instance_id', $approvalInstance->id)->firstOrFail();
         app(WorkflowTaskService::class)->decide($f['company'], (int) $approvalTask->id, (int) $f['checker']->id, 'approved', null, 'sa-workflow-approve');
         self::assertSame('approved', DB::table('service_acceptances')->where('id', $acceptance)->value('status'));
@@ -180,6 +182,37 @@ final class ServiceProcurementRuntimeTest extends TestCase
         self::assertNull($report['ap']['gl']);
         self::assertLessThanOrEqual(25, $queryCount);
         self::assertSame(0, $this->report($f['foreign_company'])['service']['ordered']);
+    }
+
+    public function test_exception_workbench_uses_canonical_sources_and_exact_financial_invariants(): void
+    {
+        $f = $this->fixture();
+        $acceptance = $this->accept($f, 'SA-EXCEPTION', 4);
+        $report = $this->report($f['company']);
+        $exceptions = $this->exceptions($f['company'], $report);
+        $types = array_column($exceptions['rows'], 'exception_type');
+
+        self::assertContains('PO_AWAITING_SERVICE_ACCEPTANCE', $types);
+        self::assertContains('SERVICE_ACCEPTED_NOT_BILLED', $types);
+        self::assertContains('BUDGET_NO_BUDGET', $types);
+        $acceptedException = collect($exceptions['rows'])->firstWhere('exception_type', 'SERVICE_ACCEPTED_NOT_BILLED');
+        self::assertSame('service-acceptance.view', $acceptedException['permission'] ?? null);
+        self::assertSame('vendor-bill.view', $acceptedException['action_permission'] ?? null);
+        self::assertSame($exceptions['total'], array_sum($exceptions['counts']));
+        self::assertNotContains('SERVICE_ACCRUAL_RECONCILIATION_MISMATCH', $types);
+        self::assertSame(0, $this->exceptions($f['foreign_company'], $this->report($f['foreign_company']))['total']);
+
+        $mismatch = $report;
+        $mismatch['goods']['grni'] = 123;
+        $mismatch['service']['accrual'] = 456;
+        $mismatch['ap']['gl'] = 789;
+        $mismatchTypes = array_column($this->exceptions($f['company'], $mismatch)['rows'], 'exception_type');
+        self::assertContains('GOODS_GRNI_RECONCILIATION_MISMATCH', $mismatchTypes);
+        self::assertContains('SERVICE_ACCRUAL_RECONCILIATION_MISMATCH', $mismatchTypes);
+        self::assertContains('AP_RECONCILIATION_MISMATCH', $mismatchTypes);
+
+        DB::table('service_acceptances')->where('id', $acceptance)->update(['status' => 'reversal_requested']);
+        self::assertContains('SERVICE_REVERSAL_PENDING', array_column($this->exceptions($f['company'], $this->report($f['company']))['rows'], 'exception_type'));
     }
 
     public function test_closed_period_blocks_approval_and_inventory_line_is_rejected(): void
@@ -330,6 +363,14 @@ final class ServiceProcurementRuntimeTest extends TestCase
     private function report(int $company, array $filters = []): array
     {
         return app(ProcurementReconciliationReadService::class)->read($company, array_replace(['date_from' => '2026-09-01', 'date_to' => '2026-09-30', 'branch_id' => null, 'cost_center_id' => null, 'vendor_id' => null, 'classification' => null, 'currency' => 'VND'], $filters));
+    }
+
+    /** @param array<string,mixed> $report
+     * @return array{rows:list<array<string,mixed>>,counts:array<string,int>,total:int}
+     */
+    private function exceptions(int $company, array $report): array
+    {
+        return app(ProcurementExceptionReadService::class)->read($company, ['date_from' => '2026-09-01', 'date_to' => '2026-09-30', 'branch_id' => null, 'cost_center_id' => null, 'vendor_id' => null, 'classification' => null, 'currency' => 'VND', 'exception_type' => null, 'severity' => null, 'business_status' => null], $report);
     }
 
     private function assertValidation(callable $operation, string $key, ?string $message = null): void

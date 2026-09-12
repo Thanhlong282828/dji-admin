@@ -3,11 +3,13 @@
 namespace Modules\Procurement\Application\Queries;
 
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
+use Modules\Procurement\Application\Services\ProcurementExceptionReadService;
 use Modules\Procurement\Application\Services\ProcurementReconciliationReadService;
 
 final readonly class GetProcurementPageHandler
 {
-    public function __construct(private ProcurementReconciliationReadService $reconciliation) {}
+    public function __construct(private ProcurementReconciliationReadService $reconciliation, private ProcurementExceptionReadService $exceptions) {}
 
     /** @return array<string,mixed> */
     public function handle(GetProcurementPageQuery $query): array
@@ -36,7 +38,7 @@ final readonly class GetProcurementPageHandler
         $base['openAccountingPeriods'] = DB::table('accounting_periods')->where(['company_id' => $company, 'status' => 'open'])->orderByDesc('end_date')->get(['id', 'year', 'month', 'end_date']);
         $base['inventorySummary'] = DB::table('inventory_balances as ib')->join('inventory_locations as l', 'l.id', '=', 'ib.inventory_location_id')->join('branches as b', 'b.id', '=', 'l.branch_id')->where('b.company_id', $company)->selectRaw('SUM(ib.on_hand) on_hand, SUM(ib.inventory_value_minor) inventory_value_minor, SUM(CASE WHEN ib.on_hand = 0 THEN 1 ELSE 0 END) out_of_stock')->first();
         if ($query->page === 'reports') {
-            $base['reconciliation'] = $this->reconciliation->read($company, [
+            $filters = [
                 'date_from' => is_string($query->filters['date_from'] ?? null) ? $query->filters['date_from'] : now()->startOfYear()->toDateString(),
                 'date_to' => is_string($query->filters['date_to'] ?? null) ? $query->filters['date_to'] : now()->toDateString(),
                 'branch_id' => is_numeric($query->filters['branch_id'] ?? null) ? (int) $query->filters['branch_id'] : null,
@@ -44,7 +46,19 @@ final readonly class GetProcurementPageHandler
                 'vendor_id' => is_numeric($query->filters['vendor_id'] ?? null) ? (int) $query->filters['vendor_id'] : null,
                 'classification' => in_array($query->filters['classification'] ?? null, ['inventory', 'operating_expense', 'asset'], true) ? $query->filters['classification'] : null,
                 'currency' => 'VND',
-            ]);
+            ];
+            $base['reconciliation'] = $this->reconciliation->read($company, $filters);
+            $exceptionFilters = $filters + [
+                'exception_type' => is_string($query->filters['exception_type'] ?? null) ? $query->filters['exception_type'] : null,
+                'severity' => in_array($query->filters['severity'] ?? null, ['INFO', 'WARNING', 'CRITICAL'], true) ? $query->filters['severity'] : null,
+                'business_status' => is_string($query->filters['business_status'] ?? null) ? $query->filters['business_status'] : null,
+            ];
+            $exceptions = $this->exceptions->read($company, $exceptionFilters, $base['reconciliation']);
+            $exceptions['rows'] = array_values(array_filter($exceptions['rows'], static fn (array $row): bool => is_string($row['permission'] ?? null) && Gate::allows($row['permission'])));
+            $exceptions['counts'] = collect($exceptions['rows'])->countBy('exception_type')->all();
+            $exceptions['total'] = count($exceptions['rows']);
+            $base['exceptions'] = $exceptions;
+            $base['exceptionFilters'] = $exceptionFilters;
         }
 
         return $base;
