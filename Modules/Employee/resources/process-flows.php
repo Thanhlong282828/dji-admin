@@ -1,32 +1,14 @@
 <?php
 
+$employee = static fn (string $current, string $category, array $nodes): array => [
+    'id' => 'employee.'.$current, 'category' => $category, 'current' => $current,
+    'nodes' => array_map(static fn (mixed $key): array => is_string($key) ? ['key' => $key] : throw new InvalidArgumentException('Employee flow node must be a string.'), $nodes),
+];
+
 return [
-    'employees' => ['current' => 'employees', 'nodes' => [
-        ['key' => 'organization-units', 'label' => 'Đơn vị tổ chức', 'icon' => 'DV'],
-        ['key' => 'job-positions', 'label' => 'Vị trí', 'icon' => 'VT'],
-        ['key' => 'employees', 'label' => 'Hồ sơ nhân viên', 'icon' => 'NV'],
-        ['key' => 'employee-lifecycle', 'label' => 'Vòng đời / Assignment', 'icon' => 'AS'],
-        ['key' => 'attendance', 'label' => 'Chấm công', 'icon' => 'CC'],
-        ['key' => 'payroll-inputs', 'label' => 'Payroll Input', 'icon' => 'PI'],
-    ]],
-    'attendance' => ['current' => 'attendance', 'nodes' => [
-        ['key' => 'employees', 'label' => 'Nhân viên', 'icon' => 'NV'],
-        ['key' => 'shifts', 'label' => 'Ca / Lịch làm việc', 'icon' => 'CA'],
-        ['key' => 'attendance', 'label' => 'Chấm công', 'icon' => 'CC'],
-        ['key' => 'payroll-inputs', 'label' => 'Payroll Input', 'icon' => 'PI'],
-        ['key' => 'payroll-runs', 'label' => 'Payroll Run', 'icon' => 'PR'],
-    ]],
-    'leave' => ['current' => 'leave', 'nodes' => [
-        ['key' => 'employees', 'label' => 'Nhân viên', 'icon' => 'NV'],
-        ['key' => 'leave-management', 'label' => 'Chính sách / Số dư', 'icon' => 'CS'],
-        ['key' => 'leave', 'label' => 'Yêu cầu nghỉ', 'icon' => 'NP'],
-        ['key' => 'attendance', 'label' => 'Chấm công', 'icon' => 'CC'],
-        ['key' => 'payroll-inputs', 'label' => 'Payroll Input', 'icon' => 'PI'],
-    ]],
-    'overtime' => ['current' => 'overtime', 'nodes' => [
-        ['key' => 'employees', 'label' => 'Nhân viên', 'icon' => 'NV'],
-        ['key' => 'attendance', 'label' => 'Thời gian thực tế', 'icon' => 'CC'],
-        ['key' => 'overtime', 'label' => 'Tăng ca duyệt', 'icon' => 'OT'],
-        ['key' => 'payroll-inputs', 'label' => 'Payroll Input', 'icon' => 'PI'],
-    ]],
+    'employees' => $employee('employees', 'MASTER_DATA', ['organization-units', 'job-positions', 'employees', 'employee-lifecycle', 'attendance', 'payroll-inputs']),
+    'employee-portal' => $employee('employee-portal', 'READ_MODEL', ['employee-portal', 'attendance', 'leave', 'overtime', 'payslips']),
+    'employee-lifecycle' => $employee('employee-lifecycle', 'BUSINESS_PROCESS', ['employees', 'employee-lifecycle', 'payroll-dashboard', 'payroll-inputs']),
+    'hr-operations' => $employee('hr-operations', 'BUSINESS_PROCESS', ['employees', 'hr-operations', 'employee-lifecycle', 'payroll-inputs', 'notifications']),
+    'hr-governance' => $employee('hr-governance', 'CONTROL', ['employees', 'hr-governance', 'audit']),
 ];

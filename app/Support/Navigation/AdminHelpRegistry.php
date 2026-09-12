@@ -97,49 +97,11 @@ final class AdminHelpRegistry
             ];
         }
 
-        $flowKeys = $entry['fallback'] ? [] : $this->menuFlowKeys($entry['key']);
-        $currentIndex = array_search($entry['key'], $flowKeys, true);
-        if ($currentIndex === false && ! $entry['fallback']) {
-            $flowKeys[] = $entry['key'];
-            $currentIndex = array_key_last($flowKeys);
+        if (! $entry['fallback']) {
+            throw new \LogicException('Missing owner process-flow definition: '.$entry['key']);
         }
 
-        $nodes = [];
-        foreach ($flowKeys as $key) {
-            if (! isset($navigationItems[$key])) {
-                continue;
-            }
-            $item = $navigationItems[$key];
-            $nodes[] = [
-                'key' => $key,
-                'label' => $item['label'],
-                'route' => $item['route'],
-                'parameters' => $item['parameters'],
-                'permission' => $item['permission'],
-                'current' => $key === $entry['key'],
-            ];
-        }
-
-        $upstream = [];
-        $downstream = [];
-        foreach ($nodes as $node) {
-            if ($node['current']) {
-                continue;
-            }
-            $nodeIndex = array_search($node['key'], $flowKeys, true);
-            if (is_int($currentIndex) && is_int($nodeIndex) && $nodeIndex < $currentIndex) {
-                $upstream[] = self::relatedNode($node);
-            } else {
-                $downstream[] = self::relatedNode($node);
-            }
-        }
-
-        return $entry + [
-            'upstreamMenus' => $upstream,
-            'downstreamMenus' => $downstream,
-            'sideEffects' => $entry['downstreamEffects'],
-            'menuFlow' => $nodes,
-        ];
+        return $entry + ['upstreamMenus' => [], 'downstreamMenus' => [], 'sideEffects' => $entry['downstreamEffects'], 'menuFlow' => []];
     }
 
     /**
@@ -157,84 +119,6 @@ final class AdminHelpRegistry
             'parameters' => $node['parameters'],
             'permission' => $node['permission'],
         ];
-    }
-
-    /** @return non-empty-list<string> */
-    private function menuFlowKeys(string $key): array
-    {
-        return match ($key) {
-            'maintenance-overview', 'maintenance-requests', 'maintenance-work-orders', 'maintenance-plans' => ['finance-operations', 'maintenance-overview', 'maintenance-requests', 'maintenance-work-orders', 'maintenance-plans', 'enterprise-documents'],
-            'project-overview', 'projects' => ['dashboard', 'project-overview', 'projects', 'enterprise-documents', 'approval-inbox'],
-            'supply-chain-overview' => ['procurement', 'seller-inventory', 'sales-receivable', 'seller-orders', 'supply-chain-overview'],
-            'enterprise-analytics' => ['dashboard', 'finance-overview', 'sales-receivable', 'supply-chain-overview', 'enterprise-analytics'],
-            'enterprise-documents' => ['employees', 'procurement', 'finance-operations', 'sales-receivable', 'enterprise-documents', 'approval-inbox'],
-            'dashboard' => ['dashboard'],
-            'companies' => ['companies', 'organization-units', 'employees'],
-            'branches' => ['companies', 'branches', 'organization-units', 'employees'],
-            'cost-centers' => ['companies', 'cost-centers', 'organization-units', 'job-positions', 'employees'],
-            'organization-units', 'organization-tree' => ['companies', 'cost-centers', 'organization-units', 'organization-tree', 'job-positions', 'employees'],
-            'job-positions', 'headcount' => ['organization-units', 'job-positions', 'headcount', 'employees', 'employee-lifecycle'],
-            'employees' => ['organization-units', 'job-positions', 'employees', 'employee-lifecycle', 'attendance', 'payroll-inputs'],
-            'employee-portal' => ['employee-portal', 'attendance', 'leave', 'overtime', 'payslips'],
-            'employee-lifecycle' => ['employees', 'employee-lifecycle', 'payroll-dashboard', 'payroll-inputs'],
-            'hr-governance' => ['employees', 'hr-governance', 'audit'],
-            'shifts' => ['employees', 'shifts', 'attendance'],
-            'attendance' => ['employees', 'shifts', 'attendance', 'payroll-inputs', 'payroll-runs'],
-            'leave-management' => ['employees', 'leave-management', 'leave', 'payroll-inputs'],
-            'leave' => ['employees', 'leave-management', 'leave', 'attendance', 'payroll-inputs'],
-            'overtime' => ['employees', 'shifts', 'attendance', 'overtime', 'payroll-inputs'],
-            'recruitment', 'requisitions', 'candidates', 'applications', 'interviews', 'candidate-offers', 'onboarding' => ['requisitions', 'candidates', 'applications', 'interviews', 'candidate-offers', 'onboarding', 'employees'],
-            'performance', 'career' => ['employees', 'performance', 'career', 'employee-lifecycle'],
-            'analytics' => ['employees', 'organization-units', 'attendance', 'leave', 'recruitment', 'payroll-runs', 'workflow', 'iam', 'data-quality', 'analytics', 'forecasting', 'executive-planning', 'planning-execution'],
-            'forecasting' => ['organization-units', 'headcount', 'employees', 'recruitment', 'analytics', 'forecasting', 'executive-planning', 'planning-execution'],
-            'executive-planning' => ['organization-units', 'headcount', 'employees', 'recruitment', 'analytics', 'forecasting', 'executive-planning', 'planning-execution'],
-            'planning-execution' => ['executive-planning', 'planning-execution', 'employees', 'recruitment', 'payroll-runs', 'enterprise-reports'],
-            'enterprise-reports' => ['employees', 'attendance', 'recruitment', 'payroll-runs', 'analytics', 'forecasting', 'executive-planning', 'planning-execution', 'enterprise-reports'],
-            'payroll-dashboard' => ['employees', 'payroll-dashboard', 'payroll-inputs', 'payroll-runs'],
-            'payroll-periods' => ['payroll-dashboard', 'payroll-periods', 'payroll-inputs', 'payroll-runs'],
-            'payroll-inputs' => ['employees', 'attendance', 'leave', 'overtime', 'payroll-periods', 'payroll-inputs', 'payroll-runs'],
-            'payroll-runs' => ['payroll-inputs', 'payroll-runs', 'payslips', 'payments', 'accounting'],
-            'payroll-adjustments' => ['payroll-runs', 'payroll-adjustments', 'payslips'],
-            'branch-bonuses' => ['branches', 'employees', 'branch-bonuses', 'payroll-inputs', 'payroll-runs'],
-            'payslips' => ['payroll-runs', 'payslips'],
-            'payments' => ['payroll-runs', 'payments', 'accounting'],
-            'accounting' => ['payroll-runs', 'accounting-configuration', 'accounting', 'erp'],
-            'branch-financial-performance' => ['branches', 'employees', 'payroll-runs', 'branch-bonuses', 'branch-financial-performance', 'enterprise-reports'],
-            'accounting-configuration' => ['payroll-dashboard', 'accounting-configuration', 'accounting'],
-            'erp' => ['accounting', 'erp-configuration', 'erp', 'integrations'],
-            'erp-configuration' => ['accounting-configuration', 'erp-configuration', 'erp'],
-            'tax-administration', 'tax-policies' => ['employees', 'tax-policies', 'tax-administration', 'payroll-runs'],
-            'finance-tax-dashboard' => ['payroll-runs', 'tax-policies', 'insurance-policies', 'finance-tax-dashboard', 'government'],
-            'insurance-administration', 'insurance-policies' => ['employees', 'insurance-policies', 'insurance-administration', 'payroll-runs'],
-            'government' => ['payroll-runs', 'government'],
-            'annual-tax' => ['payroll-runs', 'annual-tax', 'accounting'],
-            'workflow-definitions', 'workflow', 'workflow-tasks' => ['workflow-definitions', 'workflow', 'workflow-tasks', 'notifications', 'audit'],
-            'notification-templates', 'notifications', 'notification-deliveries' => ['notification-templates', 'notifications', 'notification-deliveries', 'integrations'],
-            'integrations' => ['workflow', 'notifications', 'integrations', 'audit'],
-            'roles-permissions', 'access-requests', 'access-reviews', 'privileged', 'segregation-of-duties', 'iam' => ['roles-permissions', 'access-requests', 'access-reviews', 'privileged', 'segregation-of-duties', 'iam', 'audit'],
-            'audit' => ['employees', 'workflow', 'iam', 'integrations', 'audit'],
-            'api-documentation', 'api-contracts' => ['api-documentation', 'api-contracts', 'releases'],
-            'configuration' => ['configuration', 'reliability', 'releases'],
-            'secrets' => ['secrets', 'security-assurance', 'releases'],
-            'data-protection' => ['data-protection', 'data-lifecycle', 'data-quality'],
-            'data-lifecycle' => ['data-protection', 'data-lifecycle', 'audit'],
-            'data-quality' => ['employees', 'attendance', 'payroll-runs', 'data-quality'],
-            'reliability', 'observability', 'performance-engineering' => ['observability', 'performance-engineering', 'reliability', 'releases'],
-            'architecture-governance', 'test-quality' => ['architecture-governance', 'test-quality', 'releases'],
-            'releases' => ['architecture-governance', 'test-quality', 'security-assurance', 'releases'],
-            'continuity' => ['reliability', 'continuity', 'releases'],
-            'security-assurance' => ['secrets', 'data-protection', 'security-assurance', 'releases'],
-            'go-live-readiness' => ['architecture-governance', 'test-quality', 'security-assurance', 'releases', 'go-live-readiness'],
-            'articles' => ['articles', 'article-create'],
-            'article-create' => ['articles', 'article-create'],
-            'seller-dashboard', 'store-profile', 'seller-governance', 'products', 'seller-inventory', 'inventory-movements', 'seller-orders', 'commerce-sales-history', 'commerce-payments', 'product-categories' => ['seller-governance', 'seller-dashboard', 'store-profile', 'product-categories', 'products', 'seller-inventory', 'inventory-movements', 'seller-orders', 'commerce-sales-history', 'commerce-payments'],
-            'branch-warehouse' => ['companies', 'branches', 'products', 'branch-warehouse', 'customer-checkins', 'branch-sales', 'branch-financial-performance'],
-            'branch-customers' => ['companies', 'branches', 'branch-customers', 'customer-checkins', 'branch-sales'],
-            'company-services' => ['companies', 'company-services', 'customer-checkins', 'branch-sales', 'branch-financial-performance'],
-            'customer-checkins' => ['branch-customers', 'company-services', 'branch-warehouse', 'customer-checkins', 'branch-sales', 'branch-financial-performance'],
-            'branch-sales', 'pos-dashboard', 'pos-receipts' => ['customer-checkins', 'pos-dashboard', 'branch-sales', 'pos-receipts', 'commerce-sales-history', 'branch-financial-performance', 'enterprise-reports'],
-            default => [$key],
-        };
     }
 
     /** @param non-empty-list<string>|list<string> $patterns */

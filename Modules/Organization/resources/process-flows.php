@@ -1,24 +1,14 @@
 <?php
 
+$organization = static fn (string $current, string $category = 'MASTER_DATA'): array => [
+    'id' => 'organization.company-structure-workforce', 'category' => $category, 'current' => $current,
+    'nodes' => array_map(static fn (string $key): array => ['key' => $key], ['companies', 'branches', 'cost-centers', 'organization-units', 'organization-tree', 'job-positions', 'headcount', 'employees']),
+];
+
 return [
-    'companies' => ['current' => 'companies', 'nodes' => [
-        ['key' => 'companies', 'label' => 'Công ty', 'icon' => 'CT'],
-        ['key' => 'branches', 'label' => 'Chi nhánh', 'icon' => 'CN'],
-        ['key' => 'organization-units', 'label' => 'Đơn vị tổ chức', 'icon' => 'DV'],
-        ['key' => 'job-positions', 'label' => 'Vị trí', 'icon' => 'VT'],
-        ['key' => 'employees', 'label' => 'Nhân viên', 'icon' => 'NV'],
-    ]],
-    'branches' => ['current' => 'branches', 'nodes' => [
-        ['key' => 'companies', 'label' => 'Công ty', 'icon' => 'CT'],
-        ['key' => 'branches', 'label' => 'Chi nhánh', 'icon' => 'CN'],
-        ['key' => 'organization-units', 'label' => 'Đơn vị tổ chức', 'icon' => 'DV'],
-        ['key' => 'employees', 'label' => 'Nhân viên', 'icon' => 'NV'],
-    ]],
-    'cost-centers' => ['current' => 'cost-centers', 'nodes' => [
-        ['key' => 'companies', 'label' => 'Công ty', 'icon' => 'CT'],
-        ['key' => 'cost-centers', 'label' => 'Cost Center', 'icon' => 'CC'],
-        ['key' => 'organization-units', 'label' => 'Đơn vị tổ chức', 'icon' => 'DV'],
-        ['key' => 'employees', 'label' => 'Assignment', 'icon' => 'AS'],
-        ['key' => 'cost-center-cost-management', 'label' => 'Chi phí Cost Center', 'icon' => 'CP'],
-    ]],
+    'cost-centers' => $organization('cost-centers'),
+    'organization-units' => $organization('organization-units'),
+    'organization-tree' => $organization('organization-tree', 'READ_MODEL'),
+    'job-positions' => $organization('job-positions'),
+    'headcount' => $organization('headcount', 'REPORT'),
 ];

@@ -4,6 +4,7 @@ namespace Tests\Unit\Accessibility;
 
 use App\Support\Navigation\AdminHelpRegistry;
 use App\Support\Navigation\AdminNavigation;
+use App\Support\Navigation\ProcessFlowRegistry;
 use Illuminate\Support\Facades\Route;
 use Tests\TestCase;
 
@@ -103,5 +104,73 @@ final class AdminHelpRegistryTest extends TestCase
         }
 
         self::assertNull(collect($flow)->firstWhere('key', 'purchase-request')['route']);
+    }
+
+    public function test_every_sidebar_destination_has_one_valid_owner_flow_definition(): void
+    {
+        $items = array_merge(...array_column((new AdminNavigation)->definitions(7), 'items'));
+        $registry = new ProcessFlowRegistry;
+        $definitions = $registry->all();
+
+        self::assertCount(122, $items);
+        self::assertCount(122, $definitions);
+        self::assertEqualsCanonicalizing(array_column($items, 'key'), array_keys($definitions));
+        self::assertFalse(method_exists(AdminHelpRegistry::class, 'menuFlowKeys'));
+
+        foreach ($definitions as $menuKey => $definition) {
+            self::assertNotSame('', $definition['id'] ?? '', $menuKey.' missing id');
+            self::assertContains($definition['category'] ?? null, ['MASTER_DATA', 'CONFIGURATION', 'BUSINESS_PROCESS', 'CONTROL', 'READ_MODEL', 'REPORT', 'EXTERNAL', 'SYSTEM']);
+            self::assertMatchesRegularExpression('/^Modules\/[A-Za-z]+\/resources\/process-flows\.php$/', (string) ($definition['file'] ?? ''));
+            self::assertNotSame('', $definition['owner'] ?? '', $menuKey.' missing owner');
+
+            $nodes = $definition['nodes'] ?? [];
+            $nodeKeys = array_column($nodes, 'key');
+            self::assertNotEmpty($nodes, $menuKey.' has no nodes');
+            self::assertSame($nodeKeys, array_values(array_unique($nodeKeys)), $menuKey.' has duplicate node keys');
+            self::assertContains($definition['current'], $nodeKeys, $menuKey.' current node missing');
+            self::assertCount(max(0, count($nodeKeys) - 1), $definition['edges'] ?? [], $menuKey.' graph is not a single acyclic path');
+
+            foreach ($definition['edges'] ?? [] as $edge) {
+                self::assertContains($edge['from'], $nodeKeys, $menuKey.' edge source missing');
+                self::assertContains($edge['to'], $nodeKeys, $menuKey.' edge target missing');
+                self::assertNotSame($edge['from'], $edge['to'], $menuKey.' has self edge');
+            }
+        }
+    }
+
+    public function test_all_resolved_flow_nodes_have_valid_route_and_permission_contracts(): void
+    {
+        $items = array_merge(...array_column((new AdminNavigation)->definitions(7), 'items'));
+        $navigation = array_column($items, null, 'key');
+        $registry = new ProcessFlowRegistry;
+
+        foreach ($items as $item) {
+            $flow = $registry->resolve($item['key'], $navigation);
+            self::assertNotNull($flow, $item['key'].' did not resolve');
+            self::assertCount(1, array_filter($flow, static fn (array $node): bool => $node['current']));
+            foreach ($flow as $node) {
+                self::assertNotSame('', $node['permission'], $item['key'].' / '.$node['key'].' missing permission');
+                if ($node['route'] !== null) {
+                    self::assertTrue(Route::has($node['route']), 'Missing route '.$node['route']);
+                }
+            }
+        }
+    }
+
+    public function test_help_and_visible_strip_share_the_same_permission_filtered_menu_flow(): void
+    {
+        $layout = file_get_contents(resource_path('views/layouts/admin.blade.php'));
+        self::assertIsString($layout);
+        self::assertSame(2, substr_count($layout, '$adminHelp[\'menuFlow\']'));
+        self::assertSame(2, substr_count($layout, 'auth()->user()?->can($node[\'permission\'])'));
+        self::assertStringContainsString('<x-admin-process-flow :nodes="$pageProcessFlow" />', $layout);
+        self::assertStringContainsString('@foreach($visibleFlow as $node)', $layout);
+    }
+
+    public function test_process_flow_documentation_has_a_lookup_row_for_every_destination(): void
+    {
+        $documentation = file_get_contents(base_path('docs/erp-process-flow-convention.md'));
+        self::assertIsString($documentation);
+        self::assertSame(122, preg_match_all('/^\| .* \| `[^`]+` \| `(?:MASTER_DATA|CONFIGURATION|BUSINESS_PROCESS|CONTROL|READ_MODEL|REPORT|EXTERNAL|SYSTEM)` \| `[^`]+` \| `Modules\/[^`]+\/resources\/process-flows\.php` \| `[^`]+` \| `[^`]+` \|$/m', $documentation));
     }
 }

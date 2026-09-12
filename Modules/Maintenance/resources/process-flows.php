@@ -11,8 +11,8 @@ $maintenance = [
 ];
 
 return [
-    'maintenance-overview' => ['current' => 'maintenance-overview', 'nodes' => array_merge([['key' => 'maintenance-overview', 'label' => 'Tổng quan bảo trì', 'icon' => 'BT']], array_slice($maintenance, 1))],
-    'maintenance-requests' => ['current' => 'maintenance-requests', 'nodes' => $maintenance],
-    'maintenance-plans' => ['current' => 'maintenance-plans', 'nodes' => $maintenance],
-    'maintenance-work-orders' => ['current' => 'maintenance-work-orders', 'nodes' => $maintenance],
+    'maintenance-overview' => ['id' => 'maintenance.overview', 'category' => 'READ_MODEL', 'current' => 'maintenance-overview', 'nodes' => array_merge([['key' => 'maintenance-overview', 'label' => 'Tổng quan bảo trì', 'icon' => 'BT']], array_slice($maintenance, 1))],
+    'maintenance-requests' => ['id' => 'maintenance.request', 'category' => 'BUSINESS_PROCESS', 'current' => 'maintenance-requests', 'nodes' => $maintenance],
+    'maintenance-plans' => ['id' => 'maintenance.preventive-plan', 'category' => 'CONFIGURATION', 'current' => 'maintenance-plans', 'nodes' => $maintenance],
+    'maintenance-work-orders' => ['id' => 'maintenance.work-order', 'category' => 'BUSINESS_PROCESS', 'current' => 'maintenance-work-orders', 'nodes' => $maintenance],
 ];

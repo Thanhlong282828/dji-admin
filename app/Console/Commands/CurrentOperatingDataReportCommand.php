@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Support\DataQuality\DataQualityDatabaseScope;
 use App\Support\Reporting\CurrentOperatingDataReportService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\File;
@@ -12,7 +13,7 @@ final class CurrentOperatingDataReportCommand extends Command
 
     protected $description = 'Generate a read-only, secret-safe current ERP operating-data snapshot from the active database.';
 
-    public function handle(CurrentOperatingDataReportService $service): int
+    public function handle(CurrentOperatingDataReportService $service, DataQualityDatabaseScope $databaseScope): int
     {
         $company = $this->option('company');
         if ($company !== null && (! ctype_digit((string) $company) || (int) $company < 1)) {
@@ -20,7 +21,13 @@ final class CurrentOperatingDataReportCommand extends Command
 
             return self::INVALID;
         }
-        $output = (string) ($this->option('output') ?: base_path('DU_LIEU_THUC_HIEN_TAI.txt'));
+        $requestedOutput = $this->option('output');
+        if ($requestedOutput === null && $databaseScope->metadata()['database_purpose'] !== 'OPERATING') {
+            $this->error('The default operating-data report can only be generated from the OPERATING database. Use --output for an explicitly scoped non-operating report.');
+
+            return self::FAILURE;
+        }
+        $output = (string) ($requestedOutput ?: base_path('DU_LIEU_THUC_HIEN_TAI.txt'));
         File::ensureDirectoryExists(dirname($output));
         File::put($output, $service->render($company === null ? null : (int) $company));
         $this->info('Current operating data report generated: '.$output);

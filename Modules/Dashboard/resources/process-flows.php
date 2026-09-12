@@ -1,11 +1,13 @@
 <?php
 
+$definition = static fn (string $current, array $nodes): array => [
+    'id' => 'dashboard.'.$current, 'category' => 'READ_MODEL', 'current' => $current,
+    'nodes' => array_map(static fn (mixed $key): array => is_string($key) ? ['key' => $key] : throw new InvalidArgumentException('Dashboard flow node must be a string.'), $nodes),
+];
+
 return [
-    'executive-dashboard' => ['current' => 'executive-dashboard', 'nodes' => [
-        ['key' => 'owner-data', 'label' => 'Owner-domain data', 'permission' => 'analytics.view', 'icon' => 'DB'],
-        ['key' => 'data-quality', 'label' => 'Data Quality', 'icon' => 'DQ'],
-        ['key' => 'enterprise-analytics', 'label' => 'Read models', 'icon' => 'RM'],
-        ['key' => 'executive-dashboard', 'label' => 'Executive Dashboard', 'icon' => 'EX'],
-        ['key' => 'owner-drilldown', 'label' => 'Drill-down nguồn', 'permission' => 'analytics.view', 'icon' => '→'],
-    ]],
+    'dashboard' => $definition('dashboard', ['companies', 'employees', 'attendance', 'payroll-runs', 'dashboard']),
+    'executive-dashboard' => $definition('executive-dashboard', ['enterprise-analytics', 'finance-overview', 'supply-chain-overview', 'executive-dashboard']),
+    'supply-chain-overview' => $definition('supply-chain-overview', ['procurement', 'seller-inventory', 'sales-receivable', 'seller-orders', 'supply-chain-overview']),
+    'enterprise-analytics' => $definition('enterprise-analytics', ['dashboard', 'finance-overview', 'sales-receivable', 'supply-chain-overview', 'enterprise-analytics']),
 ];

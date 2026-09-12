@@ -8,7 +8,9 @@ use Illuminate\Support\Facades\DB;
 
 final class DataQualityAuditService
 {
-    /** @return array{rules:int,passed:int,failed:int,warnings:int,duplicates:int,orphans:int,cross_tenant:int,manager_issues:int,invalid_career_levels:int,attendance_issues:int,payroll_issues:int,compensation_issues:int,commerce_issues:int,identity_issues:int,score:int,checksum:string,findings:list<array{key:string,component:string,severity:string,description:string,count:int,status:string}>} */
+    public function __construct(private readonly DataQualityDatabaseScope $databaseScope) {}
+
+    /** @return array{environment:string,connection:string,configured_database:string,actual_database:string,database_purpose:string,database_matches:bool,rules:int,passed:int,failed:int,warnings:int,duplicates:int,orphans:int,cross_tenant:int,manager_issues:int,invalid_career_levels:int,attendance_issues:int,payroll_issues:int,compensation_issues:int,commerce_issues:int,identity_issues:int,score:int,checksum:string,findings:list<array{key:string,component:string,severity:string,description:string,count:int,status:string}>} */
     public function snapshot(): array
     {
         $findings = [
@@ -118,9 +120,10 @@ final class DataQualityAuditService
         $rows = array_values(array_map(static fn (DataQualityFinding $finding): array => $finding->toArray(), $findings));
         $failed = count(array_filter($rows, static fn (array $row): bool => $row['count'] > 0 && $row['severity'] === 'critical'));
         $warnings = count(array_filter($rows, static fn (array $row): bool => $row['count'] > 0 && $row['severity'] === 'warning'));
-        $checksum = hash('sha256', json_encode($rows, JSON_THROW_ON_ERROR));
+        $scope = $this->databaseScope->metadata();
+        $checksum = hash('sha256', json_encode(['scope' => $scope, 'findings' => $rows], JSON_THROW_ON_ERROR));
 
-        return [
+        return $scope + [
             'rules' => count($rows), 'passed' => count($rows) - $failed - $warnings, 'failed' => $failed, 'warnings' => $warnings,
             'duplicates' => $rows[0]['count'] + $rows[6]['count'],
             'orphans' => $rows[1]['count'] + $rows[8]['count'] + $rows[10]['count'],

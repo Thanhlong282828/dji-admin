@@ -49,6 +49,9 @@ final class CurrentOperatingDataReportCommandTest extends TestCase
         self::assertStringContainsString($marker, $contents);
         self::assertStringContainsString('Người vận hành snapshot', $contents);
         self::assertStringContainsString('Data Quality:', $contents);
+        self::assertStringContainsString('Database Purpose: TESTING', $contents);
+        self::assertStringContainsString('Actual PDO Database: schema_admin_testing', $contents);
+        self::assertStringContainsString('Database Match: YES', $contents);
         self::assertStringContainsString('Treasury', $contents);
         self::assertStringContainsString('Inventory', $contents);
         self::assertStringContainsString('TÓM TẮT HOẠT ĐỘNG DOANH NGHIỆP', $contents);
@@ -64,5 +67,14 @@ final class CurrentOperatingDataReportCommandTest extends TestCase
         self::assertSame($before, DB::table('companies')->count(), 'Report generation must not mutate business data.');
 
         @unlink($path);
+    }
+
+    public function test_testing_database_cannot_overwrite_the_default_operating_report(): void
+    {
+        $operatingReport = base_path('DU_LIEU_THUC_HIEN_TAI.txt');
+        $before = hash_file('sha256', $operatingReport);
+
+        self::assertSame(1, Artisan::call('app:current-operating-data-report'));
+        self::assertSame($before, hash_file('sha256', $operatingReport));
     }
 }

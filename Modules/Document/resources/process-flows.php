@@ -1,7 +1,7 @@
 <?php
 
 return [
-    'enterprise-documents' => ['current' => 'enterprise-documents', 'nodes' => [
+    'enterprise-documents' => ['id' => 'document.enterprise-evidence', 'category' => 'BUSINESS_PROCESS', 'current' => 'enterprise-documents', 'nodes' => [
         ['key' => 'owner-record', 'label' => 'Hồ sơ nghiệp vụ', 'permission' => 'document.view', 'icon' => 'HS'],
         ['key' => 'enterprise-documents', 'label' => 'Tài liệu / Phiên bản', 'icon' => 'TL'],
         ['key' => 'integrity', 'label' => 'SHA / Quyền tải', 'permission' => 'document.view', 'icon' => 'SHA'],

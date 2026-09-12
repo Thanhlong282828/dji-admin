@@ -2,6 +2,8 @@
 
 return [
     'procurement' => [
+        'id' => 'procurement.vendor-to-ap',
+        'category' => 'BUSINESS_PROCESS',
         'current' => 'procurement',
         'nodes' => [
             ['key' => 'vendor', 'label' => 'Nhà cung cấp', 'permission' => 'procurement.view', 'icon' => 'NCC'],

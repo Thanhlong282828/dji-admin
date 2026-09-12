@@ -169,6 +169,40 @@ final class ProcurementAccountingWorkflowTest extends TestCase
         $service->mutate('request.create', $company, $maker, ['branch_id' => $branch, 'reference' => 'PR-BAD-ACCOUNT', 'requested_date' => '2026-08-01', 'reason' => 'Must fail', 'procurement_classification' => 'inventory', 'account_id' => $foreignAccount, 'description' => 'Bad account', 'quantity' => 1, 'estimated_unit_cost_minor' => 1]);
     }
 
+    public function test_operating_expense_order_cannot_use_goods_receipt_or_goods_grni_without_service_policy(): void
+    {
+        [$maker, $checker, $company, $branch, , $location] = $this->runtime();
+        $service = app(ProcurementService::class);
+        $request = $service->mutate('request.create', $company, $maker, ['branch_id' => $branch, 'reference' => 'PR-SERVICE-POLICY', 'requested_date' => '2026-08-01', 'reason' => 'Dịch vụ cần policy riêng', 'procurement_classification' => 'operating_expense', 'description' => 'Dịch vụ kết nối', 'quantity' => 1, 'estimated_unit_cost_minor' => 5_000]);
+        $service->mutate('request.transition', $company, $maker, ['id' => $request, 'to' => 'submitted']);
+        $service->mutate('request.transition', $company, $checker, ['id' => $request, 'to' => 'approved']);
+        $vendor = $service->mutate('vendor.create', $company, $maker, ['code' => 'V-SERVICE-POLICY', 'name' => 'Nhà cung cấp dịch vụ']);
+        $order = $service->mutate('order.create', $company, $maker, ['purchase_request_id' => $request, 'vendor_id' => $vendor, 'reference' => 'PO-SERVICE-POLICY', 'order_date' => '2026-08-02']);
+        $service->mutate('order.transition', $company, $checker, ['id' => $order, 'to' => 'approved']);
+        $line = (int) DB::table('purchase_order_lines')->where('purchase_order_id', $order)->value('id');
+        $movementsBefore = DB::table('inventory_movements')->count();
+        $journalsBefore = DB::table('payroll_accounting_journals')->count();
+
+        try {
+            $service->mutate('receipt.create', $company, $maker, ['purchase_order_id' => $order, 'purchase_order_line_id' => $line, 'inventory_location_id' => $location, 'reference' => 'GR-SERVICE-MUST-FAIL', 'receipt_date' => '2026-08-03', 'quantity' => 1]);
+            self::fail('Operating expense/service lines must not use Goods Receipt or goods GRNI.');
+        } catch (ValidationException $exception) {
+            self::assertArrayHasKey('purchase_order_line_id', $exception->errors());
+        }
+
+        self::assertSame($movementsBefore, DB::table('inventory_movements')->count());
+        self::assertSame($journalsBefore, DB::table('payroll_accounting_journals')->count());
+        self::assertSame(0, DB::table('payroll_accounting_journal_lines')->where('account_code_snapshot', '2150')->count());
+        self::assertFalse(DB::table('accounting_accounts')->where(['company_id' => $company, 'code' => '2160'])->exists());
+        try {
+            app(SourceAccountingPostingService::class)->accountEvidence($company, '2160', 'VND', $maker->id);
+            self::fail('Unapproved service accrual account must not be created implicitly.');
+        } catch (ValidationException $exception) {
+            self::assertArrayHasKey('accounting', $exception->errors());
+        }
+        self::assertFalse(DB::table('accounting_accounts')->where(['company_id' => $company, 'code' => '2160'])->exists());
+    }
+
     private function expectSelfApprovalBlocked(ProcurementService $service, int $company, User $maker, int $request): void
     {
         try {

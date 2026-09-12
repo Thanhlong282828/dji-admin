@@ -1,15 +1,18 @@
 ERP CURRENT OPERATING DATA SNAPSHOT
 ================================================================================
-Generated At: 2026-09-11T02:14:16+00:00
+Generated At: 2026-09-11T20:05:51+00:00
 Environment: local
-Database: schema_admin
+Configured Database: schema_admin
+Actual PDO Database: schema_admin
+Database Purpose: OPERATING
+Database Match: YES
 Company count: 4
-Branch count: 3
+Branch count: 8
 Employee count: 40
 Active user accounts: 16
 Migration count: 100
 Table count: 329
-Data Quality: 101/102 PASS
+Data Quality: 101/102 FINDINGS
 
 LƯU Ý: Dữ liệu vận hành trong môi trường local có thể là dữ liệu synthetic/bootstrap-owned dùng để mô phỏng doanh nghiệp, không phải dữ liệu cá nhân thật ngoài đời.
 Các số liệu dưới đây được truy vấn tại thời điểm tạo báo cáo; KHÔNG phải tổng được chép từ tài liệu.
@@ -66,6 +69,69 @@ Company: Schema Technology Vietnam (SCHEMA-TECH-VN)
   - Inventory qty/value: 294 / 0 VND
   - Expense: 0 VND
   - POS receipts: 2
+
+Company: Schema Digital Solutions (SCHEMA-DIGITAL)
+- Status: active
+- Branch count: 2
+- Employee count: 0
+- Active user count: 1
+- Payroll gross/net: 0 VND / 0 VND
+- AP outstanding: 0 VND
+- Inventory value: 0 VND
+- Expense: 0 VND
+- Revenue/operating result: KHÔNG ĐỦ BẰNG CHỨNG
+  Branch: Chi nhánh TP.HCM (SCHEMA-DIGITAL-HCM)
+  - Headcount: 0
+  - Attendance / late: 0 / 0
+  - Inventory qty/value: 0 / 0 VND
+  - Expense: 0 VND
+  - POS receipts: 0
+  Branch: Chi nhánh Hà Nội (SCHEMA-DIGITAL-HN)
+  - Headcount: 0
+  - Attendance / late: 0 / 0
+  - Inventory qty/value: 0 / 0 VND
+  - Expense: 0 VND
+  - POS receipts: 0
+
+Company: Schema Premium Robotics (SCHEMA-ROBOTICS)
+- Status: inactive
+- Branch count: 1
+- Employee count: 0
+- Active user count: 1
+- Payroll gross/net: 0 VND / 0 VND
+- AP outstanding: 0 VND
+- Inventory value: 0 VND
+- Expense: 0 VND
+- Revenue/operating result: KHÔNG ĐỦ BẰNG CHỨNG
+  Branch: Chi nhánh TP.HCM (SCHEMA-ROBOTICS-HCM)
+  - Headcount: 0
+  - Attendance / late: 0 / 0
+  - Inventory qty/value: 0 / 0 VND
+  - Expense: 0 VND
+  - POS receipts: 0
+
+Company: Công ty Cổ phần Công nghệ Minh Long (SCHEMA-LOCAL)
+- Status: active
+- Branch count: 2
+- Employee count: 0
+- Active user count: 1
+- Payroll gross/net: 0 VND / 0 VND
+- AP outstanding: 0 VND
+- Inventory value: 0 VND
+- Expense: 0 VND
+- Revenue/operating result: KHÔNG ĐỦ BẰNG CHỨNG
+  Branch: Chi nhánh TP.HCM (SCHEMA-LOCAL-HCM)
+  - Headcount: 0
+  - Attendance / late: 0 / 0
+  - Inventory qty/value: 0 / 0 VND
+  - Expense: 0 VND
+  - POS receipts: 0
+  Branch: Chi nhánh Hà Nội (SCHEMA-LOCAL-HN)
+  - Headcount: 0
+  - Attendance / late: 0 / 0
+  - Inventory qty/value: 0 / 0 VND
+  - Expense: 0 VND
+  - POS receipts: 0
 
 
 ================================================================================
@@ -651,26 +717,12 @@ Cash Flow completeness: PARTIAL — actual Treasury evidence is classified, but 
 ================================================================================
 SUPPLY CHAIN
 ================================================================================
-Open PO / Pending GR / Inbound qty / Inbound value: 2 / 0 / 12 / 4.000.000 VND
-Inventory SKU / On hand / Reserved / Available / In transit / Value: 52 / 1054 / 18 / 1036 / 0 / 15.614.286 VND
-Low stock / Out of stock / Pending transfers: 1 / 6 / 0
-Demand ERP open / remaining units / Marketplace pending: 0 / 0 / 3
-Logistics ready / in transit / delivered / failed / returned: 0 / 0 / 3 / 0 / 0
-External carrier integration: NOT_CONNECTED; delivery performance: NOT_ENOUGH_EVIDENCE; logistics cost: NOT_IMPLEMENTED.
+Chọn Company scope để xem SCM canonical.
 
 ================================================================================
 BI / ANALYTICS
 ================================================================================
-Latest / Previous month: 2026-09 / 2026-08
-Revenue current / previous / variance: 0 VND / 91.140.000 VND / -91.140.000 VND
-ERP Sales / Marketplace / POS current: 0 VND / 0 VND / 0 VND
-COGS / Gross Profit / Operating Result: 1.785.714 VND / 16.964.286 VND / -1.559.128.626 VND
-Payroll / OPEX current: 0 VND / 0 VND
-AR / AP / Net cash movement: 9.250.000 VND / 8.500.000 VND / 3.750.000 VND
-Headcount / Late records / OT minutes: 36 / 1015 / 2940
-Inventory value / Out of stock: 15.614.286 VND / 6
-CRM NEW / ACTIVE / REPEAT / AT_RISK / DORMANT: 7 / 0 / 0 / 0 / 0
-Forecast: AR/AP due-date only; future revenue and inventory turnover: NOT_ENOUGH_EVIDENCE.
+Chọn Company scope để xem BI canonical.
 
 ================================================================================
 DOCUMENT MANAGEMENT
@@ -689,26 +741,12 @@ Owner-domain Commands retain business mutation ownership; DMS stores private evi
 ================================================================================
 PROJECT MANAGEMENT
 ================================================================================
-Projects / Active / Completed / On Hold / Cancelled / At Risk / Overdue: 1 / 1 / 0 / 0 / 0 / 1 / 0
-Tasks total / Todo / In Progress / Blocked / Done / Overdue: 2 / 0 / 1 / 0 / 1 / 0
-Milestones total / Open / Completed / Overdue: 1 / 1 / 0 / 1
-Active members: 2
-Timesheets Draft / Submitted / Approved / Rejected / Approved minutes: 0 / 0 / 1 / 0 / 420
-Planned project budget: 12.000.000 VND; approved Expense actual: 1.250.000 VND.
-Owner documents — Expense / Purchase Request / Asset: 1 / 0 / 0.
-Expense linkage: PASS; Procurement linkage: PASS; Asset source trace: PARTIAL; Revenue/Billing: NOT_IMPLEMENTED; Workflow/Notification: PARTIAL.
-Documents: 1; pending approvals: 0.
+Chọn Company scope để xem Project Management canonical.
 
 ================================================================================
 MAINTENANCE / CMMS
 ================================================================================
-Requests Total / Submitted / Approved / Converted: 1 / 0 / 0 / 1
-Work Orders Total / Draft / Planned / In Progress / On Hold / Completed / Cancelled / Overdue: 3 / 1 / 1 / 0 / 0 / 1 / 0 / 0
-Preventive Plans / Active / Due: 2 / 2 / 0
-Downtime minutes: 0; Parts cost: 0 VND; approved external cost: 0 VND.
-Owner documents — Expense / Purchase Request: 0 / 0.
-Inventory linkage: PASS; Procurement: PASS; Expense: PASS; Accounting: PARTIAL (Expense posts canonically; spare-part consumption posting chưa có policy); DMS: PASS; Workflow/Notification: PARTIAL.
-MTTR / MTBF: NOT_ENOUGH_EVIDENCE / NOT_ENOUGH_EVIDENCE.
+Chọn Company scope để xem Maintenance canonical.
 
 ================================================================================
 13–18 — PROCUREMENT / AP / TREASURY / EXPENSE / ASSET / BUDGET

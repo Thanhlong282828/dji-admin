@@ -4,9 +4,11 @@ namespace Tests\Feature;
 
 use App\Models\User;
 use App\Support\DataQuality\DataQualityAuditService;
+use App\Support\DataQuality\DataQualityDatabaseScope;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Modules\Company\Domain\Models\Company;
 use Modules\Organization\Domain\Models\JobPosition;
@@ -36,6 +38,11 @@ final class OperationsDataQualityTest extends TestCase
         $second = app(DataQualityAuditService::class)->snapshot();
         self::assertSame($first['checksum'], $second['checksum']);
         self::assertSame(102, $first['rules']);
+        self::assertSame('testing', $first['environment']);
+        self::assertSame('schema_admin_testing', $first['configured_database']);
+        self::assertSame('schema_admin_testing', $first['actual_database']);
+        self::assertSame('TESTING', $first['database_purpose']);
+        self::assertTrue($first['database_matches']);
         self::assertSame(0, $first['invalid_career_levels']);
         self::assertSame(0, $first['compensation_issues']);
         self::assertSame(0, Artisan::call('operations:data-quality-audit', ['--json' => true]));
@@ -43,6 +50,24 @@ final class OperationsDataQualityTest extends TestCase
         self::assertJson($output);
         self::assertStringNotContainsString('password', $output);
         self::assertSame($before, $this->tableCounts());
+    }
+
+    public function test_database_purposes_are_explicit_and_unknown_is_never_operating(): void
+    {
+        self::assertSame('OPERATING', DataQualityDatabaseScope::purposeFor('schema_admin'));
+        self::assertSame('TESTING', DataQualityDatabaseScope::purposeFor('schema_admin_testing'));
+        self::assertSame('BROWSER_TESTING', DataQualityDatabaseScope::purposeFor('schema_admin_browser_testing'));
+        self::assertSame('RECOVERY', DataQualityDatabaseScope::purposeFor('schema_admin_recovery_testing'));
+        self::assertSame('UNKNOWN', DataQualityDatabaseScope::purposeFor('customer_database'));
+    }
+
+    public function test_historical_phone_rule_remains_registered_without_mutating_users(): void
+    {
+        $before = DB::table('users')->count();
+        $snapshot = app(DataQualityAuditService::class)->snapshot();
+
+        self::assertNotNull(collect($snapshot['findings'])->firstWhere('key', 'identity.invalid_verified_phone'));
+        self::assertSame($before, DB::table('users')->count());
     }
 
     public function test_active_position_outside_level_one_through_six_is_reported(): void

@@ -11,6 +11,6 @@ $project = [
 ];
 
 return [
-    'project-overview' => ['current' => 'project-overview', 'nodes' => array_merge([['key' => 'project-overview', 'label' => 'Tổng quan dự án', 'icon' => 'DA']], array_slice($project, 1))],
-    'projects' => ['current' => 'projects', 'nodes' => $project],
+    'project-overview' => ['id' => 'project.overview', 'category' => 'READ_MODEL', 'current' => 'project-overview', 'nodes' => array_merge([['key' => 'project-overview', 'label' => 'Tổng quan dự án', 'icon' => 'DA']], array_slice($project, 1))],
+    'projects' => ['id' => 'project.delivery', 'category' => 'BUSINESS_PROCESS', 'current' => 'projects', 'nodes' => $project],
 ];

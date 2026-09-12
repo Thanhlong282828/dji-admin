@@ -11,10 +11,10 @@ $workflow = [
 ];
 
 return [
-    'workflow' => ['current' => 'workflow', 'nodes' => $workflow],
-    'workflow-tasks' => ['current' => 'workflow-tasks', 'nodes' => $workflow],
-    'approval-inbox' => ['current' => 'approval-inbox', 'nodes' => $workflow],
-    'workflow-definitions' => ['current' => 'workflow-definitions', 'nodes' => [
+    'workflow' => ['id' => 'workflow.owner-approval', 'category' => 'CONTROL', 'current' => 'workflow', 'nodes' => $workflow],
+    'workflow-tasks' => ['id' => 'workflow.owner-approval', 'category' => 'CONTROL', 'current' => 'workflow-tasks', 'nodes' => $workflow],
+    'approval-inbox' => ['id' => 'workflow.owner-approval', 'category' => 'CONTROL', 'current' => 'approval-inbox', 'nodes' => $workflow],
+    'workflow-definitions' => ['id' => 'workflow.definition-to-runtime', 'category' => 'CONFIGURATION', 'current' => 'workflow-definitions', 'nodes' => [
         ['key' => 'workflow-definitions', 'label' => 'Định nghĩa quy trình', 'icon' => 'ĐN'],
         ['key' => 'workflow', 'label' => 'Workflow instance', 'icon' => 'WF'],
         ['key' => 'workflow-tasks', 'label' => 'Approval Task', 'icon' => 'TK'],
