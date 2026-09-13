@@ -4,6 +4,7 @@ namespace Modules\Procurement\Application\Services;
 
 use App\Models\User;
 use Illuminate\Database\ConnectionInterface;
+use Illuminate\Database\Query\JoinClause;
 use Illuminate\Validation\ValidationException;
 use Modules\Finance\Application\Services\AccountingAdjustmentService;
 use Modules\Finance\Application\Services\AccountingPostingPolicyResolver;
@@ -186,7 +187,10 @@ final readonly class ServiceAcceptanceService
 
     private function hasBillingDependency(int $acceptanceId): bool
     {
-        return $this->db->table('vendor_bill_lines as vbl')->join('vendor_bills as vb', 'vb.id', '=', 'vbl.vendor_bill_id')->join('service_acceptance_lines as sal', 'sal.id', '=', 'vbl.service_acceptance_line_id')->where('sal.service_acceptance_id', $acceptanceId)->whereNotIn('vb.status', ['cancelled', 'rejected'])->lockForUpdate()->exists();
+        return $this->db->table('vendor_bill_lines as vbl')->join('vendor_bills as vb', 'vb.id', '=', 'vbl.vendor_bill_id')->join('service_acceptance_lines as sal', 'sal.id', '=', 'vbl.service_acceptance_line_id')
+            ->leftJoin('vendor_bill_reversal_requests as reversal', function (JoinClause $join): void {
+                $join->on('reversal.vendor_bill_id', '=', 'vb.id')->where('reversal.status', '=', 'reversed')->whereNotNull('reversal.effective_at');
+            })->where('sal.service_acceptance_id', $acceptanceId)->whereNotIn('vb.status', ['cancelled', 'rejected'])->whereNull('reversal.id')->lockForUpdate()->exists();
     }
 
     private function acceptance(int $companyId, int $acceptanceId): object

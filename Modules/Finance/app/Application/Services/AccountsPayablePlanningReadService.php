@@ -5,6 +5,7 @@ namespace Modules\Finance\Application\Services;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Database\Query\Builder;
+use Illuminate\Database\Query\JoinClause;
 
 /** @phpstan-type ApFilters array{as_of_date:string,vendor_id:?int,branch_id:?int,cost_center_id:?int,due_bucket:?string,payment_status:?string,currency:string,sort:string,direction:string} */
 final readonly class AccountsPayablePlanningReadService
@@ -20,19 +21,26 @@ final readonly class AccountsPayablePlanningReadService
         $asOf = CarbonImmutable::parse($filters['as_of_date'])->startOfDay();
         $allocated = $this->db->table('ap_payment_allocations as allocation')
             ->join('ap_payments as payment', 'payment.id', '=', 'allocation.payment_id')
+            ->leftJoin('ap_payment_allocation_reversals as allocation_reversal', function (JoinClause $join) use ($asOf): void {
+                $join->on('allocation_reversal.ap_payment_allocation_id', '=', 'allocation.id')->where('allocation_reversal.effective_at', '<=', $asOf->endOfDay()->toDateTimeString());
+            })
             ->where('payment.company_id', $companyId)
             ->where('payment.status', 'approved')
             ->whereDate('payment.payment_date', '<=', $asOf->toDateString())
-            ->selectRaw('allocation.vendor_bill_id, SUM(allocation.allocated_minor) allocated_minor')
+            ->selectRaw('allocation.vendor_bill_id, SUM(allocation.allocated_minor-COALESCE(allocation_reversal.reversed_minor,0)) allocated_minor')
             ->groupBy('allocation.vendor_bill_id');
 
         $query = $this->db->table('vendor_bills as bill')
             ->join('procurement_vendors as vendor', 'vendor.id', '=', 'bill.vendor_id')
             ->join('branches as branch', 'branch.id', '=', 'bill.branch_id')
             ->leftJoinSub($allocated, 'allocated', 'allocated.vendor_bill_id', '=', 'bill.id')
+            ->leftJoin('vendor_bill_reversal_requests as bill_reversal', function (JoinClause $join) use ($asOf): void {
+                $join->on('bill_reversal.vendor_bill_id', '=', 'bill.id')->where('bill_reversal.status', '=', 'reversed')->where('bill_reversal.effective_at', '<=', $asOf->endOfDay()->toDateTimeString());
+            })
             ->where('bill.company_id', $companyId)
             ->whereIn('bill.status', ['approved', 'partially_paid', 'paid'])
             ->whereDate('bill.invoice_date', '<=', $asOf->toDateString())
+            ->whereNull('bill_reversal.id')
             ->where('bill.currency', $filters['currency'])
             ->when($filters['vendor_id'], fn (Builder $inner, int $id): Builder => $inner->where('bill.vendor_id', $id))
             ->when($filters['branch_id'], fn (Builder $inner, int $id): Builder => $inner->where('bill.branch_id', $id));
@@ -118,7 +126,7 @@ final readonly class AccountsPayablePlanningReadService
             'readiness' => $readiness,
             'reconciliation' => ['subledger' => $outstanding, 'gl_2100' => $filters['vendor_id'] === null && $filters['cost_center_id'] === null && $filters['due_bucket'] === null && $filters['payment_status'] === null ? $gl : null, 'difference' => $filters['vendor_id'] === null && $filters['cost_center_id'] === null && $filters['due_bucket'] === null && $filters['payment_status'] === null ? $outstanding - $gl : null, 'scope' => 'PROCUREMENT_VENDOR_BILL_AND_AP_PAYMENT_ONLY'],
             'cash_evidence' => ['available_cash' => null, 'coverage' => null, 'status' => 'NOT_ENOUGH_EVIDENCE', 'reason' => 'Treasury has movement and clearing evidence but no verified opening cash balance.'],
-            'limitations' => ['allocation_reversal' => 'NOT_IMPLEMENTED_IN_OWNER_DOMAIN', 'forecast' => 'AP_OUTFLOW_ONLY_NOT_FULL_CASH_FLOW_FORECAST'],
+            'limitations' => ['allocation_reversal' => 'EFFECTIVE_DATED_APPEND_ONLY', 'forecast' => 'AP_OUTFLOW_ONLY_NOT_FULL_CASH_FLOW_FORECAST'],
         ];
     }
 
@@ -157,7 +165,7 @@ final readonly class AccountsPayablePlanningReadService
 
     private function apGeneralLedger(int $companyId, CarbonImmutable $asOf, ?int $branchId, string $currency): int
     {
-        return $this->integer($this->db->table('payroll_accounting_journal_lines as line')
+        $base = $this->integer($this->db->table('payroll_accounting_journal_lines as line')
             ->join('payroll_accounting_journals as journal', 'journal.id', '=', 'line.journal_id')
             ->where('journal.company_id', $companyId)
             ->whereIn('journal.status', ['internally_posted', 'exported'])
@@ -167,6 +175,15 @@ final readonly class AccountsPayablePlanningReadService
             ->where('line.account_code_snapshot', '2100')
             ->when($branchId, fn (Builder $inner, int $id): Builder => $inner->where('journal.branch_id', $id))
             ->sum($this->db->raw('CAST(line.credit_minor AS SIGNED)-CAST(line.debit_minor AS SIGNED)')));
+        $effectiveAt = $asOf->endOfDay()->toDateTimeString();
+        $paymentReversals = $this->db->table('ap_payment_reversal_requests')->where(['company_id' => $companyId, 'status' => 'reversed'])->where('effective_at', '<=', $effectiveAt)->whereNotNull('reversal_journal_id')->select('reversal_journal_id');
+        $reversalJournalIds = $this->db->table('vendor_bill_reversal_requests')->where(['company_id' => $companyId, 'status' => 'reversed'])->where('effective_at', '<=', $effectiveAt)->whereNotNull('reversal_journal_id')->select('reversal_journal_id')->unionAll($paymentReversals)->pluck('reversal_journal_id');
+        if ($reversalJournalIds->isEmpty()) {
+            return $base;
+        }
+        $reversals = $this->integer($this->db->table('payroll_accounting_journal_lines as line')->join('payroll_accounting_journals as journal', 'journal.id', '=', 'line.journal_id')->where('journal.company_id', $companyId)->whereIn('journal.id', $reversalJournalIds)->where('journal.currency', $currency)->where('line.account_code_snapshot', '2100')->when($branchId, fn (Builder $inner, int $id): Builder => $inner->where('journal.branch_id', $id))->sum($this->db->raw('CAST(line.credit_minor AS SIGNED)-CAST(line.debit_minor AS SIGNED)')));
+
+        return $base + $reversals;
     }
 
     private function costCenterScope(Builder $query, ?int $costCenterId): void

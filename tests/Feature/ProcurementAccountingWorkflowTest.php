@@ -3,21 +3,98 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use Carbon\CarbonImmutable;
 use Illuminate\Database\RecordNotFoundException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Modules\Finance\Application\Services\AccountsPayablePlanningReadService;
+use Modules\Finance\Application\Services\ApPaymentReversalService;
 use Modules\Finance\Application\Services\CostCenterCostManagementReadService;
 use Modules\Finance\Application\Services\SourceAccountingPostingService;
 use Modules\Payroll\Domain\Repositories\AccountingReadRepositoryInterface;
+use Modules\Procurement\Application\Services\ProcurementExceptionReadService;
+use Modules\Procurement\Application\Services\ProcurementReconciliationReadService;
 use Modules\Procurement\Application\Services\ProcurementService;
+use Modules\Procurement\Application\Services\VendorBillReversalService;
+use Modules\Procurement\Application\Services\VendorPerformanceReadService;
 use Tests\TestCase;
 
 final class ProcurementAccountingWorkflowTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_goods_bill_reversal_restores_grni_and_ap_without_touching_inventory_or_budget(): void
+    {
+        CarbonImmutable::setTestNow('2026-09-12 12:00:00');
+        [$maker, $checker, $company, $branch, $variant, $location] = $this->runtime();
+        $procurement = app(ProcurementService::class);
+        $center = (int) DB::table('cost_centers')->insertGetId(['company_id' => $company, 'code' => 'GOODS-CC', 'name' => 'Goods Cost Center', 'created_at' => now(), 'updated_at' => now()]);
+        $vendor = $procurement->mutate('vendor.create', $company, $maker, ['code' => 'GOODS-VENDOR', 'name' => 'Goods Vendor']);
+        $request = $procurement->mutate('request.create', $company, $maker, ['branch_id' => $branch, 'cost_center_id' => $center, 'reference' => 'PR-GOODS-REV', 'requested_date' => '2026-09-01', 'reason' => 'Goods replenishment', 'product_variant_id' => $variant, 'description' => 'Goods inventory', 'quantity' => 8, 'estimated_unit_cost_minor' => 1_000_000]);
+        $procurement->mutate('request.transition', $company, $maker, ['id' => $request, 'to' => 'submitted']);
+        $procurement->mutate('request.transition', $company, $checker, ['id' => $request, 'to' => 'approved']);
+        $order = $procurement->mutate('order.create', $company, $maker, ['purchase_request_id' => $request, 'vendor_id' => $vendor, 'reference' => 'PO-GOODS-REV', 'order_date' => '2026-09-02']);
+        $procurement->mutate('order.transition', $company, $checker, ['id' => $order, 'to' => 'approved']);
+        $line = (int) DB::table('purchase_order_lines')->where('purchase_order_id', $order)->value('id');
+        $receipt = $procurement->mutate('receipt.create', $company, $maker, ['purchase_order_id' => $order, 'purchase_order_line_id' => $line, 'inventory_location_id' => $location, 'reference' => 'GR-GOODS-REV', 'receipt_date' => '2026-09-10', 'quantity' => 5]);
+        $procurement->mutate('receipt.receive', $company, $checker, ['id' => $receipt]);
+        $bill = $procurement->mutate('bill.create', $company, $maker, ['purchase_order_id' => $order, 'purchase_order_line_id' => $line, 'quantity' => 4, 'invoice_number' => 'INV-GOODS-REV', 'invoice_date' => '2026-09-11', 'due_date' => '2026-10-11']);
+        $procurement->mutate('bill.approve', $company, $checker, ['id' => $bill]);
+        $payment = $procurement->mutate('payment.allocate', $company, $checker, ['vendor_bill_id' => $bill, 'payment_date' => '2026-09-12', 'amount_minor' => 1_000_000, 'method' => 'bank_clearing', 'reference' => 'PAY-GOODS-REV']);
+        $period = (int) DB::table('accounting_periods')->where(['company_id' => $company, 'year' => 2026, 'month' => 9])->value('id');
+        $filters = ['date_from' => '2026-09-01', 'date_to' => '2026-09-12', 'branch_id' => null, 'cost_center_id' => null, 'vendor_id' => null, 'classification' => null, 'currency' => 'VND'];
+        $reporting = app(ProcurementReconciliationReadService::class);
+        $before = $reporting->read($company, $filters);
+        self::assertSame(5_000_000, $before['goods']['received']);
+        self::assertSame(4_000_000, $before['goods']['billed']);
+        self::assertSame(1_000_000, $before['goods']['unbilled_received']);
+        self::assertSame(1_000_000, $before['goods']['grni']);
+        self::assertSame(3_000_000, $before['ap']['outstanding']);
+        $inventoryBefore = DB::table('inventory_balances')->where(['product_variant_id' => $variant, 'inventory_location_id' => $location])->firstOrFail();
+        $movementCount = DB::table('inventory_movements')->count();
+        $budgetBefore = app(CostCenterCostManagementReadService::class)->read($company, $center, '2026-09-01', '2026-09-30')['totals'];
+
+        $billReversals = app(VendorBillReversalService::class);
+        $this->assertValidation(fn () => $billReversals->request($company, $bill, $period, 'Goods invoice correction', 'goods-bill-blocked', $maker), 'bill', 'VENDOR_BILL_HAS_ACTIVE_PAYMENT');
+        $paymentReversals = app(ApPaymentReversalService::class);
+        $paymentRequest = $paymentReversals->request($company, $payment, $period, 'Payment returned', 'goods-payment-reversal', $maker);
+        $paymentReversals->approve($company, $paymentRequest, '2026-09-15', $checker);
+        $planning = app(AccountsPayablePlanningReadService::class);
+        self::assertSame(3_000_000, $planning->read($company, $this->apFilters('2026-09-12'))['totals']['outstanding']);
+        self::assertSame(4_000_000, $planning->read($company, $this->apFilters('2026-09-15'))['totals']['outstanding']);
+
+        CarbonImmutable::setTestNow('2026-09-16 12:00:00');
+        $billRequest = $billReversals->request($company, $bill, $period, 'Goods invoice correction', 'goods-bill-reversal', $maker);
+        $billJournal = $billReversals->approve($company, $billRequest, '2026-09-16', $checker);
+        self::assertSame($billJournal, $billReversals->approve($company, $billRequest, '2026-09-16', $checker));
+        $reversalLines = DB::table('payroll_accounting_journal_lines')->where('journal_id', $billJournal)->orderBy('line_number')->get();
+        self::assertSame(['2150', '2100'], $reversalLines->pluck('account_code_snapshot')->all());
+        self::assertSame([0, 4_000_000], $reversalLines->pluck('debit_minor')->map(static fn ($amount): int => (int) $amount)->all());
+        self::assertSame([4_000_000, 0], $reversalLines->pluck('credit_minor')->map(static fn ($amount): int => (int) $amount)->all());
+        self::assertSame(0, $planning->read($company, $this->apFilters('2026-09-16'))['totals']['outstanding']);
+        $filters['date_to'] = '2026-09-16';
+        $after = $reporting->read($company, $filters);
+        self::assertSame(5_000_000, $after['goods']['received']);
+        self::assertSame(0, $after['goods']['billed']);
+        self::assertSame(5_000_000, $after['goods']['unbilled_received']);
+        self::assertSame(5_000_000, $after['goods']['grni']);
+        self::assertSame(0, $after['ap']['outstanding']);
+        $exceptions = app(ProcurementExceptionReadService::class)->read($company, $filters + ['exception_type' => null, 'severity' => null, 'business_status' => null], $after);
+        self::assertSame(5_000_000, collect($exceptions['rows'])->firstWhere('exception_type', 'GOODS_RECEIVED_NOT_BILLED')['amount_minor'] ?? null);
+        $performanceFilters = $filters + ['sort' => 'billed', 'direction' => 'desc'];
+        $performance = app(VendorPerformanceReadService::class)->read($company, $performanceFilters, $exceptions['rows']);
+        self::assertSame(0, $performance['rows'][0]['billed']);
+        self::assertSame(5_000_000, $performance['rows'][0]['received_not_billed']);
+        $inventoryAfter = DB::table('inventory_balances')->where(['product_variant_id' => $variant, 'inventory_location_id' => $location])->firstOrFail();
+        self::assertSame((int) $inventoryBefore->on_hand, (int) $inventoryAfter->on_hand);
+        self::assertSame((int) $inventoryBefore->inventory_value_minor, (int) $inventoryAfter->inventory_value_minor);
+        self::assertSame((int) $inventoryBefore->average_unit_cost_minor, (int) $inventoryAfter->average_unit_cost_minor);
+        self::assertSame($movementCount, DB::table('inventory_movements')->count());
+        self::assertSame($budgetBefore, app(CostCenterCostManagementReadService::class)->read($company, $center, '2026-09-01', '2026-09-30')['totals']);
+        CarbonImmutable::setTestNow();
+    }
 
     public function test_canonical_purchase_chain_values_inventory_ap_and_balanced_accounting(): void
     {
@@ -232,6 +309,22 @@ final class ProcurementAccountingWorkflowTest extends TestCase
             self::fail('Requester self approval should be blocked.');
         } catch (ValidationException $exception) {
             self::assertArrayHasKey('actor', $exception->errors());
+        }
+    }
+
+    /** @return array{as_of_date:string,vendor_id:null,branch_id:null,cost_center_id:null,due_bucket:null,payment_status:null,currency:string,sort:string,direction:string} */
+    private function apFilters(string $asOf): array
+    {
+        return ['as_of_date' => $asOf, 'vendor_id' => null, 'branch_id' => null, 'cost_center_id' => null, 'due_bucket' => null, 'payment_status' => null, 'currency' => 'VND', 'sort' => 'outstanding', 'direction' => 'desc'];
+    }
+
+    private function assertValidation(callable $callback, string $key, string $message): void
+    {
+        try {
+            $callback();
+            self::fail('Expected validation exception.');
+        } catch (ValidationException $exception) {
+            self::assertSame($message, $exception->errors()[$key][0] ?? null);
         }
     }
 

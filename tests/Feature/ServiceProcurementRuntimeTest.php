@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use Carbon\CarbonImmutable;
 use Illuminate\Database\RecordNotFoundException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -13,6 +14,7 @@ use Illuminate\Validation\ValidationException;
 use Modules\Core\Application\Buses\CommandBusInterface;
 use Modules\Document\Application\Services\EnterpriseDocumentService;
 use Modules\Finance\Application\Services\AccountingPostingPolicyService;
+use Modules\Finance\Application\Services\AccountsPayablePlanningReadService;
 use Modules\Finance\Application\Services\ApprovalInboxService;
 use Modules\Finance\Application\Services\CostCenterCostManagementReadService;
 use Modules\Finance\Application\Services\SourceAccountingPostingService;
@@ -23,6 +25,7 @@ use Modules\Procurement\Application\Services\ProcurementReconciliationReadServic
 use Modules\Procurement\Application\Services\ProcurementService;
 use Modules\Procurement\Application\Services\ServiceAcceptanceService;
 use Modules\Procurement\Application\Services\ServiceAcceptanceWorkflowOrchestrator;
+use Modules\Procurement\Application\Services\VendorBillReversalService;
 use Modules\Procurement\Application\Services\VendorPerformanceReadService;
 use Modules\Workflow\Application\DTOs\WorkflowDefinitionData;
 use Modules\Workflow\Domain\Services\WorkflowDefinitionService;
@@ -307,6 +310,81 @@ final class ServiceProcurementRuntimeTest extends TestCase
         $this->assertValidation(fn () => $this->acceptances()->requestReversal($f['company'], $acceptance, $period, 'Sai nghiệm thu', 'blocked-key', $f['checker']), 'acceptance', 'SERVICE_ACCEPTANCE_HAS_BILLING_DEPENDENCY');
         $this->expectException(RecordNotFoundException::class);
         $this->acceptances()->requestReversal($f['foreign_company'], $acceptance, $period, 'Sai tenant', 'foreign-key', $f['checker']);
+    }
+
+    public function test_downstream_service_correction_is_effective_dated_idempotent_and_balanced(): void
+    {
+        $f = $this->fixture();
+        $acceptance = $this->accept($f, 'SA-DOWNSTREAM-REVERSAL', 4);
+        $line = DB::table('service_acceptance_lines')->where('service_acceptance_id', $acceptance)->firstOrFail();
+        $bill = $this->procurement()->mutate('bill.create', $f['company'], $f['maker'], ['purchase_order_id' => $f['po'], 'purchase_order_line_id' => $f['po_line'], 'service_acceptance_line_id' => (int) $line->id, 'quantity' => 3, 'invoice_number' => 'INV-DOWNSTREAM-REVERSAL', 'invoice_date' => '2026-09-12', 'due_date' => '2026-10-10']);
+        $this->procurement()->mutate('bill.approve', $f['company'], $f['checker'], ['id' => $bill]);
+        $payment = $this->procurement()->mutate('payment.allocate', $f['company'], $f['checker'], ['vendor_bill_id' => $bill, 'payment_date' => '2026-09-12', 'amount_minor' => 1_000_000, 'method' => 'bank_clearing', 'reference' => 'PAY-DOWNSTREAM-REVERSAL']);
+        $period = (int) DB::table('accounting_periods')->where(['company_id' => $f['company'], 'year' => 2026, 'month' => 9])->value('id');
+
+        $this->assertValidation(fn () => $this->acceptances()->requestReversal($f['company'], $acceptance, $period, 'Blocked by bill', 'sa-blocked-by-bill', $f['maker']), 'acceptance', 'SERVICE_ACCEPTANCE_HAS_BILLING_DEPENDENCY');
+        $this->assertValidation(fn () => app(VendorBillReversalService::class)->request($f['company'], $bill, $period, 'Blocked by payment', 'bill-blocked-by-payment', $f['maker']), 'bill', 'VENDOR_BILL_HAS_ACTIVE_PAYMENT');
+
+        foreach (['treasury.view', 'vendor-bill.view', 'treasury.payment.reversal.request', 'treasury.payment.reversal.approve', 'vendor-bill.reversal.request', 'vendor-bill.reversal.approve'] as $name) {
+            Permission::findOrCreate($name, 'web');
+        }
+        $paymentPayload = ['company_id' => $f['company'], 'target_accounting_period_id' => $period, 'reason' => 'Payment returned', 'idempotency_key' => 'payment-reversal-key'];
+        $f['maker']->givePermissionTo(['treasury.view', 'vendor-bill.view']);
+        $this->actingAs($f['maker'])->get(route('admin.finance.treasury', ['company_id' => $f['company']]))->assertOk()->assertDontSee(route('admin.finance.treasury.payment-reversal.request', ['payment' => $payment]));
+        $this->actingAs($f['maker'])->post(route('admin.finance.treasury.payment-reversal.request', ['payment' => $payment]), $paymentPayload)->assertForbidden();
+        $f['maker']->givePermissionTo(['treasury.payment.reversal.request', 'treasury.payment.reversal.approve']);
+        $this->actingAs($f['maker'])->get(route('admin.finance.treasury', ['company_id' => $f['company']]))->assertOk()->assertSee(route('admin.finance.treasury.payment-reversal.request', ['payment' => $payment]));
+        $this->actingAs($f['maker'])->post(route('admin.finance.treasury.payment-reversal.request', ['payment' => $payment]), $paymentPayload)->assertRedirect();
+        $this->actingAs($f['maker'])->post(route('admin.finance.treasury.payment-reversal.request', ['payment' => $payment]), $paymentPayload)->assertRedirect();
+        $paymentRequest = (int) DB::table('ap_payment_reversal_requests')->where('ap_payment_id', $payment)->value('id');
+        self::assertSame(1, DB::table('ap_payment_reversal_requests')->where('ap_payment_id', $payment)->count());
+        self::assertNotContains('AP Payment Reversal', array_column(app(ApprovalInboxService::class)->read($f['company'], (int) $f['checker']->id)['pending'], 'type'));
+        $reversalChecker = Role::findOrCreate('Downstream Reversal Checker', 'web');
+        $reversalChecker->givePermissionTo(['treasury.payment.reversal.approve', 'vendor-bill.reversal.approve']);
+        $f['checker']->assignRole($reversalChecker);
+        self::assertContains('AP Payment Reversal', array_column(app(ApprovalInboxService::class)->read($f['company'], (int) $f['checker']->id)['pending'], 'type'));
+        $this->actingAs($f['maker'])->post(route('admin.finance.treasury.payment-reversal.approve', ['reversal' => $paymentRequest]), ['company_id' => $f['company'], 'effective_at' => '2026-09-15'])->assertSessionHasErrors('approval');
+        $this->actingAs($f['checker'])->post(route('admin.finance.treasury.payment-reversal.approve', ['reversal' => $paymentRequest]), ['company_id' => $f['company'], 'effective_at' => '2026-09-15'])->assertRedirect();
+        $paymentJournal = (int) DB::table('ap_payment_reversal_requests')->where('id', $paymentRequest)->value('reversal_journal_id');
+        $this->actingAs($f['checker'])->post(route('admin.finance.treasury.payment-reversal.approve', ['reversal' => $paymentRequest]), ['company_id' => $f['company'], 'effective_at' => '2026-09-15'])->assertRedirect();
+        self::assertSame(1, DB::table('ap_payment_allocation_reversals')->count());
+        self::assertSame(1, DB::table('treasury_transactions')->where(['source_type' => 'ap_payment_reversal', 'source_id' => $paymentRequest])->count());
+
+        $planning = app(AccountsPayablePlanningReadService::class);
+        $filters = ['as_of_date' => '2026-09-12', 'vendor_id' => null, 'branch_id' => null, 'cost_center_id' => null, 'due_bucket' => null, 'payment_status' => null, 'currency' => 'VND', 'sort' => 'outstanding', 'direction' => 'desc'];
+        self::assertSame(2_000_000, $planning->read($f['company'], $filters)['totals']['outstanding']);
+        $filters['as_of_date'] = '2026-09-16';
+        self::assertSame(3_000_000, $planning->read($f['company'], $filters)['totals']['outstanding']);
+
+        CarbonImmutable::setTestNow('2026-09-16 12:00:00');
+        $billPayload = ['company_id' => $f['company'], 'target_accounting_period_id' => $period, 'reason' => 'Acceptance correction', 'idempotency_key' => 'bill-reversal-key'];
+        $this->actingAs($f['maker'])->get(route('admin.procurement.payables', ['company_id' => $f['company']]))->assertOk()->assertDontSee(route('admin.procurement.vendor-bill-reversal.request', ['bill' => $bill]));
+        $this->actingAs($f['maker'])->post(route('admin.procurement.vendor-bill-reversal.request', ['bill' => $bill]), $billPayload)->assertForbidden();
+        $f['maker']->givePermissionTo('vendor-bill.reversal.request');
+        $this->actingAs($f['maker'])->get(route('admin.procurement.payables', ['company_id' => $f['company']]))->assertOk()->assertSee(route('admin.procurement.vendor-bill-reversal.request', ['bill' => $bill]));
+        $this->actingAs($f['maker'])->post(route('admin.procurement.vendor-bill-reversal.request', ['bill' => $bill]), $billPayload)->assertRedirect();
+        $this->actingAs($f['maker'])->post(route('admin.procurement.vendor-bill-reversal.request', ['bill' => $bill]), $billPayload)->assertRedirect();
+        $billRequest = (int) DB::table('vendor_bill_reversal_requests')->where('vendor_bill_id', $bill)->value('id');
+        self::assertSame(1, DB::table('vendor_bill_reversal_requests')->where('vendor_bill_id', $bill)->count());
+        self::assertContains('Vendor Bill Reversal', array_column(app(ApprovalInboxService::class)->read($f['company'], (int) $f['checker']->id)['pending'], 'type'));
+        $this->actingAs($f['checker'])->post(route('admin.procurement.vendor-bill-reversal.approve', ['reversal' => $billRequest]), ['company_id' => $f['company'], 'effective_at' => '2026-09-16'])->assertRedirect();
+        $billJournal = (int) DB::table('vendor_bill_reversal_requests')->where('id', $billRequest)->value('reversal_journal_id');
+        $this->actingAs($f['checker'])->post(route('admin.procurement.vendor-bill-reversal.approve', ['reversal' => $billRequest]), ['company_id' => $f['company'], 'effective_at' => '2026-09-16'])->assertRedirect();
+        self::assertSame(0, $planning->read($f['company'], $filters)['totals']['outstanding']);
+        self::assertGreaterThan(0, $paymentJournal);
+        self::assertGreaterThan(0, $billJournal);
+        self::assertSame(6, DB::table('activity_log')->whereIn('log_name', ['ap-payment-reversal', 'vendor-bill-reversal'])->count());
+
+        $adjustment = $this->acceptances()->requestReversal($f['company'], $acceptance, $period, 'Correct accepted service', 'sa-after-bill-reversal', $f['maker']);
+        self::assertGreaterThan(0, $adjustment);
+        $this->acceptances()->approveReversal($f['company'], $acceptance, $f['checker']);
+        $cost = app(CostCenterCostManagementReadService::class)->read($f['company'], null, '2026-09-01', '2026-09-30')['totals'];
+        self::assertSame(10_000_000, $cost['commitment']);
+        self::assertSame(0, $cost['actual']);
+        self::assertSame(10_000_000, $cost['consumed']);
+        self::assertSame(0, DB::table('inventory_movements')->count());
+        self::assertSame(0, (int) DB::table('payroll_accounting_journals')->whereIn('source_type', ['ap_payment', 'vendor_bill', 'service_acceptance', 'accounting_adjustment'])->sum(DB::raw('CAST(total_debit_minor AS SIGNED)-CAST(total_credit_minor AS SIGNED)')));
+        CarbonImmutable::setTestNow();
     }
 
     /** @return array{company:int,foreign_company:int,maker:User,checker:User,branch:int,cost_center:int,vendor:int,po:int,po_line:int} */

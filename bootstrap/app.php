@@ -1,5 +1,6 @@
 <?php
 
+use App\Console\Commands\ProjectServeCommand;
 use App\Contracts\ErrorTrackerInterface;
 use App\Http\Middleware\ApplySecurityHeaders;
 use App\Http\Middleware\EnsureAccountAccessEnabled;
@@ -16,6 +17,9 @@ use Spatie\Permission\Middleware\RoleOrPermissionMiddleware;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withEvents(discover: false)
+    ->withCommands([
+        ProjectServeCommand::class,
+    ])
     ->withRouting(
         web: __DIR__.'/../routes/web.php',
         api: __DIR__.'/../routes/api.php',

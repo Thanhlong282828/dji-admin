@@ -4,6 +4,7 @@ namespace Modules\Procurement\Application\Services;
 
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Database\Query\Builder;
+use Illuminate\Database\Query\JoinClause;
 
 /** @phpstan-type VendorFilters array{date_from:string,date_to:string,branch_id:?int,cost_center_id:?int,vendor_id:?int,classification:?string,currency:string,sort:string,direction:string} */
 final readonly class VendorPerformanceReadService
@@ -32,7 +33,7 @@ final readonly class VendorPerformanceReadService
             COUNT(DISTINCT CASE WHEN line.procurement_classification='operating_expense' AND COALESCE(accepted.amount,0)<line.line_total_minor THEN po.id END) awaiting_acceptance")
             ->groupBy('po.vendor_id')->get()->keyBy('vendor_id');
 
-        $billLines = $this->db->table('vendor_bill_lines as line')->join('vendor_bills as bill', 'bill.id', '=', 'line.vendor_bill_id')->leftJoin('purchase_order_lines as po_line', 'po_line.id', '=', 'line.purchase_order_line_id')->whereNotIn('bill.status', ['draft', 'cancelled', 'rejected']);
+        $billLines = $this->db->table('vendor_bill_lines as line')->join('vendor_bills as bill', 'bill.id', '=', 'line.vendor_bill_id')->leftJoin('purchase_order_lines as po_line', 'po_line.id', '=', 'line.purchase_order_line_id')->whereNotIn('bill.status', ['draft', 'cancelled', 'rejected'])->whereNotExists(fn (Builder $q): Builder => $q->selectRaw('1')->from('vendor_bill_reversal_requests as reversal')->whereColumn('reversal.vendor_bill_id', 'bill.id')->where('reversal.status', 'reversed')->where('reversal.effective_at', '<=', $filters['date_to'].' 23:59:59'));
         $this->scope($billLines, $companyId, $filters, 'bill', 'po_line', 'invoice_date');
         $billing = $billLines->selectRaw("bill.vendor_id,
             SUM(line.line_total_minor) billed,
@@ -40,8 +41,8 @@ final readonly class VendorPerformanceReadService
             SUM(CASE WHEN po_line.procurement_classification='operating_expense' THEN line.line_total_minor ELSE 0 END) service_billed")
             ->groupBy('bill.vendor_id')->get()->keyBy('vendor_id');
 
-        $allocated = $this->db->table('ap_payment_allocations')->selectRaw('vendor_bill_id, SUM(allocated_minor) amount')->groupBy('vendor_bill_id');
-        $payables = $this->db->table('vendor_bills as bill')->leftJoinSub($allocated, 'allocated', 'allocated.vendor_bill_id', '=', 'bill.id')->whereNotIn('bill.status', ['draft', 'cancelled', 'rejected']);
+        $allocated = $this->db->table('ap_payment_allocations as allocation')->leftJoin('ap_payment_allocation_reversals as reversal', fn (JoinClause $join): JoinClause => $join->on('reversal.ap_payment_allocation_id', '=', 'allocation.id')->where('reversal.effective_at', '<=', $filters['date_to'].' 23:59:59'))->selectRaw('allocation.vendor_bill_id, SUM(allocation.allocated_minor-COALESCE(reversal.reversed_minor,0)) amount')->groupBy('allocation.vendor_bill_id');
+        $payables = $this->db->table('vendor_bills as bill')->leftJoinSub($allocated, 'allocated', 'allocated.vendor_bill_id', '=', 'bill.id')->whereNotIn('bill.status', ['draft', 'cancelled', 'rejected'])->whereNotExists(fn (Builder $q): Builder => $q->selectRaw('1')->from('vendor_bill_reversal_requests as reversal')->whereColumn('reversal.vendor_bill_id', 'bill.id')->where('reversal.status', 'reversed')->where('reversal.effective_at', '<=', $filters['date_to'].' 23:59:59'));
         $this->headerScope($payables, $companyId, $filters, 'bill', 'invoice_date');
         $this->linkedLineScope($payables, $filters, 'bill.id');
         $payableMetrics = $payables->selectRaw('bill.vendor_id, SUM(COALESCE(allocated.amount,0)) paid,

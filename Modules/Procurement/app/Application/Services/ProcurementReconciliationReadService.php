@@ -4,6 +4,7 @@ namespace Modules\Procurement\Application\Services;
 
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Database\Query\Builder;
+use Illuminate\Database\Query\JoinClause;
 use Modules\Finance\Application\Services\CostCenterCostManagementReadService;
 
 /** @phpstan-type ProcurementFilters array{date_from:string,date_to:string,branch_id:?int,cost_center_id:?int,vendor_id:?int,classification:?string,currency:string} */
@@ -20,7 +21,7 @@ final readonly class ProcurementReconciliationReadService
         $goods = (clone $lines)->where('l.procurement_classification', 'inventory')->selectRaw('COALESCE(SUM(l.line_total_minor),0) ordered, COALESCE(SUM(l.received_quantity*l.unit_cost_minor),0) received')->first();
         $services = (clone $lines)->where('l.procurement_classification', 'operating_expense')->selectRaw('COALESCE(SUM(l.line_total_minor),0) ordered')->first();
 
-        $billLines = $this->db->table('vendor_bill_lines as bl')->join('vendor_bills as bill', 'bill.id', '=', 'bl.vendor_bill_id')->join('purchase_order_lines as l', 'l.id', '=', 'bl.purchase_order_line_id')->join('purchase_orders as po', 'po.id', '=', 'l.purchase_order_id')->whereNotIn('bill.status', ['draft', 'cancelled', 'rejected']);
+        $billLines = $this->db->table('vendor_bill_lines as bl')->join('vendor_bills as bill', 'bill.id', '=', 'bl.vendor_bill_id')->join('purchase_order_lines as l', 'l.id', '=', 'bl.purchase_order_line_id')->join('purchase_orders as po', 'po.id', '=', 'l.purchase_order_id')->whereNotIn('bill.status', ['draft', 'cancelled', 'rejected'])->whereNotExists(fn (Builder $q): Builder => $q->selectRaw('1')->from('vendor_bill_reversal_requests as bill_reversal')->whereColumn('bill_reversal.vendor_bill_id', 'bill.id')->where('bill_reversal.status', 'reversed')->where('bill_reversal.effective_at', '<=', $filters['date_to'].' 23:59:59'));
         $this->apply($billLines, $companyId, $filters, 'po', 'l');
         $goodsBilled = $this->integer((clone $billLines)->where('l.procurement_classification', 'inventory')->sum('bl.line_total_minor'));
         $serviceBilled = $this->integer((clone $billLines)->where('l.procurement_classification', 'operating_expense')->sum('bl.line_total_minor'));
@@ -33,10 +34,12 @@ final readonly class ProcurementReconciliationReadService
 
         $eligibleBills = $this->eligibleBills($companyId, $filters);
         $apOriginal = $this->integer($this->db->table('vendor_bills as total_bill')->joinSub(clone $eligibleBills, 'eligible', 'eligible.id', '=', 'total_bill.id')->sum('eligible.total_minor'));
-        $paid = $this->integer($this->db->table('ap_payment_allocations as allocation')->joinSub(clone $eligibleBills, 'eligible', 'eligible.id', '=', 'allocation.vendor_bill_id')->sum('allocation.allocated_minor'));
+        $paid = $this->integer($this->db->table('ap_payment_allocations as allocation')->joinSub(clone $eligibleBills, 'eligible', 'eligible.id', '=', 'allocation.vendor_bill_id')->leftJoin('ap_payment_allocation_reversals as allocation_reversal', fn (JoinClause $join): JoinClause => $join->on('allocation_reversal.ap_payment_allocation_id', '=', 'allocation.id')->where('allocation_reversal.effective_at', '<=', $filters['date_to'].' 23:59:59'))->sum($this->db->raw('allocation.allocated_minor-COALESCE(allocation_reversal.reversed_minor,0)')));
         $ap = $apOriginal - $paid;
 
-        $liabilities = $this->db->table('payroll_accounting_journal_lines as line')->join('payroll_accounting_journals as journal', 'journal.id', '=', 'line.journal_id')->where('journal.company_id', $companyId)->whereIn('journal.status', ['internally_posted', 'exported'])->whereBetween('journal.posting_date', [$filters['date_from'], $filters['date_to']])->when($filters['branch_id'], fn (Builder $q, int $id): Builder => $q->where('journal.branch_id', $id))->whereIn('line.account_code_snapshot', ['2150', '2160'])->whereIn('journal.source_type', ['goods_receipt', 'service_acceptance', 'vendor_bill'])->selectRaw('line.account_code_snapshot code, SUM(CAST(line.credit_minor AS SIGNED)-CAST(line.debit_minor AS SIGNED)) balance')->groupBy('line.account_code_snapshot')->pluck('balance', 'code');
+        $liabilities = $this->db->table('payroll_accounting_journal_lines as line')->join('payroll_accounting_journals as journal', 'journal.id', '=', 'line.journal_id')->where('journal.company_id', $companyId)->whereIn('journal.status', ['internally_posted', 'exported'])->where(function (Builder $timing) use ($filters): void {
+            $timing->whereBetween('journal.posting_date', [$filters['date_from'], $filters['date_to']])->orWhereExists(fn (Builder $reversal): Builder => $reversal->selectRaw('1')->from('vendor_bill_reversal_requests as dated_bill_reversal')->whereColumn('dated_bill_reversal.reversal_journal_id', 'journal.id')->whereBetween('dated_bill_reversal.effective_at', [$filters['date_from'].' 00:00:00', $filters['date_to'].' 23:59:59']));
+        })->when($filters['branch_id'], fn (Builder $q, int $id): Builder => $q->where('journal.branch_id', $id))->whereIn('line.account_code_snapshot', ['2150', '2160'])->where(fn (Builder $source): Builder => $source->whereIn('journal.source_type', ['goods_receipt', 'service_acceptance', 'vendor_bill'])->orWhereExists(fn (Builder $reversal): Builder => $reversal->selectRaw('1')->from('vendor_bill_reversal_requests as bill_reversal')->whereColumn('bill_reversal.reversal_journal_id', 'journal.id')))->selectRaw('line.account_code_snapshot code, SUM(CAST(line.credit_minor AS SIGNED)-CAST(line.debit_minor AS SIGNED)) balance')->groupBy('line.account_code_snapshot')->pluck('balance', 'code');
         $apGl = $this->apGeneralLedger($companyId, $filters);
         $liabilityDimensionsAvailable = $filters['cost_center_id'] === null && $filters['vendor_id'] === null;
         $goodsGrni = $filters['classification'] !== null && $filters['classification'] !== 'inventory' ? 0 : ($liabilityDimensionsAvailable ? $this->integer($liabilities->get('2150')) : null);
@@ -68,7 +71,11 @@ final readonly class ProcurementReconciliationReadService
     private function eligibleBills(int $companyId, array $filters): Builder
     {
         return $this->db->table('vendor_bills as bill')->join('purchase_orders as po', 'po.id', '=', 'bill.purchase_order_id')
+            ->leftJoin('vendor_bill_reversal_requests as bill_reversal', function (JoinClause $join) use ($filters): void {
+                $join->on('bill_reversal.vendor_bill_id', '=', 'bill.id')->where('bill_reversal.status', '=', 'reversed')->where('bill_reversal.effective_at', '<=', $filters['date_to'].' 23:59:59');
+            })
             ->where('bill.company_id', $companyId)->whereNotIn('bill.status', ['draft', 'cancelled', 'rejected'])
+            ->whereNull('bill_reversal.id')
             ->whereBetween('bill.invoice_date', [$filters['date_from'], $filters['date_to']])->where('bill.currency', $filters['currency'])
             ->when($filters['branch_id'], fn (Builder $query, int $id): Builder => $query->where('bill.branch_id', $id))
             ->when($filters['vendor_id'], fn (Builder $query, int $id): Builder => $query->where('bill.vendor_id', $id))
@@ -90,8 +97,12 @@ final readonly class ProcurementReconciliationReadService
 
         return $this->integer($this->db->table('payroll_accounting_journal_lines as line')->join('payroll_accounting_journals as journal', 'journal.id', '=', 'line.journal_id')
             ->where('journal.company_id', $companyId)->whereIn('journal.status', ['internally_posted', 'exported'])
-            ->whereIn('journal.source_type', ['vendor_bill', 'ap_payment'])->where('line.account_code_snapshot', '2100')
-            ->whereBetween('journal.posting_date', [$filters['date_from'], $filters['date_to']])
+            ->where('line.account_code_snapshot', '2100')
+            ->where(function (Builder $timing) use ($filters): void {
+                $timing->whereBetween('journal.posting_date', [$filters['date_from'], $filters['date_to']])
+                    ->orWhereExists(fn (Builder $reversal): Builder => $reversal->selectRaw('1')->from('vendor_bill_reversal_requests as dated_bill_reversal')->whereColumn('dated_bill_reversal.reversal_journal_id', 'journal.id')->whereBetween('dated_bill_reversal.effective_at', [$filters['date_from'].' 00:00:00', $filters['date_to'].' 23:59:59']))
+                    ->orWhereExists(fn (Builder $reversal): Builder => $reversal->selectRaw('1')->from('ap_payment_reversal_requests as dated_payment_reversal')->whereColumn('dated_payment_reversal.reversal_journal_id', 'journal.id')->whereBetween('dated_payment_reversal.effective_at', [$filters['date_from'].' 00:00:00', $filters['date_to'].' 23:59:59']));
+            })
             ->when($filters['branch_id'], fn (Builder $query, int $id): Builder => $query->where('journal.branch_id', $id))
             ->sum($this->db->raw('CAST(line.credit_minor AS SIGNED)-CAST(line.debit_minor AS SIGNED)')));
     }

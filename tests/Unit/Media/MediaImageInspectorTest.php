@@ -2,12 +2,14 @@
 
 namespace Tests\Unit\Media;
 
+use App\Console\Commands\ProjectServeCommand;
 use App\Support\Media\LocalMediaStorage;
 use App\Support\Media\MediaPurpose;
 use App\Support\Media\MediaService;
 use App\Support\Media\MediaStorageInterface;
 use App\Support\Media\StoredMedia;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 use Modules\Employee\Domain\Services\EmployeeAvatarService;
@@ -134,6 +136,15 @@ final class MediaImageInspectorTest extends TestCase
         self::assertIsArray($userIni);
         self::assertSame('12M', $userIni['upload_max_filesize']);
         self::assertSame('14M', $userIni['post_max_size']);
+
+        $dockerIni = parse_ini_file(base_path('docker/php/php.ini'));
+        self::assertIsArray($dockerIni);
+        self::assertSame('12M', $dockerIni['upload_max_filesize']);
+        self::assertSame('14M', $dockerIni['post_max_size']);
+
+        self::assertInstanceOf(ProjectServeCommand::class, Artisan::all()['serve']);
+        self::assertSame('12M', ProjectServeCommand::UPLOAD_MAX_FILESIZE);
+        self::assertSame('14M', ProjectServeCommand::POST_MAX_SIZE);
 
         $storage = new RecordingMediaStorage;
         $service = new MediaService($storage, app('db'));

@@ -2,6 +2,7 @@
 
 namespace Modules\Finance\Application\Services;
 
+use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\ConnectionInterface;
 
@@ -10,7 +11,7 @@ final readonly class ApprovalInboxService
     public function __construct(private ConnectionInterface $db) {}
 
     /** @return array{pending:list<array<string,int|string>>,submitted:list<array<string,int|string>>,history:list<array<string,int|string>>} */
-    public function read(int $companyId, int $userId): array
+    public function read(int $companyId, int $userId, bool $includeDownstreamReversals = true): array
     {
         /** @var list<array<string,int|string>> $pending */
         $pending = [];
@@ -23,6 +24,9 @@ final readonly class ApprovalInboxService
         $this->collect($pending, $submitted, $history, $companyId, $userId, 'finance_expenses', 'Expense', 'created_by', 'reviewed_by', 'reference', 'admin.finance.operations', ['page' => 'expenses']);
         $this->collect($pending, $submitted, $history, $companyId, $userId, 'vendor_bills', 'Vendor Bill', 'created_by', 'approved_by', 'invoice_number', 'admin.procurement.payables', []);
         $this->collectServiceAcceptances($pending, $submitted, $history, $companyId, $userId);
+        if ($includeDownstreamReversals) {
+            $this->collectDownstreamReversals($pending, $submitted, $history, $companyId, $userId);
+        }
         $this->collect($pending, $submitted, $history, $companyId, $userId, 'accounting_period_close_requests', 'Accounting Period Close', 'requested_by', 'decided_by', 'id', 'admin.finance.period-close', []);
         $this->collectMaintenance($pending, $submitted, $history, $companyId, $userId);
         $this->collectProjectTimesheets($pending, $submitted, $history, $companyId, $userId);
@@ -30,6 +34,43 @@ final readonly class ApprovalInboxService
         $this->collectWorkflowTasks($pending, $history, $companyId, $userId);
 
         return ['pending' => $pending, 'submitted' => $submitted, 'history' => $history];
+    }
+
+    /**
+     * @param  list<array<string,int|string>>  $pending
+     * @param  list<array<string,int|string>>  $submitted
+     * @param  list<array<string,int|string>>  $history
+     */
+    private function collectDownstreamReversals(array &$pending, array &$submitted, array &$history, int $companyId, int $userId): void
+    {
+        $user = User::query()->find($userId);
+        if ($user === null || ! $user->hasAnyPermission([
+            'treasury.payment.reversal.request',
+            'treasury.payment.reversal.approve',
+            'vendor-bill.reversal.request',
+            'vendor-bill.reversal.approve',
+        ])) {
+            return;
+        }
+        $definitions = [
+            ['ap_payment_reversal_requests', 'AP Payment Reversal', 'ap_payment_id', 'admin.finance.treasury', 'treasury.payment.reversal.approve'],
+            ['vendor_bill_reversal_requests', 'Vendor Bill Reversal', 'vendor_bill_id', 'admin.procurement.payables', 'vendor-bill.reversal.approve'],
+        ];
+        foreach ($definitions as [$table, $type, $reference, $route, $permission]) {
+            foreach ($this->db->table($table)->where('company_id', $companyId)->orderByDesc('updated_at')->limit(100)->get() as $row) {
+                $values = $this->values($row);
+                $status = strtolower($this->text($values['status'] ?? null));
+                $makerId = $this->integer($values['requested_by'] ?? null);
+                $item = $this->item($type, $values, $reference, 'requested_by', 'approved_by', $route, ['company_id' => (string) $companyId]);
+                if ($status === 'submitted' && $makerId !== $userId && $user->can($permission)) {
+                    $pending[] = $item;
+                } elseif ($status === 'submitted' && $makerId === $userId) {
+                    $submitted[] = $item;
+                } elseif ($status === 'reversed') {
+                    $history[] = $item;
+                }
+            }
+        }
     }
 
     /**

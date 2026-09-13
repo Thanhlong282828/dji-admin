@@ -4,6 +4,7 @@ namespace Modules\Procurement\Application\Services;
 
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Database\Query\Builder;
+use Illuminate\Database\Query\JoinClause;
 use Illuminate\Support\Collection;
 
 /** @phpstan-type ExceptionFilters array{date_from:string,date_to:string,branch_id:?int,cost_center_id:?int,vendor_id:?int,classification:?string,currency:string,exception_type:?string,severity:?string,business_status:?string} */
@@ -65,7 +66,7 @@ final readonly class ProcurementExceptionReadService
      */
     private function goodsBillingExceptions(Collection $rows, int $companyId, array $filters): void
     {
-        $billed = $this->db->table('vendor_bill_lines as bl')->join('vendor_bills as bill', 'bill.id', '=', 'bl.vendor_bill_id')->whereNotIn('bill.status', ['draft', 'cancelled', 'rejected'])->selectRaw('bl.purchase_order_line_id, SUM(bl.line_total_minor) amount')->groupBy('bl.purchase_order_line_id');
+        $billed = $this->db->table('vendor_bill_lines as bl')->join('vendor_bills as bill', 'bill.id', '=', 'bl.vendor_bill_id')->whereNotIn('bill.status', ['draft', 'cancelled', 'rejected'])->whereNotExists(fn (Builder $q): Builder => $q->selectRaw('1')->from('vendor_bill_reversal_requests as reversal')->whereColumn('reversal.vendor_bill_id', 'bill.id')->where('reversal.status', 'reversed')->where('reversal.effective_at', '<=', $filters['date_to'].' 23:59:59'))->selectRaw('bl.purchase_order_line_id, SUM(bl.line_total_minor) amount')->groupBy('bl.purchase_order_line_id');
         $query = $this->db->table('purchase_order_lines as line')->join('purchase_orders as po', 'po.id', '=', 'line.purchase_order_id')->join('procurement_vendors as vendor', 'vendor.id', '=', 'po.vendor_id')->join('branches as branch', 'branch.id', '=', 'po.branch_id')->leftJoin('cost_centers as center', 'center.id', '=', 'line.cost_center_id')->leftJoinSub($billed, 'billed', 'billed.purchase_order_line_id', '=', 'line.id')->where('line.procurement_classification', 'inventory')->where('line.received_quantity', '>', 0);
         $this->scope($query, $companyId, $filters, 'po', 'line');
         foreach ($query->get(['po.id', 'po.reference', 'po.status', 'vendor.id as vendor_id', 'vendor.name as vendor_name', 'branch.name as branch_name', 'center.code as cost_center_code', 'line.received_quantity', 'line.unit_cost_minor', 'billed.amount as billed_minor']) as $source) {
@@ -81,7 +82,7 @@ final readonly class ProcurementExceptionReadService
      */
     private function serviceBillingExceptions(Collection $rows, int $companyId, array $filters): void
     {
-        $billed = $this->db->table('vendor_bill_lines as bl')->join('vendor_bills as bill', 'bill.id', '=', 'bl.vendor_bill_id')->whereNotIn('bill.status', ['draft', 'cancelled', 'rejected'])->selectRaw('bl.service_acceptance_line_id, SUM(bl.line_total_minor) amount')->groupBy('bl.service_acceptance_line_id');
+        $billed = $this->db->table('vendor_bill_lines as bl')->join('vendor_bills as bill', 'bill.id', '=', 'bl.vendor_bill_id')->whereNotIn('bill.status', ['draft', 'cancelled', 'rejected'])->whereNotExists(fn (Builder $q): Builder => $q->selectRaw('1')->from('vendor_bill_reversal_requests as reversal')->whereColumn('reversal.vendor_bill_id', 'bill.id')->where('reversal.status', 'reversed')->where('reversal.effective_at', '<=', $filters['date_to'].' 23:59:59'))->selectRaw('bl.service_acceptance_line_id, SUM(bl.line_total_minor) amount')->groupBy('bl.service_acceptance_line_id');
         $query = $this->db->table('service_acceptance_lines as line')->join('service_acceptances as sa', 'sa.id', '=', 'line.service_acceptance_id')->join('procurement_vendors as vendor', 'vendor.id', '=', 'sa.vendor_id')->join('branches as branch', 'branch.id', '=', 'sa.branch_id')->leftJoin('cost_centers as center', 'center.id', '=', 'line.cost_center_id')->leftJoinSub($billed, 'billed', 'billed.service_acceptance_line_id', '=', 'line.id')->where('sa.status', 'approved');
         $this->scope($query, $companyId, $filters, 'sa', 'line', 'acceptance_date');
         foreach ($query->get(['sa.id', 'sa.reference', 'sa.status', 'vendor.id as vendor_id', 'vendor.name as vendor_name', 'branch.name as branch_name', 'center.code as cost_center_code', 'line.accepted_minor', 'billed.amount as billed_minor']) as $source) {
@@ -97,8 +98,8 @@ final readonly class ProcurementExceptionReadService
      */
     private function payableExceptions(Collection $rows, int $companyId, array $filters): void
     {
-        $allocated = $this->db->table('ap_payment_allocations')->selectRaw('vendor_bill_id, SUM(allocated_minor) amount')->groupBy('vendor_bill_id');
-        $query = $this->db->table('vendor_bills as bill')->join('procurement_vendors as vendor', 'vendor.id', '=', 'bill.vendor_id')->join('branches as branch', 'branch.id', '=', 'bill.branch_id')->leftJoinSub($allocated, 'allocated', 'allocated.vendor_bill_id', '=', 'bill.id')->whereNotIn('bill.status', ['draft', 'cancelled', 'rejected']);
+        $allocated = $this->db->table('ap_payment_allocations as allocation')->leftJoin('ap_payment_allocation_reversals as reversal', fn (JoinClause $join): JoinClause => $join->on('reversal.ap_payment_allocation_id', '=', 'allocation.id')->where('reversal.effective_at', '<=', $filters['date_to'].' 23:59:59'))->selectRaw('allocation.vendor_bill_id, SUM(allocation.allocated_minor-COALESCE(reversal.reversed_minor,0)) amount')->groupBy('allocation.vendor_bill_id');
+        $query = $this->db->table('vendor_bills as bill')->join('procurement_vendors as vendor', 'vendor.id', '=', 'bill.vendor_id')->join('branches as branch', 'branch.id', '=', 'bill.branch_id')->leftJoinSub($allocated, 'allocated', 'allocated.vendor_bill_id', '=', 'bill.id')->whereNotIn('bill.status', ['draft', 'cancelled', 'rejected'])->whereNotExists(fn (Builder $q): Builder => $q->selectRaw('1')->from('vendor_bill_reversal_requests as reversal')->whereColumn('reversal.vendor_bill_id', 'bill.id')->where('reversal.status', 'reversed')->where('reversal.effective_at', '<=', $filters['date_to'].' 23:59:59'));
         $this->headerScope($query, $companyId, $filters, 'bill', 'invoice_date');
         $this->linkedLineScope($query, $filters, 'bill.id', 'vendor_bill_lines', 'vendor_bill_id', 'purchase_order_line_id');
         foreach ($query->selectRaw('bill.id, bill.invoice_number reference, bill.status, bill.due_date, bill.total_minor, COALESCE(allocated.amount,0) paid_minor, vendor.id vendor_id, vendor.name vendor_name, branch.name branch_name, GREATEST(DATEDIFF(CURRENT_DATE,bill.due_date),0) age_days')->get() as $source) {

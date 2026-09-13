@@ -18,4 +18,4 @@ The source-view permission controls whether a row is returned to the page. A sep
 
 `CRITICAL` is reserved for exact reconciliation differences. `WARNING` is used for overdue evidence and incomplete operational realization. `INFO` is used where action is pending without deterministic lateness evidence. Amount size alone never changes severity.
 
-`NO_BUDGET` and `PARTIAL_EVIDENCE` are not zero. Empty companies do not receive a synthetic `NO_BUDGET` exception. Workflow state supplies approval context only; Procurement business state remains authoritative. The known downstream Service Acceptance reversal limitation is not hidden or auto-corrected.
+`NO_BUDGET` and `PARTIAL_EVIDENCE` are not zero. Empty companies do not receive a synthetic `NO_BUDGET` exception. Workflow state supplies approval context only; Procurement business state remains authoritative. Effective-dated Vendor Bill reversal evidence is reflected by the owner read models: a reversed Goods Bill restores `GOODS_RECEIVED_NOT_BILLED`, while receipt and inventory evidence remain unchanged.

@@ -36,7 +36,7 @@ final class AdminNavigation
     {
         $company = ['company_id' => $companyId];
 
-        return [
+        $groups = [
             $this->group('overview', 'ERP · Tổng quan', '◫', [
                 $this->item('dashboard', 'Dashboard', 'dashboard', ['dashboard'], 'dashboard.view'),
             ]),
@@ -202,6 +202,11 @@ final class AdminNavigation
                 $this->item('pos-receipts', 'Lịch sử phiếu thu', 'admin.branch-commerce.receipts', ['admin.branch-commerce.receipts*'], 'branch-commerce.view', $company),
             ]),
         ];
+        $order = ['overview', 'organization', 'people', 'workforce', 'talent', 'payroll', 'tax-statutory', 'seller', 'pos', 'procurement', 'supply-chain', 'finance', 'asset-maintenance', 'projects', 'automation', 'analytics-planning', 'access', 'operations'];
+        $priority = array_flip($order);
+        usort($groups, static fn (array $left, array $right): int => $priority[$left['key']] <=> $priority[$right['key']]);
+
+        return $groups;
     }
 
     /** @param list<array{key:string,label:string,route:string,parameters:array<string,int|string>,patterns:list<string>,permission:string,active:bool}> $items

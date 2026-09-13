@@ -23,7 +23,8 @@ final readonly class EnterpriseExecutiveDashboardReadService
         $series = $this->rows($source['series'] ?? null);
         $project = $this->projects->executiveSummary($companyId);
         $maintenance = $this->maintenance->executiveSummary($companyId);
-        $approvals = $this->approvals->read($companyId, $actorId);
+        // The executive card remains a bounded aggregate; granular reversal work is projected by the canonical Approval Inbox.
+        $approvals = $this->approvals->read($companyId, $actorId, false);
         $phase3 = $this->executiveFinance->read($companyId, $branchId, $dateFrom, $dateTo);
 
         return [

@@ -44,6 +44,7 @@ use Modules\Dashboard\Presentation\Http\Controllers\EnterpriseExecutiveDashboard
 use Modules\Dashboard\Presentation\Http\Controllers\SupplyChainOverviewController;
 use Modules\Employee\Presentation\Http\Controllers\EmployeePortalController;
 use Modules\Finance\Presentation\Http\Controllers\AccountingAdjustmentController;
+use Modules\Finance\Presentation\Http\Controllers\ApPaymentReversalController;
 use Modules\Finance\Presentation\Http\Controllers\BranchFinancialPerformanceController;
 use Modules\Finance\Presentation\Http\Controllers\CostCenterCostManagementController;
 use Modules\Finance\Presentation\Http\Controllers\FinanceControlController;
@@ -58,6 +59,7 @@ use Modules\Payroll\Presentation\Http\Controllers\BranchBonusController;
 use Modules\Payroll\Presentation\Http\Controllers\CompensationReferenceController;
 use Modules\POS\Presentation\Http\Controllers\BranchCommerceController;
 use Modules\Procurement\Presentation\Http\Controllers\ProcurementController;
+use Modules\Procurement\Presentation\Http\Controllers\VendorBillReversalController;
 use Modules\Product\Presentation\Http\Controllers\ProductCatalogController;
 use Modules\Product\Presentation\Http\Controllers\ProductCategoryController;
 
@@ -112,6 +114,8 @@ Route::get('/admin/finance/operations/{page?}', [FinanceOperationsController::cl
 Route::post('/admin/finance/operations/mutate', [FinanceOperationsController::class, 'mutate'])->middleware(['auth', 'verified', 'permission:finance.operations.manage|finance.operations.approve'])->name('admin.finance.operations.mutate');
 Route::get('/admin/finance/treasury', [FinanceControlController::class, 'treasury'])->middleware(['auth', 'verified', 'permission:treasury.view'])->name('admin.finance.treasury');
 Route::post('/admin/finance/treasury', [FinanceControlController::class, 'treasuryMutate'])->middleware(['auth', 'verified', 'permission:treasury.manage'])->name('admin.finance.treasury.mutate');
+Route::post('/admin/finance/treasury/payments/{payment}/reversal/request', [ApPaymentReversalController::class, 'request'])->whereNumber('payment')->middleware(['auth', 'verified', 'permission:treasury.payment.reversal.request'])->name('admin.finance.treasury.payment-reversal.request');
+Route::post('/admin/finance/treasury/payment-reversals/{reversal}/approve', [ApPaymentReversalController::class, 'approve'])->whereNumber('reversal')->middleware(['auth', 'verified', 'permission:treasury.payment.reversal.approve'])->name('admin.finance.treasury.payment-reversal.approve');
 Route::get('/admin/finance/period-close', [FinanceControlController::class, 'periodClose'])->middleware(['auth', 'verified', 'permission:accounting.period.view'])->name('admin.finance.period-close');
 Route::get('/admin/finance/accounting-adjustments', [AccountingAdjustmentController::class, 'index'])->middleware(['auth', 'verified', 'permission:accounting.adjustment.view'])->name('admin.finance.accounting-adjustments');
 Route::post('/admin/finance/accounting-adjustments', [AccountingAdjustmentController::class, 'mutate'])->middleware(['auth', 'verified', 'permission:accounting.adjustment.create|accounting.adjustment.submit|accounting.adjustment.approve|accounting.adjustment.reject|accounting.adjustment.post'])->name('admin.finance.accounting-adjustments.mutate');
@@ -123,6 +127,8 @@ Route::get('/admin/procurement/orders', [ProcurementController::class, 'index'])
 Route::get('/admin/procurement/receipts', [ProcurementController::class, 'index'])->defaults('page', 'receipts')->middleware(['auth', 'verified', 'permission:goods-receipt.view'])->name('admin.procurement.receipts');
 Route::get('/admin/procurement/service-acceptances', [ProcurementController::class, 'index'])->defaults('page', 'service-acceptances')->middleware(['auth', 'verified', 'permission:service-acceptance.view'])->name('admin.procurement.service-acceptances');
 Route::get('/admin/procurement/payables', [ProcurementController::class, 'index'])->defaults('page', 'payables')->middleware(['auth', 'verified', 'permission:vendor-bill.view'])->name('admin.procurement.payables');
+Route::post('/admin/procurement/vendor-bills/{bill}/reversal/request', [VendorBillReversalController::class, 'request'])->whereNumber('bill')->middleware(['auth', 'verified', 'permission:vendor-bill.reversal.request'])->name('admin.procurement.vendor-bill-reversal.request');
+Route::post('/admin/procurement/vendor-bill-reversals/{reversal}/approve', [VendorBillReversalController::class, 'approve'])->whereNumber('reversal')->middleware(['auth', 'verified', 'permission:vendor-bill.reversal.approve'])->name('admin.procurement.vendor-bill-reversal.approve');
 Route::get('/admin/procurement/reports', [ProcurementController::class, 'index'])->defaults('page', 'reports')->middleware(['auth', 'verified', 'permission:procurement.view'])->name('admin.procurement.reports');
 Route::get('/admin/procurement/{page?}', [ProcurementController::class, 'index'])->where('page', 'vendors|requests|orders|receipts|service-acceptances|payables|reports')->middleware(['auth', 'verified', 'permission:procurement.view'])->name('admin.procurement.page');
 Route::post('/admin/procurement/mutate', [ProcurementController::class, 'mutate'])->middleware(['auth', 'verified', 'permission:vendor.manage|purchase-request.create|purchase-request.submit|purchase-request.approve|purchase-request.cancel|purchase-order.create|purchase-order.approve|purchase-order.send|purchase-order.cancel|goods-receipt.create|goods-receipt.receive|service-acceptance.create|service-acceptance.submit|service-acceptance.approve|service-acceptance.reverse|vendor-bill.create|vendor-bill.approve|ap-payment.create'])->name('admin.procurement.mutate');

@@ -277,6 +277,126 @@ THUẾ & BẢO HIỂM BẮT BUỘC
     Connects   : Owner workspace and canonical detail/action routes
     Status     : IMPLEMENTED
 
+CRM & COMMERCE
+│
+├── Tổng quan Seller
+│   Owner      : Commerce
+│   Route      : admin.seller.dashboard
+│   Permission : commerce.store.view
+│   Connects   : Owner workspace and canonical detail/action routes
+│   Status     : IMPLEMENTED
+├── Hồ sơ cửa hàng
+│   Owner      : Commerce
+│   Route      : admin.seller.store
+│   Permission : commerce.store.view
+│   Connects   : Owner workspace and canonical detail/action routes
+│   Status     : IMPLEMENTED
+├── Sản phẩm
+│   Owner      : Product
+│   Route      : admin.products.index
+│   Permission : product.view
+│   Connects   : Owner workspace and canonical detail/action routes
+│   Status     : IMPLEMENTED
+├── Tồn kho
+│   Owner      : Commerce
+│   Route      : admin.seller.inventory
+│   Permission : inventory.view
+│   Connects   : Product Variant → Inventory balance → append-only movement
+│   Status     : IMPLEMENTED
+├── Lịch sử biến động kho
+│   Owner      : Commerce
+│   Route      : admin.seller.inventory.movements
+│   Permission : inventory.view
+│   Connects   : Product Variant → Inventory balance → append-only movement
+│   Status     : IMPLEMENTED
+├── Đơn hàng
+│   Owner      : Commerce
+│   Route      : admin.seller.orders.index
+│   Permission : commerce.store.view
+│   Connects   : Owner workspace and canonical detail/action routes
+│   Status     : IMPLEMENTED
+├── Lịch sử đơn hàng đã bán
+│   Owner      : Commerce
+│   Route      : admin.commerce.sales-history
+│   Permission : commerce.payment.view
+│   Connects   : Owner workspace and canonical detail/action routes
+│   Status     : IMPLEMENTED
+├── Commerce Payments
+│   Owner      : Commerce
+│   Route      : admin.commerce.payments.index
+│   Permission : commerce.payment.view
+│   Connects   : Owner workspace and canonical detail/action routes
+│   Status     : IMPLEMENTED
+├── Danh mục sản phẩm
+│   Owner      : Product
+│   Route      : admin.product-categories.index
+│   Permission : product-category.view
+│   Connects   : Owner workspace and canonical detail/action routes
+│   Status     : IMPLEMENTED
+├── Quản trị Seller
+│   Owner      : Commerce
+│   Route      : admin.commerce.sellers.index
+│   Permission : commerce.seller.governance.view
+│   Connects   : Owner workspace and canonical detail/action routes
+│   Status     : IMPLEMENTED
+├── Kho nội dung
+│   Owner      : Cross-project/Admin UI
+│   Route      : articles.index
+│   Permission : article.view
+│   Connects   : Owner workspace and canonical detail/action routes
+│   Status     : IMPLEMENTED
+└── Viết bài mới
+    Owner      : Cross-project/Admin UI
+    Route      : articles.create
+    Permission : article.create
+    Connects   : Owner workspace and canonical detail/action routes
+    Status     : IMPLEMENTED
+
+POS / BÁN HÀNG TẠI QUẦY
+│
+├── Tổng quan POS
+│   Owner      : Cross-project/Admin UI
+│   Route      : admin.branch-commerce.dashboard
+│   Permission : branch-commerce.view
+│   Connects   : Customer Visit → Receipt → Inventory → Revenue → Finance
+│   Status     : IMPLEMENTED
+├── Thu ngân · Check-in / Checkout
+│   Owner      : Cross-project/Admin UI
+│   Route      : admin.branch-commerce.checkins
+│   Permission : branch-commerce.view
+│   Connects   : Owner workspace and canonical detail/action routes
+│   Status     : IMPLEMENTED
+├── Tệp khách hàng
+│   Owner      : Cross-project/Admin UI
+│   Route      : admin.branch-commerce.customers
+│   Permission : branch-commerce.view
+│   Connects   : Owner workspace and canonical detail/action routes
+│   Status     : IMPLEMENTED
+├── Dịch vụ công ty
+│   Owner      : Cross-project/Admin UI
+│   Route      : admin.branch-commerce.services
+│   Permission : branch-commerce.view
+│   Connects   : Owner workspace and canonical detail/action routes
+│   Status     : IMPLEMENTED
+├── Kho POS / Tồn kho chi nhánh
+│   Owner      : Cross-project/Admin UI
+│   Route      : admin.branch-commerce.warehouse
+│   Permission : branch-commerce.view
+│   Connects   : Owner workspace and canonical detail/action routes
+│   Status     : IMPLEMENTED
+├── Phiếu thu · Doanh số POS
+│   Owner      : Cross-project/Admin UI
+│   Route      : admin.branch-commerce.sales
+│   Permission : branch-commerce.view
+│   Connects   : Owner workspace and canonical detail/action routes
+│   Status     : IMPLEMENTED
+└── Lịch sử phiếu thu
+    Owner      : Cross-project/Admin UI
+    Route      : admin.branch-commerce.receipts
+    Permission : branch-commerce.view
+    Connects   : Owner workspace and canonical detail/action routes
+    Status     : IMPLEMENTED
+
 MUA HÀNG
 │
 ├── Nhà cung cấp
@@ -319,6 +439,15 @@ MUA HÀNG
     Owner      : Procurement
     Route      : admin.procurement.reports
     Permission : procurement.view
+    Connects   : Owner workspace and canonical detail/action routes
+    Status     : IMPLEMENTED
+
+CHUỖI CUNG ỨNG
+│
+└── Tổng quan chuỗi cung ứng
+    Owner      : Dashboard
+    Route      : admin.supply-chain.index
+    Permission : inventory.view
     Connects   : Owner workspace and canonical detail/action routes
     Status     : IMPLEMENTED
 
@@ -409,30 +538,6 @@ TÀI CHÍNH
     Connects   : Owner workspace and canonical detail/action routes
     Status     : IMPLEMENTED
 
-CHUỖI CUNG ỨNG
-│
-└── Tổng quan chuỗi cung ứng
-    Owner      : Dashboard
-    Route      : admin.supply-chain.index
-    Permission : inventory.view
-    Connects   : Owner workspace and canonical detail/action routes
-    Status     : IMPLEMENTED
-
-PROJECTS
-│
-├── Tổng quan dự án
-│   Owner      : Cross-project/Admin UI
-│   Route      : admin.projects.overview
-│   Permission : project.view
-│   Connects   : Owner workspace and canonical detail/action routes
-│   Status     : IMPLEMENTED
-└── Dự án
-    Owner      : Cross-project/Admin UI
-    Route      : admin.projects.index
-    Permission : project.view
-    Connects   : Owner workspace and canonical detail/action routes
-    Status     : IMPLEMENTED
-
 TÀI SẢN & BẢO TRÌ
 │
 ├── Tổng quan bảo trì
@@ -460,48 +565,18 @@ TÀI SẢN & BẢO TRÌ
     Connects   : Owner workspace and canonical detail/action routes
     Status     : IMPLEMENTED
 
-ANALYTICS & PLANNING
+PROJECTS
 │
-├── Executive Dashboard
+├── Tổng quan dự án
 │   Owner      : Cross-project/Admin UI
-│   Route      : admin.executive.index
-│   Permission : analytics.view
+│   Route      : admin.projects.overview
+│   Permission : project.view
 │   Connects   : Owner workspace and canonical detail/action routes
 │   Status     : IMPLEMENTED
-├── Phân tích điều hành
-│   Owner      : Dashboard
-│   Route      : admin.analytics.enterprise
-│   Permission : analytics.view
-│   Connects   : Owner workspace and canonical detail/action routes
-│   Status     : IMPLEMENTED
-├── Enterprise Analytics
-│   Owner      : Cross-project/Admin UI
-│   Route      : admin.analytics.workforce
-│   Permission : analytics.view
-│   Connects   : Owner workspace and canonical detail/action routes
-│   Status     : IMPLEMENTED
-├── Workforce Forecasting
-│   Owner      : Cross-project/Admin UI
-│   Route      : admin.analytics.forecasting
-│   Permission : analytics.view
-│   Connects   : Owner workspace and canonical detail/action routes
-│   Status     : IMPLEMENTED
-├── Executive Planning
-│   Owner      : Cross-project/Admin UI
-│   Route      : admin.planning.executive
-│   Permission : analytics.view
-│   Connects   : Owner workspace and canonical detail/action routes
-│   Status     : IMPLEMENTED
-├── Planning Execution
-│   Owner      : Cross-project/Admin UI
-│   Route      : admin.planning.execution
-│   Permission : analytics.view
-│   Connects   : Owner workspace and canonical detail/action routes
-│   Status     : IMPLEMENTED
-└── Enterprise Reports
+└── Dự án
     Owner      : Cross-project/Admin UI
-    Route      : admin.reports.index
-    Permission : analytics.view
+    Route      : admin.projects.index
+    Permission : project.view
     Connects   : Owner workspace and canonical detail/action routes
     Status     : IMPLEMENTED
 
@@ -559,6 +634,51 @@ TỰ ĐỘNG HÓA DOANH NGHIỆP
     Owner      : Cross-project/Admin UI
     Route      : admin.integrations.dashboard
     Permission : integration.view
+    Connects   : Owner workspace and canonical detail/action routes
+    Status     : IMPLEMENTED
+
+ANALYTICS & PLANNING
+│
+├── Executive Dashboard
+│   Owner      : Cross-project/Admin UI
+│   Route      : admin.executive.index
+│   Permission : analytics.view
+│   Connects   : Owner workspace and canonical detail/action routes
+│   Status     : IMPLEMENTED
+├── Phân tích điều hành
+│   Owner      : Dashboard
+│   Route      : admin.analytics.enterprise
+│   Permission : analytics.view
+│   Connects   : Owner workspace and canonical detail/action routes
+│   Status     : IMPLEMENTED
+├── Enterprise Analytics
+│   Owner      : Cross-project/Admin UI
+│   Route      : admin.analytics.workforce
+│   Permission : analytics.view
+│   Connects   : Owner workspace and canonical detail/action routes
+│   Status     : IMPLEMENTED
+├── Workforce Forecasting
+│   Owner      : Cross-project/Admin UI
+│   Route      : admin.analytics.forecasting
+│   Permission : analytics.view
+│   Connects   : Owner workspace and canonical detail/action routes
+│   Status     : IMPLEMENTED
+├── Executive Planning
+│   Owner      : Cross-project/Admin UI
+│   Route      : admin.planning.executive
+│   Permission : analytics.view
+│   Connects   : Owner workspace and canonical detail/action routes
+│   Status     : IMPLEMENTED
+├── Planning Execution
+│   Owner      : Cross-project/Admin UI
+│   Route      : admin.planning.execution
+│   Permission : analytics.view
+│   Connects   : Owner workspace and canonical detail/action routes
+│   Status     : IMPLEMENTED
+└── Enterprise Reports
+    Owner      : Cross-project/Admin UI
+    Route      : admin.reports.index
+    Permission : analytics.view
     Connects   : Owner workspace and canonical detail/action routes
     Status     : IMPLEMENTED
 
@@ -703,126 +823,6 @@ VẬN HÀNH NỀN TẢNG
     Owner      : Cross-project/Admin UI
     Route      : admin.operations.api-documentation
     Permission : api.documentation.view
-    Connects   : Owner workspace and canonical detail/action routes
-    Status     : IMPLEMENTED
-
-CRM & COMMERCE
-│
-├── Tổng quan Seller
-│   Owner      : Commerce
-│   Route      : admin.seller.dashboard
-│   Permission : commerce.store.view
-│   Connects   : Owner workspace and canonical detail/action routes
-│   Status     : IMPLEMENTED
-├── Hồ sơ cửa hàng
-│   Owner      : Commerce
-│   Route      : admin.seller.store
-│   Permission : commerce.store.view
-│   Connects   : Owner workspace and canonical detail/action routes
-│   Status     : IMPLEMENTED
-├── Sản phẩm
-│   Owner      : Product
-│   Route      : admin.products.index
-│   Permission : product.view
-│   Connects   : Owner workspace and canonical detail/action routes
-│   Status     : IMPLEMENTED
-├── Tồn kho
-│   Owner      : Commerce
-│   Route      : admin.seller.inventory
-│   Permission : inventory.view
-│   Connects   : Product Variant → Inventory balance → append-only movement
-│   Status     : IMPLEMENTED
-├── Lịch sử biến động kho
-│   Owner      : Commerce
-│   Route      : admin.seller.inventory.movements
-│   Permission : inventory.view
-│   Connects   : Product Variant → Inventory balance → append-only movement
-│   Status     : IMPLEMENTED
-├── Đơn hàng
-│   Owner      : Commerce
-│   Route      : admin.seller.orders.index
-│   Permission : commerce.store.view
-│   Connects   : Owner workspace and canonical detail/action routes
-│   Status     : IMPLEMENTED
-├── Lịch sử đơn hàng đã bán
-│   Owner      : Commerce
-│   Route      : admin.commerce.sales-history
-│   Permission : commerce.payment.view
-│   Connects   : Owner workspace and canonical detail/action routes
-│   Status     : IMPLEMENTED
-├── Commerce Payments
-│   Owner      : Commerce
-│   Route      : admin.commerce.payments.index
-│   Permission : commerce.payment.view
-│   Connects   : Owner workspace and canonical detail/action routes
-│   Status     : IMPLEMENTED
-├── Danh mục sản phẩm
-│   Owner      : Product
-│   Route      : admin.product-categories.index
-│   Permission : product-category.view
-│   Connects   : Owner workspace and canonical detail/action routes
-│   Status     : IMPLEMENTED
-├── Quản trị Seller
-│   Owner      : Commerce
-│   Route      : admin.commerce.sellers.index
-│   Permission : commerce.seller.governance.view
-│   Connects   : Owner workspace and canonical detail/action routes
-│   Status     : IMPLEMENTED
-├── Kho nội dung
-│   Owner      : Cross-project/Admin UI
-│   Route      : articles.index
-│   Permission : article.view
-│   Connects   : Owner workspace and canonical detail/action routes
-│   Status     : IMPLEMENTED
-└── Viết bài mới
-    Owner      : Cross-project/Admin UI
-    Route      : articles.create
-    Permission : article.create
-    Connects   : Owner workspace and canonical detail/action routes
-    Status     : IMPLEMENTED
-
-POS / BÁN HÀNG TẠI QUẦY
-│
-├── Tổng quan POS
-│   Owner      : Cross-project/Admin UI
-│   Route      : admin.branch-commerce.dashboard
-│   Permission : branch-commerce.view
-│   Connects   : Customer Visit → Receipt → Inventory → Revenue → Finance
-│   Status     : IMPLEMENTED
-├── Thu ngân · Check-in / Checkout
-│   Owner      : Cross-project/Admin UI
-│   Route      : admin.branch-commerce.checkins
-│   Permission : branch-commerce.view
-│   Connects   : Owner workspace and canonical detail/action routes
-│   Status     : IMPLEMENTED
-├── Tệp khách hàng
-│   Owner      : Cross-project/Admin UI
-│   Route      : admin.branch-commerce.customers
-│   Permission : branch-commerce.view
-│   Connects   : Owner workspace and canonical detail/action routes
-│   Status     : IMPLEMENTED
-├── Dịch vụ công ty
-│   Owner      : Cross-project/Admin UI
-│   Route      : admin.branch-commerce.services
-│   Permission : branch-commerce.view
-│   Connects   : Owner workspace and canonical detail/action routes
-│   Status     : IMPLEMENTED
-├── Kho POS / Tồn kho chi nhánh
-│   Owner      : Cross-project/Admin UI
-│   Route      : admin.branch-commerce.warehouse
-│   Permission : branch-commerce.view
-│   Connects   : Owner workspace and canonical detail/action routes
-│   Status     : IMPLEMENTED
-├── Phiếu thu · Doanh số POS
-│   Owner      : Cross-project/Admin UI
-│   Route      : admin.branch-commerce.sales
-│   Permission : branch-commerce.view
-│   Connects   : Owner workspace and canonical detail/action routes
-│   Status     : IMPLEMENTED
-└── Lịch sử phiếu thu
-    Owner      : Cross-project/Admin UI
-    Route      : admin.branch-commerce.receipts
-    Permission : branch-commerce.view
     Connects   : Owner workspace and canonical detail/action routes
     Status     : IMPLEMENTED
 

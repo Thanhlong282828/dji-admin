@@ -18,6 +18,6 @@ The immutable acceptance stores Company, Branch, Vendor, PO, Cost Center/account
 
 Service Vendor Bills link each line to an approved Acceptance line. Aggregate non-reversed billing cannot exceed accepted quantity. Bill approval resolves `SERVICE_VENDOR_BILL_POSTED`, clearing Service Accrual into AP without recognizing Expense again. Existing AP Payment settles AP through Payment Clearing and Treasury.
 
-Goods remain isolated: Goods Receipt uses Inventory and account `2150`; Service Acceptance uses configured policy account `2160`. Payment does not consume Budget again. Explicit acceptance reversal is not enabled until coordinated billed-dependency reversal policy is implemented; approved acceptance deletion/editing is unsupported.
+Goods remain isolated: Goods Receipt uses Inventory and account `2150`; Service Acceptance uses configured policy account `2160`. Payment does not consume Budget again. A Goods Vendor Bill reversal reverses only the original Bill journal, restoring GRNI/AP as of its effective date; it does not reverse the Goods Receipt, Inventory movement, weighted-average cost or historical COGS. A linked active Payment must be reversed first. Approved acceptance deletion/editing remains unsupported.
 
 Enterprise DMS remains available as the canonical evidence owner, but this slice creates no filler documents. Existing domain approval remains authoritative; no Workflow or Notification rows are inserted manually.

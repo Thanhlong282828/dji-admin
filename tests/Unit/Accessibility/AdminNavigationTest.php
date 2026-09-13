@@ -10,6 +10,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use InvalidArgumentException;
 use Spatie\Permission\Models\Permission;
+use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 final class AdminNavigationTest extends TestCase
@@ -108,6 +109,43 @@ final class AdminNavigationTest extends TestCase
 
         self::assertSame(['service-acceptances'], array_column($visible['items'], 'key'));
         self::assertTrue($visible['items'][0]['active']);
+    }
+
+    public function test_top_level_groups_follow_stable_erp_business_order(): void
+    {
+        self::assertSame(
+            ['overview', 'organization', 'people', 'workforce', 'talent', 'payroll', 'tax-statutory', 'seller', 'pos', 'procurement', 'supply-chain', 'finance', 'asset-maintenance', 'projects', 'automation', 'analytics-planning', 'access', 'operations'],
+            array_column((new AdminNavigation)->definitions(), 'key'),
+        );
+    }
+
+    public function test_contextual_capabilities_do_not_create_duplicate_sidebar_destinations(): void
+    {
+        $items = array_merge(...array_column((new AdminNavigation)->definitions(), 'items'));
+        $keys = array_column($items, 'key');
+
+        self::assertContains('procurement-vendors', $keys);
+        self::assertContains('procurement-reports', $keys);
+        self::assertContains('treasury', $keys);
+        self::assertSame(1, count(array_filter($keys, static fn (string $key): bool => $key === 'approval-inbox')));
+        foreach (['vendor-performance', 'procurement-exceptions', 'service-reversals', 'ap-aging', 'payment-planning', 'cash-outflow-forecast'] as $contextual) {
+            self::assertNotContains($contextual, $keys);
+        }
+    }
+
+    public function test_role_inherited_permission_exposes_only_the_canonical_treasury_workspace(): void
+    {
+        $permission = Permission::findOrCreate('treasury.view', 'web');
+        $role = Role::findOrCreate('Navigation Treasury Reader', 'web');
+        $role->givePermissionTo($permission);
+        $user = User::factory()->create();
+        $user->assignRole($role);
+        $groups = (new AdminNavigation)->for($user, Request::create('/admin/finance/treasury'), 77);
+        $finance = array_values(array_filter($groups, static fn (array $group): bool => $group['key'] === 'finance'))[0];
+
+        self::assertSame(['treasury'], array_column($finance['items'], 'key'));
+        self::assertSame(['company_id' => 77], $finance['items'][0]['parameters']);
+        self::assertNotContains('operations', array_column($groups, 'key'));
     }
 
     public function test_group_without_any_permitted_child_is_absent(): void

@@ -79,7 +79,7 @@ final class RolePermissionSeeder extends Seeder
             'purchase-order.view', 'purchase-order.create', 'purchase-order.approve', 'purchase-order.send', 'purchase-order.cancel',
             'goods-receipt.view', 'goods-receipt.create', 'goods-receipt.receive', 'vendor-bill.view', 'vendor-bill.create', 'vendor-bill.approve',
             'service-acceptance.view', 'service-acceptance.create', 'service-acceptance.submit', 'service-acceptance.approve', 'service-acceptance.reverse',
-            'ap-payment.view', 'ap-payment.create', 'accounting-period.view', 'accounting.period.manage', 'financial-statement.view',
+            'ap-payment.view', 'ap-payment.create', 'treasury.payment.reversal.request', 'treasury.payment.reversal.approve', 'vendor-bill.reversal.request', 'vendor-bill.reversal.approve', 'accounting-period.view', 'accounting.period.manage', 'financial-statement.view',
             'finance.operations.view', 'finance.operations.manage', 'finance.operations.approve',
             'treasury.view', 'treasury.manage', 'treasury.reconcile', 'accounting.period.view', 'accounting.period.close.request', 'accounting.period.close.approve', 'accounting.period.reopen', 'approval.inbox.view',
             'accounting.adjustment.view', 'accounting.adjustment.create', 'accounting.adjustment.submit', 'accounting.adjustment.approve', 'accounting.adjustment.reject', 'accounting.adjustment.post',

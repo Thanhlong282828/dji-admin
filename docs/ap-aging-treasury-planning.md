@@ -10,7 +10,7 @@ For each financially active Vendor Bill at an explicit `as_of_date`:
 
 Draft, rejected, and cancelled bills are not financial liabilities. Fully paid bills remain in original/paid totals but are excluded from outstanding aging and payment-planning rows. All amounts use integer VND minor units.
 
-The current owner domain has no payment-allocation reversal workflow. The projection includes only allocations attached to an approved AP Payment; reversal handling remains `NOT_IMPLEMENTED_IN_OWNER_DOMAIN` rather than being inferred from notes.
+The owner domain now records append-only AP Payment reversal evidence. The projection includes only the allocation amount still effective at the selected as-of date; before the reversal date the original allocation remains active, and from the effective date it is removed without editing the original Payment or allocation.
 
 ## Aging
 
