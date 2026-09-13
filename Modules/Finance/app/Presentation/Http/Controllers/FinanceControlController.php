@@ -9,18 +9,40 @@ use Illuminate\Support\Facades\Gate;
 use Illuminate\View\View;
 use Modules\Company\Domain\Services\BranchAccessService;
 use Modules\Finance\Application\Services\AccountingPeriodCloseService;
+use Modules\Finance\Application\Services\AccountsPayablePlanningReadService;
 use Modules\Finance\Application\Services\ApprovalInboxService;
 use Modules\Finance\Application\Services\TreasuryService;
 
 final readonly class FinanceControlController
 {
-    public function __construct(private BranchAccessService $access, private TreasuryService $treasury, private AccountingPeriodCloseService $periods, private ApprovalInboxService $approvals) {}
+    public function __construct(private BranchAccessService $access, private TreasuryService $treasury, private AccountingPeriodCloseService $periods, private ApprovalInboxService $approvals, private AccountsPayablePlanningReadService $payables) {}
 
     public function treasury(Request $request): View
     {
         [$user, $company] = $this->scope($request);
+        $validated = $request->validate([
+            'as_of_date' => ['nullable', 'date'], 'vendor_id' => ['nullable', 'integer'], 'branch_id' => ['nullable', 'integer'], 'cost_center_id' => ['nullable', 'integer'],
+            'due_bucket' => ['nullable', 'in:NOT_DUE,1_30,31_60,61_90,90_PLUS,DUE_DATE_UNKNOWN'], 'payment_status' => ['nullable', 'in:UNPAID,PARTIALLY_PAID'],
+            'sort' => ['nullable', 'in:due_date,outstanding,vendor_name'], 'direction' => ['nullable', 'in:asc,desc'],
+        ]);
+        if (! is_array($validated)) {
+            abort(422);
+        }
+        $filters = [
+            'as_of_date' => is_string($validated['as_of_date'] ?? null) ? $validated['as_of_date'] : now()->toDateString(),
+            'vendor_id' => is_int($validated['vendor_id'] ?? null) ? $validated['vendor_id'] : null,
+            'branch_id' => is_int($validated['branch_id'] ?? null) ? $validated['branch_id'] : null,
+            'cost_center_id' => is_int($validated['cost_center_id'] ?? null) ? $validated['cost_center_id'] : null,
+            'due_bucket' => is_string($validated['due_bucket'] ?? null) ? $validated['due_bucket'] : null,
+            'payment_status' => is_string($validated['payment_status'] ?? null) ? $validated['payment_status'] : null,
+            'currency' => 'VND',
+            'sort' => is_string($validated['sort'] ?? null) ? $validated['sort'] : 'due_date',
+            'direction' => is_string($validated['direction'] ?? null) ? $validated['direction'] : 'asc',
+        ];
+        $data = $this->treasury->read($company);
+        $data['payablePlanning'] = $this->payables->read($company, $filters);
 
-        return view('admin.finance.treasury', ['companyId' => $company, 'data' => $this->treasury->read($company), 'user' => $user]);
+        return view('admin.finance.treasury', ['companyId' => $company, 'data' => $data, 'user' => $user]);
     }
 
     public function treasuryMutate(Request $request): RedirectResponse

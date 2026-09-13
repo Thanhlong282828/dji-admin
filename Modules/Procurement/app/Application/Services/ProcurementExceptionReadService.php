@@ -49,7 +49,7 @@ final readonly class ProcurementExceptionReadService
         $accepted = $this->db->table('service_acceptance_lines as sal')->join('service_acceptances as sa', 'sa.id', '=', 'sal.service_acceptance_id')->where('sa.status', 'approved')->selectRaw('sal.purchase_order_line_id, SUM(sal.accepted_minor) amount')->groupBy('sal.purchase_order_line_id');
         $query = $this->db->table('purchase_orders as po')->join('purchase_order_lines as line', 'line.purchase_order_id', '=', 'po.id')->join('procurement_vendors as vendor', 'vendor.id', '=', 'po.vendor_id')->join('branches as branch', 'branch.id', '=', 'po.branch_id')->leftJoin('cost_centers as center', 'center.id', '=', 'line.cost_center_id')->leftJoinSub($accepted, 'accepted', 'accepted.purchase_order_line_id', '=', 'line.id')->whereIn('po.status', ['approved', 'sent', 'partially_received']);
         $this->scope($query, $companyId, $filters, 'po', 'line');
-        foreach ($query->selectRaw('po.id, po.reference, po.status, po.expected_date, vendor.name vendor_name, branch.name branch_name, center.code cost_center_code, line.procurement_classification, SUM(line.line_total_minor) ordered, SUM(line.received_quantity*line.unit_cost_minor) received, SUM(COALESCE(accepted.amount,0)) accepted, GREATEST(DATEDIFF(CURRENT_DATE,po.expected_date),0) age_days')->groupBy('po.id', 'po.reference', 'po.status', 'po.expected_date', 'vendor.name', 'branch.name', 'center.code', 'line.procurement_classification')->get() as $source) {
+        foreach ($query->selectRaw('po.id, po.reference, po.status, po.expected_date, vendor.id vendor_id, vendor.name vendor_name, branch.name branch_name, center.code cost_center_code, line.procurement_classification, SUM(line.line_total_minor) ordered, SUM(line.received_quantity*line.unit_cost_minor) received, SUM(COALESCE(accepted.amount,0)) accepted, GREATEST(DATEDIFF(CURRENT_DATE,po.expected_date),0) age_days')->groupBy('po.id', 'po.reference', 'po.status', 'po.expected_date', 'vendor.id', 'vendor.name', 'branch.name', 'center.code', 'line.procurement_classification')->get() as $source) {
             $isService = $source->procurement_classification === 'operating_expense';
             $realized = $this->integer($isService ? $source->accepted : $source->received);
             $ordered = $this->integer($source->ordered);
@@ -68,7 +68,7 @@ final readonly class ProcurementExceptionReadService
         $billed = $this->db->table('vendor_bill_lines as bl')->join('vendor_bills as bill', 'bill.id', '=', 'bl.vendor_bill_id')->whereNotIn('bill.status', ['draft', 'cancelled', 'rejected'])->selectRaw('bl.purchase_order_line_id, SUM(bl.line_total_minor) amount')->groupBy('bl.purchase_order_line_id');
         $query = $this->db->table('purchase_order_lines as line')->join('purchase_orders as po', 'po.id', '=', 'line.purchase_order_id')->join('procurement_vendors as vendor', 'vendor.id', '=', 'po.vendor_id')->join('branches as branch', 'branch.id', '=', 'po.branch_id')->leftJoin('cost_centers as center', 'center.id', '=', 'line.cost_center_id')->leftJoinSub($billed, 'billed', 'billed.purchase_order_line_id', '=', 'line.id')->where('line.procurement_classification', 'inventory')->where('line.received_quantity', '>', 0);
         $this->scope($query, $companyId, $filters, 'po', 'line');
-        foreach ($query->get(['po.id', 'po.reference', 'po.status', 'vendor.name as vendor_name', 'branch.name as branch_name', 'center.code as cost_center_code', 'line.received_quantity', 'line.unit_cost_minor', 'billed.amount as billed_minor']) as $source) {
+        foreach ($query->get(['po.id', 'po.reference', 'po.status', 'vendor.id as vendor_id', 'vendor.name as vendor_name', 'branch.name as branch_name', 'center.code as cost_center_code', 'line.received_quantity', 'line.unit_cost_minor', 'billed.amount as billed_minor']) as $source) {
             $amount = $this->integer($source->received_quantity) * $this->integer($source->unit_cost_minor) - $this->integer($source->billed_minor);
             if ($amount > 0) {
                 $this->push($rows, 'GOODS_RECEIVED_NOT_BILLED', $companyId, 'purchase_order', $source, $amount, 'WARNING', 'admin.procurement.payables', 'goods-receipt.view', 'vendor-bill.view');
@@ -84,7 +84,7 @@ final readonly class ProcurementExceptionReadService
         $billed = $this->db->table('vendor_bill_lines as bl')->join('vendor_bills as bill', 'bill.id', '=', 'bl.vendor_bill_id')->whereNotIn('bill.status', ['draft', 'cancelled', 'rejected'])->selectRaw('bl.service_acceptance_line_id, SUM(bl.line_total_minor) amount')->groupBy('bl.service_acceptance_line_id');
         $query = $this->db->table('service_acceptance_lines as line')->join('service_acceptances as sa', 'sa.id', '=', 'line.service_acceptance_id')->join('procurement_vendors as vendor', 'vendor.id', '=', 'sa.vendor_id')->join('branches as branch', 'branch.id', '=', 'sa.branch_id')->leftJoin('cost_centers as center', 'center.id', '=', 'line.cost_center_id')->leftJoinSub($billed, 'billed', 'billed.service_acceptance_line_id', '=', 'line.id')->where('sa.status', 'approved');
         $this->scope($query, $companyId, $filters, 'sa', 'line', 'acceptance_date');
-        foreach ($query->get(['sa.id', 'sa.reference', 'sa.status', 'vendor.name as vendor_name', 'branch.name as branch_name', 'center.code as cost_center_code', 'line.accepted_minor', 'billed.amount as billed_minor']) as $source) {
+        foreach ($query->get(['sa.id', 'sa.reference', 'sa.status', 'vendor.id as vendor_id', 'vendor.name as vendor_name', 'branch.name as branch_name', 'center.code as cost_center_code', 'line.accepted_minor', 'billed.amount as billed_minor']) as $source) {
             $amount = $this->integer($source->accepted_minor) - $this->integer($source->billed_minor);
             if ($amount > 0) {
                 $this->push($rows, 'SERVICE_ACCEPTED_NOT_BILLED', $companyId, 'service_acceptance', $source, $amount, 'WARNING', 'admin.procurement.payables', 'service-acceptance.view', 'vendor-bill.view');
@@ -101,7 +101,7 @@ final readonly class ProcurementExceptionReadService
         $query = $this->db->table('vendor_bills as bill')->join('procurement_vendors as vendor', 'vendor.id', '=', 'bill.vendor_id')->join('branches as branch', 'branch.id', '=', 'bill.branch_id')->leftJoinSub($allocated, 'allocated', 'allocated.vendor_bill_id', '=', 'bill.id')->whereNotIn('bill.status', ['draft', 'cancelled', 'rejected']);
         $this->headerScope($query, $companyId, $filters, 'bill', 'invoice_date');
         $this->linkedLineScope($query, $filters, 'bill.id', 'vendor_bill_lines', 'vendor_bill_id', 'purchase_order_line_id');
-        foreach ($query->selectRaw('bill.id, bill.invoice_number reference, bill.status, bill.due_date, bill.total_minor, COALESCE(allocated.amount,0) paid_minor, vendor.name vendor_name, branch.name branch_name, GREATEST(DATEDIFF(CURRENT_DATE,bill.due_date),0) age_days')->get() as $source) {
+        foreach ($query->selectRaw('bill.id, bill.invoice_number reference, bill.status, bill.due_date, bill.total_minor, COALESCE(allocated.amount,0) paid_minor, vendor.id vendor_id, vendor.name vendor_name, branch.name branch_name, GREATEST(DATEDIFF(CURRENT_DATE,bill.due_date),0) age_days')->get() as $source) {
             $amount = $this->integer($source->total_minor) - $this->integer($source->paid_minor);
             if ($amount <= 0) {
                 continue;
@@ -119,14 +119,14 @@ final readonly class ProcurementExceptionReadService
         $query = $this->db->table('service_acceptances as sa')->join('procurement_vendors as vendor', 'vendor.id', '=', 'sa.vendor_id')->join('branches as branch', 'branch.id', '=', 'sa.branch_id')->where('sa.status', 'reversal_requested');
         $this->headerScope($query, $companyId, $filters, 'sa', 'acceptance_date');
         $this->linkedLineScope($query, $filters, 'sa.id', 'service_acceptance_lines', 'service_acceptance_id', 'purchase_order_line_id');
-        foreach ($query->get(['sa.id', 'sa.reference', 'sa.status', 'sa.total_minor', 'vendor.name as vendor_name', 'branch.name as branch_name']) as $source) {
+        foreach ($query->get(['sa.id', 'sa.reference', 'sa.status', 'sa.total_minor', 'vendor.id as vendor_id', 'vendor.name as vendor_name', 'branch.name as branch_name']) as $source) {
             $this->push($rows, 'SERVICE_REVERSAL_PENDING', $companyId, 'service_acceptance', $source, $this->integer($source->total_minor), 'WARNING', 'admin.procurement.service-acceptances', 'service-acceptance.view', 'service-acceptance.reverse');
         }
 
         $workflow = $this->db->table('workflow_instances as instance')->join('workflow_tasks as task', 'task.workflow_instance_id', '=', 'instance.id')->join('service_acceptances as sa', 'sa.id', '=', 'instance.subject_id')->join('procurement_vendors as vendor', 'vendor.id', '=', 'sa.vendor_id')->join('branches as branch', 'branch.id', '=', 'sa.branch_id')->where('instance.company_id', $companyId)->whereIn('instance.subject_type', ['SERVICE_ACCEPTANCE_APPROVAL', 'SERVICE_ACCEPTANCE_REVERSAL_APPROVAL'])->whereIn('task.status', ['pending', 'claimed'])->whereIn('instance.engine_status', ['draft', 'running']);
         $this->headerScope($workflow, $companyId, $filters, 'sa', 'acceptance_date');
         $this->linkedLineScope($workflow, $filters, 'sa.id', 'service_acceptance_lines', 'service_acceptance_id', 'purchase_order_line_id');
-        foreach ($workflow->get(['instance.id', 'sa.reference', 'sa.status', 'sa.total_minor', 'task.assignment_source as workflow_status', 'vendor.name as vendor_name', 'branch.name as branch_name']) as $source) {
+        foreach ($workflow->get(['instance.id', 'sa.reference', 'sa.status', 'sa.total_minor', 'task.assignment_source as workflow_status', 'vendor.id as vendor_id', 'vendor.name as vendor_name', 'branch.name as branch_name']) as $source) {
             $this->push($rows, 'WORKFLOW_APPROVAL_PENDING', $companyId, 'workflow_instance', $source, $this->integer($source->total_minor), 'INFO', 'admin.approvals.index', 'approval.inbox.view', 'approval.inbox.view');
         }
     }
@@ -197,13 +197,15 @@ final readonly class ProcurementExceptionReadService
     private function push(Collection $rows, string $type, int $companyId, string $sourceType, object $source, int $amount, string $severity, string $route, string $viewPermission, string $actionPermission): void
     {
         $ageDays = isset($source->age_days) ? $this->integer($source->age_days) : null;
-        $rows->push($this->row($type, $severity, $companyId, $sourceType, $this->integer($source->id ?? null), $this->text($source->reference ?? null), $source->vendor_name ?? null, $source->branch_name ?? null, $source->cost_center_code ?? null, $amount, 'VND', $this->text($source->status ?? null), $source->workflow_status ?? null, $ageDays, $route, $viewPermission, $actionPermission));
+        $row = $this->row($type, $severity, $companyId, $sourceType, $this->integer($source->id ?? null), $this->text($source->reference ?? null), $source->vendor_name ?? null, $source->branch_name ?? null, $source->cost_center_code ?? null, $amount, 'VND', $this->text($source->status ?? null), $source->workflow_status ?? null, $ageDays, $route, $viewPermission, $actionPermission);
+        $row['vendor_id'] = $this->integer($source->vendor_id ?? null);
+        $rows->push($row);
     }
 
     /** @return array<string,mixed> */
     private function row(string $type, string $severity, int $companyId, string $sourceType, int $sourceId, string $reference, mixed $vendor, mixed $branch, mixed $costCenter, int $amount, string $currency, string $status, mixed $workflow, ?int $ageDays, string $route, string $viewPermission, string $actionPermission): array
     {
-        return ['exception_type' => $type, 'severity' => $severity, 'company_id' => $companyId, 'source_type' => $sourceType, 'source_id' => $sourceId, 'source_reference' => $reference, 'vendor' => is_string($vendor) ? $vendor : null, 'branch' => is_string($branch) ? $branch : null, 'cost_center' => is_string($costCenter) ? $costCenter : null, 'amount_minor' => $amount, 'currency' => $currency, 'business_status' => $status, 'workflow_status' => is_string($workflow) ? $workflow : null, 'age_days' => $ageDays, 'destination_route' => $route, 'permission' => $viewPermission, 'action_permission' => $actionPermission];
+        return ['exception_type' => $type, 'severity' => $severity, 'company_id' => $companyId, 'source_type' => $sourceType, 'source_id' => $sourceId, 'source_reference' => $reference, 'vendor_id' => null, 'vendor' => is_string($vendor) ? $vendor : null, 'branch' => is_string($branch) ? $branch : null, 'cost_center' => is_string($costCenter) ? $costCenter : null, 'amount_minor' => $amount, 'currency' => $currency, 'business_status' => $status, 'workflow_status' => is_string($workflow) ? $workflow : null, 'age_days' => $ageDays, 'destination_route' => $route, 'permission' => $viewPermission, 'action_permission' => $actionPermission];
     }
 
     private function integer(mixed $value): int

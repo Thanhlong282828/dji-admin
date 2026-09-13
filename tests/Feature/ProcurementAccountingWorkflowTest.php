@@ -8,6 +8,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use Modules\Finance\Application\Services\AccountsPayablePlanningReadService;
 use Modules\Finance\Application\Services\CostCenterCostManagementReadService;
 use Modules\Finance\Application\Services\SourceAccountingPostingService;
 use Modules\Payroll\Domain\Repositories\AccountingReadRepositoryInterface;
@@ -100,6 +101,27 @@ final class ProcurementAccountingWorkflowTest extends TestCase
         self::assertSame(1000, (int) DB::table('vendor_bill_lines')->where('purchase_order_line_id', $line)->sum('line_total_minor'));
         self::assertSame(0, $this->glNet($company, '2150'));
         self::assertSame(-900, $this->glNet($company, '2100'));
+
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+        $planning = app(AccountsPayablePlanningReadService::class)->read($company, ['as_of_date' => '2026-09-20', 'vendor_id' => $vendor, 'branch_id' => $branch, 'cost_center_id' => $costCenter, 'due_bucket' => null, 'payment_status' => null, 'currency' => 'VND', 'sort' => 'due_date', 'direction' => 'asc']);
+        $planningQueries = count(DB::getQueryLog());
+        DB::disableQueryLog();
+        self::assertSame(['original' => 1000, 'paid' => 100, 'outstanding' => 900], $planning['totals']);
+        self::assertSame(800, $planning['aging']['NOT_DUE']);
+        self::assertSame(100, $planning['aging']['1_30']);
+        self::assertSame(100, $planning['forecast']['OVERDUE']);
+        self::assertSame(800, $planning['forecast']['NEXT_7']);
+        self::assertSame(900, $planning['vendors'][0]['outstanding']);
+        self::assertSame(800, $planning['vendors'][0]['due_next_7']);
+        self::assertSame(2, $planning['readiness']['READY']);
+        self::assertSame('NOT_ENOUGH_EVIDENCE', $planning['cash_evidence']['status']);
+        self::assertLessThanOrEqual(4, $planningQueries);
+
+        $reconciled = app(AccountsPayablePlanningReadService::class)->read($company, ['as_of_date' => '2026-09-20', 'vendor_id' => null, 'branch_id' => $branch, 'cost_center_id' => null, 'due_bucket' => null, 'payment_status' => null, 'currency' => 'VND', 'sort' => 'outstanding', 'direction' => 'desc']);
+        self::assertSame(900, $reconciled['reconciliation']['subledger']);
+        self::assertSame(900, $reconciled['reconciliation']['gl_2100']);
+        self::assertSame(0, $reconciled['reconciliation']['difference']);
 
         self::assertSame(5, DB::table('payroll_accounting_journals')->where('company_id', $company)->whereNotNull('generic_source_key')->count());
         self::assertSame(0, (int) DB::table('payroll_accounting_journals')->where('company_id', $company)->whereNotNull('generic_source_key')->selectRaw('SUM(total_debit_minor-total_credit_minor) difference')->value('difference'));

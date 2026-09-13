@@ -37,6 +37,11 @@ final readonly class ProcurementController
             'cost_center_id' => $request->query('cost_center_id'),
             'vendor_id' => $request->query('vendor_id'),
             'classification' => $request->query('classification'),
+            'exception_type' => $request->query('exception_type'),
+            'severity' => $request->query('severity'),
+            'business_status' => $request->query('business_status'),
+            'sort' => $request->query('sort'),
+            'direction' => $request->query('direction'),
         ]));
         abort_unless(is_array($data), 500);
 

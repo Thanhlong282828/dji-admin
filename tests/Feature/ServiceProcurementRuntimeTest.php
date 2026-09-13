@@ -23,6 +23,7 @@ use Modules\Procurement\Application\Services\ProcurementReconciliationReadServic
 use Modules\Procurement\Application\Services\ProcurementService;
 use Modules\Procurement\Application\Services\ServiceAcceptanceService;
 use Modules\Procurement\Application\Services\ServiceAcceptanceWorkflowOrchestrator;
+use Modules\Procurement\Application\Services\VendorPerformanceReadService;
 use Modules\Workflow\Application\DTOs\WorkflowDefinitionData;
 use Modules\Workflow\Domain\Services\WorkflowDefinitionService;
 use Modules\Workflow\Domain\Services\WorkflowTaskService;
@@ -142,6 +143,11 @@ final class ServiceProcurementRuntimeTest extends TestCase
         self::assertSame(10_000_000, $settlementReport['budget']['consumed']);
         self::assertSame(1, DB::table('treasury_transactions')->where(['source_type' => 'ap_payment', 'source_id' => $payment])->count());
         self::assertSame($inventoryBefore, DB::table('inventory_movements')->count());
+        $vendorPerformance = $this->vendorPerformance($f['company'], $this->exceptions($f['company'], $settlementReport)['rows'], ['vendor_id' => $f['vendor'], 'classification' => 'operating_expense']);
+        self::assertSame(3_000_000, $vendorPerformance['rows'][0]['billed']);
+        self::assertSame(1_000_000, $vendorPerformance['rows'][0]['paid']);
+        self::assertSame(2_000_000, $vendorPerformance['rows'][0]['outstanding']);
+        self::assertSame(0, $vendorPerformance['rows'][0]['overdue']);
         $afterSettlement = app(CostCenterCostManagementReadService::class)->read($f['company'], null, '2026-09-01', '2026-09-30')['totals'];
         self::assertSame(0, $afterSettlement['commitment']);
         self::assertSame(10_000_000, $afterSettlement['actual']);
@@ -213,6 +219,43 @@ final class ServiceProcurementRuntimeTest extends TestCase
 
         DB::table('service_acceptances')->where('id', $acceptance)->update(['status' => 'reversal_requested']);
         self::assertContains('SERVICE_REVERSAL_PENDING', array_column($this->exceptions($f['company'], $this->report($f['company']))['rows'], 'exception_type'));
+    }
+
+    public function test_vendor_performance_is_grouped_tenant_safe_and_evidence_based(): void
+    {
+        $f = $this->fixture();
+        DB::table('purchase_orders')->where('id', $f['po'])->update(['expected_date' => '2026-09-12']);
+        $this->accept($f, 'SA-VENDOR-PERFORMANCE', 4);
+        $report = $this->report($f['company']);
+        $exceptions = $this->exceptions($f['company'], $report);
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+        $performance = $this->vendorPerformance($f['company'], $exceptions['rows'], ['vendor_id' => $f['vendor'], 'classification' => 'operating_expense']);
+        $queryCount = count(DB::getQueryLog());
+        DB::disableQueryLog();
+        $row = $performance['rows'][0];
+
+        self::assertSame(1, $row['po_count']);
+        self::assertSame(10_000_000, $row['ordered']);
+        self::assertSame(0, $row['goods_received']);
+        self::assertSame(4_000_000, $row['service_accepted']);
+        self::assertSame(0, $row['billed']);
+        self::assertSame(0, $row['paid']);
+        self::assertSame(0, $row['outstanding']);
+        self::assertSame(6_000_000, $row['open_commitment']);
+        self::assertSame(2, $row['exception_count']);
+        self::assertSame(1, $row['fulfillment_observations']);
+        self::assertSame(1, $row['on_time']);
+        self::assertSame(0, $row['late']);
+        self::assertSame(0, $row['average_delay_days']);
+        self::assertSame('SUPPORTED_FOR_DATED_OBSERVATIONS_ONLY', $performance['evidence']['fulfillment']);
+        self::assertSame('NOT_ENOUGH_EVIDENCE', $performance['evidence']['quality']);
+        self::assertSame('NOT_ENOUGH_EVIDENCE', $performance['evidence']['sla_score']);
+        self::assertSame('NOT_ENOUGH_EVIDENCE', $performance['evidence']['rating']);
+        self::assertLessThanOrEqual(8, $queryCount);
+        self::assertSame(0, $this->vendorPerformance($f['company'], [], ['date_from' => '2026-08-01', 'date_to' => '2026-08-31', 'vendor_id' => $f['vendor']])['rows'][0]['ordered']);
+        self::assertSame(10_000_000, $this->vendorPerformance($f['company'], [], ['branch_id' => $f['branch'], 'cost_center_id' => $f['cost_center']])['rows'][0]['ordered']);
+        self::assertSame([], $this->vendorPerformance($f['foreign_company'], [])['rows']);
     }
 
     public function test_closed_period_blocks_approval_and_inventory_line_is_rejected(): void
@@ -371,6 +414,15 @@ final class ServiceProcurementRuntimeTest extends TestCase
     private function exceptions(int $company, array $report): array
     {
         return app(ProcurementExceptionReadService::class)->read($company, ['date_from' => '2026-09-01', 'date_to' => '2026-09-30', 'branch_id' => null, 'cost_center_id' => null, 'vendor_id' => null, 'classification' => null, 'currency' => 'VND', 'exception_type' => null, 'severity' => null, 'business_status' => null], $report);
+    }
+
+    /** @param list<array<string,mixed>> $exceptions
+     * @param  array<string,mixed>  $filters
+     * @return array<string,mixed>
+     */
+    private function vendorPerformance(int $company, array $exceptions, array $filters = []): array
+    {
+        return app(VendorPerformanceReadService::class)->read($company, array_replace(['date_from' => '2026-09-01', 'date_to' => '2026-09-30', 'branch_id' => null, 'cost_center_id' => null, 'vendor_id' => null, 'classification' => null, 'currency' => 'VND', 'sort' => 'ordered', 'direction' => 'desc'], $filters), $exceptions);
     }
 
     private function assertValidation(callable $operation, string $key, ?string $message = null): void
