@@ -8,7 +8,7 @@ permissions:
   id-token: write
 
 jobs:
-  oidc:
+  gcp-vm-smoke-test:
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
@@ -23,11 +23,13 @@ jobs:
       - name: Setup gcloud
         uses: google-github-actions/setup-gcloud@v3
 
-      - name: Verify WIF identity
+      - name: Verify GCP identity
         shell: bash
         run: |
           set -euo pipefail
+
           ACTIVE_ACCOUNT="$(gcloud auth list --filter=status:ACTIVE --format='value(account)')"
+
           echo "ACTIVE_ACCOUNT=${ACTIVE_ACCOUNT}"
 
           if [ "${ACTIVE_ACCOUNT}" != "github-deployer@project-06b7a0c7-35a4-4282-b81.iam.gserviceaccount.com" ]; then
@@ -37,24 +39,73 @@ jobs:
 
           echo "GITHUB_OIDC_TO_GCP=PASS"
 
-      - name: Verify project access
+      - name: IAP OS Login VM read-only test
         shell: bash
         run: |
           set -euo pipefail
-          ACTUAL_PROJECT="$(gcloud projects describe 'project-06b7a0c7-35a4-4282-b81' --format='value(projectId)')"
-          echo "PROJECT=${ACTUAL_PROJECT}"
 
-          if [ "${ACTUAL_PROJECT}" != "project-06b7a0c7-35a4-4282-b81" ]; then
-            echo "FAILED: project mismatch"
+          gcloud compute ssh 'laravel-server'             --project='project-06b7a0c7-35a4-4282-b81'             --zone='asia-southeast1-a'             --tunnel-through-iap             --quiet             --command='
+              set -eu
+
+              echo "REMOTE_CONNECTION=PASS"
+
+              printf "user="
+              whoami
+
+              printf "uid="
+              id -u
+
+              printf "groups="
+              id -Gn
+
+              printf "hostname="
+              hostname
+
+              printf "kernel="
+              uname -srm
+
+              printf "repo_owner="
+              stat -c "%U:%G" /var/www/laravel
+
+              printf "repo_mode="
+              stat -c "%A" /var/www/laravel
+
+              echo "services:"
+              systemctl is-active nginx || true
+              systemctl is-active php8.4-fpm || true
+              systemctl is-active laravel-queue.service || true
+              systemctl is-active laravel-reverb.service || true
+              systemctl is-active laravel-scheduler.timer || true
+
+              echo "local_health:"
+              curl -sS                 -o /dev/null                 -w "LOCAL_HTTP=%{http_code}\n"                 -H "Host: kayaga.one"                 http://127.0.0.1/login
+
+              echo "REMOTE_READ_ONLY_TEST=PASS"
+            '
+
+      - name: Public HTTPS health
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          CODE="$(curl -sS -o /dev/null -w '%{http_code}' 'https://kayaga.one/login')"
+
+          echo "PUBLIC_HTTP=${CODE}"
+
+          if [ "${CODE}" != "200" ]; then
+            echo "FAILED: public health check"
             exit 1
           fi
 
-          echo "PROJECT_ACCESS=PASS"
+          echo "PUBLIC_HEALTH=PASS"
 
       - name: Final result
         shell: bash
         run: |
-          echo "6.2F GITHUB OIDC SMOKE TEST = PASS"
-          echo "No SSH connection performed."
-          echo "No production deployment performed."
+          echo "6.2G GITHUB TO GCP VM = PASS"
+          echo "No sudo command executed."
+          echo "No git operation executed on VM."
+          echo "No deployment performed."
+          echo "No service restarted."
           echo "No database operation performed."
+          echo "No Laravel job touched."
