@@ -1,0 +1,60 @@
+name: GCP WIF Smoke Test
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  oidc:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: 'projects/379534698416/locations/global/workloadIdentityPools/github-actions/providers/github'
+          service_account: 'github-deployer@project-06b7a0c7-35a4-4282-b81.iam.gserviceaccount.com'
+          create_credentials_file: true
+
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v3
+
+      - name: Verify WIF identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          ACTIVE_ACCOUNT="$(gcloud auth list --filter=status:ACTIVE --format='value(account)')"
+          echo "ACTIVE_ACCOUNT=${ACTIVE_ACCOUNT}"
+
+          if [ "${ACTIVE_ACCOUNT}" != "github-deployer@project-06b7a0c7-35a4-4282-b81.iam.gserviceaccount.com" ]; then
+            echo "FAILED: unexpected GCP identity"
+            exit 1
+          fi
+
+          echo "GITHUB_OIDC_TO_GCP=PASS"
+
+      - name: Verify project access
+        shell: bash
+        run: |
+          set -euo pipefail
+          ACTUAL_PROJECT="$(gcloud projects describe 'project-06b7a0c7-35a4-4282-b81' --format='value(projectId)')"
+          echo "PROJECT=${ACTUAL_PROJECT}"
+
+          if [ "${ACTUAL_PROJECT}" != "project-06b7a0c7-35a4-4282-b81" ]; then
+            echo "FAILED: project mismatch"
+            exit 1
+          fi
+
+          echo "PROJECT_ACCESS=PASS"
+
+      - name: Final result
+        shell: bash
+        run: |
+          echo "6.2F GITHUB OIDC SMOKE TEST = PASS"
+          echo "No SSH connection performed."
+          echo "No production deployment performed."
+          echo "No database operation performed."
