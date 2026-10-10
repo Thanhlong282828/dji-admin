@@ -35,6 +35,9 @@ final readonly class AccountingPeriodCloseService
             if ($action === 'reopen' && ($reason === null || trim($reason) === '')) {
                 throw ValidationException::withMessages(['reason' => 'Reopen bắt buộc có lý do.']);
             }
+            if ($this->db->table('accounting_period_close_requests')->where(['company_id' => $companyId, 'accounting_period_id' => $periodId, 'status' => 'pending'])->exists()) {
+                throw ValidationException::withMessages(['period' => 'ACCOUNTING_PERIOD_CLOSE_ALREADY_PENDING']);
+            }
             $id = $this->integer($this->db->table('accounting_period_close_requests')->insertGetId(['company_id' => $companyId, 'accounting_period_id' => $periodId, 'action' => $action, 'status' => 'pending', 'version' => 1, 'reason' => $reason, 'requested_by' => $actor->id, 'created_at' => now(), 'updated_at' => now()]));
             foreach ($this->checks($companyId, $period) as $key => $check) {
                 $this->db->table('accounting_period_close_checks')->insert(['close_request_id' => $id, 'check_key' => $key, 'status' => $check['count'] === 0 ? 'pass' : 'blocked', 'finding_count' => $check['count'], 'summary' => $check['summary'], 'created_at' => now(), 'updated_at' => now()]);

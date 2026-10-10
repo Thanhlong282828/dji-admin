@@ -96,6 +96,7 @@ Every definition declares a stable flow ID, category, current node, unique nodes
 | Yêu cầu mua hàng | `admin.procurement.requests` | `BUSINESS_PROCESS` | `Procurement` | `Modules/Procurement/resources/process-flows.php` | `procurement.vendor-to-ap.purchase-requests` | `purchase-requests` |
 | Đơn mua hàng | `admin.procurement.orders` | `BUSINESS_PROCESS` | `Procurement` | `Modules/Procurement/resources/process-flows.php` | `procurement.vendor-to-ap.purchase-orders` | `purchase-orders` |
 | Phiếu nhận hàng | `admin.procurement.receipts` | `BUSINESS_PROCESS` | `Procurement` | `Modules/Procurement/resources/process-flows.php` | `procurement.vendor-to-ap.goods-receipts` | `goods-receipts` |
+| Trả hàng nhà cung cấp | `admin.procurement.goods-returns` | `BUSINESS_PROCESS` | `Procurement` | `Modules/Procurement/resources/process-flows.php` | `procurement.vendor-to-ap.goods-returns` | `goods-returns` |
 | Nghiệm thu dịch vụ | `admin.procurement.service-acceptances` | `BUSINESS_PROCESS` | `Procurement` | `Modules/Procurement/resources/process-flows.php` | `procurement.vendor-to-ap.service-acceptances` | `service-acceptances` |
 | Hóa đơn NCC · AP | `admin.procurement.payables` | `BUSINESS_PROCESS` | `Procurement` | `Modules/Procurement/resources/process-flows.php` | `procurement.vendor-to-ap.vendor-bills` | `vendor-bills` |
 | Chi phí · Tài sản · Ngân sách | `admin.finance.operations` | `BUSINESS_PROCESS` | `Finance` | `Modules/Finance/resources/process-flows.php` | `finance.finance-operations` | `finance-operations` |

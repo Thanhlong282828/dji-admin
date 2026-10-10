@@ -23,9 +23,9 @@
             PAYROLL PERIOD
         </span>
 
-        <h1>
+        <h2>
             Tạo kỳ lương
-        </h1> <i>/</i>
+        </h2> <i>/</i>
 
          <span>
             Payroll/resources/views/periods/create

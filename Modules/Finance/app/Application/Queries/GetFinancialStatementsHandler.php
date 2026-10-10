@@ -11,6 +11,6 @@ final readonly class GetFinancialStatementsHandler
     /** @return array<string,mixed> */
     public function handle(GetFinancialStatementsQuery $query): array
     {
-        return $this->service->report($query->companyId, $query->dateFrom, $query->dateTo, $query->accountId, $query->page);
+        return $this->service->report($query->companyId, $query->dateFrom, $query->dateTo, $query->accountId, $query->page, $query->branchId, $query->currency, $query->actor);
     }
 }

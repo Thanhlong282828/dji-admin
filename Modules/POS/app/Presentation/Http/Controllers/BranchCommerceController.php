@@ -15,6 +15,7 @@ use Illuminate\Validation\Rule;
 use Modules\Company\Domain\Services\BranchAccessService;
 use Modules\Core\Application\Buses\CommandBusInterface;
 use Modules\Core\Application\Buses\QueryBusInterface;
+use Modules\Inventory\Application\Queries\GetInventoryProcessHelpQuery;
 use Modules\POS\Application\Commands\MutateBranchCommerceCommand;
 use Modules\POS\Application\Queries\GetBranchCommercePageQuery;
 
@@ -29,7 +30,11 @@ final class BranchCommerceController extends Controller
 
     public function warehouse(Request $request): View
     {
-        return view('admin.branch-commerce.warehouse', $this->read($request, 'warehouse', ['branch_id' => $request->integer('branch_id')]));
+        $data = $this->read($request, 'warehouse', ['branch_id' => $request->integer('branch_id')]);
+        $companyId = (int) ($data['companyId'] ?? $request->integer('company_id', 1));
+        $data['processHelp'] = $this->queries->ask(new GetInventoryProcessHelpQuery($companyId, $request->integer('branch_id') ?: null, $this->actor($request)));
+
+        return view('admin.branch-commerce.warehouse', $data);
     }
 
     public function customers(Request $request): View

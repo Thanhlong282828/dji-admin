@@ -50,7 +50,7 @@ final readonly class CostCenterCostManagementReadService
                 SUM(CASE WHEN a.account_type='expense' THEN CAST(l.debit_minor AS SIGNED)-CAST(l.credit_minor AS SIGNED) ELSE 0 END) recognized_expense,
                 SUM(CASE WHEN l.source_type='earning_component' THEN CAST(l.debit_minor AS SIGNED)-CAST(l.credit_minor AS SIGNED) ELSE 0 END) payroll,
                 SUM(CASE WHEN l.source_type='employer_insurance_expense' THEN CAST(l.debit_minor AS SIGNED)-CAST(l.credit_minor AS SIGNED) ELSE 0 END) employer_statutory,
-                SUM(CASE WHEN l.source_type='goods_receipt' AND l.account_code_snapshot='1200' THEN CAST(l.debit_minor AS SIGNED)-CAST(l.credit_minor AS SIGNED) ELSE 0 END) inventory_acquisition,
+                SUM(CASE WHEN l.source_type IN ('goods_receipt','goods_return') AND l.account_code_snapshot='1200' THEN CAST(l.debit_minor AS SIGNED)-CAST(l.credit_minor AS SIGNED) ELSE 0 END) inventory_acquisition,
                 SUM(CASE WHEN l.account_code_snapshot='5200' OR l.source_type LIKE 'depreciation%' THEN CAST(l.debit_minor AS SIGNED)-CAST(l.credit_minor AS SIGNED) ELSE 0 END) depreciation,
                 SUM(CASE WHEN fe.source_type='PROJECT' THEN CAST(l.debit_minor AS SIGNED)-CAST(l.credit_minor AS SIGNED) ELSE 0 END) project_cost,
                 SUM(CASE WHEN fe.source_type='MAINTENANCE' THEN CAST(l.debit_minor AS SIGNED)-CAST(l.credit_minor AS SIGNED) ELSE 0 END) maintenance_cost,
@@ -138,7 +138,7 @@ final readonly class CostCenterCostManagementReadService
                 $join->on('fe.id', '=', 'j.source_id')->where('j.source_type', '=', 'finance_expense');
             })
             ->where('j.company_id', $companyId)->where('l.company_id', $companyId)
-            ->where(fn (Builder $query): Builder => $query->where('a.account_type', 'expense')->orWhere(fn (Builder $inventory): Builder => $inventory->where('l.source_type', 'goods_receipt')->where('l.account_code_snapshot', '1200')->whereNotNull('l.cost_center_id')))
+            ->where(fn (Builder $query): Builder => $query->where('a.account_type', 'expense')->orWhere(fn (Builder $inventory): Builder => $inventory->whereIn('l.source_type', ['goods_receipt', 'goods_return'])->where('l.account_code_snapshot', '1200')->whereNotNull('l.cost_center_id')))
             ->whereIn('j.status', self::POSTED)->whereBetween('j.posting_date', [$dateFrom, $dateTo]);
     }
 

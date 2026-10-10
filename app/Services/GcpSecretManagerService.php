@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Services;
 
-use Google\Cloud\SecretManager\V1\Client\SecretManagerServiceClient;
 use Google\Cloud\SecretManager\V1\AccessSecretVersionRequest;
+use Google\Cloud\SecretManager\V1\Client\SecretManagerServiceClient;
 use RuntimeException;
 
 final class GcpSecretManagerService
@@ -45,7 +45,7 @@ final class GcpSecretManagerService
          * In production on Compute Engine, the Google Cloud client
          * library uses Application Default Credentials (ADC).
          */
-        $this->client = new SecretManagerServiceClient();
+        $this->client = new SecretManagerServiceClient;
     }
 
     public function get(
@@ -76,7 +76,7 @@ final class GcpSecretManagerService
         );
 
         $response = $this->client->accessSecretVersion(
-            (new AccessSecretVersionRequest())
+            (new AccessSecretVersionRequest)
                 ->setName($name)
         );
 

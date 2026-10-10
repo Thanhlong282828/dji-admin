@@ -12,9 +12,7 @@
             SECURE PAYROLL DOCUMENTS
         </span>
 
-        <h1>
-            Payslips
-        </h1>
+        <div class="erp-title-with-help"><h2>Payslips</h2><x-erp.process-help :title="$processHelp['title']" :steps="$processHelp['steps']" :route="route('admin.payroll.payslips.index',['company_id'=>$c])" :description="$processHelp['description']" :owner="$processHelp['owner']" :accounting-impact="$processHelp['accounting_impact']" /></div>
 <i>/</i>
 
          <span>

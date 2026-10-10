@@ -25,9 +25,9 @@
             STATUTORY FOUNDATION
         </span>
 
-        <h1>
+        <h2>
             Insurance Policies
-        </h1>
+        </h2>
 
         <p>
             Policy effective-dated;

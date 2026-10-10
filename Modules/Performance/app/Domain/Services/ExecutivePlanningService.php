@@ -65,8 +65,8 @@ final readonly class ExecutivePlanningService
             $positions[] = $row;
             $unitKey = $raw['organization_unit_id'];
             $centerKey = $raw['cost_center_id'] ?? 0;
-            $units[$unitKey] ??= ['label' => $raw['unit_name'], 'approved' => 0, 'current' => 0, 'forecast' => 0, 'vacancy' => 0, 'budget_minor' => 0, 'forecast_minor' => 0, 'variance_minor' => 0];
-            $costCenters[$centerKey] ??= ['label' => $raw['cost_center_name'], 'code' => $raw['cost_center_code'], 'approved' => 0, 'current' => 0, 'vacancy' => 0, 'budget_minor' => 0, 'forecast_minor' => 0, 'variance_minor' => 0];
+            $units[$unitKey] ??= ['unit_id' => $unitKey, 'label' => $raw['unit_name'], 'approved' => 0, 'current' => 0, 'forecast' => 0, 'vacancy' => 0, 'budget_minor' => 0, 'forecast_minor' => 0, 'variance_minor' => 0];
+            $costCenters[$centerKey] ??= ['cost_center_id' => $centerKey, 'label' => $raw['cost_center_name'], 'code' => $raw['cost_center_code'], 'approved' => 0, 'current' => 0, 'vacancy' => 0, 'budget_minor' => 0, 'forecast_minor' => 0, 'variance_minor' => 0];
             $units[$unitKey]['approved'] += $approved;
             $units[$unitKey]['current'] += $filled;
             $units[$unitKey]['forecast'] += $filled;

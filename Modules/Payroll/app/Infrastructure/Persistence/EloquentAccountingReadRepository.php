@@ -92,10 +92,11 @@ final readonly class EloquentAccountingReadRepository implements AccountingReadR
     {
         $row = $this->db->table('payroll_accounting_journals as j')->leftJoin('payroll_runs as r', 'r.id', '=', 'j.payroll_run_id')->leftJoin('payroll_periods as p', 'p.id', '=', 'j.payroll_period_id')->leftJoin('accounting_periods as gp', 'gp.id', '=', 'j.accounting_period_id')->leftJoin('payroll_accounting_policies as ap', 'ap.id', '=', 'j.accounting_policy_id')->where('j.company_id', $companyId)->where('j.id', $journalId)->select(['j.*', 'r.run_number', $this->db->raw('COALESCE(p.code, CONCAT(gp.year, "-", LPAD(gp.month, 2, "0"))) as period_code'), 'ap.code as policy_code', 'ap.name as policy_name'])->first();
         abort_unless(is_object($row), 404);
-        $lines = $this->db->table('payroll_accounting_journal_lines')->where('company_id', $companyId)->where('journal_id', $journalId)->orderBy('line_number')->get()->map(fn (object $r): array => ['line_number' => $this->i($r, 'line_number'), 'account_code' => $this->s($r, 'account_code_snapshot'), 'account_name' => $this->s($r, 'account_name_snapshot'), 'description' => $this->s($r, 'description'), 'debit_minor' => $this->i($r, 'debit_minor'), 'credit_minor' => $this->i($r, 'credit_minor'), 'currency' => $this->s($r, 'currency'), 'cost_center' => $this->n($r, 'cost_center_code_snapshot'), 'organization_unit' => $this->n($r, 'organization_unit_code_snapshot'), 'source_code' => $this->s($r, 'source_code'), 'source_count' => $this->i($r, 'source_count')])->all();
+        $lines = $this->db->table('payroll_accounting_journal_lines')->where('company_id', $companyId)->where('journal_id', $journalId)->orderBy('line_number')->get()->map(fn (object $r): array => $this->journalLineRow($r, $companyId))->all();
         $issues = $this->db->table('payroll_accounting_validation_issues')->where('company_id', $companyId)->where('journal_id', $journalId)->orderBy('id')->get()->map(fn (object $r): array => ['code' => $this->s($r, 'code'), 'severity' => $this->s($r, 'severity'), 'message' => $this->s($r, 'message'), 'blocking' => $this->i($r, 'is_blocking') === 1])->all();
         $history = $this->db->table('activity_log')->where('log_name', 'payroll-accounting')->where('properties->company_id', $companyId)->where('properties->journal_id', $journalId)->orderByDesc('id')->limit(100)->get(['event', 'description', 'created_at'])->map(fn (object $r): array => ['event' => $this->s($r, 'event'), 'description' => $this->s($r, 'description'), 'created_at' => $this->s($r, 'created_at')])->all();
-        $detail = $this->journalRow($row) + ['policy_code' => $this->s($row, 'policy_code'), 'policy_name' => $this->s($row, 'policy_name'), 'source_type' => $this->n($row, 'source_type'), 'source_id' => $this->ni($row, 'source_id'), 'posting_type' => $this->n($row, 'posting_type'), 'is_generic_source' => $this->n($row, 'generic_source_key') !== null, 'lines' => $lines, 'issues' => $issues, 'history' => $history, 'file_name' => $this->n($row, 'file_name'), 'checksum' => $this->n($row, 'checksum'), 'rejection_reason' => $this->n($row, 'rejection_reason'), 'reversal_of_journal_id' => $this->ni($row, 'reversal_of_journal_id'), 'reversed_by_journal_id' => $this->ni($row, 'reversed_by_journal_id')];
+        $policySnapshot = $lines[0]['policy_snapshot'] ?? null;
+        $detail = $this->journalRow($row) + ['policy_code' => $this->s($row, 'policy_code'), 'policy_name' => $this->s($row, 'policy_name'), 'policy_snapshot' => is_array($policySnapshot) ? $policySnapshot : null, 'source_type' => $this->n($row, 'source_type'), 'source_id' => $this->ni($row, 'source_id'), 'posting_type' => $this->n($row, 'posting_type'), 'source_trace' => $this->sourceTrace($row, $companyId), 'period_trace' => ['route' => 'admin.finance.period-close', 'permission' => 'payroll.accounting.view', 'parameters' => array_filter(['company_id' => $companyId, 'branch_id' => $this->ni($row, 'branch_id')])], 'is_generic_source' => $this->n($row, 'generic_source_key') !== null, 'lines' => $lines, 'issues' => $issues, 'history' => $history, 'file_name' => $this->n($row, 'file_name'), 'checksum' => $this->n($row, 'checksum'), 'rejection_reason' => $this->n($row, 'rejection_reason'), 'reversal_of_journal_id' => $this->ni($row, 'reversal_of_journal_id'), 'reversed_by_journal_id' => $this->ni($row, 'reversed_by_journal_id')];
 
         return new AccountingViewModel(detail: $detail);
     }
@@ -136,6 +137,28 @@ final readonly class EloquentAccountingReadRepository implements AccountingReadR
     private function journalRow(object $r): array
     {
         return ['id' => $this->i($r, 'id'), 'uuid' => $this->s($r, 'uuid'), 'policy_version' => $this->i($r, 'policy_version'), 'journal_number' => $this->s($r, 'journal_number'), 'run_number' => $this->s($r, 'run_number'), 'period_code' => $this->s($r, 'period_code'), 'status' => $this->s($r, 'status'), 'posting_date' => $this->s($r, 'posting_date'), 'resolution_date' => $this->s($r, 'resolution_date'), 'currency' => $this->s($r, 'currency'), 'calculation_version' => $this->i($r, 'calculation_version'), 'line_count' => $this->i($r, 'line_count'), 'total_debit_minor' => $this->i($r, 'total_debit_minor'), 'total_credit_minor' => $this->i($r, 'total_credit_minor'), 'created_by' => $this->i($r, 'created_by'), 'created_at' => $this->s($r, 'created_at'), 'reviewed_at' => $this->n($r, 'reviewed_at'), 'approved_at' => $this->n($r, 'approved_at'), 'posted_at' => $this->n($r, 'posted_at'), 'exported_at' => $this->n($r, 'exported_at')];
+    }
+
+    /** @return array<string,mixed> */
+    private function journalLineRow(object $row, int $companyId): array
+    {
+        $snapshot = json_decode($this->n($row, 'mapping_snapshot') ?? '{}', true);
+
+        return ['line_number' => $this->i($row, 'line_number'), 'account_id' => $this->i($row, 'account_id'), 'account_code' => $this->s($row, 'account_code_snapshot'), 'account_name' => $this->s($row, 'account_name_snapshot'), 'account_url' => route('admin.payroll.accounting.accounts.index', ['company_id' => $companyId, 'account_id' => $this->i($row, 'account_id')]), 'description' => $this->s($row, 'description'), 'debit_minor' => $this->i($row, 'debit_minor'), 'credit_minor' => $this->i($row, 'credit_minor'), 'currency' => $this->s($row, 'currency'), 'cost_center' => $this->n($row, 'cost_center_code_snapshot'), 'organization_unit' => $this->n($row, 'organization_unit_code_snapshot'), 'source_code' => $this->s($row, 'source_code'), 'source_count' => $this->i($row, 'source_count'), 'policy_snapshot' => is_array($snapshot) ? $snapshot : null];
+    }
+
+    /** @return array{route:string,permission:string,parameters:array<string,int|string>}|null */
+    private function sourceTrace(object $journal, int $companyId): ?array
+    {
+        $scope = array_filter(['company_id' => $companyId, 'branch_id' => $this->ni($journal, 'branch_id')]);
+
+        return match ($this->n($journal, 'source_type')) {
+            'customer_credit_note', 'customer_refund', 'customer_invoice', 'collection' => ['route' => 'admin.sales.index', 'permission' => 'sales.view', 'parameters' => $scope],
+            'inventory_adjustment' => ['route' => 'admin.seller.inventory.governance', 'permission' => 'stock-count.view', 'parameters' => $scope],
+            'asset_impairment', 'asset_disposal', 'asset_acquisition', 'asset_depreciation' => ['route' => 'admin.finance.operations', 'permission' => 'finance.operations.view', 'parameters' => $scope + ['page' => 'assets']],
+            'treasury_opening_balance', 'treasury_internal_transfer', 'customer_refund_treasury', 'vendor_payment' => ['route' => 'admin.finance.treasury', 'permission' => 'treasury.view', 'parameters' => $scope],
+            default => null,
+        };
     }
 
     private function i(object $r, string $k): int

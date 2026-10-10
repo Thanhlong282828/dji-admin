@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use App\Support\DataQuality\DataQualityAuditService;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\RecordNotFoundException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -13,13 +14,18 @@ use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Modules\Core\Application\Buses\CommandBusInterface;
 use Modules\Document\Application\Services\EnterpriseDocumentService;
+use Modules\Finance\Application\Commands\CreateFxRevaluationRunCommand;
+use Modules\Finance\Application\Commands\CreateFxRevaluationRunHandler;
 use Modules\Finance\Application\Services\AccountingPostingPolicyService;
 use Modules\Finance\Application\Services\AccountsPayablePlanningReadService;
 use Modules\Finance\Application\Services\ApprovalInboxService;
 use Modules\Finance\Application\Services\CostCenterCostManagementReadService;
+use Modules\Finance\Application\Services\FxRateService;
 use Modules\Finance\Application\Services\SourceAccountingPostingService;
+use Modules\Finance\Application\Services\TreasuryService;
 use Modules\Procurement\Application\Commands\RequestServiceAcceptanceReversalCommand;
 use Modules\Procurement\Application\Commands\SubmitServiceAcceptanceCommand;
+use Modules\Procurement\Application\Services\ApFxRevaluationSourceService;
 use Modules\Procurement\Application\Services\ProcurementExceptionReadService;
 use Modules\Procurement\Application\Services\ProcurementReconciliationReadService;
 use Modules\Procurement\Application\Services\ProcurementService;
@@ -38,6 +44,129 @@ use Tests\TestCase;
 final class ServiceProcurementRuntimeTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_foreign_supplier_invoice_recognition_uses_direct_spot_snapshot_and_functional_journal(): void
+    {
+        $f = $this->fixture('USD');
+        $rates = app(FxRateService::class);
+        $rate = $rates->create($f['company'], $f['maker'], [
+            'base_currency' => 'USD', 'quote_currency' => 'VND', 'rate_decimal' => '24690.500000000000',
+            'rate_date' => '2026-09-12', 'rate_type' => 'spot', 'source_reference' => 'AP-FX-USD-VND',
+            'effective_from' => '2026-09-12', 'effective_to' => '2026-09-12', 'idempotency_key' => (string) Str::uuid(),
+        ]);
+        $rates->transition($f['company'], $rate, 'submit', $f['maker']);
+        $rates->transition($f['company'], $rate, 'approve', $f['checker']);
+        $rates->transition($f['company'], $rate, 'activate', $f['checker']);
+
+        $acceptance = $this->accept($f, 'SA-AP-FX', 1);
+        $acceptanceLine = DB::table('service_acceptance_lines')->where('service_acceptance_id', $acceptance)->firstOrFail();
+        $bill = $this->procurement()->mutate('bill.create', $f['company'], $f['maker'], [
+            'purchase_order_id' => $f['po'], 'purchase_order_line_id' => $f['po_line'],
+            'service_acceptance_line_id' => (int) $acceptanceLine->id, 'quantity' => 1,
+            'invoice_number' => 'INV-AP-FX-USD', 'invoice_date' => '2026-09-12', 'due_date' => '2026-10-12',
+        ]);
+        self::assertSame($bill, $this->procurement()->mutate('bill.approve', $f['company'], $f['checker'], ['id' => $bill]));
+        self::assertSame($bill, $this->procurement()->mutate('bill.approve', $f['company'], $f['checker'], ['id' => $bill]));
+
+        $evidence = DB::table('supplier_invoice_fx_recognitions')->where('vendor_bill_id', $bill)->firstOrFail();
+        self::assertSame('USD', $evidence->transaction_currency);
+        self::assertSame(1_000_000, (int) $evidence->transaction_amount_minor);
+        self::assertSame('VND', $evidence->functional_currency);
+        self::assertSame(246_905_000, (int) $evidence->functional_amount_minor);
+        self::assertSame('24690.500000000000', $evidence->rate_decimal);
+        self::assertSame('spot', $evidence->rate_type);
+        self::assertNotNull($evidence->fx_rate_snapshot_id);
+        self::assertSame(1, DB::table('supplier_invoice_fx_recognitions')->where('vendor_bill_id', $bill)->count());
+        self::assertSame(1, DB::table('payroll_accounting_journals')->where(['source_type' => 'vendor_bill', 'source_id' => $bill])->count());
+        $journal = DB::table('payroll_accounting_journals')->where('id', $evidence->accounting_journal_id)->firstOrFail();
+        self::assertSame('VND', $journal->currency);
+        self::assertSame(246_905_000, (int) $journal->total_debit_minor);
+        self::assertSame((int) $journal->total_debit_minor, (int) $journal->total_credit_minor);
+        self::assertSame(2, DB::table('finance_fx_rate_snapshots')->where('fx_rate_id', $rate)->count());
+
+        $openAp = app(ApFxRevaluationSourceService::class)->eligible($f['company'], $f['branch'], '2026-09-12');
+        self::assertCount(1, $openAp);
+        self::assertSame('vendor_bill', $openAp[0]->sourceType);
+        self::assertSame($bill, $openAp[0]->sourceId);
+        self::assertSame('liability', $openAp[0]->balanceNature);
+        self::assertSame(1_000_000, $openAp[0]->foreignOutstandingMinor);
+        self::assertSame(246_905_000, $openAp[0]->carryingFunctionalMinor);
+        self::assertSame([], $openAp[0]->evidence['settlements']);
+
+        $closingRate = $rates->create($f['company'], $f['maker'], [
+            'base_currency' => 'USD', 'quote_currency' => 'VND', 'rate_decimal' => '25000.000000000000',
+            'rate_date' => '2026-09-30', 'rate_type' => 'closing', 'source_reference' => 'AP-FX-CLOSING-SEP',
+            'effective_from' => '2026-09-30', 'effective_to' => '2026-09-30', 'idempotency_key' => (string) Str::uuid(),
+        ]);
+        $rates->transition($f['company'], $closingRate, 'submit', $f['maker']);
+        $rates->transition($f['company'], $closingRate, 'approve', $f['checker']);
+        $rates->transition($f['company'], $closingRate, 'activate', $f['checker']);
+        $period = (int) DB::table('accounting_periods')->where(['company_id' => $f['company'], 'year' => 2026, 'month' => 9])->value('id');
+        $run = app(CreateFxRevaluationRunHandler::class)->handle(new CreateFxRevaluationRunCommand(
+            $f['company'], $f['branch'], $period, '2026-09-30', (string) Str::uuid(), $f['maker'], [],
+        ));
+        $revaluationLine = DB::table('finance_fx_revaluation_lines')->where(['fx_revaluation_run_id' => $run, 'source_type' => 'vendor_bill', 'source_id' => $bill])->firstOrFail();
+        self::assertSame(250_000_000, (int) $revaluationLine->revalued_functional_minor);
+        self::assertSame(3_095_000, (int) $revaluationLine->fx_difference_minor);
+        $revaluationEvidence = json_decode((string) $revaluationLine->mapping_snapshot, true, 512, JSON_THROW_ON_ERROR);
+        self::assertSame('liability', $revaluationEvidence['balance_nature']);
+        self::assertSame('2026-09-30', $revaluationEvidence['source_evidence']['valuation_date']);
+
+        $settlementRate = $rates->create($f['company'], $f['maker'], ['base_currency' => 'USD', 'quote_currency' => 'VND', 'rate_decimal' => '25000.000000000000', 'rate_date' => '2026-09-13', 'rate_type' => 'spot', 'source_reference' => 'AP-PAY-USD-VND', 'effective_from' => '2026-09-13', 'effective_to' => '2026-09-13', 'idempotency_key' => (string) Str::uuid()]);
+        $rates->transition($f['company'], $settlementRate, 'submit', $f['maker']);
+        $rates->transition($f['company'], $settlementRate, 'approve', $f['checker']);
+        $rates->transition($f['company'], $settlementRate, 'activate', $f['checker']);
+        $usdLedger = (int) DB::table('accounting_accounts')->insertGetId(['uuid' => (string) Str::uuid(), 'company_id' => $f['company'], 'code' => '1101', 'name' => 'USD Bank', 'account_type' => 'asset', 'normal_balance' => 'debit', 'currency' => 'USD', 'allow_posting' => true, 'status' => 'active', 'effective_from' => '2026-01-01', 'created_by' => $f['maker']->id, 'created_at' => now(), 'updated_at' => now()]);
+        $usdAccount = (int) DB::table('treasury_financial_accounts')->insertGetId(['company_id' => $f['company'], 'branch_id' => $f['branch'], 'accounting_account_id' => $usdLedger, 'code' => 'USD-BANK', 'name' => 'USD Bank', 'type' => 'bank', 'currency' => 'USD', 'status' => 'active', 'created_by' => $f['maker']->id, 'created_at' => now(), 'updated_at' => now()]);
+        $this->assertValidation(fn () => $this->procurement()->mutate('payment.allocate', $f['company'], $f['maker'], ['vendor_bill_id' => $bill, 'financial_account_id' => $usdAccount, 'payment_date' => '2026-09-11', 'amount_minor' => 1, 'method' => 'bank_transfer', 'reference' => 'PAY-AP-FX-NO-RATE']), 'rate', 'FX_RATE_NOT_AVAILABLE');
+        self::assertSame(0, DB::table('ap_payments')->where('reference', 'PAY-AP-FX-NO-RATE')->count());
+        $posting = app(SourceAccountingPostingService::class);
+        $ap = $posting->accountEvidence($f['company'], '2100', 'VND', $f['maker']->id)['id'];
+        $cash = $posting->accountEvidence($f['company'], '1100', 'VND', $f['maker']->id)['id'];
+        $loss = (int) DB::table('accounting_accounts')->insertGetId(['uuid' => (string) Str::uuid(), 'company_id' => $f['company'], 'code' => '5498', 'name' => 'Realized FX Loss', 'account_type' => 'expense', 'normal_balance' => 'debit', 'currency' => 'VND', 'allow_posting' => true, 'status' => 'active', 'effective_from' => '2026-01-01', 'created_by' => $f['maker']->id, 'created_at' => now(), 'updated_at' => now()]);
+        $policyService = app(AccountingPostingPolicyService::class);
+        $lossPolicy = $policyService->create($f['company'], $f['maker'], ['policy_key' => 'VENDOR-PAYMENT-FX-LOSS', 'source_type' => 'vendor_payment', 'business_event' => 'VENDOR_PAYMENT_FX_LOSS', 'classification' => null, 'version' => 1, 'currency' => 'VND', 'effective_from' => '2026-01-01', 'lines' => [['entry_side' => 'debit', 'line_role' => 'AP', 'account_id' => $ap], ['entry_side' => 'debit', 'line_role' => 'FX_LOSS', 'account_id' => $loss], ['entry_side' => 'credit', 'line_role' => 'CASH', 'account_id' => $cash]]]);
+        $policyService->submit($f['company'], $lossPolicy, $f['maker']);
+        $policyService->approve($f['company'], $lossPolicy, $f['checker']);
+        $vndAccount = app(TreasuryService::class)->canonicalPaymentAccountEvidence($f['company'], $f['branch'], $f['maker']->id, '2026-09-13')['id'];
+        $this->assertValidation(fn () => $this->procurement()->mutate('payment.allocate', $f['company'], $f['maker'], ['vendor_bill_id' => $bill, 'financial_account_id' => $vndAccount, 'payment_date' => '2026-09-13', 'amount_minor' => 1, 'method' => 'bank_transfer', 'reference' => 'PAY-AP-FX-WRONG-ACCOUNT']), 'financial_account_id', 'AP_PAYMENT_TREASURY_CURRENCY_MISMATCH');
+        $payment = $this->procurement()->mutate('payment.allocate', $f['company'], $f['maker'], ['vendor_bill_id' => $bill, 'financial_account_id' => $usdAccount, 'payment_date' => '2026-09-13', 'amount_minor' => 500_000, 'method' => 'bank_transfer', 'reference' => 'PAY-AP-FX-1']);
+        $settlement = DB::table('supplier_payment_fx_settlements')->where('ap_payment_id', $payment)->firstOrFail();
+        self::assertSame(125_000_000, (int) $settlement->settlement_functional_minor);
+        self::assertSame(123_452_500, (int) $settlement->released_carrying_minor);
+        self::assertSame(-1_547_500, (int) $settlement->realized_fx_minor);
+        self::assertSame(1, DB::table('treasury_transactions')->where(['source_type' => 'ap_payment', 'source_id' => $payment])->count());
+        self::assertSame(1, DB::table('payroll_accounting_journals')->where(['source_type' => 'ap_payment', 'source_id' => $payment])->count());
+        $partiallyOpenAp = app(ApFxRevaluationSourceService::class)->eligible($f['company'], $f['branch'], '2026-09-13');
+        self::assertCount(1, $partiallyOpenAp);
+        self::assertSame(500_000, $partiallyOpenAp[0]->foreignOutstandingMinor);
+        self::assertSame(123_452_500, $partiallyOpenAp[0]->carryingFunctionalMinor);
+        self::assertCount(1, $partiallyOpenAp[0]->evidence['settlements']);
+
+        $gain = (int) DB::table('accounting_accounts')->insertGetId(['uuid' => (string) Str::uuid(), 'company_id' => $f['company'], 'code' => '4498', 'name' => 'Realized FX Gain', 'account_type' => 'revenue', 'normal_balance' => 'credit', 'currency' => 'VND', 'allow_posting' => true, 'status' => 'active', 'effective_from' => '2026-01-01', 'created_by' => $f['maker']->id, 'created_at' => now(), 'updated_at' => now()]);
+        $gainPolicy = $policyService->create($f['company'], $f['maker'], ['policy_key' => 'VENDOR-PAYMENT-FX-GAIN', 'source_type' => 'vendor_payment', 'business_event' => 'VENDOR_PAYMENT_FX_GAIN', 'classification' => null, 'version' => 1, 'currency' => 'VND', 'effective_from' => '2026-01-01', 'lines' => [['entry_side' => 'debit', 'line_role' => 'AP', 'account_id' => $ap], ['entry_side' => 'credit', 'line_role' => 'CASH', 'account_id' => $cash], ['entry_side' => 'credit', 'line_role' => 'FX_GAIN', 'account_id' => $gain]]]);
+        $policyService->submit($f['company'], $gainPolicy, $f['maker']);
+        $policyService->approve($f['company'], $gainPolicy, $f['checker']);
+        $gainRate = $rates->create($f['company'], $f['maker'], ['base_currency' => 'USD', 'quote_currency' => 'VND', 'rate_decimal' => '24000.000000000000', 'rate_date' => '2026-09-14', 'rate_type' => 'spot', 'source_reference' => 'AP-PAY-GAIN', 'effective_from' => '2026-09-14', 'effective_to' => '2026-09-14', 'idempotency_key' => (string) Str::uuid()]);
+        $rates->transition($f['company'], $gainRate, 'submit', $f['maker']);
+        $rates->transition($f['company'], $gainRate, 'approve', $f['checker']);
+        $rates->transition($f['company'], $gainRate, 'activate', $f['checker']);
+        $second = $this->procurement()->mutate('payment.allocate', $f['company'], $f['maker'], ['vendor_bill_id' => $bill, 'financial_account_id' => $usdAccount, 'payment_date' => '2026-09-14', 'amount_minor' => 500_000, 'method' => 'bank_transfer', 'reference' => 'PAY-AP-FX-2']);
+        self::assertSame($second, $this->procurement()->mutate('payment.allocate', $f['company'], $f['maker'], ['vendor_bill_id' => $bill, 'financial_account_id' => $usdAccount, 'payment_date' => '2026-09-14', 'amount_minor' => 500_000, 'method' => 'bank_transfer', 'reference' => 'PAY-AP-FX-2']));
+        $finalSettlement = DB::table('supplier_payment_fx_settlements')->where('ap_payment_id', $second)->firstOrFail();
+        self::assertSame(120_000_000, (int) $finalSettlement->settlement_functional_minor);
+        self::assertSame(123_452_500, (int) $finalSettlement->released_carrying_minor);
+        self::assertSame(3_452_500, (int) $finalSettlement->realized_fx_minor);
+        self::assertSame(246_905_000, (int) DB::table('supplier_payment_fx_settlements')->where('supplier_invoice_fx_recognition_id', $evidence->id)->sum('released_carrying_minor'));
+        self::assertSame(2, DB::table('supplier_payment_fx_settlements')->where('supplier_invoice_fx_recognition_id', $evidence->id)->count());
+        self::assertSame(2, DB::table('treasury_transactions')->where('company_id', $f['company'])->where('source_type', 'ap_payment')->count());
+        self::assertSame(2, DB::table('payroll_accounting_journals')->where('company_id', $f['company'])->where('source_type', 'ap_payment')->count());
+        self::assertSame([], app(ApFxRevaluationSourceService::class)->eligible($f['company'], $f['branch'], '2026-09-14'));
+        $this->assertValidation(fn () => $this->procurement()->mutate('payment.allocate', $f['company'], $f['maker'], ['vendor_bill_id' => $bill, 'financial_account_id' => $usdAccount, 'payment_date' => '2026-09-14', 'amount_minor' => 499_999, 'method' => 'bank_transfer', 'reference' => 'PAY-AP-FX-2']), 'reference', 'AP_PAYMENT_IDEMPOTENCY_CONFLICT');
+        $this->assertValidation(fn () => $this->procurement()->mutate('payment.allocate', $f['company'], $f['maker'], ['vendor_bill_id' => $bill, 'financial_account_id' => $usdAccount, 'payment_date' => '2026-09-15', 'amount_minor' => 1, 'method' => 'bank_transfer', 'reference' => 'PAY-AP-FX-OVER']), 'amount_minor', 'Payment allocation vượt Bill outstanding.');
+
+        $this->assertApFxDataQualityCorruptionProofs((int) $finalSettlement->id, $f['foreign_company']);
+    }
 
     public function test_canonical_workflow_orchestrates_acceptance_and_reversal_without_duplicate_side_effects(): void
     {
@@ -388,11 +517,11 @@ final class ServiceProcurementRuntimeTest extends TestCase
     }
 
     /** @return array{company:int,foreign_company:int,maker:User,checker:User,branch:int,cost_center:int,vendor:int,po:int,po_line:int} */
-    private function fixture(): array
+    private function fixture(string $currency = 'VND'): array
     {
         $maker = User::factory()->create();
         $checker = User::factory()->create();
-        $company = (int) DB::table('companies')->insertGetId(['uuid' => (string) Str::uuid(), 'code' => 'SERVICE', 'name' => 'Service Company', 'is_active' => true, 'created_at' => now(), 'updated_at' => now()]);
+        $company = (int) DB::table('companies')->insertGetId(['uuid' => (string) Str::uuid(), 'code' => 'SERVICE', 'name' => 'Service Company', 'currency_code' => 'VND', 'functional_currency_code' => 'VND', 'is_active' => true, 'created_at' => now(), 'updated_at' => now()]);
         $foreign = (int) DB::table('companies')->insertGetId(['uuid' => (string) Str::uuid(), 'code' => 'FOREIGN', 'name' => 'Foreign Company', 'is_active' => true, 'created_at' => now(), 'updated_at' => now()]);
         DB::table('company_user_access')->insert([
             ['company_id' => $company, 'user_id' => $maker->id, 'created_at' => now(), 'updated_at' => now()],
@@ -405,7 +534,7 @@ final class ServiceProcurementRuntimeTest extends TestCase
         $request = $procurement->mutate('request.create', $company, $maker, ['branch_id' => $branch, 'cost_center_id' => $center, 'reference' => 'PR-SERVICE', 'requested_date' => '2026-09-12', 'reason' => 'Professional service', 'description' => 'Professional service', 'procurement_classification' => 'operating_expense', 'quantity' => 10, 'estimated_unit_cost_minor' => 1_000_000]);
         $procurement->mutate('request.transition', $company, $maker, ['id' => $request, 'to' => 'submitted']);
         $procurement->mutate('request.transition', $company, $checker, ['id' => $request, 'to' => 'approved']);
-        $po = $procurement->mutate('order.create', $company, $maker, ['purchase_request_id' => $request, 'vendor_id' => $vendor, 'reference' => 'PO-SERVICE', 'order_date' => '2026-09-12']);
+        $po = $procurement->mutate('order.create', $company, $maker, ['purchase_request_id' => $request, 'vendor_id' => $vendor, 'reference' => 'PO-SERVICE', 'order_date' => '2026-09-12', 'currency' => $currency]);
         $procurement->mutate('order.transition', $company, $checker, ['id' => $po, 'to' => 'approved']);
         $poLine = (int) DB::table('purchase_order_lines')->where('purchase_order_id', $po)->value('id');
         $this->policies($company, $maker, $checker);
@@ -437,8 +566,9 @@ final class ServiceProcurementRuntimeTest extends TestCase
         $ap = $posting->accountEvidence($company, '2100', 'VND', $maker->id)['id'];
         $accrual = (int) DB::table('accounting_accounts')->insertGetId(['uuid' => (string) Str::uuid(), 'company_id' => $company, 'code' => '2160', 'name' => 'Service Received Not Invoiced', 'account_type' => 'liability', 'normal_balance' => 'credit', 'currency' => 'VND', 'allow_posting' => true, 'status' => 'active', 'effective_from' => '2026-09-12', 'created_by' => $maker->id, 'created_at' => now(), 'updated_at' => now()]);
         $service = app(AccountingPostingPolicyService::class);
-        foreach ([['SERVICE-ACCEPTANCE', 'service_acceptance', 'SERVICE_ACCEPTANCE_APPROVED', [['entry_side' => 'debit', 'line_role' => 'EXPENSE', 'account_id' => $expense, 'requires_cost_center' => true], ['entry_side' => 'credit', 'line_role' => 'ACCRUAL', 'account_id' => $accrual]]], ['SERVICE-VENDOR-BILL', 'service_vendor_bill', 'SERVICE_VENDOR_BILL_POSTED', [['entry_side' => 'debit', 'line_role' => 'ACCRUAL', 'account_id' => $accrual], ['entry_side' => 'credit', 'line_role' => 'AP', 'account_id' => $ap]]]] as [$key, $source, $event, $lines]) {
-            $id = $service->create($company, $maker, ['policy_key' => $key, 'source_type' => $source, 'business_event' => $event, 'classification' => 'operating_expense', 'version' => 1, 'currency' => 'VND', 'effective_from' => '2026-09-12', 'lines' => $lines]);
+        $cash = $posting->accountEvidence($company, '1100', 'VND', $maker->id)['id'];
+        foreach ([['SERVICE-ACCEPTANCE', 'service_acceptance', 'SERVICE_ACCEPTANCE_APPROVED', 'operating_expense', [['entry_side' => 'debit', 'line_role' => 'EXPENSE', 'account_id' => $expense, 'requires_cost_center' => true], ['entry_side' => 'credit', 'line_role' => 'ACCRUAL', 'account_id' => $accrual]]], ['SERVICE-VENDOR-BILL', 'service_vendor_bill', 'SERVICE_VENDOR_BILL_POSTED', 'operating_expense', [['entry_side' => 'debit', 'line_role' => 'ACCRUAL', 'account_id' => $accrual], ['entry_side' => 'credit', 'line_role' => 'AP', 'account_id' => $ap]]], ['VENDOR-PAYMENT', 'vendor_payment', 'VENDOR_PAYMENT', null, [['entry_side' => 'debit', 'line_role' => 'AP', 'account_id' => $ap], ['entry_side' => 'credit', 'line_role' => 'CASH', 'account_id' => $cash]]]] as [$key, $source, $event, $classification, $lines]) {
+            $id = $service->create($company, $maker, ['policy_key' => $key, 'source_type' => $source, 'business_event' => $event, 'classification' => $classification, 'version' => 1, 'currency' => 'VND', 'effective_from' => '2026-09-12', 'lines' => $lines]);
             $service->submit($company, $id, $maker);
             $service->approve($company, $id, $checker);
         }
@@ -514,5 +644,60 @@ final class ServiceProcurementRuntimeTest extends TestCase
                 self::assertSame($message, $exception->errors()[$key][0] ?? null);
             }
         }
+    }
+
+    private function assertApFxDataQualityCorruptionProofs(int $settlementId, int $foreignCompanyId): void
+    {
+        $service = app(DataQualityAuditService::class);
+        $row = DB::table('supplier_payment_fx_settlements')->where('id', $settlementId)->firstOrFail();
+        $treasury = DB::table('treasury_transactions')->where('id', $row->treasury_transaction_id)->firstOrFail();
+        foreach (['supplier_payment_fx_orphan_settlement', 'supplier_payment_fx_scope_mismatch', 'supplier_payment_fx_snapshot_mismatch', 'supplier_payment_fx_currency_mismatch', 'supplier_payment_fx_released_basis_mismatch', 'supplier_payment_fx_realized_mismatch', 'supplier_payment_fx_journal_mismatch', 'supplier_payment_fx_treasury_mismatch'] as $key) {
+            self::assertSame(0, $this->dataQualityCount($service, $key), "Valid AP-FX fixture triggered {$key}.");
+        }
+
+        DB::statement('SET FOREIGN_KEY_CHECKS=0');
+        try {
+            DB::table('supplier_payment_fx_settlements')->where('id', $settlementId)->update(['supplier_invoice_fx_recognition_id' => 9_999_999_999]);
+            self::assertGreaterThan(0, $this->dataQualityCount($service, 'supplier_payment_fx_orphan_settlement'));
+            DB::table('supplier_payment_fx_settlements')->where('id', $settlementId)->update(['supplier_invoice_fx_recognition_id' => $row->supplier_invoice_fx_recognition_id]);
+        } finally {
+            DB::statement('SET FOREIGN_KEY_CHECKS=1');
+        }
+
+        DB::table('supplier_payment_fx_settlements')->where('id', $settlementId)->update(['company_id' => $foreignCompanyId]);
+        self::assertGreaterThan(0, $this->dataQualityCount($service, 'supplier_payment_fx_scope_mismatch'));
+        DB::table('supplier_payment_fx_settlements')->where('id', $settlementId)->update(['company_id' => $row->company_id]);
+
+        DB::table('supplier_payment_fx_settlements')->where('id', $settlementId)->update(['rate_decimal' => '1.000000000000']);
+        self::assertGreaterThan(0, $this->dataQualityCount($service, 'supplier_payment_fx_snapshot_mismatch'));
+        DB::table('supplier_payment_fx_settlements')->where('id', $settlementId)->update(['rate_decimal' => $row->rate_decimal]);
+
+        DB::table('supplier_payment_fx_settlements')->where('id', $settlementId)->update(['transaction_currency' => 'EUR']);
+        self::assertGreaterThan(0, $this->dataQualityCount($service, 'supplier_payment_fx_currency_mismatch'));
+        DB::table('supplier_payment_fx_settlements')->where('id', $settlementId)->update(['transaction_currency' => $row->transaction_currency]);
+
+        DB::table('supplier_payment_fx_settlements')->where('id', $settlementId)->update(['released_carrying_minor' => (int) $row->released_carrying_minor + 246_905_001]);
+        self::assertGreaterThan(0, $this->dataQualityCount($service, 'supplier_payment_fx_released_basis_mismatch'));
+        DB::table('supplier_payment_fx_settlements')->where('id', $settlementId)->update(['released_carrying_minor' => $row->released_carrying_minor]);
+
+        DB::table('supplier_payment_fx_settlements')->where('id', $settlementId)->update(['realized_fx_minor' => (int) $row->realized_fx_minor + 1]);
+        self::assertGreaterThan(0, $this->dataQualityCount($service, 'supplier_payment_fx_realized_mismatch'));
+        DB::table('supplier_payment_fx_settlements')->where('id', $settlementId)->update(['realized_fx_minor' => $row->realized_fx_minor]);
+
+        DB::table('supplier_payment_fx_settlements')->where('id', $settlementId)->update(['accounting_policy_version' => (int) $row->accounting_policy_version + 1]);
+        self::assertGreaterThan(0, $this->dataQualityCount($service, 'supplier_payment_fx_journal_mismatch'));
+        DB::table('supplier_payment_fx_settlements')->where('id', $settlementId)->update(['accounting_policy_version' => $row->accounting_policy_version]);
+
+        DB::table('treasury_transactions')->where('id', $row->treasury_transaction_id)->update(['amount_minor' => (int) $treasury->amount_minor + 1]);
+        self::assertGreaterThan(0, $this->dataQualityCount($service, 'supplier_payment_fx_treasury_mismatch'));
+        DB::table('treasury_transactions')->where('id', $row->treasury_transaction_id)->update(['amount_minor' => $treasury->amount_minor]);
+    }
+
+    private function dataQualityCount(DataQualityAuditService $service, string $key): int
+    {
+        $finding = collect($service->snapshot()['findings'])->firstWhere('key', $key);
+        self::assertNotNull($finding, "Missing data quality rule {$key}.");
+
+        return (int) $finding['count'];
     }
 }

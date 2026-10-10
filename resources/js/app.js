@@ -14,6 +14,20 @@ window.Alpine = Alpine;
 Alpine.start();
 bootExecutiveDashboards();
 
+document.querySelectorAll('[data-password-toggle]').forEach((button) => {
+    if (!(button instanceof HTMLButtonElement)) return;
+    button.addEventListener('click', () => {
+        const input = document.getElementById(button.dataset.passwordToggle ?? '');
+        if (!(input instanceof HTMLInputElement)) return;
+        const reveal = input.type === 'password';
+        input.type = reveal ? 'text' : 'password';
+        button.textContent = reveal ? 'Ẩn' : 'Hiện';
+        button.setAttribute('aria-label', reveal ? 'Ẩn mật khẩu' : 'Hiện mật khẩu');
+        button.setAttribute('aria-pressed', String(reveal));
+        input.focus({ preventScroll: true });
+    });
+});
+
 document.querySelectorAll('[data-company-branches]').forEach((section) => {
     const rows = section.querySelector('[data-company-branch-rows]');
     const template = section.querySelector('[data-company-branch-template]');

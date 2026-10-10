@@ -1,7 +1,7 @@
 @extends('layouts.admin')
 @section('title', 'Lên lịch phỏng vấn')
 @section('content')
-<section class="panel"><h1>Lên lịch phỏng vấn</h1>
+<section class="panel"><h2>Lên lịch phỏng vấn</h2>
 @if($errors->any())<div class="alert error">{{ $errors->first() }}</div>@endif
 <form method="POST" action="{{ route('admin.interviews.store') }}" class="form-grid">@csrf
 <input type="hidden" name="company_id" value="{{ $companyId }}">

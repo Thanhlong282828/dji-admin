@@ -1,6 +1,6 @@
 @extends('layouts.admin')
 @section('title', 'Approval Inbox')
 @section('content')
-<div class="admin-page"><header class="admin-page-header"><div><p class="admin-eyebrow">MAKER · CHECKER</p><h1>Approval Inbox</h1><p>Read-only orchestration từ owner modules; thao tác duyệt vẫn thực hiện tại đúng Purchase, Expense, Vendor Bill hoặc Period Close.</p></div></header>
+<div class="admin-page"><header class="admin-page-header"><div><p class="admin-eyebrow">MAKER · CHECKER</p><p>Read-only orchestration từ owner modules; thao tác duyệt vẫn thực hiện tại đúng Purchase, Expense, Vendor Bill hoặc Period Close.</p></div></header>
 @foreach(['pending' => 'Chờ tôi duyệt', 'submitted' => 'Yêu cầu tôi đã gửi', 'history' => 'Lịch sử quyết định'] as $key => $title)<section class="admin-panel"><div class="admin-panel__header"><h2>{{ $title }}</h2></div><div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>Loại</th><th>Reference</th><th>Maker</th><th>Approver</th><th>Status</th><th>Tuổi</th><th>Updated</th><th>Owner module</th></tr></thead><tbody>@forelse($data[$key] as $item)<tr><td>{{ $item['type'] }}</td><td>{{ $item['reference'] }}</td><td>{{ $item['maker'] }}</td><td>{{ $item['approver'] }}</td><td>{{ $item['status'] }}</td><td>{{ $item['age_days'] }} ngày</td><td>{{ $item['updated_at'] }}</td><td><a class="admin-button admin-button--small" href="{{ $item['url'] }}">Mở nguồn</a></td></tr>@empty<tr><td colspan="8">Không có chứng từ.</td></tr>@endforelse</tbody></table></div></section>@endforeach</div>
 @endsection

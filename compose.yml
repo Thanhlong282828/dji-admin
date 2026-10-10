@@ -31,6 +31,11 @@ x-app: &app
     redis:
       condition: service_healthy
   restart: unless-stopped
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
   security_opt:
     - no-new-privileges:true
   cap_drop:
@@ -51,6 +56,11 @@ services:
       app:
         condition: service_healthy
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     security_opt:
       - no-new-privileges:true
     cap_drop:
@@ -73,10 +83,15 @@ services:
       interval: 5s
       timeout: 5s
       retries: 20
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   redis:
     image: redis:7.4-alpine
-    command: redis-server --appendonly yes
+    command: redis-server --appendonly yes --auto-aof-rewrite-percentage 100 --auto-aof-rewrite-min-size 64mb --maxmemory-policy noeviction
     volumes:
       - redis_data:/data
     healthcheck:
@@ -86,10 +101,15 @@ services:
       retries: 20
     security_opt:
       - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   queue:
     <<: *app
-    command: php artisan queue:work redis --sleep=1 --tries=3 --timeout=90
+    command: php artisan queue:work redis --sleep=3 --tries=3 --timeout=330 --memory=384 --max-jobs=250 --max-time=3600
 
   scheduler:
     <<: *app
@@ -112,6 +132,11 @@ services:
       - "8025:8025"
       - "1025:1025"
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     security_opt:
       - no-new-privileges:true
 

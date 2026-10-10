@@ -8,7 +8,11 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Modules\Commerce\Application\Services\SalesReceivableService;
 use Modules\Document\Application\Services\EnterpriseDocumentService;
+use Modules\Finance\Application\Services\AccountingPostingPolicyService;
 use Modules\Finance\Application\Services\FinanceOperationsService;
+use Modules\Finance\Application\Services\TreasuryInternalTransferService;
+use Modules\Finance\Application\Services\TreasuryOpeningBalanceService;
+use Modules\Finance\Application\Services\TreasuryService;
 use Modules\Inventory\Application\Services\InventoryOperationsService;
 use Modules\Maintenance\Application\Services\MaintenanceService;
 use Modules\Procurement\Application\Services\ProcurementService;
@@ -22,7 +26,7 @@ final class ExtendLocalOperatingDataCommand extends Command
 
     protected $description = 'Add idempotent local operating history through canonical owner-module application services.';
 
-    public function handle(SalesReceivableService $sales, ProcurementService $procurement, FinanceOperationsService $finance, ProjectManagementService $projects, ProjectIntegrationService $projectIntegration, EnterpriseDocumentService $documents, MaintenanceService $maintenance, InventoryOperationsService $inventoryOperations): int
+    public function handle(SalesReceivableService $sales, ProcurementService $procurement, FinanceOperationsService $finance, AccountingPostingPolicyService $postingPolicies, TreasuryService $treasury, TreasuryOpeningBalanceService $openingBalances, TreasuryInternalTransferService $internalTransfers, ProjectManagementService $projects, ProjectIntegrationService $projectIntegration, EnterpriseDocumentService $documents, MaintenanceService $maintenance, InventoryOperationsService $inventoryOperations): int
     {
         $this->assertSafeLocalTarget();
         $companyId = $this->requiredId(DB::table('companies')->where('code', 'SCHEMA-TECH-VN')->value('id'), 'operating company');
@@ -74,6 +78,7 @@ final class ExtendLocalOperatingDataCommand extends Command
         $this->table(['Project scenario', 'Purpose', 'Chronology', 'Lineage'], [['OPS-PROJECT-ERP-2026', 'Chuẩn hóa quy trình vận hành ERP nội bộ', '2026-06 → 2026-11', 'Project→Milestone→Tasks→Timesheet→Expense→DMS']]);
         $this->table(['Asset scenario', 'Business reason', 'Chronology', 'Lineage'], [['OPS-ASSET-TECH-2026', 'Máy trạm kỹ thuật phục vụ vận hành và hỗ trợ hệ thống nội bộ', '2026-08 → 2026-09', 'Asset→Activation→TECH assignment→Depreciation→Accounting→Preventive Maintenance→DMS']]);
         $this->table(['Inventory transfer', 'Business reason', 'Canonical flow'], [['OPS-TRF-HOMESAFE-HN-HCM-2026-09', 'Điều chuyển 3 bộ lưu điện từ tồn Hà Nội sang điểm bán TP.HCM chưa có hàng', 'Inventory Transfer→Dispatch→Outbound Movement→Receive→Inbound Movement']]);
+        $this->table(['Treasury scenario', 'Opening evidence', 'Transfer', 'Canonical flow'], [['OPS-TREASURY-2026', 'Bank 500m + Cash 50m', 'Bank → Cash 20m', 'GL Accounts→Treasury Accounts→Opening Balance→Policy→Internal Transfer→Journal']]);
         if ($this->option('dry-run')) {
             $this->info('Dry run only: 0 database mutations.');
 
@@ -95,6 +100,7 @@ final class ExtendLocalOperatingDataCommand extends Command
         $this->executeProjectBatch($projects, $projectIntegration, $documents, $finance, $companyId, $maker, $checker);
         $this->executeAssetMaintenanceBatch($finance, $maintenance, $documents, $companyId, $maker);
         $this->executeInventoryTransfer($inventoryOperations, $companyId, $maker);
+        $this->executeTreasuryOperatingScenario($finance, $postingPolicies, $treasury, $openingBalances, $internalTransfers, $companyId, $maker, $checker);
         $after = $this->counts();
         $created = [];
         foreach ($after as $table => $count) {
@@ -104,6 +110,90 @@ final class ExtendLocalOperatingDataCommand extends Command
         $this->info('Canonical local operating-data batch completed. Existing records were not deleted or rewritten.');
 
         return self::SUCCESS;
+    }
+
+    private function executeTreasuryOperatingScenario(FinanceOperationsService $finance, AccountingPostingPolicyService $policies, TreasuryService $treasury, TreasuryOpeningBalanceService $openings, TreasuryInternalTransferService $transfers, int $companyId, User $maker, User $checker): void
+    {
+        $branchId = $this->requiredId(DB::table('branches')->where(['company_id' => $companyId, 'code' => 'SCHEMA-TECH-VN-HCM'])->value('id'), 'treasury branch');
+        $ledgerDefinitions = [
+            '1110' => ['name' => 'Tiền mặt tại quỹ', 'account_type' => 'asset', 'normal_balance' => 'debit'],
+            '1120' => ['name' => 'Tiền gửi ngân hàng', 'account_type' => 'asset', 'normal_balance' => 'debit'],
+            '3000' => ['name' => 'Vốn chủ sở hữu đầu kỳ', 'account_type' => 'equity', 'normal_balance' => 'credit'],
+        ];
+        $ledgerIds = [];
+        foreach ($ledgerDefinitions as $code => $definition) {
+            $ledgerIds[$code] = $finance->mutate('account.create', $companyId, $maker, $definition + ['code' => (string) $code, 'currency' => 'VND', 'effective_from' => '2000-01-01']);
+        }
+
+        $bankId = $this->treasuryAccount($treasury, $companyId, $branchId, $maker, $ledgerIds['1120'], 'OPS-BANK-HCM', 'Tài khoản ngân hàng vận hành TP.HCM', 'bank');
+        $cashId = $this->treasuryAccount($treasury, $companyId, $branchId, $maker, $ledgerIds['1110'], 'OPS-CASH-HCM', 'Quỹ tiền mặt vận hành TP.HCM', 'cash');
+
+        $this->postingPolicy($policies, $companyId, $maker, $checker, 'OPS-TREASURY-OPENING-BANK', 'TREASURY_OPENING_BALANCE', 'bank', [
+            ['entry_side' => 'debit', 'line_role' => 'CASH', 'account_id' => $ledgerIds['1120']],
+            ['entry_side' => 'credit', 'line_role' => 'OPENING_EQUITY', 'account_id' => $ledgerIds['3000']],
+        ]);
+        $this->postingPolicy($policies, $companyId, $maker, $checker, 'OPS-TREASURY-OPENING-CASH', 'TREASURY_OPENING_BALANCE', 'cash', [
+            ['entry_side' => 'debit', 'line_role' => 'CASH', 'account_id' => $ledgerIds['1110']],
+            ['entry_side' => 'credit', 'line_role' => 'OPENING_EQUITY', 'account_id' => $ledgerIds['3000']],
+        ]);
+        $this->postingPolicy($policies, $companyId, $maker, $checker, 'OPS-TREASURY-INTERNAL-TRANSFER', 'TREASURY_INTERNAL_TRANSFER', null, [
+            ['entry_side' => 'debit', 'line_role' => 'DESTINATION_CASH', 'account_id' => $ledgerIds['1110']],
+            ['entry_side' => 'credit', 'line_role' => 'SOURCE_CASH', 'account_id' => $ledgerIds['1120']],
+        ]);
+
+        foreach ([[$bankId, 500_000_000, 'OPS-OPEN-BANK-HCM-2026'], [$cashId, 50_000_000, 'OPS-OPEN-CASH-HCM-2026']] as [$accountId, $amount, $reference]) {
+            $openingId = $openings->create($companyId, $maker, ['treasury_financial_account_id' => $accountId, 'supersedes_opening_balance_id' => null, 'currency' => 'VND', 'effective_date' => '2026-06-01', 'opening_amount_minor' => $amount, 'reference' => $reference, 'source_note' => 'Số dư đầu kỳ theo hồ sơ vận hành nội bộ.', 'idempotency_key' => strtolower($reference)]);
+            $status = DB::table('treasury_opening_balances')->where('id', $openingId)->value('status');
+            if ($status === 'draft') {
+                $openings->submit($companyId, $openingId, $maker);
+                $status = 'submitted';
+            }
+            if ($status === 'submitted') {
+                $openings->approve($companyId, $openingId, $checker);
+                $status = 'approved';
+            }
+            if ($status === 'approved') {
+                $openings->post($companyId, $openingId, $checker);
+            }
+        }
+
+        $transferId = $transfers->create($companyId, $maker, ['source_treasury_account_id' => $bankId, 'destination_treasury_account_id' => $cashId, 'currency' => 'VND', 'amount_minor' => 20_000_000, 'occurred_at' => '2026-09-18 10:00:00', 'reference' => 'OPS-TREASURY-TRANSFER-2026-09', 'reason' => 'Bổ sung quỹ tiền mặt phục vụ chi phí vận hành chi nhánh.', 'idempotency_key' => 'ops-treasury-transfer-2026-09']);
+        $status = DB::table('treasury_internal_transfers')->where('id', $transferId)->value('status');
+        if ($status === 'draft') {
+            $transfers->submit($companyId, $transferId, $maker);
+            $status = 'submitted';
+        }
+        if ($status === 'submitted') {
+            $transfers->approve($companyId, $transferId, $checker);
+            $status = 'approved';
+        }
+        if ($status === 'approved') {
+            $transfers->post($companyId, $transferId, $checker);
+        }
+    }
+
+    private function treasuryAccount(TreasuryService $treasury, int $companyId, int $branchId, User $actor, int $ledgerId, string $code, string $name, string $type): int
+    {
+        $existing = DB::table('treasury_financial_accounts')->where(['company_id' => $companyId, 'code' => $code])->value('id');
+
+        return is_numeric($existing) ? (int) $existing : $treasury->mutate('account.create', $companyId, $actor, ['branch_id' => $branchId, 'accounting_account_id' => $ledgerId, 'code' => $code, 'name' => $name, 'type' => $type, 'note' => 'Canonical local operating scenario']);
+    }
+
+    /** @param list<array{entry_side:string,line_role:string,account_id:int}> $lines */
+    private function postingPolicy(AccountingPostingPolicyService $service, int $companyId, User $maker, User $checker, string $key, string $event, ?string $classification, array $lines): int
+    {
+        $existing = DB::table('accounting_posting_policies')->where(['company_id' => $companyId, 'policy_key' => $key, 'version' => 1])->value('id');
+        $id = is_numeric($existing) ? (int) $existing : $service->create($companyId, $maker, ['policy_key' => $key, 'source_type' => strtolower($event), 'business_event' => $event, 'classification' => $classification, 'version' => 1, 'currency' => 'VND', 'effective_from' => '2026-01-01', 'note' => 'Canonical local operating scenario', 'lines' => $lines]);
+        $status = DB::table('accounting_posting_policies')->where('id', $id)->value('status');
+        if ($status === 'draft') {
+            $service->submit($companyId, $id, $maker);
+            $status = 'submitted';
+        }
+        if ($status === 'submitted') {
+            $service->approve($companyId, $id, $checker);
+        }
+
+        return $id;
     }
 
     private function assertSafeLocalTarget(): void
@@ -480,7 +570,7 @@ final class ExtendLocalOperatingDataCommand extends Command
     /** @return array<string,int> */
     private function counts(): array
     {
-        return collect(['sales_quotations', 'sales_orders', 'sales_fulfillments', 'customer_invoices', 'customer_collections', 'finance_budgets', 'finance_budget_lines', 'finance_expense_categories', 'finance_expenses', 'purchase_requests', 'purchase_orders', 'procurement_goods_receipts', 'vendor_bills', 'ap_payments', 'inventory_movements', 'inventory_stock_transfers', 'payroll_accounting_journals', 'treasury_transactions', 'projects', 'project_members', 'project_milestones', 'project_tasks', 'project_task_dependencies', 'project_timesheets', 'finance_asset_categories', 'finance_assets', 'finance_asset_assignments', 'finance_depreciation_entries', 'maintenance_requests', 'maintenance_work_orders', 'preventive_maintenance_plans', 'enterprise_documents', 'enterprise_document_versions'])
+        return collect(['sales_quotations', 'sales_orders', 'sales_fulfillments', 'customer_invoices', 'customer_collections', 'finance_budgets', 'finance_budget_lines', 'finance_expense_categories', 'finance_expenses', 'purchase_requests', 'purchase_orders', 'procurement_goods_receipts', 'vendor_bills', 'ap_payments', 'inventory_movements', 'inventory_stock_transfers', 'payroll_accounting_journals', 'treasury_transactions', 'treasury_financial_accounts', 'treasury_opening_balances', 'treasury_internal_transfers', 'treasury_internal_transfer_legs', 'accounting_posting_policies', 'projects', 'project_members', 'project_milestones', 'project_tasks', 'project_task_dependencies', 'project_timesheets', 'finance_asset_categories', 'finance_assets', 'finance_asset_assignments', 'finance_depreciation_entries', 'maintenance_requests', 'maintenance_work_orders', 'preventive_maintenance_plans', 'enterprise_documents', 'enterprise_document_versions'])
             ->mapWithKeys(static fn (string $table): array => [$table => DB::table($table)->count()])->all();
     }
 

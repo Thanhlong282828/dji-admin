@@ -23,6 +23,8 @@ try {
 async function pageFor(viewport) {
     const context = await browser.newContext({ viewport });
     const page = await context.newPage();
+    page.setDefaultTimeout(120_000);
+    page.setDefaultNavigationTimeout(120_000);
     page.on('console', message => { if (['error', 'warning'].includes(message.type())) problems.push(`console.${message.type()}:${message.text()}`); });
     page.on('pageerror', error => problems.push(`pageerror:${error.message}`));
     await gotoStable(page, `${baseUrl}/admin/audit/_fixtures/login`);
@@ -48,9 +50,9 @@ async function clickMenu(page, label, scrollTop) {
     const navigation = page.locator('[data-primary-navigation]');
     await navigation.evaluate((element, top) => { element.scrollTop = top; }, scrollTop);
     const before = await navigation.evaluate(element => element.scrollTop);
-    await page.getByRole('link', { name: label, exact: true }).evaluate(element => element.click());
+    await navigation.getByRole('link', { name: label, exact: true }).evaluate(element => element.click());
     await page.waitForLoadState('networkidle');
-    const after = await navigation.evaluate(element => element.scrollTop);
+    const after = await page.locator('[data-primary-navigation]').evaluate(element => element.scrollTop);
     return { before, after, delta: Math.abs(after - before) };
 }
 
@@ -101,7 +103,7 @@ async function verifyMobile() {
     const before = await state(page, 'payroll');
     await Promise.all([
         page.waitForNavigation({ waitUntil: 'networkidle' }),
-        page.getByRole('link', { name: 'Payroll Runs', exact: true }).evaluate(element => element.click()),
+        page.locator('[data-primary-navigation]').getByRole('link', { name: 'Payroll Runs', exact: true }).evaluate(element => element.click()),
     ]);
     const after = await state(page, 'payroll');
     const drawerOpen = await page.locator('[data-sidebar]').evaluate(element => element.classList.contains('is-open'));

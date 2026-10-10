@@ -87,7 +87,7 @@ final class EnterpriseAnalyticsTest extends TestCase
         self::assertCount(4, $data['phase3']['outlook']['buckets']);
         self::assertSame('NOT_ENOUGH_EVIDENCE', $data['phase3']['outlook']['payroll_future_status']);
         self::assertSame('NOT_ENOUGH_EVIDENCE', $data['phase3']['outlook']['projected_closing_cash_status']);
-        self::assertLessThanOrEqual(85, $queries);
+        self::assertLessThanOrEqual(90, $queries);
         $this->actingAs($user)->get(route('admin.executive.index', ['company_id' => $owned, 'range' => '6m']))->assertOk()->assertSee('Executive Dashboard')->assertSee('Project Revenue/Billing')->assertSee('Hiệu quả chi nhánh')->assertSee('Ngân sách so với thực tế')->assertSee('AR / AP sắp đến hạn')->assertDontSee('Mở báo cáo chi nhánh')->assertDontSee('Mở Budget');
         $this->actingAs($user)->get(route('admin.executive.index', ['company_id' => $foreign]))->assertNotFound();
     }

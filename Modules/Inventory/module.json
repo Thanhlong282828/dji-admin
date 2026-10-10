@@ -4,7 +4,7 @@
     "description": "Inventory locations, balances, reservations and append-only movements.",
     "keywords": ["inventory", "stock", "movement"],
     "priority": 0,
-    "requires": ["Core", "Company"],
+    "requires": ["Core", "Company", "Finance"],
     "providers": [],
     "files": []
 }

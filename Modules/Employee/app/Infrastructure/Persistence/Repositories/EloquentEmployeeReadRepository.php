@@ -94,6 +94,22 @@ final readonly class EloquentEmployeeReadRepository implements EmployeeReadRepos
         $employee = Employee::query()->with(['company:id,code,name', 'user.roles:id,name', 'manager:id,employee_code,full_name', 'directReports:id,manager_id,employee_code,full_name', 'assignments.organizationUnit', 'assignments.jobPosition', 'histories', 'credentials', 'contracts', 'consents', 'documents'])->where('company_id', $companyId)->findOrFail($id);
         $data = $this->normalizeArray($employee->toArray());
         $data['identity_number'] = $sensitive ? $employee->identity_number : $this->identity->mask($employee->identity_number);
+        $contractRows = $data['contracts'] ?? null;
+        if ($sensitive && is_array($contractRows)) {
+            $contracts = $employee->contracts->keyBy('id');
+            foreach ($contractRows as $index => $contract) {
+                $contractId = is_array($contract) ? ($contract['id'] ?? null) : null;
+                if (! is_numeric($contractId)) {
+                    continue;
+                }
+                $model = $contracts->get((int) $contractId);
+                if ($model !== null) {
+                    $contract['base_salary'] = $model->getAttribute('base_salary');
+                    $contractRows[$index] = $contract;
+                }
+            }
+            $data['contracts'] = $contractRows;
+        }
 
         return $data;
     }

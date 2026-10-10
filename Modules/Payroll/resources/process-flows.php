@@ -22,6 +22,7 @@ return [
     'annual-tax' => $definition('annual-tax', 'REPORT', ['payroll-runs', 'annual-tax', 'accounting']),
     'government' => $definition('government', 'EXTERNAL', ['payroll-runs', 'government']),
     'accounting-configuration' => $definition('accounting-configuration', 'CONFIGURATION', ['payroll-dashboard', 'accounting-configuration', 'accounting']),
+    'chart-of-accounts' => $definition('chart-of-accounts', 'CONFIGURATION', ['accounting-policy-workspace', 'chart-of-accounts', 'accounting-configuration', 'accounting']),
     'erp' => $definition('erp', 'EXTERNAL', ['accounting', 'erp-configuration', 'erp', 'integrations']),
     'erp-configuration' => $definition('erp-configuration', 'CONFIGURATION', ['accounting-configuration', 'erp-configuration', 'erp']),
 ];

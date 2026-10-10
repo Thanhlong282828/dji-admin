@@ -131,7 +131,17 @@ final class PayrollAccountingPostingFoundationTest extends TestCase
         $this->actingAs($checker)->post(route('admin.payroll.accounting.journals.mutate', ['journal' => $journal, 'action' => 'export']), ['company_id' => $company])->assertRedirect();
         self::assertSame(1, DB::table('payroll_accounting_access_logs')->where('journal_id', $journal)->where('action', 'export')->count());
         $this->actingAs($checker)->get(route('admin.finance.financial-statements', ['company_id' => $company, 'date_from' => '2026-07-01', 'date_to' => '2026-07-31']))
-            ->assertOk()->assertSeeText('Sổ cái & Báo cáo tài chính')->assertSeeText('Trial Balance')->assertSeeText('General Ledger')->assertSeeText($this->string($stored->journal_number))->assertSeeText('Coverage PARTIAL');
+            ->assertOk()
+            ->assertSeeText('Sổ cái & Báo cáo tài chính')
+            ->assertSeeText('Trial Balance')
+            ->assertSeeText('Balance Sheet')
+            ->assertSeeText('Income Statement')
+            ->assertSeeText('Cash Flow Statement')
+            ->assertSeeText('Statement of Changes in Equity')
+            ->assertSeeText('Financial statement lineage')
+            ->assertSeeText('GetFinancialStatementsQuery → FinancialStatementReadService')
+            ->assertSeeText($this->string($stored->journal_number))
+            ->assertSeeText('Coverage PARTIAL');
         $foreign = User::factory()->create();
         $foreign->givePermissionTo('payroll.accounting.view');
         $this->actingAs($foreign)->get(route('admin.finance.financial-statements', ['company_id' => $company]))->assertNotFound();

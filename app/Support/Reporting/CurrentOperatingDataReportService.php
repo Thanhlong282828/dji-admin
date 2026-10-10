@@ -803,7 +803,7 @@ final readonly class CurrentOperatingDataReportService
             'financing' => [],
             default => [],
         };
-        $query = $this->db->table('treasury_transactions')->where('status', 'recorded');
+        $query = $this->db->table('treasury_transactions')->where('status', 'recorded')->where('source_type', '<>', 'treasury_internal_transfer_leg');
         if ($company !== null) {
             $query->where('company_id', $company);
         }

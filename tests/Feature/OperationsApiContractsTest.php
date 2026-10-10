@@ -34,7 +34,7 @@ final class OperationsApiContractsTest extends TestCase
         $output = Artisan::output();
         self::assertJson($output);
         self::assertStringContainsString('"status": "pass"', $output);
-        self::assertStringContainsString('"actual_operations": 24', $output);
+        self::assertStringContainsString('"actual_operations": 30', $output);
         self::assertStringNotContainsString('DB_PASSWORD', $output);
     }
 }

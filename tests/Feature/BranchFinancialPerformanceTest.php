@@ -44,7 +44,7 @@ final class BranchFinancialPerformanceTest extends TestCase
 
         $this->actingAs($user)->get('/admin/finance/branch-performance?company_id='.$company->id.'&month=2026-08')->assertOk()->assertSeeText('100.000.000 ₫')->assertSeeText('60.000.000 ₫')->assertSeeText('1 chứng từ');
         $this->actingAs($user)->get('/admin/finance/payroll-reconciliation?company_id='.$company->id)->assertOk()->assertSeeText('Đối soát Payroll và Tài chính');
-        $this->actingAs($user)->get('/admin/finance/tax-dashboard?company_id='.$company->id.'&month=2026-08')->assertOk()->assertSeeText('CONFIGURATION_REQUIRED')->assertSeeText('Input VAT: NOT SUPPORTED');
+        $this->actingAs($user)->get('/admin/finance/tax-dashboard?company_id='.$company->id.'&month=2026-08')->assertOk()->assertSeeText('CONFIGURATION_REQUIRED')->assertSeeText('Mở VAT Policy Workspace');
     }
 
     public function test_financial_dashboard_requires_salary_permission(): void

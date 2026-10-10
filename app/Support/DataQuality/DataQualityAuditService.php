@@ -6,6 +6,7 @@ use Illuminate\Database\Query\Builder;
 use Illuminate\Database\Query\JoinClause;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 final class DataQualityAuditService
 {
@@ -77,8 +78,54 @@ final class DataQualityAuditService
             new DataQualityFinding('recruitment.hire_lineage_mismatch', 'Recruitment/Employee', 'critical', 'Application hired phải nối cùng Employee qua Candidate, accepted Offer và consumed reservation.', $this->recruitmentHireLineageMismatch()),
             new DataQualityFinding('accounting.posted_journal_unbalanced', 'Accounting', 'critical', 'Mọi posted source Journal phải có tổng debit bằng credit và khớp Journal Lines.', $this->postedJournalImbalance()),
             new DataQualityFinding('accounting.duplicate_source_posting', 'Accounting', 'critical', 'Một source/posting type không được tạo nhiều automatic Journal.', $this->duplicateSourcePosting()),
+            new DataQualityFinding('journal_without_source', 'Accounting', 'critical', 'Automatic Journal phải có immutable source evidence.', $this->journalWithoutSource()),
+            new DataQualityFinding('journal_without_policy', 'Accounting', 'critical', 'Journal thuộc controlled workflow phải có posting policy lineage.', $this->journalWithoutPolicy()),
+            new DataQualityFinding('journal_line_unbalanced', 'Accounting', 'critical', 'Journal Lines phải cân và khớp tổng trên Journal.', $this->postedJournalImbalance()),
+            new DataQualityFinding('posted_journal_in_closed_period', 'Accounting', 'critical', 'Posted Journal không được phát sinh sau thời điểm đóng kỳ.', $this->closedPeriodPosting()),
+            new DataQualityFinding('duplicate_source_posting', 'Accounting', 'critical', 'Một source và posting type chỉ được có một canonical Journal.', $this->duplicateSourcePosting()),
+            new DataQualityFinding('missing_account_mapping', 'Accounting', 'critical', 'Journal thuộc controlled workflow phải giữ policy và account mapping evidence trên từng line.', $this->missingAccountMapping()),
+            new DataQualityFinding('posting_without_policy', 'Accounting Policy', 'critical', 'Controlled source posting phải resolve approved policy.', $this->journalWithoutPolicy()),
+            new DataQualityFinding('posting_without_mapping', 'Accounting Policy', 'critical', 'Controlled source posting phải giữ account mapping evidence hợp lệ.', $this->missingAccountMapping()),
+            new DataQualityFinding('legacy_account_mapping_usage', 'Accounting Policy', 'critical', 'Controlled source không được tiếp tục dùng legacy canonical account-code mapping.', $this->legacyAccountMappingUsage()),
+            new DataQualityFinding('journal_without_policy_snapshot', 'Accounting Policy', 'critical', 'Mỗi controlled Journal phải giữ immutable policy snapshot trên Journal Lines.', $this->journalWithoutPolicySnapshot()),
+            new DataQualityFinding('policy_version_missing', 'Accounting Policy', 'critical', 'Policy-backed Journal Line phải có cả policy id và version.', $this->policyVersionMissing()),
+            new DataQualityFinding('receipt_without_policy', 'Procurement/Accounting Policy', 'critical', 'Goods Receipt received phải có INVENTORY_RECEIPT policy snapshot.', $this->sourceWithoutPolicy('procurement_goods_receipts', 'received', 'goods_receipt', 'id')),
+            new DataQualityFinding('collection_without_policy', 'Commerce/Accounting Policy', 'critical', 'Customer Collection recorded phải có CUSTOMER_COLLECTION policy snapshot.', $this->sourceWithoutPolicy('customer_collections', 'recorded', 'customer_collection', 'id')),
+            new DataQualityFinding('cogs_without_inventory_source', 'Commerce/Inventory Accounting', 'critical', 'COGS phải truy được tới Sales Fulfillment, Inventory Movement và SALES_COGS policy.', $this->cogsWithoutInventorySource()),
+            new DataQualityFinding('expense_without_policy', 'Finance/Accounting Policy', 'critical', 'Expense approved/paid phải có OPERATING_EXPENSE policy snapshot.', $this->expenseWithoutPolicy()),
+            new DataQualityFinding('tax_posting_without_mapping', 'Tax/Accounting Policy', 'critical', 'Giao dịch có VAT dương phải có tax configuration và policy mapping canonical.', $this->taxPostingWithoutMapping()),
+            new DataQualityFinding('tax_without_policy', 'Tax/VAT', 'critical', 'Tax transaction evidence phải trỏ approved effective Tax Policy cùng Company.', $this->taxWithoutPolicy()),
+            new DataQualityFinding('tax_without_rate', 'Tax/VAT', 'critical', 'Tax evidence phải có rate hợp lệ và tax amount khớp taxable amount.', $this->taxWithoutRate()),
+            new DataQualityFinding('tax_without_mapping', 'Tax/VAT', 'critical', 'Tax Policy phải có tenant-scoped Tax Account và Accounting Policy mapping.', $this->taxWithoutMapping()),
+            new DataQualityFinding('tax_journal_without_source', 'Tax/VAT Accounting', 'critical', 'Tax Journal phải truy được về immutable tax source evidence.', $this->taxJournalWithoutSource()),
+            new DataQualityFinding('invalid_tax_period', 'Tax/VAT', 'critical', 'Tax evidence phải nằm trong effective period của policy.', $this->invalidTaxPeriod()),
+            new DataQualityFinding('tax_policy_without_company', 'Tax/VAT Governance', 'critical', 'VAT Policy, Category và mappings phải cùng Company.', $this->taxPolicyWithoutCompany()),
+            new DataQualityFinding('tax_policy_without_mapping', 'Tax/VAT Governance', 'critical', 'VAT Policy active phải có Tax Account và approved Accounting Policy.', $this->taxWithoutMapping()),
+            new DataQualityFinding('tax_policy_overlap', 'Tax/VAT Governance', 'critical', 'Không được có hai VAT Policy approved chồng kỳ cho cùng category và currency.', $this->taxPolicyOverlap()),
+            new DataQualityFinding('tax_evidence_without_journal', 'Tax/VAT Governance', 'critical', 'VAT evidence phải trỏ đúng immutable Journal cùng source.', $this->taxJournalWithoutSource()),
+            new DataQualityFinding('journal_without_tax_evidence', 'Tax/VAT Governance', 'critical', 'Invoice/Bill có VAT đã post phải có tax evidence trỏ lại Journal.', $this->journalWithoutTaxEvidence()),
+            new DataQualityFinding('credit_note_without_tax_source', 'Sales/Tax', 'critical', 'Credit Note có VAT phải truy được về immutable VAT evidence của Customer Invoice nguồn.', $this->creditNoteWithoutTaxSource()),
+            new DataQualityFinding('credit_note_tax_without_journal', 'Sales/Tax Accounting', 'critical', 'Credit Note VAT reversal phải có evidence mới trỏ đúng Journal reversal.', $this->creditNoteTaxWithoutJournal()),
+            new DataQualityFinding('credit_note_tax_over_original', 'Sales/Tax', 'critical', 'Tổng VAT reversal của Credit Note không được vượt VAT evidence gốc.', $this->creditNoteTaxOverOriginal()),
+            new DataQualityFinding('duplicate_tax_reversal', 'Sales/Tax', 'critical', 'Mỗi Credit Note chỉ có một canonical VAT reversal evidence.', $this->duplicateTaxReversal()),
             new DataQualityFinding('procurement.receipt_missing_inventory', 'Procurement/Inventory', 'critical', 'Goods Receipt received phải có đúng Inventory Movement evidence.', $this->receivedGoodsMissingMovement()),
             new DataQualityFinding('inventory.value_mismatch', 'Inventory/Accounting', 'critical', 'Movement value và balance value phải reconcile với quantity/cost snapshot.', $this->inventoryValueMismatch()),
+            new DataQualityFinding('inventory_stock_count_without_warehouse', 'Inventory/Stock Count', 'critical', 'Stock Count phải thuộc warehouse, branch và company canonical.', $this->inventoryStockCountWithoutWarehouse()),
+            new DataQualityFinding('inventory_adjustment_without_reason', 'Inventory/Adjustment', 'critical', 'Inventory Adjustment phải có reason thuộc controlled vocabulary.', $this->inventoryAdjustmentWithoutReason()),
+            new DataQualityFinding('inventory_adjustment_without_movement', 'Inventory/Adjustment', 'critical', 'Inventory Adjustment posted phải có đúng movement cho từng line.', $this->inventoryAdjustmentWithoutMovement()),
+            new DataQualityFinding('inventory_adjustment_without_journal', 'Inventory/Accounting', 'critical', 'Inventory Adjustment posted phải có balanced policy-backed Journal đúng source.', $this->inventoryAdjustmentWithoutJournal()),
+            new DataQualityFinding('inventory_variance_mismatch', 'Inventory/Stock Count', 'critical', 'Variance phải bằng counted quantity trừ system snapshot và khớp Adjustment line.', $this->inventoryVarianceMismatch()),
+            new DataQualityFinding('asset_impairment_without_asset', 'Finance/Asset', 'critical', 'Impairment phải trỏ đúng active canonical Asset cùng Company.', $this->assetImpairmentWithoutAsset()),
+            new DataQualityFinding('asset_impairment_without_journal', 'Finance/Asset Accounting', 'critical', 'Impairment posted phải có balanced Journal đúng source lineage.', $this->assetImpairmentWithoutJournal()),
+            new DataQualityFinding('asset_disposal_without_asset', 'Finance/Asset', 'critical', 'Disposal phải trỏ đúng canonical Asset cùng Company.', $this->assetDisposalWithoutAsset()),
+            new DataQualityFinding('asset_disposal_without_journal', 'Finance/Asset Accounting', 'critical', 'Disposal posted phải có balanced Journal đúng source lineage.', $this->assetDisposalWithoutJournal()),
+            new DataQualityFinding('asset_gain_loss_mismatch', 'Finance/Asset', 'critical', 'Disposal gain/loss phải bằng proceeds trừ locked book value.', $this->assetGainLossMismatch()),
+            new DataQualityFinding('fiscal_year_without_company', 'Finance/Fiscal Year', 'critical', 'Fiscal Year phải thuộc Company canonical.', $this->fiscalYearWithoutCompany()),
+            new DataQualityFinding('period_without_fiscal_year', 'Finance/Accounting Period', 'critical', 'Accounting Period phải thuộc Fiscal Year cùng Company.', $this->periodWithoutFiscalYear()),
+            new DataQualityFinding('closed_period_with_posting', 'Finance/Accounting Period', 'critical', 'Kỳ đóng không được nhận posting thường sau thời điểm close.', $this->closedPeriodWithPosting()),
+            new DataQualityFinding('overlapping_fiscal_year', 'Finance/Fiscal Year', 'critical', 'Fiscal Year trong cùng Company không được chồng khoảng ngày.', $this->overlappingFiscalYear()),
+            new DataQualityFinding('invalid_period_date_range', 'Finance/Accounting Period', 'critical', 'Period phải có khoảng ngày hợp lệ và nằm trong Fiscal Year.', $this->invalidPeriodDateRange()),
+            new DataQualityFinding('opening_balance_without_source', 'Finance/Opening Balance', 'critical', 'Opening Balance phải truy được về Year Close, source Fiscal Year và balanced Journal.', $this->openingBalanceWithoutSource()),
             new DataQualityFinding('commerce.sale_missing_gl', 'Commerce/Accounting', 'critical', 'Sale mới có valued inventory movement phải có Revenue và COGS posting.', $this->saleMissingAccounting()),
             new DataQualityFinding('ap.invalid_allocation', 'Procurement/AP', 'critical', 'AP allocation không được vượt Payment hoặc Vendor Bill.', $this->invalidApAllocation()),
             new DataQualityFinding('accounting.closed_period_posting', 'Accounting', 'critical', 'Journal không được post bình thường vào accounting period đã đóng.', $this->closedPeriodPosting()),
@@ -90,6 +137,9 @@ final class DataQualityAuditService
             new DataQualityFinding('finance.budget_cross_tenant', 'Finance/Budget', 'critical', 'Budget line chỉ được dùng Branch, Cost Center và Account thuộc Company của Budget.', $this->budgetCrossTenant()),
             new DataQualityFinding('treasury.source_lineage_mismatch', 'Finance/Treasury', 'critical', 'Treasury transaction phải cùng Company/Branch với Financial Account và có balanced source Journal.', $this->treasurySourceLineageMismatch()),
             new DataQualityFinding('treasury.reconciliation_mismatch', 'Finance/Treasury', 'critical', 'Statement reconciled phải trỏ đúng Treasury transaction và khớp signed amount.', $this->treasuryReconciliationMismatch()),
+            new DataQualityFinding('treasury.opening_balance_invalid_lineage', 'Finance/Treasury', 'critical', 'Opening balance phải cùng Company/currency với Treasury account và mapped GL hợp lệ.', $this->treasuryOpeningBalanceInvalidLineage()),
+            new DataQualityFinding('treasury.opening_balance_invalid_posting', 'Finance/Treasury', 'critical', 'Opening balance posted phải có balanced policy-backed Journal đúng source và amount.', $this->treasuryOpeningBalanceInvalidPosting()),
+            new DataQualityFinding('treasury.internal_transfer_invalid_posting', 'Finance/Treasury', 'critical', 'Internal transfer posted phải có đúng hai leg đối ứng, hai Treasury transaction và một balanced Journal đúng account mapping.', $this->treasuryInternalTransferInvalidPosting()),
             new DataQualityFinding('accounting.period_closed_with_blocker', 'Finance/Accounting', 'critical', 'Kỳ chỉ được close từ approved request không còn checklist blocker.', $this->periodClosedWithBlocker()),
             new DataQualityFinding('hr.contract_renewal_invalid_lineage', 'HR/Contract', 'critical', 'Gia hạn phải nối hợp đồng cũ/mới cùng Employee và ngày hiệu lực liền sau hợp đồng cũ.', $this->invalidContractRenewalLineage()),
             new DataQualityFinding('hr.offboarding_incomplete_mandatory', 'HR/Offboarding', 'critical', 'Offboarding completed không được còn checklist bắt buộc chưa hoàn tất.', $this->completedOffboardingWithBlockers()),
@@ -100,6 +150,16 @@ final class DataQualityAuditService
             new DataQualityFinding('sales.fulfillment_missing_inventory_cogs', 'Sales/Inventory', 'critical', 'Sales fulfillment vật lý phải có Inventory Movement và immutable COGS snapshot.', $this->salesFulfillmentMissingInventoryOrCogs()),
             new DataQualityFinding('sales.collection_missing_treasury_gl', 'Sales/Treasury', 'critical', 'Collection phải có allocation, Treasury inflow và balanced Accounting Journal cùng company.', $this->collectionLineageMismatch()),
             new DataQualityFinding('sales.ar_gl_mismatch', 'Sales/AR/Accounting', 'critical', 'AR subledger outstanding phải reconcile với posted Accounts Receivable GL balance.', $this->arGeneralLedgerMismatch()),
+            new DataQualityFinding('sales.customer_credit_note_invalid', 'Sales/AR/Accounting', 'critical', 'Customer Credit Note posted phải đúng tenant/source line, không over-credit, tách AR/customer liability và có Journal cân.', $this->invalidCustomerCreditNote()),
+            new DataQualityFinding('crm_lead_without_company', 'CRM', 'critical', 'Lead phải thuộc Company, Branch và owner hợp lệ trong cùng tenant.', $this->crmLeadWithoutCompany()),
+            new DataQualityFinding('crm_opportunity_without_company', 'CRM', 'critical', 'Opportunity phải thuộc Company và mọi Lead/Customer nguồn phải cùng tenant.', $this->crmOpportunityWithoutCompany()),
+            new DataQualityFinding('crm_invalid_stage', 'CRM', 'critical', 'Lead status và Opportunity stage phải thuộc lifecycle CRM được hỗ trợ.', $this->crmInvalidStage()),
+            new DataQualityFinding('customer_refund_without_credit_note', 'Sales/Refund', 'critical', 'Customer Refund phải có allocation tới posted Customer Credit Note cùng tenant/customer/branch/currency.', $this->customerRefundWithoutCreditNote()),
+            new DataQualityFinding('customer_refund_over_liability', 'Sales/Refund', 'critical', 'Tổng Customer Refund đã giữ chỗ hoặc posted không được vượt Customer Credit Liability nguồn.', $this->customerRefundOverLiability()),
+            new DataQualityFinding('customer_refund_without_treasury', 'Sales/Treasury', 'critical', 'Customer Refund posted phải có đúng Treasury outflow trên cash/bank account.', $this->customerRefundWithoutTreasury()),
+            new DataQualityFinding('customer_refund_without_journal', 'Sales/Accounting', 'critical', 'Customer Refund posted phải có balanced Accounting Journal đúng source và amount.', $this->customerRefundWithoutJournal()),
+            new DataQualityFinding('credit_note_without_invoice', 'Sales/AR', 'critical', 'Customer Credit Note phải trỏ tới Customer Invoice cùng tenant/customer/branch/currency.', $this->creditNoteWithoutInvoice()),
+            new DataQualityFinding('credit_note_over_remaining_creditable', 'Sales/AR', 'critical', 'Tổng posted Credit Note không được vượt giá trị invoice có thể credit.', $this->creditNoteOverRemainingCreditable()),
             new DataQualityFinding('document.missing_current_version', 'Document', 'critical', 'Tài liệu phải trỏ đến một phiên bản hiện tại thuộc chính tài liệu đó.', $this->documentsMissingCurrentVersion()),
             new DataQualityFinding('document.version_missing_sha', 'Document', 'critical', 'Mọi phiên bản tài liệu phải có SHA-256 hợp lệ.', $this->documentVersionsMissingSha()),
             new DataQualityFinding('project.invalid_company_scope', 'Project', 'critical', 'Project manager, branch và member phải thuộc cùng Company.', $this->invalidProjectCompanyScope()),
@@ -115,10 +175,58 @@ final class DataQualityAuditService
             new DataQualityFinding('integration.project_source_invalid', 'Project/Finance/Procurement', 'critical', 'Chứng từ mang nguồn PROJECT phải trỏ đến Project tồn tại cùng Company.', $this->invalidProjectSourceReferences()),
             new DataQualityFinding('integration.maintenance_source_invalid', 'Maintenance/Finance/Procurement', 'critical', 'Chứng từ mang nguồn MAINTENANCE_WORK_ORDER phải trỏ đến Work Order tồn tại cùng Company.', $this->invalidMaintenanceSourceReferences()),
             new DataQualityFinding('integration.duplicate_source_action', 'Cross-domain', 'critical', 'Source idempotency key không được tạo nhiều owner document.', $this->duplicateIntegrationSourceActions()),
-            new DataQualityFinding('procurement.invalid_realization_quantity', 'Procurement/Budget', 'critical', 'Received không được vượt ordered và billed không được vượt received.', $this->invalidProcurementRealizationQuantity()),
+            new DataQualityFinding('procurement.invalid_realization_quantity', 'Procurement/Budget', 'critical', 'Received không vượt ordered; billed không vượt net received; posted return phải đúng receipt/tenant và có Inventory/Journal correction cân.', $this->invalidProcurementRealizationQuantity()),
             new DataQualityFinding('procurement.invalid_budget_dimension', 'Procurement/Budget', 'critical', 'PO line classification, Account và Cost Center phải cùng Company và đúng canonical mapping.', $this->invalidProcurementBudgetDimension()),
             new DataQualityFinding('procurement.service_acceptance_invalid', 'Procurement/Service', 'critical', 'Service Acceptance phải đúng tenant, không vượt PO và Acceptance đã duyệt phải có Journal cân.', $this->invalidServiceAcceptance()),
             new DataQualityFinding('procurement.service_overbilling', 'Procurement/AP', 'critical', 'Service Vendor Bill không được vượt Acceptance đã duyệt hoặc mất lineage.', $this->invalidServiceBilling()),
+            new DataQualityFinding('procurement.supplier_credit_invalid', 'Procurement/AP', 'critical', 'Receipt allocation và Supplier Credit posted phải đúng tenant/source, không vượt return/allocation và có Journal cân.', $this->invalidSupplierCredit()),
+            new DataQualityFinding('fx_rate_without_company', 'Finance/FX', 'critical', 'FX Rate phải thuộc Company canonical.', $this->fxRateWithoutCompany()),
+            new DataQualityFinding('fx_rate_invalid_pair', 'Finance/FX', 'critical', 'FX Rate phải có currency pair ISO khác nhau và rate dương.', $this->fxRateInvalidPair()),
+            new DataQualityFinding('fx_rate_without_approval', 'Finance/FX', 'critical', 'Active FX Rate phải có maker-checker approval và activation evidence.', $this->fxRateWithoutApproval()),
+            new DataQualityFinding('fx_rate_overlapping_effective_window', 'Finance/FX', 'critical', 'Không được có hai active FX Rate chồng hiệu lực cho cùng pair/type.', $this->fxRateOverlap()),
+            new DataQualityFinding('fx_snapshot_mismatch', 'Finance/FX', 'critical', 'FX snapshot phải giữ nguyên rate evidence và checksum canonical.', $this->fxSnapshotMismatch()),
+            new DataQualityFinding('fx_revaluation_posted_without_rate_snapshot', 'Finance/FX', 'critical', 'FX revaluation đã post phải có immutable rate snapshot đúng source.', $this->fxRevaluationPostedWithoutRateSnapshot()),
+            new DataQualityFinding('fx_revaluation_posted_without_policy', 'Finance/FX', 'critical', 'FX revaluation đã post phải giữ accounting policy id/version.', $this->fxRevaluationPostedWithoutPolicy()),
+            new DataQualityFinding('fx_revaluation_posted_without_journal', 'Finance/FX', 'critical', 'FX revaluation đã post phải có journal canonical cân và đúng lineage.', $this->fxRevaluationPostedWithoutJournal()),
+            new DataQualityFinding('fx_revaluation_duplicate_source_posting', 'Finance/FX', 'critical', 'Một FX revaluation run chỉ có một original accounting journal.', $this->fxRevaluationDuplicateSourcePosting()),
+            new DataQualityFinding('fx_revaluation_reversal_lineage_invalid', 'Finance/FX', 'critical', 'FX revaluation reversed phải có một reversal journal trỏ đúng original journal.', $this->fxRevaluationReversalLineageInvalid()),
+            new DataQualityFinding('duplicate_invoice_fx_recognition', 'Sales/FX', 'critical', 'Mỗi Customer Invoice chỉ có một recognition evidence canonical.', $this->duplicateInvoiceFxRecognition()),
+            new DataQualityFinding('recognition_company_mismatch', 'Sales/FX', 'critical', 'Recognition evidence phải cùng Company với Invoice.', $this->recognitionCompanyMismatch()),
+            new DataQualityFinding('recognition_invoice_currency_mismatch', 'Sales/FX', 'critical', 'Transaction currency và amount phải khớp Invoice nguồn.', $this->recognitionInvoiceMismatch()),
+            new DataQualityFinding('recognition_functional_currency_mismatch', 'Sales/FX', 'critical', 'Functional currency phải khớp Company governance.', $this->recognitionFunctionalCurrencyMismatch()),
+            new DataQualityFinding('recognition_snapshot_pair_mismatch', 'Sales/FX', 'critical', 'Foreign recognition snapshot phải có đúng transaction/functional pair.', $this->recognitionSnapshotPairMismatch()),
+            new DataQualityFinding('recognition_snapshot_rate_mismatch', 'Sales/FX', 'critical', 'Recognition phải giữ đúng rate/date/type của immutable snapshot.', $this->recognitionSnapshotRateMismatch()),
+            new DataQualityFinding('recognition_identity_snapshot_invalid', 'Sales/FX', 'critical', 'Identity recognition phải dùng rate 1 và không được tạo FX snapshot.', $this->recognitionIdentitySnapshotInvalid()),
+            new DataQualityFinding('recognition_functional_journal_mismatch', 'Sales/FX/Accounting', 'critical', 'Invoice có recognition evidence phải post Journal đúng functional currency và recognized amount.', $this->recognitionFunctionalJournalMismatch()),
+            new DataQualityFinding('duplicate_allocation_fx_settlement', 'Sales/FX', 'critical', 'Mỗi collection allocation chỉ có một settlement evidence canonical.', $this->duplicateAllocationFxSettlement()),
+            new DataQualityFinding('settlement_without_recognition', 'Sales/FX', 'critical', 'Settlement evidence phải trỏ tới recognition evidence canonical của Invoice nguồn.', $this->settlementWithoutRecognition()),
+            new DataQualityFinding('settlement_recognition_lineage_mismatch', 'Sales/FX', 'critical', 'Settlement allocation phải thuộc Invoice của recognition evidence.', $this->settlementRecognitionLineageMismatch()),
+            new DataQualityFinding('settlement_currency_mismatch', 'Sales/FX', 'critical', 'Settlement currency phải khớp Collection, Invoice và recognition evidence.', $this->settlementCurrencyMismatch()),
+            new DataQualityFinding('settlement_snapshot_pair_mismatch', 'Sales/FX', 'critical', 'Foreign settlement snapshot phải giữ đúng transaction/functional pair và identity settlement không được có snapshot.', $this->settlementSnapshotPairMismatch()),
+            new DataQualityFinding('released_carrying_exceeds_recognition', 'Sales/FX', 'critical', 'Tổng carrying basis released không được vượt recognition basis.', $this->releasedCarryingExceedsRecognition()),
+            new DataQualityFinding('settled_foreign_exceeds_invoice', 'Sales/FX', 'critical', 'Tổng foreign amount settled không được vượt transaction amount đã recognize.', $this->settledForeignExceedsInvoice()),
+            new DataQualityFinding('settlement_realized_fx_arithmetic_mismatch', 'Sales/FX', 'critical', 'Realized FX phải bằng functional settlement trừ carrying basis được release.', $this->settlementRealizedFxArithmeticMismatch()),
+            new DataQualityFinding('settlement_journal_currency_mismatch', 'Sales/FX/Accounting', 'critical', 'Collection Journal phải dùng functional currency và khớp functional settlement.', $this->settlementJournalCurrencyMismatch()),
+            new DataQualityFinding('settlement_treasury_currency_mismatch', 'Sales/FX/Treasury', 'critical', 'Treasury receipt phải dùng account cùng transaction currency và đúng foreign amount.', $this->settlementTreasuryCurrencyMismatch()),
+            new DataQualityFinding('duplicate_supplier_invoice_fx_recognition', 'Procurement/AP/FX', 'critical', 'Mỗi Supplier Invoice chỉ có một AP FX recognition evidence canonical.', $this->duplicateSupplierInvoiceFxRecognition()),
+            new DataQualityFinding('supplier_invoice_fx_scope_mismatch', 'Procurement/AP/FX', 'critical', 'AP FX evidence phải cùng Company/Branch và khớp currency/amount với Supplier Invoice.', $this->supplierInvoiceFxScopeMismatch()),
+            new DataQualityFinding('supplier_invoice_fx_functional_currency_mismatch', 'Procurement/AP/FX', 'critical', 'Functional currency của AP FX evidence phải khớp Company governance.', $this->supplierInvoiceFxFunctionalCurrencyMismatch()),
+            new DataQualityFinding('supplier_invoice_fx_snapshot_pair_mismatch', 'Procurement/AP/FX', 'critical', 'Foreign AP recognition snapshot phải có đúng transaction/functional pair.', $this->supplierInvoiceFxSnapshotPairMismatch()),
+            new DataQualityFinding('supplier_invoice_fx_snapshot_rate_mismatch', 'Procurement/AP/FX', 'critical', 'AP recognition phải giữ đúng rate/date/type của immutable snapshot.', $this->supplierInvoiceFxSnapshotRateMismatch()),
+            new DataQualityFinding('supplier_invoice_fx_identity_invalid', 'Procurement/AP/FX', 'critical', 'Identity AP recognition phải dùng rate 1 và không tạo governed snapshot.', $this->supplierInvoiceFxIdentityInvalid()),
+            new DataQualityFinding('supplier_invoice_fx_journal_mismatch', 'Procurement/AP/FX/Accounting', 'critical', 'Supplier Invoice recognition phải trỏ đúng balanced policy-backed functional Journal.', $this->supplierInvoiceFxJournalMismatch()),
+            new DataQualityFinding('supplier_payment_fx_orphan_settlement', 'Procurement/AP/FX', 'critical', 'AP FX settlement phải truy được payment, allocation, recognition và Vendor Bill canonical.', $this->supplierPaymentFxOrphanSettlement()),
+            new DataQualityFinding('supplier_payment_fx_scope_mismatch', 'Procurement/AP/FX', 'critical', 'AP FX settlement, payment và recognition phải cùng Company và cùng Supplier Invoice.', $this->supplierPaymentFxScopeMismatch()),
+            new DataQualityFinding('supplier_payment_fx_snapshot_mismatch', 'Procurement/AP/FX', 'critical', 'Foreign AP settlement phải có immutable direct spot snapshot đúng currency pair, date và rate.', $this->supplierPaymentFxSnapshotMismatch()),
+            new DataQualityFinding('supplier_payment_fx_currency_mismatch', 'Procurement/AP/FX', 'critical', 'Payment, recognition, settlement và Treasury account phải dùng đúng transaction/functional currency.', $this->supplierPaymentFxCurrencyMismatch()),
+            new DataQualityFinding('supplier_payment_fx_released_basis_mismatch', 'Procurement/AP/FX', 'critical', 'Cumulative foreign settlement và released carrying basis không được vượt recognition gốc.', $this->supplierPaymentFxReleasedBasisMismatch()),
+            new DataQualityFinding('supplier_payment_fx_realized_mismatch', 'Procurement/AP/FX', 'critical', 'AP realized FX phải bằng released carrying basis trừ functional settlement.', $this->supplierPaymentFxRealizedMismatch()),
+            new DataQualityFinding('supplier_payment_fx_journal_mismatch', 'Procurement/AP/FX/Accounting', 'critical', 'AP payment Journal phải cân, dùng functional currency và khớp policy/source evidence.', $this->supplierPaymentFxJournalMismatch()),
+            new DataQualityFinding('supplier_payment_fx_treasury_mismatch', 'Procurement/AP/FX/Treasury', 'critical', 'Treasury outflow phải khớp payment source, transaction currency, amount và account.', $this->supplierPaymentFxTreasuryMismatch()),
+            new DataQualityFinding('inventory_receipt_fx_orphan_or_scope_mismatch', 'Procurement/Inventory/FX', 'critical', 'Receipt FX valuation phải trỏ đúng receipt line, PO và company/branch nguồn.', $this->inventoryReceiptFxOrphanOrScopeMismatch()),
+            new DataQualityFinding('inventory_receipt_fx_snapshot_mismatch', 'Procurement/Inventory/FX', 'critical', 'Foreign receipt valuation phải có immutable direct spot snapshot đúng pair/date/source.', $this->inventoryReceiptFxSnapshotMismatch()),
+            new DataQualityFinding('inventory_receipt_fx_movement_or_journal_mismatch', 'Procurement/Inventory/Accounting', 'critical', 'Functional inventory movement và GRNI journal phải khớp receipt valuation, policy và source.', $this->inventoryReceiptFxMovementOrJournalMismatch()),
+            new DataQualityFinding('inventory_receipt_fx_bill_match_mismatch', 'Procurement/AP/FX', 'critical', 'Bill matching phải release đúng GRNI, AP recognition và purchase price variance.', $this->inventoryReceiptFxBillMatchMismatch()),
         ];
         $rows = array_values(array_map(static fn (DataQualityFinding $finding): array => $finding->toArray(), $findings));
         $failed = count(array_filter($rows, static fn (array $row): bool => $row['count'] > 0 && $row['severity'] === 'critical'));
@@ -136,6 +244,172 @@ final class DataQualityAuditService
             'identity_issues' => $rows[20]['count'] + $rows[21]['count'] + $rows[22]['count'] + $rows[23]['count'],
             'score' => max(0, 100 - ($failed * 10) - ($warnings * 3)), 'checksum' => $checksum, 'findings' => $rows,
         ];
+    }
+
+    private function fxRateWithoutCompany(): int
+    {
+        if (! Schema::hasTable('finance_fx_rates')) {
+            return 0;
+        }
+
+        return DB::table('finance_fx_rates as rate')->leftJoin('companies as company', 'company.id', '=', 'rate.company_id')->whereNull('company.id')->count();
+    }
+
+    private function fxRateInvalidPair(): int
+    {
+        if (! Schema::hasTable('finance_fx_rates')) {
+            return 0;
+        }
+
+        return DB::table('finance_fx_rates')->where(fn (Builder $q): Builder => $q->whereColumn('base_currency', 'quote_currency')->orWhere('rate_decimal', '<=', 0)->orWhereRaw("base_currency NOT REGEXP '^[A-Z]{3}$'")->orWhereRaw("quote_currency NOT REGEXP '^[A-Z]{3}$'"))->count();
+    }
+
+    private function fxRateWithoutApproval(): int
+    {
+        if (! Schema::hasTable('finance_fx_rates')) {
+            return 0;
+        }
+
+        return DB::table('finance_fx_rates')->where('status', 'active')->where(fn (Builder $q): Builder => $q->whereNull('approved_by')->orWhereNull('approved_at')->orWhereNull('activated_by')->orWhereNull('activated_at')->orWhereColumn('created_by', 'approved_by'))->count();
+    }
+
+    private function fxRateOverlap(): int
+    {
+        if (! Schema::hasTable('finance_fx_rates')) {
+            return 0;
+        }
+
+        return DB::table('finance_fx_rates as a')->join('finance_fx_rates as b', static function (JoinClause $join): void {
+            $join->on('a.company_id', '=', 'b.company_id')->on('a.base_currency', '=', 'b.base_currency')->on('a.quote_currency', '=', 'b.quote_currency')->on('a.rate_type', '=', 'b.rate_type')->whereColumn('a.id', '<', 'b.id');
+        })->where('a.status', 'active')->where('b.status', 'active')->whereRaw("a.effective_from <= COALESCE(b.effective_to, '9999-12-31')")->whereRaw("b.effective_from <= COALESCE(a.effective_to, '9999-12-31')")->count();
+    }
+
+    private function fxSnapshotMismatch(): int
+    {
+        if (! Schema::hasTable('finance_fx_rate_snapshots')) {
+            return 0;
+        }
+
+        return DB::table('finance_fx_rate_snapshots as snapshot')->leftJoin('finance_fx_rates as rate', 'rate.id', '=', 'snapshot.fx_rate_id')->get([
+            'snapshot.*', 'rate.id as canonical_rate_id', 'rate.company_id as rate_company_id', 'rate.version as canonical_rate_version',
+            'rate.base_currency as canonical_base_currency', 'rate.quote_currency as canonical_quote_currency', 'rate.rate_decimal as canonical_rate_decimal',
+            'rate.rate_date as canonical_rate_date', 'rate.rate_type as canonical_rate_type', 'rate.source_reference as canonical_source_reference',
+        ])->sum(static function (object $row): int {
+            $companyId = self::evidenceInt($row->company_id ?? null);
+            $rateId = self::evidenceInt($row->fx_rate_id ?? null);
+            $rateVersion = self::evidenceInt($row->rate_version ?? null);
+            $sourceId = self::evidenceInt($row->source_id ?? null);
+            $base = self::evidenceString($row->base_currency ?? null);
+            $quote = self::evidenceString($row->quote_currency ?? null);
+            $rateDecimal = self::evidenceNumeric($row->rate_decimal ?? null);
+            $rateDate = self::evidenceString($row->rate_date ?? null);
+            $rateType = self::evidenceString($row->rate_type ?? null);
+            $sourceReference = self::evidenceString($row->source_reference ?? null);
+            $sourceType = self::evidenceString($row->source_type ?? null);
+            $checksumEvidence = self::evidenceString($row->checksum ?? null);
+            $snapshotEvidence = self::evidenceString($row->snapshot ?? null);
+            if ($companyId === null || $rateId === null || $rateVersion === null || $sourceId === null || $base === null || $quote === null || $rateDecimal === null || $rateDate === null || $rateType === null || $sourceReference === null || $sourceType === null || $checksumEvidence === null || $snapshotEvidence === null) {
+                return 1;
+            }
+            $payload = [
+                'company_id' => $companyId, 'fx_rate_id' => $rateId, 'rate_version' => $rateVersion,
+                'base_currency' => $base, 'quote_currency' => $quote, 'rate_decimal' => $rateDecimal,
+                'rate_date' => $rateDate, 'rate_type' => $rateType, 'source_reference' => $sourceReference,
+                'source_type' => $sourceType, 'source_id' => $sourceId,
+            ];
+            $checksum = hash('sha256', json_encode($payload, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES));
+            $canonicalCompanyId = self::evidenceInt($row->rate_company_id ?? null);
+            $canonicalVersion = self::evidenceInt($row->canonical_rate_version ?? null);
+            $canonicalRate = self::evidenceNumeric($row->canonical_rate_decimal ?? null);
+
+            return $row->canonical_rate_id === null
+                || $canonicalCompanyId !== $companyId
+                || $canonicalVersion !== $rateVersion
+                || $row->canonical_base_currency !== $row->base_currency
+                || $row->canonical_quote_currency !== $row->quote_currency
+                || $canonicalRate === null
+                || bccomp($canonicalRate, $rateDecimal, 12) !== 0
+                || self::evidenceString($row->canonical_rate_date ?? null) !== $rateDate
+                || $row->canonical_rate_type !== $row->rate_type
+                || $row->canonical_source_reference !== $row->source_reference
+                || $checksum !== $checksumEvidence
+                || json_decode($snapshotEvidence, true) !== $payload ? 1 : 0;
+        });
+    }
+
+    private function fxRevaluationPostedWithoutRateSnapshot(): int
+    {
+        if (! Schema::hasTable('finance_fx_revaluation_runs')) {
+            return 0;
+        }
+
+        return DB::table('finance_fx_revaluation_runs as run')->join('finance_fx_revaluation_lines as line', 'line.fx_revaluation_run_id', '=', 'run.id')->leftJoin('finance_fx_rate_snapshots as snapshot', 'snapshot.id', '=', 'line.fx_rate_snapshot_id')->whereIn('run.status', ['posted', 'reversed'])->where(static fn (Builder $query): Builder => $query
+            ->whereNull('snapshot.id')
+            ->orWhereColumn('snapshot.company_id', '<>', 'run.company_id')
+            ->orWhereColumn('line.company_id', '<>', 'run.company_id')
+            ->orWhereColumn('snapshot.source_id', '<>', 'line.source_id')
+            ->orWhereRaw("snapshot.source_type <> CONCAT('fx_revaluation:', run.id, ':', line.source_type)"))
+            ->count();
+    }
+
+    private function fxRevaluationPostedWithoutPolicy(): int
+    {
+        if (! Schema::hasTable('finance_fx_revaluation_runs')) {
+            return 0;
+        }
+
+        return DB::table('finance_fx_revaluation_runs as run')->join('finance_fx_revaluation_lines as line', 'line.fx_revaluation_run_id', '=', 'run.id')->leftJoin('accounting_posting_policies as policy', 'policy.id', '=', 'line.accounting_policy_id')->whereIn('run.status', ['posted', 'reversed'])->where(static fn (Builder $query): Builder => $query
+            ->whereNull('line.accounting_policy_id')
+            ->orWhereNull('line.policy_version')
+            ->orWhereNull('policy.id')
+            ->orWhereColumn('policy.company_id', '<>', 'run.company_id')
+            ->orWhereColumn('policy.version', '<>', 'line.policy_version'))
+            ->count();
+    }
+
+    private function fxRevaluationPostedWithoutJournal(): int
+    {
+        if (! Schema::hasTable('finance_fx_revaluation_runs')) {
+            return 0;
+        }
+
+        return DB::table('finance_fx_revaluation_runs as run')->leftJoin('payroll_accounting_journals as journal', 'journal.id', '=', 'run.accounting_journal_id')->whereIn('run.status', ['posted', 'reversed'])->where(static fn (Builder $query): Builder => $query
+            ->whereNull('journal.id')
+            ->orWhereColumn('journal.company_id', '<>', 'run.company_id')
+            ->orWhereColumn('journal.branch_id', '<>', 'run.branch_id')
+            ->orWhere('journal.source_type', '<>', 'fx_revaluation')
+            ->orWhereColumn('journal.source_id', '<>', 'run.id')
+            ->orWhereColumn('journal.total_debit_minor', '<>', 'journal.total_credit_minor'))
+            ->count();
+    }
+
+    private function fxRevaluationDuplicateSourcePosting(): int
+    {
+        if (! Schema::hasTable('finance_fx_revaluation_runs')) {
+            return 0;
+        }
+        $duplicates = DB::table('payroll_accounting_journals')->where('source_type', 'fx_revaluation')->whereNull('reversal_of_journal_id')->selectRaw('company_id, source_id, COUNT(*) duplicate_count')->groupBy('company_id', 'source_id')->havingRaw('COUNT(*) > 1');
+
+        return DB::query()->fromSub($duplicates, 'duplicates')->count();
+    }
+
+    private function fxRevaluationReversalLineageInvalid(): int
+    {
+        if (! Schema::hasTable('finance_fx_revaluation_runs')) {
+            return 0;
+        }
+
+        return DB::table('finance_fx_revaluation_runs as run')->leftJoin('payroll_accounting_journals as original', 'original.id', '=', 'run.accounting_journal_id')->leftJoin('payroll_accounting_journals as reversal', 'reversal.id', '=', 'run.reversal_journal_id')->where('run.status', 'reversed')->where(static fn (Builder $query): Builder => $query
+            ->whereNull('original.id')
+            ->orWhereNull('reversal.id')
+            ->orWhereColumn('reversal.reversal_of_journal_id', '<>', 'original.id')
+            ->orWhereColumn('original.company_id', '<>', 'run.company_id')
+            ->orWhereColumn('reversal.company_id', '<>', 'run.company_id')
+            ->orWhere('original.source_type', '<>', 'fx_revaluation')
+            ->orWhere('reversal.source_type', '<>', 'fx_revaluation')
+            ->orWhereColumn('original.source_id', '<>', 'run.id')
+            ->orWhereColumn('reversal.source_id', '<>', 'run.id'))
+            ->count();
     }
 
     private function duplicateEmployeeCodes(): int
@@ -486,6 +760,8 @@ final class DataQualityAuditService
     {
         $invalidRevenue = DB::table('branch_management_revenues as r')->join('orders as o', 'o.id', '=', 'r.order_id')
             ->leftJoin('commerce_fulfillments as f', 'f.order_id', '=', 'o.id')->where('r.source_type', 'commerce_order')
+            ->whereNotExists(static fn (Builder $query): Builder => $query->selectRaw('1')->from('commerce_sale_reversals as reversal')
+                ->whereColumn('reversal.original_revenue_id', 'r.id')->where('reversal.status', 'completed'))
             ->where(static fn (Builder $query): Builder => $query
                 ->where('o.payment_status', '<>', 'paid')
                 ->orWhere('f.status', '<>', 'delivered')
@@ -612,6 +888,230 @@ final class DataQualityAuditService
         return DB::query()->fromSub($duplicates, 'duplicate_source_posting')->count();
     }
 
+    private function journalWithoutSource(): int
+    {
+        if (! Schema::hasTable('accounting_journal_source_evidence')) {
+            return 0;
+        }
+
+        return DB::table('payroll_accounting_journals as journal')
+            ->whereNotNull('journal.generic_source_key')
+            ->whereIn('journal.status', ['internally_posted', 'exported'])
+            ->whereNotExists(static fn (Builder $query): Builder => $query->selectRaw('1')->from('accounting_journal_source_evidence as evidence')->whereColumn('evidence.journal_id', 'journal.id'))
+            ->count();
+    }
+
+    private function journalWithoutPolicy(): int
+    {
+        return DB::table('payroll_accounting_journals as journal')
+            ->whereIn('journal.source_type', $this->policyBackedSourceTypes())
+            ->whereIn('journal.status', ['internally_posted', 'exported'])
+            ->whereNotExists(static fn (Builder $query): Builder => $query->selectRaw('1')->from('payroll_accounting_journal_lines as line')->whereColumn('line.journal_id', 'journal.id')->whereRaw("JSON_EXTRACT(line.mapping_snapshot, '$.policy_id') IS NOT NULL")->whereRaw("JSON_EXTRACT(line.mapping_snapshot, '$.policy_version') IS NOT NULL"))
+            ->count();
+    }
+
+    private function missingAccountMapping(): int
+    {
+        return DB::table('payroll_accounting_journal_lines as line')
+            ->join('payroll_accounting_journals as journal', 'journal.id', '=', 'line.journal_id')
+            ->leftJoin('accounting_accounts as account', 'account.id', '=', 'line.account_id')
+            ->whereIn('journal.source_type', $this->policyBackedSourceTypes())
+            ->whereIn('journal.status', ['internally_posted', 'exported'])
+            ->where(static fn (Builder $query): Builder => $query->whereNull('account.id')->orWhereColumn('account.company_id', '<>', 'journal.company_id')->orWhereRaw("JSON_EXTRACT(line.mapping_snapshot, '$.policy_id') IS NULL")->orWhereRaw("JSON_EXTRACT(line.mapping_snapshot, '$.policy_version') IS NULL"))
+            ->count();
+    }
+
+    /** @return list<string> */
+    private function policyBackedSourceTypes(): array
+    {
+        return ['customer_invoice', 'vendor_bill', 'ap_payment', 'finance_asset', 'customer_credit_note', 'customer_refund', 'inventory_adjustment', 'asset_impairment', 'asset_disposal', 'treasury_opening_balance', 'treasury_internal_transfer', 'goods_receipt', 'customer_collection', 'sales_fulfillment', 'finance_expense'];
+    }
+
+    private function sourceWithoutPolicy(string $table, string $status, string $sourceType, string $idColumn): int
+    {
+        return DB::table($table.' as source')->where('source.status', $status)
+            ->whereNotExists(static fn (Builder $journal): Builder => $journal->selectRaw('1')->from('payroll_accounting_journals as journal')
+                ->whereColumn('journal.source_id', 'source.'.$idColumn)->where('journal.source_type', $sourceType)
+                ->whereIn('journal.status', ['internally_posted', 'exported'])
+                ->whereExists(static fn (Builder $line): Builder => $line->selectRaw('1')->from('payroll_accounting_journal_lines as line')->whereColumn('line.journal_id', 'journal.id')->whereRaw("JSON_EXTRACT(line.mapping_snapshot, '$.policy_id') IS NOT NULL")))
+            ->count();
+    }
+
+    private function cogsWithoutInventorySource(): int
+    {
+        return DB::table('sales_fulfillments as fulfillment')->leftJoin('inventory_movements as movement', 'movement.id', '=', 'fulfillment.inventory_movement_id')
+            ->where('fulfillment.status', 'fulfilled')->where(static fn (Builder $query): Builder => $query->whereNull('movement.id')->orWhere('movement.source_type', '<>', 'sales_fulfillment')->orWhereColumn('movement.source_id', '<>', 'fulfillment.id')
+            ->orWhereNotExists(static fn (Builder $journal): Builder => $journal->selectRaw('1')->from('payroll_accounting_journals as journal')->whereColumn('journal.source_id', 'fulfillment.id')->where('journal.source_type', 'sales_fulfillment')->whereIn('journal.status', ['internally_posted', 'exported'])
+                ->whereExists(static fn (Builder $line): Builder => $line->selectRaw('1')->from('payroll_accounting_journal_lines as line')->whereColumn('line.journal_id', 'journal.id')->whereRaw("JSON_EXTRACT(line.mapping_snapshot, '$.policy_id') IS NOT NULL"))))
+            ->count();
+    }
+
+    private function expenseWithoutPolicy(): int
+    {
+        return DB::table('finance_expenses as source')->whereIn('source.status', ['approved', 'paid'])
+            ->whereNotExists(static fn (Builder $journal): Builder => $journal->selectRaw('1')->from('payroll_accounting_journals as journal')->whereColumn('journal.source_id', 'source.id')->where('journal.source_type', 'finance_expense')->where('journal.posting_type', 'expense_incurred')->whereIn('journal.status', ['internally_posted', 'exported'])
+                ->whereExists(static fn (Builder $line): Builder => $line->selectRaw('1')->from('payroll_accounting_journal_lines as line')->whereColumn('line.journal_id', 'journal.id')->whereRaw("JSON_EXTRACT(line.mapping_snapshot, '$.policy_id') IS NOT NULL")))
+            ->count();
+    }
+
+    private function taxPostingWithoutMapping(): int
+    {
+        $invalid = 0;
+        foreach (['customer_invoices', 'vendor_bills'] as $table) {
+            if (! Schema::hasTable($table) || ! Schema::hasColumn($table, 'tax_minor') || ! Schema::hasColumn($table, 'tax_status')) {
+                continue;
+            }
+            $invalid += DB::table($table)->where('tax_minor', '>', 0)
+                ->where(static fn (Builder $query): Builder => $query->whereNull('tax_status')->orWhere('tax_status', '<>', 'configured'))
+                ->count();
+        }
+
+        return $invalid;
+    }
+
+    private function taxWithoutPolicy(): int
+    {
+        if (! Schema::hasTable('tax_transaction_evidence')) {
+            return 0;
+        }
+
+        return DB::table('tax_transaction_evidence as evidence')->leftJoin('vat_policies as policy', 'policy.id', '=', 'evidence.tax_policy_id')->where(static fn (Builder $query): Builder => $query->whereNull('policy.id')->orWhereColumn('policy.company_id', '<>', 'evidence.company_id')->orWhere('policy.status', '<>', 'approved')->orWhereColumn('policy.version', '<>', 'evidence.policy_version'))->count();
+    }
+
+    private function taxWithoutRate(): int
+    {
+        if (! Schema::hasTable('tax_transaction_evidence')) {
+            return 0;
+        }
+
+        return DB::table('tax_transaction_evidence')->where(static fn (Builder $query): Builder => $query->where('rate_basis_points', '>', 10_000)->orWhereRaw('tax_amount_minor <> ROUND(taxable_amount_minor * rate_basis_points / 10000)'))->count();
+    }
+
+    private function taxWithoutMapping(): int
+    {
+        if (! Schema::hasTable('vat_policies')) {
+            return 0;
+        }
+
+        return DB::table('vat_policies as policy')->leftJoin('accounting_accounts as account', 'account.id', '=', 'policy.tax_account_id')->leftJoin('accounting_posting_policies as posting', 'posting.id', '=', 'policy.accounting_posting_policy_id')->where('policy.status', 'approved')->where(static fn (Builder $query): Builder => $query->whereNull('account.id')->orWhereColumn('account.company_id', '<>', 'policy.company_id')->orWhereNull('posting.id')->orWhereColumn('posting.company_id', '<>', 'policy.company_id')->orWhere('posting.status', '<>', 'approved'))->count();
+    }
+
+    private function taxJournalWithoutSource(): int
+    {
+        if (! Schema::hasTable('tax_transaction_evidence')) {
+            return 0;
+        }
+
+        return DB::table('tax_transaction_evidence as evidence')->leftJoin('payroll_accounting_journals as journal', 'journal.id', '=', 'evidence.accounting_journal_id')->where(static fn (Builder $query): Builder => $query->whereNull('journal.id')->orWhereColumn('journal.company_id', '<>', 'evidence.company_id')->orWhereColumn('journal.source_type', '<>', 'evidence.source_type')->orWhereColumn('journal.source_id', '<>', 'evidence.source_id'))->count();
+    }
+
+    private function invalidTaxPeriod(): int
+    {
+        if (! Schema::hasTable('tax_transaction_evidence')) {
+            return 0;
+        }
+
+        return DB::table('tax_transaction_evidence as evidence')->join('vat_policies as policy', 'policy.id', '=', 'evidence.tax_policy_id')->where('evidence.source_type', '<>', 'customer_credit_note')->where(static fn (Builder $query): Builder => $query->whereColumn('evidence.posting_date', '<', 'policy.effective_from')->orWhere(static fn (Builder $nested): Builder => $nested->whereNotNull('policy.effective_to')->whereColumn('evidence.posting_date', '>', 'policy.effective_to')))->count();
+    }
+
+    private function taxPolicyWithoutCompany(): int
+    {
+        if (! Schema::hasTable('vat_policies')) {
+            return 0;
+        }
+
+        return DB::table('vat_policies as policy')->leftJoin('tax_categories as category', 'category.id', '=', 'policy.tax_category_id')->leftJoin('accounting_accounts as account', 'account.id', '=', 'policy.tax_account_id')->leftJoin('accounting_posting_policies as posting', 'posting.id', '=', 'policy.accounting_posting_policy_id')->where(static fn (Builder $query): Builder => $query->whereNull('category.id')->orWhereColumn('category.company_id', '<>', 'policy.company_id')->orWhereNull('account.id')->orWhereColumn('account.company_id', '<>', 'policy.company_id')->orWhereNull('posting.id')->orWhereColumn('posting.company_id', '<>', 'policy.company_id'))->count();
+    }
+
+    private function taxPolicyOverlap(): int
+    {
+        if (! Schema::hasTable('vat_policies')) {
+            return 0;
+        }
+
+        return DB::table('vat_policies as left_policy')->join('vat_policies as right_policy', static function (JoinClause $join): void {
+            $join->on('right_policy.company_id', '=', 'left_policy.company_id')->on('right_policy.tax_category_id', '=', 'left_policy.tax_category_id')->on('right_policy.currency', '=', 'left_policy.currency')->on('right_policy.id', '>', 'left_policy.id');
+        })->where(['left_policy.status' => 'approved', 'right_policy.status' => 'approved'])->whereRaw("left_policy.effective_from <= COALESCE(right_policy.effective_to, '9999-12-31')")->whereRaw("right_policy.effective_from <= COALESCE(left_policy.effective_to, '9999-12-31')")->count();
+    }
+
+    private function journalWithoutTaxEvidence(): int
+    {
+        if (! Schema::hasTable('tax_transaction_evidence')) {
+            return 0;
+        }
+        $count = 0;
+        foreach ([['customer_invoices', 'customer_invoice'], ['vendor_bills', 'vendor_bill']] as [$table, $sourceType]) {
+            $count += DB::table($table.' as source')->join('payroll_accounting_journals as journal', 'journal.source_id', '=', 'source.id')->where('journal.source_type', $sourceType)->where('source.tax_minor', '>', 0)->whereNotExists(static fn (Builder $query): Builder => $query->selectRaw('1')->from('tax_transaction_evidence as evidence')->whereColumn('evidence.accounting_journal_id', 'journal.id')->whereColumn('evidence.source_id', 'source.id')->where('evidence.source_type', $sourceType))->count();
+        }
+
+        return $count;
+    }
+
+    private function creditNoteWithoutTaxSource(): int
+    {
+        if (! Schema::hasTable('customer_credit_notes') || ! Schema::hasTable('tax_transaction_evidence')) {
+            return 0;
+        }
+
+        return DB::table('customer_credit_notes as note')->leftJoin('tax_transaction_evidence as source', static function (JoinClause $join): void {
+            $join->on('source.company_id', '=', 'note.company_id')->on('source.source_id', '=', 'note.customer_invoice_id')->where('source.source_type', 'customer_invoice');
+        })->where('note.status', 'posted')->where('note.tax_minor', '>', 0)->where(static fn (Builder $query): Builder => $query->whereNull('source.id')->orWhereColumn('source.branch_id', '<>', 'note.branch_id')->orWhereColumn('source.currency', '<>', 'note.currency'))->count();
+    }
+
+    private function creditNoteTaxWithoutJournal(): int
+    {
+        if (! Schema::hasTable('customer_credit_notes') || ! Schema::hasTable('tax_transaction_evidence')) {
+            return 0;
+        }
+
+        return DB::table('customer_credit_notes as note')->leftJoin('tax_transaction_evidence as evidence', static function (JoinClause $join): void {
+            $join->on('evidence.company_id', '=', 'note.company_id')->on('evidence.source_id', '=', 'note.id')->where('evidence.source_type', 'customer_credit_note');
+        })->leftJoin('payroll_accounting_journals as journal', 'journal.id', '=', 'evidence.accounting_journal_id')->where('note.status', 'posted')->where('note.tax_minor', '>', 0)->where(static fn (Builder $query): Builder => $query->whereNull('evidence.id')->orWhereNull('journal.id')->orWhereColumn('journal.id', '<>', 'note.accounting_journal_id')->orWhereColumn('evidence.tax_amount_minor', '<>', 'note.tax_minor'))->count();
+    }
+
+    private function creditNoteTaxOverOriginal(): int
+    {
+        if (! Schema::hasTable('customer_credit_notes') || ! Schema::hasTable('tax_transaction_evidence')) {
+            return 0;
+        }
+        $reversals = DB::table('customer_credit_notes')->where('status', 'posted')->where('tax_minor', '>', 0)->selectRaw('company_id, customer_invoice_id, SUM(net_minor) taxable_minor, SUM(tax_minor) tax_minor')->groupBy('company_id', 'customer_invoice_id');
+
+        return DB::query()->fromSub($reversals, 'reversal')->join('tax_transaction_evidence as source', static function (JoinClause $join): void {
+            $join->on('source.company_id', '=', 'reversal.company_id')->on('source.source_id', '=', 'reversal.customer_invoice_id')->where('source.source_type', 'customer_invoice');
+        })->where(static fn (Builder $query): Builder => $query->whereColumn('reversal.taxable_minor', '>', 'source.taxable_amount_minor')->orWhereColumn('reversal.tax_minor', '>', 'source.tax_amount_minor'))->count();
+    }
+
+    private function duplicateTaxReversal(): int
+    {
+        if (! Schema::hasTable('tax_transaction_evidence')) {
+            return 0;
+        }
+
+        return DB::query()->fromSub(DB::table('tax_transaction_evidence')->where('source_type', 'customer_credit_note')->selectRaw('company_id, source_id, COUNT(*) duplicate_count')->groupBy('company_id', 'source_id')->havingRaw('COUNT(*) > 1'), 'duplicates')->count();
+    }
+
+    private function legacyAccountMappingUsage(): int
+    {
+        return DB::table('payroll_accounting_journal_lines as line')->join('payroll_accounting_journals as journal', 'journal.id', '=', 'line.journal_id')
+            ->whereIn('journal.source_type', $this->policyBackedSourceTypes())->whereIn('journal.status', ['internally_posted', 'exported'])
+            ->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(line.mapping_snapshot, '$.policy')) = 'canonical_source_posting_v1'")->count();
+    }
+
+    private function journalWithoutPolicySnapshot(): int
+    {
+        return DB::table('payroll_accounting_journals as journal')->whereIn('journal.source_type', $this->policyBackedSourceTypes())
+            ->whereIn('journal.status', ['internally_posted', 'exported'])
+            ->whereNotExists(static fn (Builder $query): Builder => $query->selectRaw('1')->from('payroll_accounting_journal_lines as line')->whereColumn('line.journal_id', 'journal.id')->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(line.mapping_snapshot, '$.policy')) = 'accounting_posting_policy'"))->count();
+    }
+
+    private function policyVersionMissing(): int
+    {
+        return DB::table('payroll_accounting_journal_lines as line')->join('payroll_accounting_journals as journal', 'journal.id', '=', 'line.journal_id')
+            ->whereIn('journal.source_type', $this->policyBackedSourceTypes())->whereIn('journal.status', ['internally_posted', 'exported'])
+            ->whereRaw("JSON_EXTRACT(line.mapping_snapshot, '$.policy_id') IS NOT NULL")
+            ->whereRaw("JSON_EXTRACT(line.mapping_snapshot, '$.policy_version') IS NULL")->count();
+    }
+
     private function receivedGoodsMissingMovement(): int
     {
         return DB::table('procurement_goods_receipts as g')->join('procurement_goods_receipt_lines as l', 'l.goods_receipt_id', '=', 'g.id')->leftJoin('inventory_movements as m', 'm.id', '=', 'l.inventory_movement_id')->where('g.status', 'received')->where(static fn (Builder $query): Builder => $query->whereNull('m.id')->orWhere('m.source_type', '<>', 'procurement_goods_receipt_line')->orWhereColumn('m.source_id', '<>', 'l.id'))->count();
@@ -692,6 +1192,45 @@ final class DataQualityAuditService
         return DB::table('treasury_statement_lines as l')->leftJoin('treasury_transactions as t', 't.id', '=', 'l.treasury_transaction_id')->where('l.status', 'reconciled')->where(static fn (Builder $query): Builder => $query->whereNull('t.id')->orWhereColumn('t.company_id', '<>', 'l.company_id')->orWhereRaw("l.amount_minor <> CASE WHEN t.direction = 'outflow' THEN -t.amount_minor ELSE t.amount_minor END"))->count();
     }
 
+    private function treasuryOpeningBalanceInvalidLineage(): int
+    {
+        try {
+            return DB::table('treasury_opening_balances as opening')->join('treasury_financial_accounts as financial', 'financial.id', '=', 'opening.treasury_financial_account_id')->join('accounting_accounts as ledger', 'ledger.id', '=', 'financial.accounting_account_id')->where(static fn (Builder $query): Builder => $query->whereColumn('opening.company_id', '<>', 'financial.company_id')->orWhereColumn('opening.company_id', '<>', 'ledger.company_id')->orWhereColumn('opening.currency', '<>', 'financial.currency')->orWhere('financial.status', '<>', 'active')->orWhere('ledger.status', '<>', 'active')->orWhere('ledger.allow_posting', false))->count();
+        } catch (QueryException) {
+            return 0;
+        }
+    }
+
+    private function treasuryOpeningBalanceInvalidPosting(): int
+    {
+        try {
+            return DB::table('treasury_opening_balances as opening')->leftJoin('accounting_posting_policies as policy', 'policy.id', '=', 'opening.accounting_posting_policy_id')->leftJoin('payroll_accounting_journals as journal', 'journal.id', '=', 'opening.accounting_journal_id')->where('opening.status', 'posted')->where(static fn (Builder $query): Builder => $query->whereNull('policy.id')->orWhereColumn('policy.company_id', '<>', 'opening.company_id')->orWhereColumn('policy.version', '<>', 'opening.accounting_posting_policy_version')->orWhereNull('journal.id')->orWhereColumn('journal.company_id', '<>', 'opening.company_id')->orWhereColumn('journal.source_id', '<>', 'opening.id')->orWhere('journal.source_type', '<>', 'treasury_opening_balance')->orWhere('journal.posting_type', '<>', 'treasury_opening_balance')->orWhereColumn('journal.currency', '<>', 'opening.currency')->orWhereColumn('journal.posting_date', '<>', 'opening.effective_date')->orWhereRaw('journal.total_debit_minor <> ABS(opening.posting_adjustment_minor)')->orWhereColumn('journal.total_debit_minor', '<>', 'journal.total_credit_minor'))->count();
+        } catch (QueryException) {
+            return 0;
+        }
+    }
+
+    private function treasuryInternalTransferInvalidPosting(): int
+    {
+        try {
+            $invalidHeader = DB::table('treasury_internal_transfers as transfer')
+                ->join('treasury_financial_accounts as source', 'source.id', '=', 'transfer.source_treasury_account_id')
+                ->join('treasury_financial_accounts as destination', 'destination.id', '=', 'transfer.destination_treasury_account_id')
+                ->leftJoin('payroll_accounting_journals as journal', 'journal.id', '=', 'transfer.accounting_journal_id')
+                ->leftJoin('treasury_internal_transfers as original', 'original.id', '=', 'transfer.reversal_of_transfer_id')
+                ->leftJoin('payroll_accounting_journals as original_journal', 'original_journal.id', '=', 'original.accounting_journal_id')
+                ->where('transfer.status', 'posted')
+                ->where(static fn (Builder $query): Builder => $query->whereColumn('source.id', 'destination.id')->orWhereColumn('source.company_id', '<>', 'transfer.company_id')->orWhereColumn('destination.company_id', '<>', 'transfer.company_id')->orWhereColumn('source.currency', '<>', 'transfer.currency')->orWhereColumn('destination.currency', '<>', 'transfer.currency')->orWhereNotIn('source.type', ['cash', 'bank'])->orWhereNotIn('destination.type', ['cash', 'bank'])->orWhereNull('journal.id')->orWhereColumn('journal.company_id', '<>', 'transfer.company_id')->orWhereColumn('journal.source_id', '<>', 'transfer.id')->orWhere('journal.source_type', '<>', 'treasury_internal_transfer')->orWhereColumn('journal.total_debit_minor', '<>', 'transfer.amount_minor')->orWhereColumn('journal.total_debit_minor', '<>', 'journal.total_credit_minor')->orWhere(static fn (Builder $reversal): Builder => $reversal->whereNotNull('transfer.reversal_of_transfer_id')->where(static fn (Builder $invalid): Builder => $invalid->whereColumn('transfer.id', 'transfer.reversal_of_transfer_id')->orWhereNull('original.id')->orWhereNotNull('original.reversal_of_transfer_id')->orWhere('original.status', '<>', 'posted')->orWhereColumn('transfer.company_id', '<>', 'original.company_id')->orWhereColumn('transfer.currency', '<>', 'original.currency')->orWhereColumn('transfer.amount_minor', '<>', 'original.amount_minor')->orWhereColumn('transfer.source_treasury_account_id', '<>', 'original.destination_treasury_account_id')->orWhereColumn('transfer.destination_treasury_account_id', '<>', 'original.source_treasury_account_id')->orWhereColumn('journal.reversal_of_journal_id', '<>', 'original_journal.id'))))
+                ->count();
+            $invalidLegs = DB::table('treasury_internal_transfers as transfer')->where('transfer.status', 'posted')->whereRaw("(SELECT COUNT(*) FROM treasury_internal_transfer_legs leg WHERE leg.treasury_internal_transfer_id = transfer.id) <> 2 OR (SELECT COUNT(*) FROM treasury_internal_transfer_legs leg WHERE leg.treasury_internal_transfer_id = transfer.id AND leg.leg_role = 'SOURCE_OUT' AND leg.direction = 'outflow' AND leg.amount_minor = transfer.amount_minor AND leg.currency = transfer.currency AND leg.treasury_transaction_id IS NOT NULL) <> 1 OR (SELECT COUNT(*) FROM treasury_internal_transfer_legs leg WHERE leg.treasury_internal_transfer_id = transfer.id AND leg.leg_role = 'DESTINATION_IN' AND leg.direction = 'inflow' AND leg.amount_minor = transfer.amount_minor AND leg.currency = transfer.currency AND leg.treasury_transaction_id IS NOT NULL) <> 1")->count();
+            $invalidTransactions = DB::table('treasury_internal_transfer_legs as leg')->join('treasury_internal_transfers as transfer', 'transfer.id', '=', 'leg.treasury_internal_transfer_id')->leftJoin('treasury_transactions as tx', 'tx.id', '=', 'leg.treasury_transaction_id')->where('transfer.status', 'posted')->where(static fn (Builder $query): Builder => $query->whereNull('tx.id')->orWhere('tx.source_type', '<>', 'treasury_internal_transfer_leg')->orWhereColumn('tx.source_id', '<>', 'leg.id')->orWhereColumn('tx.company_id', '<>', 'transfer.company_id')->orWhereColumn('tx.financial_account_id', '<>', 'leg.treasury_financial_account_id')->orWhereColumn('tx.direction', '<>', 'leg.direction')->orWhereColumn('tx.amount_minor', '<>', 'leg.amount_minor')->orWhereColumn('tx.currency', '<>', 'leg.currency')->orWhereColumn('tx.accounting_journal_id', '<>', 'transfer.accounting_journal_id'))->count();
+
+            return $invalidHeader + $invalidLegs + $invalidTransactions;
+        } catch (QueryException) {
+            return 0;
+        }
+    }
+
     private function periodClosedWithBlocker(): int
     {
         return DB::table('accounting_periods as p')->whereIn('p.status', ['soft_closed', 'closed'])->whereExists(static fn (Builder $request): Builder => $request->selectRaw('1')->from('accounting_period_close_requests as any_request')->whereColumn('any_request.accounting_period_id', 'p.id'))->whereNotExists(static function (Builder $query): void {
@@ -721,7 +1260,13 @@ final class DataQualityAuditService
 
     private function issuedInvoiceMissingAccounting(): int
     {
-        return DB::table('customer_invoices as i')->leftJoin('payroll_accounting_journals as j', 'j.id', '=', 'i.accounting_journal_id')->whereIn('i.status', ['issued', 'partially_paid', 'paid'])->where(static fn (Builder $query): Builder => $query->whereNull('j.id')->orWhereColumn('j.company_id', '<>', 'i.company_id')->orWhereColumn('j.total_debit_minor', '<>', 'i.total_minor')->orWhereColumn('j.total_debit_minor', '<>', 'j.total_credit_minor'))->count();
+        $query = DB::table('customer_invoices as i')->leftJoin('payroll_accounting_journals as j', 'j.id', '=', 'i.accounting_journal_id');
+        if (Schema::hasTable('customer_invoice_fx_recognitions')) {
+            $query->leftJoin('customer_invoice_fx_recognitions as recognition', 'recognition.customer_invoice_id', '=', 'i.id');
+        }
+        $recognizedAmount = Schema::hasTable('customer_invoice_fx_recognitions') ? 'COALESCE(recognition.functional_amount_minor, i.total_minor)' : 'i.total_minor';
+
+        return $query->whereIn('i.status', ['issued', 'partially_paid', 'paid'])->where(static fn (Builder $query): Builder => $query->whereNull('j.id')->orWhereColumn('j.company_id', '<>', 'i.company_id')->orWhereRaw("j.total_debit_minor <> {$recognizedAmount}")->orWhereColumn('j.total_debit_minor', '<>', 'j.total_credit_minor'))->count();
     }
 
     private function invoiceOutstandingMismatch(): int
@@ -739,17 +1284,145 @@ final class DataQualityAuditService
     private function collectionLineageMismatch(): int
     {
         $allocated = DB::table('customer_collection_allocations')->selectRaw('customer_collection_id, SUM(allocated_minor) allocated')->groupBy('customer_collection_id');
+        $functional = $this->arFxSchemaReady()
+            ? DB::table('customer_collection_allocations as allocation')->join('customer_collection_allocation_fx_settlements as settlement', 'settlement.customer_collection_allocation_id', '=', 'allocation.id')->selectRaw('allocation.customer_collection_id, SUM(GREATEST(settlement.settlement_functional_minor, settlement.released_carrying_minor)) journal_amount')->groupBy('allocation.customer_collection_id')
+            : null;
+        $query = DB::table('customer_collections as c')->leftJoinSub($allocated, 'a', 'a.customer_collection_id', '=', 'c.id')->leftJoin('treasury_transactions as t', 't.id', '=', 'c.treasury_transaction_id')->leftJoin('payroll_accounting_journals as j', 'j.id', '=', 'c.accounting_journal_id');
+        if ($functional !== null) {
+            $query->leftJoinSub($functional, 'fx', 'fx.customer_collection_id', '=', 'c.id');
+        }
+        $expectedJournal = $functional === null ? 'c.amount_minor' : 'COALESCE(fx.journal_amount,c.amount_minor)';
 
-        return DB::table('customer_collections as c')->leftJoinSub($allocated, 'a', 'a.customer_collection_id', '=', 'c.id')->leftJoin('treasury_transactions as t', 't.id', '=', 'c.treasury_transaction_id')->leftJoin('payroll_accounting_journals as j', 'j.id', '=', 'c.accounting_journal_id')->where('c.status', 'recorded')->where(static fn (Builder $query): Builder => $query->whereRaw('c.allocated_minor <> COALESCE(a.allocated,0) OR c.allocated_minor > c.amount_minor')->orWhereNull('t.id')->orWhere('t.direction', '<>', 'inflow')->orWhereColumn('t.company_id', '<>', 'c.company_id')->orWhereColumn('t.amount_minor', '<>', 'c.amount_minor')->orWhereNull('j.id')->orWhereColumn('j.company_id', '<>', 'c.company_id')->orWhereColumn('j.total_debit_minor', '<>', 'c.amount_minor')->orWhereColumn('j.total_debit_minor', '<>', 'j.total_credit_minor'))->count();
+        return $query->where('c.status', 'recorded')->where(static fn (Builder $query): Builder => $query->whereRaw('c.allocated_minor <> COALESCE(a.allocated,0) OR c.allocated_minor > c.amount_minor')->orWhereNull('t.id')->orWhere('t.direction', '<>', 'inflow')->orWhereColumn('t.company_id', '<>', 'c.company_id')->orWhereColumn('t.amount_minor', '<>', 'c.amount_minor')->orWhereNull('j.id')->orWhereColumn('j.company_id', '<>', 'c.company_id')->orWhereRaw("j.total_debit_minor <> {$expectedJournal}")->orWhereColumn('j.total_debit_minor', '<>', 'j.total_credit_minor'))->count();
     }
 
     private function arGeneralLedgerMismatch(): int
     {
-        $subledger = DB::table('customer_invoices')->whereIn('status', ['issued', 'partially_paid'])->selectRaw('company_id, SUM(total_minor-paid_minor) balance')->groupBy('company_id');
+        $credit = Schema::hasTable('customer_credit_notes')
+            ? DB::table('customer_credit_notes')->where('status', 'posted')->selectRaw('customer_invoice_id, SUM(ar_reduction_minor) reduced')->groupBy('customer_invoice_id')
+            : null;
+        $subledger = DB::table('customer_invoices as invoice')->whereIn('invoice.status', ['issued', 'partially_paid']);
+        if ($credit !== null) {
+            $subledger->leftJoinSub($credit, 'credit', 'credit.customer_invoice_id', '=', 'invoice.id');
+        }
+        $reduced = $credit === null ? '0' : 'COALESCE(credit.reduced,0)';
+        $subledger->selectRaw('invoice.company_id, SUM(GREATEST(invoice.total_minor-invoice.paid_minor-'.$reduced.',0)) balance')->groupBy('invoice.company_id');
         $ledger = DB::table('payroll_accounting_journal_lines as l')->join('payroll_accounting_journals as j', 'j.id', '=', 'l.journal_id')->where('l.account_code_snapshot', '1150')->whereIn('j.status', ['internally_posted', 'exported'])->selectRaw('j.company_id, SUM(CAST(l.debit_minor AS SIGNED)-CAST(l.credit_minor AS SIGNED)) balance')->groupBy('j.company_id');
 
         return DB::query()->fromSub($subledger, 'ar')->leftJoinSub($ledger, 'gl', 'gl.company_id', '=', 'ar.company_id')->whereRaw('ar.balance <> COALESCE(gl.balance,0)')->count()
             + DB::query()->fromSub($ledger, 'gl')->leftJoinSub($subledger, 'ar', 'ar.company_id', '=', 'gl.company_id')->whereNull('ar.company_id')->where('gl.balance', '<>', 0)->count();
+    }
+
+    private function invalidCustomerCreditNote(): int
+    {
+        if (! Schema::hasTable('customer_credit_notes')) {
+            return 0;
+        }
+        $lineSums = DB::table('customer_credit_note_lines')->selectRaw('customer_credit_note_id, SUM(net_minor) net, SUM(tax_minor) tax, SUM(total_minor) total')->groupBy('customer_credit_note_id');
+        $invalidHeaders = DB::table('customer_credit_notes as note')
+            ->join('customer_invoices as invoice', 'invoice.id', '=', 'note.customer_invoice_id')
+            ->leftJoinSub($lineSums, 'line_sum', 'line_sum.customer_credit_note_id', '=', 'note.id')
+            ->leftJoin('payroll_accounting_journals as journal', 'journal.id', '=', 'note.accounting_journal_id')
+            ->where('note.status', 'posted')
+            ->where(static fn (Builder $query): Builder => $query
+                ->whereColumn('invoice.company_id', '<>', 'note.company_id')->orWhereColumn('invoice.branch_id', '<>', 'note.branch_id')
+                ->orWhereColumn('invoice.customer_id', '<>', 'note.customer_id')->orWhereColumn('invoice.currency', '<>', 'note.currency')
+                ->orWhereRaw('note.net_minor+note.tax_minor<>note.total_minor')->orWhereRaw('note.ar_reduction_minor+note.customer_credit_liability_minor<>note.total_minor')
+                ->orWhereRaw('COALESCE(line_sum.net,0)<>note.net_minor OR COALESCE(line_sum.tax,0)<>note.tax_minor OR COALESCE(line_sum.total,0)<>note.total_minor')
+                ->orWhereNull('journal.id')->orWhereColumn('journal.company_id', '<>', 'note.company_id')->orWhereColumn('journal.source_id', '<>', 'note.id')
+                ->orWhere('journal.source_type', '<>', 'customer_credit_note')->orWhereColumn('journal.total_debit_minor', '<>', 'journal.total_credit_minor')->orWhereColumn('journal.total_debit_minor', '<>', 'note.total_minor'))
+            ->count();
+        $invalidLines = DB::table('customer_credit_note_lines as line')->join('customer_credit_notes as note', 'note.id', '=', 'line.customer_credit_note_id')->join('customer_invoice_lines as source', 'source.id', '=', 'line.customer_invoice_line_id')->where('note.status', 'posted')
+            ->where(static fn (Builder $query): Builder => $query->whereColumn('source.customer_invoice_id', '<>', 'note.customer_invoice_id')->orWhereRaw('line.net_minor+line.tax_minor<>line.total_minor'))->count();
+        $overCredit = DB::table('customer_credit_notes')->where('status', 'posted')->selectRaw('customer_invoice_id, SUM(total_minor) credited')->groupBy('customer_invoice_id');
+        $overCreditCount = DB::query()->fromSub($overCredit, 'credit')->join('customer_invoices as invoice', 'invoice.id', '=', 'credit.customer_invoice_id')->whereColumn('credit.credited', '>', 'invoice.total_minor')->count();
+
+        return $invalidHeaders + $invalidLines + $overCreditCount;
+    }
+
+    private function crmLeadWithoutCompany(): int
+    {
+        if (! Schema::hasTable('crm_leads')) {
+            return 0;
+        }
+
+        return DB::table('crm_leads as lead')->leftJoin('companies as company', 'company.id', '=', 'lead.company_id')->leftJoin('branches as branch', 'branch.id', '=', 'lead.branch_id')->leftJoin('users as owner', 'owner.id', '=', 'lead.owner_id')->where(static fn (Builder $query): Builder => $query->whereNull('company.id')->orWhereNull('owner.id')->orWhere(static fn (Builder $branchScope): Builder => $branchScope->whereNotNull('lead.branch_id')->where(static fn (Builder $invalid): Builder => $invalid->whereNull('branch.id')->orWhereColumn('branch.company_id', '<>', 'lead.company_id'))))->count();
+    }
+
+    private function crmOpportunityWithoutCompany(): int
+    {
+        if (! Schema::hasTable('crm_opportunities')) {
+            return 0;
+        }
+
+        return DB::table('crm_opportunities as opportunity')->leftJoin('companies as company', 'company.id', '=', 'opportunity.company_id')->leftJoin('branches as branch', 'branch.id', '=', 'opportunity.branch_id')->leftJoin('crm_leads as lead', 'lead.id', '=', 'opportunity.lead_id')->leftJoin('commerce_customers as customer', 'customer.id', '=', 'opportunity.customer_id')->leftJoin('users as owner', 'owner.id', '=', 'opportunity.owner_id')->where(static fn (Builder $query): Builder => $query->whereNull('company.id')->orWhereNull('owner.id')->orWhere(static fn (Builder $branchScope): Builder => $branchScope->whereNotNull('opportunity.branch_id')->where(static fn (Builder $invalid): Builder => $invalid->whereNull('branch.id')->orWhereColumn('branch.company_id', '<>', 'opportunity.company_id')))->orWhere(static fn (Builder $leadScope): Builder => $leadScope->whereNotNull('opportunity.lead_id')->where(static fn (Builder $invalid): Builder => $invalid->whereNull('lead.id')->orWhereColumn('lead.company_id', '<>', 'opportunity.company_id')))->orWhere(static fn (Builder $customerScope): Builder => $customerScope->whereNotNull('opportunity.customer_id')->where(static fn (Builder $invalid): Builder => $invalid->whereNull('customer.id')->orWhereColumn('customer.company_id', '<>', 'opportunity.company_id'))))->count();
+    }
+
+    private function crmInvalidStage(): int
+    {
+        if (! Schema::hasTable('crm_leads') || ! Schema::hasTable('crm_opportunities')) {
+            return 0;
+        }
+
+        return DB::table('crm_leads')->whereNotIn('status', ['new', 'contacted', 'qualified', 'converted', 'lost'])->count()
+            + DB::table('crm_opportunities')->whereNotIn('stage', ['discovery', 'qualification', 'proposal', 'negotiation', 'won', 'lost'])->count();
+    }
+
+    private function customerRefundWithoutCreditNote(): int
+    {
+        if (! Schema::hasTable('customer_refunds')) {
+            return 0;
+        }
+
+        return DB::table('customer_refunds as refund')->whereNotExists(static fn (Builder $allocation): Builder => $allocation->selectRaw('1')->from('customer_refund_allocations as allocation')->whereColumn('allocation.customer_refund_id', 'refund.id'))->count()
+            + DB::table('customer_refund_allocations as allocation')->join('customer_refunds as refund', 'refund.id', '=', 'allocation.customer_refund_id')->leftJoin('customer_credit_notes as note', 'note.id', '=', 'allocation.customer_credit_note_id')->where(static fn (Builder $query): Builder => $query->whereNull('note.id')->orWhere('note.status', '<>', 'posted')->orWhereColumn('note.company_id', '<>', 'refund.company_id')->orWhereColumn('note.branch_id', '<>', 'refund.branch_id')->orWhereColumn('note.customer_id', '<>', 'refund.customer_id')->orWhereColumn('note.currency', '<>', 'refund.currency'))->count();
+    }
+
+    private function customerRefundOverLiability(): int
+    {
+        if (! Schema::hasTable('customer_refunds')) {
+            return 0;
+        }
+        $allocated = DB::table('customer_refund_allocations as allocation')->join('customer_refunds as refund', 'refund.id', '=', 'allocation.customer_refund_id')->whereIn('refund.status', ['draft', 'submitted', 'approved', 'posted'])->selectRaw('allocation.customer_credit_note_id, SUM(allocation.allocated_minor) allocated')->groupBy('allocation.customer_credit_note_id');
+
+        return DB::query()->fromSub($allocated, 'allocated')->join('customer_credit_notes as note', 'note.id', '=', 'allocated.customer_credit_note_id')->whereColumn('allocated.allocated', '>', 'note.customer_credit_liability_minor')->count();
+    }
+
+    private function customerRefundWithoutTreasury(): int
+    {
+        if (! Schema::hasTable('customer_refunds')) {
+            return 0;
+        }
+
+        return DB::table('customer_refunds as refund')->leftJoin('treasury_transactions as treasury', 'treasury.id', '=', 'refund.treasury_transaction_id')->leftJoin('treasury_financial_accounts as account', 'account.id', '=', 'refund.financial_account_id')->where('refund.status', 'posted')->where(static fn (Builder $query): Builder => $query->whereNull('treasury.id')->orWhereColumn('treasury.company_id', '<>', 'refund.company_id')->orWhereColumn('treasury.branch_id', '<>', 'refund.branch_id')->orWhereColumn('treasury.source_id', '<>', 'refund.id')->orWhere('treasury.source_type', '<>', 'customer_refund')->orWhere('treasury.direction', '<>', 'outflow')->orWhereColumn('treasury.amount_minor', '<>', 'refund.amount_minor')->orWhereColumn('treasury.financial_account_id', '<>', 'refund.financial_account_id')->orWhereNull('account.id')->orWhereNotIn('account.type', ['cash', 'bank']))->count();
+    }
+
+    private function customerRefundWithoutJournal(): int
+    {
+        if (! Schema::hasTable('customer_refunds')) {
+            return 0;
+        }
+
+        return DB::table('customer_refunds as refund')->leftJoin('payroll_accounting_journals as journal', 'journal.id', '=', 'refund.accounting_journal_id')->where('refund.status', 'posted')->where(static fn (Builder $query): Builder => $query->whereNull('journal.id')->orWhereColumn('journal.company_id', '<>', 'refund.company_id')->orWhereColumn('journal.branch_id', '<>', 'refund.branch_id')->orWhereColumn('journal.source_id', '<>', 'refund.id')->orWhere('journal.source_type', '<>', 'customer_refund')->orWhereColumn('journal.total_debit_minor', '<>', 'journal.total_credit_minor')->orWhereColumn('journal.total_debit_minor', '<>', 'refund.amount_minor'))->count();
+    }
+
+    private function creditNoteWithoutInvoice(): int
+    {
+        if (! Schema::hasTable('customer_credit_notes')) {
+            return 0;
+        }
+
+        return DB::table('customer_credit_notes as note')->leftJoin('customer_invoices as invoice', 'invoice.id', '=', 'note.customer_invoice_id')->where(static fn (Builder $query): Builder => $query->whereNull('invoice.id')->orWhereColumn('invoice.company_id', '<>', 'note.company_id')->orWhereColumn('invoice.branch_id', '<>', 'note.branch_id')->orWhereColumn('invoice.customer_id', '<>', 'note.customer_id')->orWhereColumn('invoice.currency', '<>', 'note.currency'))->count();
+    }
+
+    private function creditNoteOverRemainingCreditable(): int
+    {
+        if (! Schema::hasTable('customer_credit_notes')) {
+            return 0;
+        }
+        $credits = DB::table('customer_credit_notes')->where('status', 'posted')->selectRaw('customer_invoice_id, SUM(total_minor) credited')->groupBy('customer_invoice_id');
+
+        return DB::query()->fromSub($credits, 'credit')->join('customer_invoices as invoice', 'invoice.id', '=', 'credit.customer_invoice_id')->whereColumn('credit.credited', '>', 'invoice.total_minor')->count();
     }
 
     private function documentsMissingCurrentVersion(): int
@@ -877,16 +1550,59 @@ final class DataQualityAuditService
 
     private function invalidProcurementRealizationQuantity(): int
     {
-        $overReceived = DB::table('purchase_order_lines')->whereColumn('received_quantity', '>', 'ordered_quantity')->count();
+        $overReceived = DB::table('purchase_order_lines')->whereColumn('received_quantity', '>', 'ordered_quantity')->selectRaw("CONCAT('received:',id) issue_key");
         $billed = DB::table('vendor_bill_lines as l')->join('vendor_bills as b', 'b.id', '=', 'l.vendor_bill_id')->whereNotIn('b.status', ['cancelled', 'rejected'])->where('l.procurement_classification', 'inventory')->selectRaw('l.purchase_order_line_id, SUM(l.quantity) billed')->whereNotNull('l.purchase_order_line_id')->groupBy('l.purchase_order_line_id');
-        $overBilled = DB::table('purchase_order_lines as p')->joinSub($billed, 'billed', 'billed.purchase_order_line_id', '=', 'p.id')->whereColumn('billed.billed', '>', 'p.received_quantity')->count();
+        $overBilled = DB::table('purchase_order_lines as p')->joinSub($billed, 'billed', 'billed.purchase_order_line_id', '=', 'p.id')->whereColumn('billed.billed', '>', 'p.received_quantity')->selectRaw("CONCAT('billed:',p.id) issue_key");
 
-        return $overReceived + $overBilled;
+        if (! Schema::hasTable('procurement_goods_returns') || ! Schema::hasTable('procurement_goods_return_lines')) {
+            return DB::query()->fromSub($overReceived->unionAll($overBilled), 'procurement_realization_issues')->count();
+        }
+
+        $returned = DB::table('procurement_goods_return_lines as line')->join('procurement_goods_returns as header', 'header.id', '=', 'line.goods_return_id')->where('header.status', 'posted')->selectRaw('line.goods_receipt_line_id, SUM(line.quantity) quantity')->groupBy('line.goods_receipt_line_id');
+        $overReturned = DB::table('procurement_goods_receipt_lines as receipt_line')->joinSub($returned, 'returned', 'returned.goods_receipt_line_id', '=', 'receipt_line.id')->whereColumn('returned.quantity', '>', 'receipt_line.received_quantity')->selectRaw("CONCAT('returned:',receipt_line.id) issue_key");
+        $returnLineage = DB::table('procurement_goods_returns as header')->join('procurement_goods_receipts as receipt', 'receipt.id', '=', 'header.goods_receipt_id')->join('purchase_orders as po', 'po.id', '=', 'header.purchase_order_id')->join('procurement_vendors as vendor', 'vendor.id', '=', 'header.vendor_id')->where(static fn (Builder $query): Builder => $query->whereColumn('receipt.company_id', '<>', 'header.company_id')->orWhereColumn('po.company_id', '<>', 'header.company_id')->orWhereColumn('vendor.company_id', '<>', 'header.company_id')->orWhereColumn('receipt.purchase_order_id', '<>', 'header.purchase_order_id')->orWhereColumn('po.vendor_id', '<>', 'header.vendor_id'))->selectRaw("CONCAT('return-lineage:',header.id) issue_key");
+        $returnPosting = DB::table('procurement_goods_returns as header')->leftJoin('payroll_accounting_journals as journal', 'journal.id', '=', 'header.accounting_journal_id')->where('header.status', 'posted')->where(static fn (Builder $query): Builder => $query->whereNull('journal.id')->orWhereColumn('journal.company_id', '<>', 'header.company_id')->orWhereColumn('journal.source_id', '<>', 'header.id')->orWhere('journal.source_type', '<>', 'goods_return')->orWhereColumn('journal.total_debit_minor', '<>', 'journal.total_credit_minor')->orWhereNotExists(fn (Builder $movement): Builder => $movement->selectRaw('1')->from('procurement_goods_return_lines as posted_line')->join('inventory_movements as inventory_movement', 'inventory_movement.id', '=', 'posted_line.inventory_movement_id')->whereColumn('posted_line.goods_return_id', 'header.id')->where('inventory_movement.source_type', 'procurement_goods_return_line')->whereColumn('inventory_movement.source_id', 'posted_line.id')))->selectRaw("CONCAT('return-posting:',header.id) issue_key");
+
+        return DB::query()->fromSub($overReceived->unionAll($overBilled)->unionAll($overReturned)->unionAll($returnLineage)->unionAll($returnPosting), 'procurement_realization_issues')->count();
     }
 
     private function invalidProcurementBudgetDimension(): int
     {
         return DB::table('purchase_order_lines as l')->join('purchase_orders as o', 'o.id', '=', 'l.purchase_order_id')->leftJoin('accounting_accounts as a', 'a.id', '=', 'l.account_id')->leftJoin('cost_centers as c', 'c.id', '=', 'l.cost_center_id')->whereNotNull('l.procurement_classification')->where(static fn (Builder $query): Builder => $query->whereNull('a.id')->orWhereColumn('a.company_id', '<>', 'o.company_id')->orWhere(static fn (Builder $center): Builder => $center->whereNotNull('l.cost_center_id')->whereColumn('c.company_id', '<>', 'o.company_id'))->orWhere(static fn (Builder $mapping): Builder => $mapping->where(static fn (Builder $inventory): Builder => $inventory->where('l.procurement_classification', 'inventory')->where('a.code', '<>', '1200'))->orWhere(static fn (Builder $asset): Builder => $asset->where('l.procurement_classification', 'asset')->where('a.code', '<>', '1300'))->orWhere(static fn (Builder $opex): Builder => $opex->where('l.procurement_classification', 'operating_expense')->where('a.account_type', '<>', 'expense'))))->count();
+    }
+
+    private function invalidSupplierCredit(): int
+    {
+        foreach (['procurement_goods_returns', 'procurement_goods_return_lines', 'supplier_credit_notes', 'supplier_credit_note_lines', 'vendor_refund_receivables', 'supplier_refund_receipts'] as $table) {
+            if (! Schema::hasTable($table)) {
+                return 0;
+            }
+        }
+
+        $allocationTotals = DB::table('vendor_bill_receipt_allocations')->selectRaw('vendor_bill_line_id, SUM(quantity) quantity, SUM(allocated_minor) amount')->groupBy('vendor_bill_line_id');
+        $invalidAllocations = DB::table('vendor_bill_lines as bill_line')->joinSub($allocationTotals, 'allocation', 'allocation.vendor_bill_line_id', '=', 'bill_line.id')
+            ->where(static fn (Builder $query): Builder => $query->whereColumn('allocation.quantity', '>', 'bill_line.quantity')->orWhereColumn('allocation.amount', '>', 'bill_line.line_total_minor'))
+            ->selectRaw("CONCAT('allocation:',bill_line.id) issue_key");
+        $creditLineage = DB::table('supplier_credit_note_lines as credit_line')
+            ->join('supplier_credit_notes as credit', 'credit.id', '=', 'credit_line.supplier_credit_note_id')
+            ->join('procurement_goods_return_lines as return_line', 'return_line.id', '=', 'credit_line.goods_return_line_id')
+            ->join('procurement_goods_returns as goods_return', 'goods_return.id', '=', 'return_line.goods_return_id')
+            ->join('vendor_bill_receipt_allocations as allocation', 'allocation.id', '=', 'credit_line.vendor_bill_receipt_allocation_id')
+            ->join('vendor_bill_lines as bill_line', 'bill_line.id', '=', 'credit_line.vendor_bill_line_id')
+            ->join('vendor_bills as bill', 'bill.id', '=', 'bill_line.vendor_bill_id')
+            ->where(static fn (Builder $query): Builder => $query->whereColumn('credit.company_id', '<>', 'goods_return.company_id')->orWhereColumn('credit.company_id', '<>', 'bill.company_id')->orWhereColumn('credit.goods_return_id', '<>', 'goods_return.id')->orWhereColumn('credit.vendor_bill_id', '<>', 'bill.id')->orWhereColumn('credit_line.goods_receipt_line_id', '<>', 'return_line.goods_receipt_line_id')->orWhereColumn('allocation.goods_receipt_line_id', '<>', 'return_line.goods_receipt_line_id')->orWhereColumn('credit_line.quantity', '>', 'return_line.quantity')->orWhereColumn('credit_line.quantity', '>', 'allocation.quantity')->orWhereColumn('credit_line.credit_minor', '>', 'allocation.allocated_minor'))
+            ->selectRaw("CONCAT('credit-line:',credit_line.id) issue_key");
+        $posted = DB::table('supplier_credit_notes as credit')->leftJoin('payroll_accounting_journals as journal', 'journal.id', '=', 'credit.accounting_journal_id')->where('credit.status', 'posted')
+            ->where(static fn (Builder $query): Builder => $query->whereNull('journal.id')->orWhereColumn('journal.company_id', '<>', 'credit.company_id')->orWhereColumn('journal.source_id', '<>', 'credit.id')->orWhere('journal.source_type', '<>', 'supplier_credit')->orWhereColumn('journal.total_debit_minor', '<>', 'journal.total_credit_minor')->orWhereRaw('credit.ap_reduction_minor+credit.vendor_receivable_minor<>credit.total_minor')->orWhereRaw('(credit.vendor_receivable_minor>0 AND NOT EXISTS (SELECT 1 FROM vendor_refund_receivables receivable WHERE receivable.supplier_credit_note_id=credit.id AND receivable.company_id=credit.company_id AND receivable.original_minor=credit.vendor_receivable_minor))'))
+            ->selectRaw("CONCAT('credit-posting:',credit.id) issue_key");
+        $receivables = DB::table('vendor_refund_receivables as receivable')->join('supplier_credit_notes as credit', 'credit.id', '=', 'receivable.supplier_credit_note_id')->leftJoin('payroll_accounting_journals as journal', 'journal.id', '=', 'receivable.accounting_journal_id')
+            ->where(static fn (Builder $query): Builder => $query->whereColumn('receivable.company_id', '<>', 'credit.company_id')->orWhereColumn('receivable.vendor_id', '<>', 'credit.vendor_id')->orWhereColumn('receivable.original_minor', '<>', 'credit.vendor_receivable_minor')->orWhereColumn('receivable.refunded_minor', '>', 'receivable.original_minor')->orWhereNull('journal.id')->orWhereColumn('journal.company_id', '<>', 'receivable.company_id')->orWhereRaw("(receivable.status='refunded' AND receivable.refunded_minor<>receivable.original_minor)"))
+            ->selectRaw("CONCAT('vendor-receivable:',receivable.id) issue_key");
+        $refunds = DB::table('supplier_refund_receipts as refund')->join('vendor_refund_receivables as receivable', 'receivable.id', '=', 'refund.vendor_refund_receivable_id')->leftJoin('payroll_accounting_journals as journal', 'journal.id', '=', 'refund.accounting_journal_id')->leftJoin('treasury_transactions as treasury', 'treasury.id', '=', 'refund.treasury_transaction_id')->where('refund.status', 'posted')
+            ->where(static fn (Builder $query): Builder => $query->whereColumn('refund.company_id', '<>', 'receivable.company_id')->orWhereColumn('refund.vendor_id', '<>', 'receivable.vendor_id')->orWhereNull('journal.id')->orWhereColumn('journal.company_id', '<>', 'refund.company_id')->orWhereColumn('journal.total_debit_minor', '<>', 'journal.total_credit_minor')->orWhereNull('treasury.id')->orWhereColumn('treasury.company_id', '<>', 'refund.company_id')->orWhereColumn('treasury.amount_minor', '<>', 'refund.amount_minor')->orWhere('treasury.direction', '<>', 'inflow'))
+            ->selectRaw("CONCAT('supplier-refund:',refund.id) issue_key");
+
+        return DB::query()->fromSub($invalidAllocations->unionAll($creditLineage)->unionAll($posted)->unionAll($receivables)->unionAll($refunds), 'supplier_credit_issues')->count();
     }
 
     private function invalidServiceAcceptance(): int
@@ -936,6 +1652,486 @@ final class DataQualityAuditService
         }
     }
 
+    private function inventoryStockCountWithoutWarehouse(): int
+    {
+        if (! Schema::hasTable('inventory_stock_counts')) {
+            return 0;
+        }
+
+        return DB::table('inventory_stock_counts as count')->leftJoin('inventory_locations as location', 'location.id', '=', 'count.inventory_location_id')->leftJoin('stores as store', 'store.id', '=', 'location.store_id')->leftJoin('seller_profiles as seller', 'seller.id', '=', 'store.seller_profile_id')->leftJoin('branches as branch', 'branch.id', '=', 'count.branch_id')->where(static fn (Builder $query): Builder => $query->whereNull('location.id')->orWhereNull('branch.id')->orWhereColumn('seller.company_id', '<>', 'count.company_id')->orWhereColumn('branch.company_id', '<>', 'count.company_id')->orWhereColumn('location.branch_id', '<>', 'count.branch_id'))->count();
+    }
+
+    private function inventoryAdjustmentWithoutReason(): int
+    {
+        if (! Schema::hasTable('inventory_adjustments')) {
+            return 0;
+        }
+
+        return DB::table('inventory_adjustments')->whereNotIn('reason', ['STOCK_COUNT', 'DAMAGE', 'LOSS', 'EXPIRED', 'FOUND'])->count();
+    }
+
+    private function inventoryAdjustmentWithoutMovement(): int
+    {
+        if (! Schema::hasTable('inventory_adjustments')) {
+            return 0;
+        }
+
+        return DB::table('inventory_adjustment_lines as line')->join('inventory_adjustments as adjustment', 'adjustment.id', '=', 'line.adjustment_id')->leftJoin('inventory_movements as movement', 'movement.id', '=', 'line.inventory_movement_id')->where('adjustment.status', 'posted')->where(static fn (Builder $query): Builder => $query->whereNull('movement.id')->orWhere('movement.source_type', '<>', 'inventory_adjustment_line')->orWhereColumn('movement.source_id', '<>', 'line.id')->orWhereColumn('movement.product_variant_id', '<>', 'line.product_variant_id')->orWhereColumn('movement.inventory_location_id', '<>', 'adjustment.inventory_location_id')->orWhereColumn('movement.quantity_delta', '<>', 'line.quantity_delta'))->count();
+    }
+
+    private function inventoryAdjustmentWithoutJournal(): int
+    {
+        if (! Schema::hasTable('inventory_adjustments')) {
+            return 0;
+        }
+
+        return DB::table('inventory_adjustments as adjustment')->leftJoin('payroll_accounting_journals as journal', 'journal.id', '=', 'adjustment.accounting_journal_id')->where('adjustment.status', 'posted')->where(static fn (Builder $query): Builder => $query->whereNull('journal.id')->orWhereColumn('journal.company_id', '<>', 'adjustment.company_id')->orWhereColumn('journal.branch_id', '<>', 'adjustment.branch_id')->orWhereColumn('journal.source_id', '<>', 'adjustment.id')->orWhere('journal.source_type', '<>', 'inventory_adjustment')->orWhereColumn('journal.total_debit_minor', '<>', 'journal.total_credit_minor'))->count();
+    }
+
+    private function inventoryVarianceMismatch(): int
+    {
+        if (! Schema::hasTable('inventory_stock_count_lines') || ! Schema::hasTable('inventory_adjustment_lines')) {
+            return 0;
+        }
+        $countVariance = DB::table('inventory_stock_count_lines')->whereRaw('variance_qty <> CAST(counted_qty AS SIGNED) - CAST(system_qty AS SIGNED)')->count();
+        $adjustmentVariance = DB::table('inventory_adjustment_lines as adjustment_line')->join('inventory_adjustments as adjustment', 'adjustment.id', '=', 'adjustment_line.adjustment_id')->join('inventory_stock_count_lines as count_line', static function (JoinClause $join): void {
+            $join->on('count_line.stock_count_id', '=', 'adjustment.stock_count_id')->on('count_line.product_variant_id', '=', 'adjustment_line.product_variant_id');
+        })->whereColumn('adjustment_line.quantity_delta', '<>', 'count_line.variance_qty')->count();
+
+        return $countVariance + $adjustmentVariance;
+    }
+
+    private function assetImpairmentWithoutAsset(): int
+    {
+        if (! Schema::hasTable('finance_asset_impairments')) {
+            return 0;
+        }
+
+        return DB::table('finance_asset_impairments as document')->leftJoin('finance_assets as asset', 'asset.id', '=', 'document.asset_id')->where(static fn (Builder $query): Builder => $query->whereNull('asset.id')->orWhereColumn('asset.company_id', '<>', 'document.company_id'))->count();
+    }
+
+    private function assetImpairmentWithoutJournal(): int
+    {
+        if (! Schema::hasTable('finance_asset_impairments')) {
+            return 0;
+        }
+
+        return DB::table('finance_asset_impairments as document')->leftJoin('payroll_accounting_journals as journal', 'journal.id', '=', 'document.accounting_journal_id')->where('document.status', 'posted')->where(static fn (Builder $query): Builder => $query->whereNull('journal.id')->orWhereColumn('journal.company_id', '<>', 'document.company_id')->orWhereColumn('journal.source_id', '<>', 'document.id')->orWhere('journal.source_type', '<>', 'asset_impairment')->orWhereColumn('journal.total_debit_minor', '<>', 'journal.total_credit_minor'))->count();
+    }
+
+    private function assetDisposalWithoutAsset(): int
+    {
+        if (! Schema::hasTable('finance_asset_disposals')) {
+            return 0;
+        }
+
+        return DB::table('finance_asset_disposals as document')->leftJoin('finance_assets as asset', 'asset.id', '=', 'document.asset_id')->where(static fn (Builder $query): Builder => $query->whereNull('asset.id')->orWhereColumn('asset.company_id', '<>', 'document.company_id'))->count();
+    }
+
+    private function assetDisposalWithoutJournal(): int
+    {
+        if (! Schema::hasTable('finance_asset_disposals')) {
+            return 0;
+        }
+
+        return DB::table('finance_asset_disposals as document')->leftJoin('payroll_accounting_journals as journal', 'journal.id', '=', 'document.accounting_journal_id')->where('document.status', 'posted')->where(static fn (Builder $query): Builder => $query->whereNull('journal.id')->orWhereColumn('journal.company_id', '<>', 'document.company_id')->orWhereColumn('journal.source_id', '<>', 'document.id')->orWhere('journal.source_type', '<>', 'asset_disposal')->orWhereColumn('journal.total_debit_minor', '<>', 'journal.total_credit_minor'))->count();
+    }
+
+    private function assetGainLossMismatch(): int
+    {
+        if (! Schema::hasTable('finance_asset_disposals')) {
+            return 0;
+        }
+
+        return DB::table('finance_asset_disposals')->whereRaw('gain_loss_minor <> proceeds_minor - book_value_minor')->count();
+    }
+
+    private function fiscalYearWithoutCompany(): int
+    {
+        if (! Schema::hasTable('accounting_fiscal_years')) {
+            return 0;
+        }
+
+        return DB::table('accounting_fiscal_years as fiscal')->leftJoin('companies as company', 'company.id', '=', 'fiscal.company_id')->whereNull('company.id')->count();
+    }
+
+    private function periodWithoutFiscalYear(): int
+    {
+        if (! Schema::hasColumn('accounting_periods', 'fiscal_year_id')) {
+            return 0;
+        }
+
+        return DB::table('accounting_periods as period')->leftJoin('accounting_fiscal_years as fiscal', 'fiscal.id', '=', 'period.fiscal_year_id')->where(static fn (Builder $query): Builder => $query->whereNull('fiscal.id')->orWhereColumn('fiscal.company_id', '<>', 'period.company_id'))->count();
+    }
+
+    private function closedPeriodWithPosting(): int
+    {
+        if (! Schema::hasColumn('accounting_periods', 'fiscal_year_id')) {
+            return 0;
+        }
+
+        return DB::table('payroll_accounting_journals as journal')->join('accounting_periods as period', 'period.id', '=', 'journal.accounting_period_id')->where('period.status', 'closed')->whereNotNull('period.closed_at')->whereColumn('journal.posted_at', '>', 'period.closed_at')->where('journal.source_type', '<>', 'fiscal_year_close')->count();
+    }
+
+    private function overlappingFiscalYear(): int
+    {
+        if (! Schema::hasTable('accounting_fiscal_years')) {
+            return 0;
+        }
+
+        return DB::table('accounting_fiscal_years as left_year')->join('accounting_fiscal_years as right_year', static function (JoinClause $join): void {
+            $join->on('right_year.company_id', '=', 'left_year.company_id')->whereColumn('right_year.id', '>', 'left_year.id')->whereColumn('right_year.start_date', '<=', 'left_year.end_date')->whereColumn('right_year.end_date', '>=', 'left_year.start_date');
+        })->count();
+    }
+
+    private function invalidPeriodDateRange(): int
+    {
+        if (! Schema::hasColumn('accounting_periods', 'fiscal_year_id')) {
+            return 0;
+        }
+
+        return DB::table('accounting_periods as period')->join('accounting_fiscal_years as fiscal', 'fiscal.id', '=', 'period.fiscal_year_id')->where(static fn (Builder $query): Builder => $query->whereColumn('period.start_date', '>', 'period.end_date')->orWhereColumn('period.start_date', '<', 'fiscal.start_date')->orWhereColumn('period.end_date', '>', 'fiscal.end_date'))->count();
+    }
+
+    private function openingBalanceWithoutSource(): int
+    {
+        if (! Schema::hasTable('accounting_opening_balance_lines')) {
+            return 0;
+        }
+
+        return DB::table('accounting_opening_balance_lines as line')->leftJoin('accounting_fiscal_year_close_requests as close', 'close.id', '=', 'line.fiscal_year_close_request_id')->leftJoin('payroll_accounting_journals as journal', 'journal.id', '=', 'line.opening_journal_id')->where(static fn (Builder $query): Builder => $query->whereNull('close.id')->orWhereNull('journal.id')->orWhereColumn('close.company_id', '<>', 'line.company_id')->orWhereColumn('journal.company_id', '<>', 'line.company_id')->orWhere('journal.source_type', '<>', 'fiscal_year_carry_forward')->orWhereColumn('journal.total_debit_minor', '<>', 'journal.total_credit_minor'))->count();
+    }
+
+    private function duplicateInvoiceFxRecognition(): int
+    {
+        return $this->arFxSchemaReady() ? DB::query()->fromSub(DB::table('customer_invoice_fx_recognitions')->selectRaw('customer_invoice_id, COUNT(*) total')->groupBy('customer_invoice_id')->havingRaw('COUNT(*) > 1'), 'duplicate')->count() : 0;
+    }
+
+    private function recognitionCompanyMismatch(): int
+    {
+        return $this->arFxSchemaReady() ? DB::table('customer_invoice_fx_recognitions as recognition')->leftJoin('customer_invoices as invoice', 'invoice.id', '=', 'recognition.customer_invoice_id')->where(static fn (Builder $query): Builder => $query->whereNull('invoice.id')->orWhereColumn('invoice.company_id', '<>', 'recognition.company_id')->orWhereColumn('invoice.branch_id', '<>', 'recognition.branch_id'))->count() : 0;
+    }
+
+    private function recognitionInvoiceMismatch(): int
+    {
+        return $this->arFxSchemaReady() ? DB::table('customer_invoice_fx_recognitions as recognition')->join('customer_invoices as invoice', 'invoice.id', '=', 'recognition.customer_invoice_id')->where(static fn (Builder $query): Builder => $query->whereColumn('invoice.currency', '<>', 'recognition.transaction_currency')->orWhereColumn('invoice.total_minor', '<>', 'recognition.transaction_amount_minor'))->count() : 0;
+    }
+
+    private function recognitionFunctionalCurrencyMismatch(): int
+    {
+        return $this->arFxSchemaReady() ? DB::table('customer_invoice_fx_recognitions as recognition')->join('companies as company', 'company.id', '=', 'recognition.company_id')->where(static fn (Builder $query): Builder => $query->whereNull('company.functional_currency_code')->orWhereColumn('company.functional_currency_code', '<>', 'recognition.functional_currency'))->count() : 0;
+    }
+
+    private function recognitionSnapshotPairMismatch(): int
+    {
+        return $this->arFxSchemaReady() ? DB::table('customer_invoice_fx_recognitions as recognition')->leftJoin('finance_fx_rate_snapshots as snapshot', 'snapshot.id', '=', 'recognition.fx_rate_snapshot_id')->where('recognition.rate_type', '<>', 'identity')->where(static fn (Builder $query): Builder => $query->whereNull('snapshot.id')->orWhereColumn('snapshot.company_id', '<>', 'recognition.company_id')->orWhereColumn('snapshot.base_currency', '<>', 'recognition.transaction_currency')->orWhereColumn('snapshot.quote_currency', '<>', 'recognition.functional_currency'))->count() : 0;
+    }
+
+    private function recognitionSnapshotRateMismatch(): int
+    {
+        return $this->arFxSchemaReady() ? DB::table('customer_invoice_fx_recognitions as recognition')->join('finance_fx_rate_snapshots as snapshot', 'snapshot.id', '=', 'recognition.fx_rate_snapshot_id')->where(static fn (Builder $query): Builder => $query->whereColumn('snapshot.rate_decimal', '<>', 'recognition.rate_decimal')->orWhereColumn('snapshot.rate_date', '<>', 'recognition.rate_date')->orWhereColumn('snapshot.rate_type', '<>', 'recognition.rate_type'))->count() : 0;
+    }
+
+    private function recognitionIdentitySnapshotInvalid(): int
+    {
+        return $this->arFxSchemaReady() ? DB::table('customer_invoice_fx_recognitions')->where('rate_type', 'identity')->where(static fn (Builder $query): Builder => $query->whereNotNull('fx_rate_snapshot_id')->orWhere('rate_decimal', '<>', '1.000000000000')->orWhereColumn('transaction_currency', '<>', 'functional_currency'))->count() : 0;
+    }
+
+    private function recognitionFunctionalJournalMismatch(): int
+    {
+        if (! $this->arFxSchemaReady()) {
+            return 0;
+        }
+
+        return DB::table('customer_invoice_fx_recognitions as recognition')->join('customer_invoices as invoice', 'invoice.id', '=', 'recognition.customer_invoice_id')->leftJoin('payroll_accounting_journals as journal', 'journal.id', '=', 'invoice.accounting_journal_id')->whereIn('invoice.status', ['issued', 'partially_paid', 'paid'])->where(static fn (Builder $query): Builder => $query->whereNull('journal.id')->orWhereColumn('journal.company_id', '<>', 'recognition.company_id')->orWhereColumn('journal.currency', '<>', 'recognition.functional_currency')->orWhereColumn('journal.total_debit_minor', '<>', 'recognition.functional_amount_minor')->orWhereColumn('journal.total_debit_minor', '<>', 'journal.total_credit_minor'))->count();
+    }
+
+    private function duplicateAllocationFxSettlement(): int
+    {
+        return $this->arFxSchemaReady() ? DB::query()->fromSub(DB::table('customer_collection_allocation_fx_settlements')->selectRaw('customer_collection_allocation_id, COUNT(*) total')->groupBy('customer_collection_allocation_id')->havingRaw('COUNT(*) > 1'), 'duplicate')->count() : 0;
+    }
+
+    private function settlementRecognitionLineageMismatch(): int
+    {
+        return $this->arFxSchemaReady() ? DB::table('customer_collection_allocation_fx_settlements as settlement')->join('customer_collection_allocations as allocation', 'allocation.id', '=', 'settlement.customer_collection_allocation_id')->join('customer_invoice_fx_recognitions as recognition', 'recognition.id', '=', 'settlement.customer_invoice_fx_recognition_id')->where(static fn (Builder $query): Builder => $query->whereColumn('allocation.customer_invoice_id', '<>', 'recognition.customer_invoice_id')->orWhereColumn('settlement.company_id', '<>', 'recognition.company_id'))->count() : 0;
+    }
+
+    private function settlementWithoutRecognition(): int
+    {
+        return $this->arFxSchemaReady() ? DB::table('customer_collection_allocation_fx_settlements as settlement')->leftJoin('customer_invoice_fx_recognitions as recognition', 'recognition.id', '=', 'settlement.customer_invoice_fx_recognition_id')->whereNull('recognition.id')->count() : 0;
+    }
+
+    private function settlementCurrencyMismatch(): int
+    {
+        if (! $this->arFxSchemaReady()) {
+            return 0;
+        }
+
+        return DB::table('customer_collection_allocation_fx_settlements as settlement')->join('customer_collection_allocations as allocation', 'allocation.id', '=', 'settlement.customer_collection_allocation_id')->join('customer_collections as collection', 'collection.id', '=', 'allocation.customer_collection_id')->join('customer_invoices as invoice', 'invoice.id', '=', 'allocation.customer_invoice_id')->join('customer_invoice_fx_recognitions as recognition', 'recognition.id', '=', 'settlement.customer_invoice_fx_recognition_id')->where(static fn (Builder $query): Builder => $query->whereColumn('settlement.transaction_currency', '<>', 'collection.currency')->orWhereColumn('settlement.transaction_currency', '<>', 'invoice.currency')->orWhereColumn('settlement.transaction_currency', '<>', 'recognition.transaction_currency')->orWhereColumn('settlement.functional_currency', '<>', 'recognition.functional_currency')->orWhereColumn('settlement.company_id', '<>', 'collection.company_id'))->count();
+    }
+
+    private function settlementSnapshotPairMismatch(): int
+    {
+        if (! $this->arFxSchemaReady()) {
+            return 0;
+        }
+
+        return DB::table('customer_collection_allocation_fx_settlements as settlement')->leftJoin('finance_fx_rate_snapshots as snapshot', 'snapshot.id', '=', 'settlement.settlement_fx_snapshot_id')->where(static fn (Builder $query): Builder => $query->where(static fn (Builder $foreign): Builder => $foreign->where('settlement.rate_type', '<>', 'identity')->where(static fn (Builder $invalid): Builder => $invalid->whereNull('snapshot.id')->orWhereColumn('snapshot.company_id', '<>', 'settlement.company_id')->orWhereColumn('snapshot.base_currency', '<>', 'settlement.transaction_currency')->orWhereColumn('snapshot.quote_currency', '<>', 'settlement.functional_currency')->orWhereColumn('snapshot.rate_decimal', '<>', 'settlement.rate_decimal')->orWhereColumn('snapshot.rate_date', '<>', 'settlement.rate_date')))->orWhere(static fn (Builder $identity): Builder => $identity->where('settlement.rate_type', 'identity')->where(static fn (Builder $invalid): Builder => $invalid->whereNotNull('settlement.settlement_fx_snapshot_id')->orWhereColumn('settlement.transaction_currency', '<>', 'settlement.functional_currency')->orWhere('settlement.rate_decimal', '<>', '1.000000000000'))))->count();
+    }
+
+    private function releasedCarryingExceedsRecognition(): int
+    {
+        if (! $this->arFxSchemaReady()) {
+            return 0;
+        }
+        $released = DB::table('customer_collection_allocation_fx_settlements')->selectRaw('customer_invoice_fx_recognition_id, SUM(released_carrying_minor) released')->groupBy('customer_invoice_fx_recognition_id');
+
+        return DB::table('customer_invoice_fx_recognitions as recognition')->joinSub($released, 'settlement', 'settlement.customer_invoice_fx_recognition_id', '=', 'recognition.id')->whereColumn('settlement.released', '>', 'recognition.functional_amount_minor')->count();
+    }
+
+    private function settledForeignExceedsInvoice(): int
+    {
+        if (! $this->arFxSchemaReady()) {
+            return 0;
+        }
+        $settled = DB::table('customer_collection_allocation_fx_settlements')->selectRaw('customer_invoice_fx_recognition_id, SUM(foreign_settled_minor) settled')->groupBy('customer_invoice_fx_recognition_id');
+
+        return DB::table('customer_invoice_fx_recognitions as recognition')->joinSub($settled, 'settlement', 'settlement.customer_invoice_fx_recognition_id', '=', 'recognition.id')->whereColumn('settlement.settled', '>', 'recognition.transaction_amount_minor')->count();
+    }
+
+    private function settlementRealizedFxArithmeticMismatch(): int
+    {
+        return $this->arFxSchemaReady() ? DB::table('customer_collection_allocation_fx_settlements')->whereRaw('realized_fx_minor <> settlement_functional_minor - released_carrying_minor')->count() : 0;
+    }
+
+    private function settlementJournalCurrencyMismatch(): int
+    {
+        if (! $this->arFxSchemaReady()) {
+            return 0;
+        }
+
+        return DB::table('customer_collection_allocation_fx_settlements as settlement')->join('customer_collection_allocations as allocation', 'allocation.id', '=', 'settlement.customer_collection_allocation_id')->join('customer_collections as collection', 'collection.id', '=', 'allocation.customer_collection_id')->leftJoin('payroll_accounting_journals as journal', 'journal.id', '=', 'collection.accounting_journal_id')->where(static fn (Builder $query): Builder => $query->whereNull('journal.id')->orWhereColumn('journal.company_id', '<>', 'settlement.company_id')->orWhereColumn('journal.currency', '<>', 'settlement.functional_currency')->orWhereRaw('journal.total_debit_minor <> GREATEST(settlement.settlement_functional_minor, settlement.released_carrying_minor)')->orWhereColumn('journal.total_debit_minor', '<>', 'journal.total_credit_minor'))->count();
+    }
+
+    private function settlementTreasuryCurrencyMismatch(): int
+    {
+        if (! $this->arFxSchemaReady()) {
+            return 0;
+        }
+
+        return DB::table('customer_collection_allocation_fx_settlements as settlement')->join('customer_collection_allocations as allocation', 'allocation.id', '=', 'settlement.customer_collection_allocation_id')->join('customer_collections as collection', 'collection.id', '=', 'allocation.customer_collection_id')->leftJoin('treasury_transactions as treasury', 'treasury.id', '=', 'collection.treasury_transaction_id')->leftJoin('treasury_financial_accounts as account', 'account.id', '=', 'treasury.financial_account_id')->where(static fn (Builder $query): Builder => $query->whereNull('treasury.id')->orWhereNull('account.id')->orWhereColumn('treasury.company_id', '<>', 'settlement.company_id')->orWhereColumn('treasury.currency', '<>', 'settlement.transaction_currency')->orWhereColumn('account.currency', '<>', 'settlement.transaction_currency')->orWhereColumn('treasury.amount_minor', '<>', 'settlement.foreign_settled_minor'))->count();
+    }
+
+    private function duplicateSupplierInvoiceFxRecognition(): int
+    {
+        return $this->apFxSchemaReady() ? DB::query()->fromSub(DB::table('supplier_invoice_fx_recognitions')->selectRaw('vendor_bill_id, COUNT(*) total')->groupBy('vendor_bill_id')->havingRaw('COUNT(*) > 1'), 'duplicate')->count() : 0;
+    }
+
+    private function supplierInvoiceFxScopeMismatch(): int
+    {
+        return $this->apFxSchemaReady() ? DB::table('supplier_invoice_fx_recognitions as recognition')->leftJoin('vendor_bills as bill', 'bill.id', '=', 'recognition.vendor_bill_id')->where(static fn (Builder $query): Builder => $query->whereNull('bill.id')->orWhereColumn('bill.company_id', '<>', 'recognition.company_id')->orWhereRaw('NOT (bill.branch_id <=> recognition.branch_id)')->orWhereColumn('bill.currency', '<>', 'recognition.transaction_currency')->orWhereColumn('bill.total_minor', '<>', 'recognition.transaction_amount_minor'))->count() : 0;
+    }
+
+    private function supplierInvoiceFxFunctionalCurrencyMismatch(): int
+    {
+        return $this->apFxSchemaReady() ? DB::table('supplier_invoice_fx_recognitions as recognition')->join('companies as company', 'company.id', '=', 'recognition.company_id')->where(static fn (Builder $query): Builder => $query->whereNull('company.functional_currency_code')->orWhereColumn('company.functional_currency_code', '<>', 'recognition.functional_currency'))->count() : 0;
+    }
+
+    private function supplierInvoiceFxSnapshotPairMismatch(): int
+    {
+        return $this->apFxSchemaReady() ? DB::table('supplier_invoice_fx_recognitions as recognition')->leftJoin('finance_fx_rate_snapshots as snapshot', 'snapshot.id', '=', 'recognition.fx_rate_snapshot_id')->where('recognition.rate_type', '<>', 'identity')->where(static fn (Builder $query): Builder => $query->whereNull('snapshot.id')->orWhereColumn('snapshot.company_id', '<>', 'recognition.company_id')->orWhereColumn('snapshot.base_currency', '<>', 'recognition.transaction_currency')->orWhereColumn('snapshot.quote_currency', '<>', 'recognition.functional_currency'))->count() : 0;
+    }
+
+    private function supplierInvoiceFxSnapshotRateMismatch(): int
+    {
+        return $this->apFxSchemaReady() ? DB::table('supplier_invoice_fx_recognitions as recognition')->join('finance_fx_rate_snapshots as snapshot', 'snapshot.id', '=', 'recognition.fx_rate_snapshot_id')->where(static fn (Builder $query): Builder => $query->whereColumn('snapshot.rate_decimal', '<>', 'recognition.rate_decimal')->orWhereColumn('snapshot.rate_date', '<>', 'recognition.rate_date')->orWhereColumn('snapshot.rate_type', '<>', 'recognition.rate_type')->orWhere('snapshot.source_type', '<>', 'supplier_invoice_recognition')->orWhereColumn('snapshot.source_id', '<>', 'recognition.vendor_bill_id'))->count() : 0;
+    }
+
+    private function supplierInvoiceFxIdentityInvalid(): int
+    {
+        return $this->apFxSchemaReady() ? DB::table('supplier_invoice_fx_recognitions')->where('rate_type', 'identity')->where(static fn (Builder $query): Builder => $query->whereNotNull('fx_rate_snapshot_id')->orWhere('rate_decimal', '<>', '1.000000000000')->orWhereColumn('transaction_currency', '<>', 'functional_currency'))->count() : 0;
+    }
+
+    private function supplierInvoiceFxJournalMismatch(): int
+    {
+        if (! $this->apFxSchemaReady()) {
+            return 0;
+        }
+
+        return DB::table('supplier_invoice_fx_recognitions as recognition')->join('vendor_bills as bill', 'bill.id', '=', 'recognition.vendor_bill_id')->leftJoin('payroll_accounting_journals as journal', 'journal.id', '=', 'recognition.accounting_journal_id')->where(static fn (Builder $query): Builder => $query->whereNull('journal.id')->orWhereColumn('bill.accounting_journal_id', '<>', 'journal.id')->orWhereColumn('journal.company_id', '<>', 'recognition.company_id')->orWhereColumn('journal.currency', '<>', 'recognition.functional_currency')->orWhereColumn('journal.total_debit_minor', '<>', 'recognition.functional_amount_minor')->orWhereColumn('journal.total_debit_minor', '<>', 'journal.total_credit_minor')->orWhereColumn('bill.accounting_posting_policy_id', '<>', 'recognition.accounting_policy_id')->orWhereColumn('bill.accounting_posting_policy_version', '<>', 'recognition.accounting_policy_version'))->count();
+    }
+
+    private function supplierPaymentFxOrphanSettlement(): int
+    {
+        if (! $this->apFxSettlementSchemaReady()) {
+            return 0;
+        }
+
+        return DB::table('supplier_payment_fx_settlements as settlement')
+            ->leftJoin('ap_payments as payment', 'payment.id', '=', 'settlement.ap_payment_id')
+            ->leftJoin('ap_payment_allocations as allocation', 'allocation.id', '=', 'settlement.ap_payment_allocation_id')
+            ->leftJoin('supplier_invoice_fx_recognitions as recognition', 'recognition.id', '=', 'settlement.supplier_invoice_fx_recognition_id')
+            ->leftJoin('vendor_bills as bill', 'bill.id', '=', 'recognition.vendor_bill_id')
+            ->where(static fn (Builder $query): Builder => $query->whereNull('payment.id')->orWhereNull('allocation.id')->orWhereNull('recognition.id')->orWhereNull('bill.id'))
+            ->count();
+    }
+
+    private function supplierPaymentFxScopeMismatch(): int
+    {
+        if (! $this->apFxSettlementSchemaReady()) {
+            return 0;
+        }
+
+        return DB::table('supplier_payment_fx_settlements as settlement')
+            ->join('ap_payments as payment', 'payment.id', '=', 'settlement.ap_payment_id')
+            ->join('ap_payment_allocations as allocation', 'allocation.id', '=', 'settlement.ap_payment_allocation_id')
+            ->join('supplier_invoice_fx_recognitions as recognition', 'recognition.id', '=', 'settlement.supplier_invoice_fx_recognition_id')
+            ->where(static fn (Builder $query): Builder => $query->whereColumn('allocation.payment_id', '<>', 'payment.id')->orWhereColumn('allocation.vendor_bill_id', '<>', 'recognition.vendor_bill_id')->orWhereColumn('payment.company_id', '<>', 'settlement.company_id')->orWhereColumn('recognition.company_id', '<>', 'settlement.company_id'))
+            ->count();
+    }
+
+    private function supplierPaymentFxSnapshotMismatch(): int
+    {
+        if (! $this->apFxSettlementSchemaReady()) {
+            return 0;
+        }
+
+        return DB::table('supplier_payment_fx_settlements as settlement')
+            ->leftJoin('finance_fx_rate_snapshots as snapshot', 'snapshot.id', '=', 'settlement.settlement_fx_snapshot_id')
+            ->where(static fn (Builder $query): Builder => $query->where(static fn (Builder $foreign): Builder => $foreign->where('settlement.rate_type', '<>', 'identity')->where(static fn (Builder $invalid): Builder => $invalid->whereNull('snapshot.id')->orWhereColumn('snapshot.company_id', '<>', 'settlement.company_id')->orWhereColumn('snapshot.base_currency', '<>', 'settlement.transaction_currency')->orWhereColumn('snapshot.quote_currency', '<>', 'settlement.functional_currency')->orWhereColumn('snapshot.rate_decimal', '<>', 'settlement.rate_decimal')->orWhereColumn('snapshot.rate_date', '<>', 'settlement.rate_date')->orWhere('snapshot.rate_type', '<>', 'spot')->orWhere('snapshot.source_type', '<>', 'supplier_payment_allocation_settlement')->orWhereColumn('snapshot.source_id', '<>', 'settlement.ap_payment_allocation_id')))->orWhere(static fn (Builder $identity): Builder => $identity->where('settlement.rate_type', 'identity')->where(static fn (Builder $invalid): Builder => $invalid->whereNotNull('settlement.settlement_fx_snapshot_id')->orWhereColumn('settlement.transaction_currency', '<>', 'settlement.functional_currency')->orWhere('settlement.rate_decimal', '<>', '1.000000000000'))))
+            ->count();
+    }
+
+    private function supplierPaymentFxCurrencyMismatch(): int
+    {
+        if (! $this->apFxSettlementSchemaReady()) {
+            return 0;
+        }
+
+        return DB::table('supplier_payment_fx_settlements as settlement')
+            ->join('ap_payments as payment', 'payment.id', '=', 'settlement.ap_payment_id')
+            ->join('supplier_invoice_fx_recognitions as recognition', 'recognition.id', '=', 'settlement.supplier_invoice_fx_recognition_id')
+            ->leftJoin('treasury_financial_accounts as account', 'account.id', '=', 'settlement.treasury_financial_account_id')
+            ->where(static fn (Builder $query): Builder => $query->whereNull('account.id')->orWhereColumn('payment.currency', '<>', 'settlement.transaction_currency')->orWhereColumn('recognition.transaction_currency', '<>', 'settlement.transaction_currency')->orWhereColumn('recognition.functional_currency', '<>', 'settlement.functional_currency')->orWhereColumn('account.currency', '<>', 'settlement.transaction_currency')->orWhereColumn('account.company_id', '<>', 'settlement.company_id'))
+            ->count();
+    }
+
+    private function supplierPaymentFxReleasedBasisMismatch(): int
+    {
+        if (! $this->apFxSettlementSchemaReady()) {
+            return 0;
+        }
+        $totals = DB::table('supplier_payment_fx_settlements')->selectRaw('supplier_invoice_fx_recognition_id, SUM(foreign_settled_minor) foreign_settled, SUM(released_carrying_minor) released')->groupBy('supplier_invoice_fx_recognition_id');
+
+        return DB::table('supplier_invoice_fx_recognitions as recognition')->joinSub($totals, 'settlement', 'settlement.supplier_invoice_fx_recognition_id', '=', 'recognition.id')->where(static fn (Builder $query): Builder => $query->whereColumn('settlement.foreign_settled', '>', 'recognition.transaction_amount_minor')->orWhereColumn('settlement.released', '>', 'recognition.functional_amount_minor'))->count();
+    }
+
+    private function supplierPaymentFxRealizedMismatch(): int
+    {
+        return $this->apFxSettlementSchemaReady()
+            ? DB::table('supplier_payment_fx_settlements')->whereRaw('realized_fx_minor <> CAST(released_carrying_minor AS SIGNED) - CAST(settlement_functional_minor AS SIGNED)')->count()
+            : 0;
+    }
+
+    private function supplierPaymentFxJournalMismatch(): int
+    {
+        if (! $this->apFxSettlementSchemaReady()) {
+            return 0;
+        }
+
+        return DB::table('supplier_payment_fx_settlements as settlement')
+            ->leftJoin('payroll_accounting_journals as journal', 'journal.id', '=', 'settlement.accounting_journal_id')
+            ->leftJoin('accounting_posting_policies as policy', 'policy.id', '=', 'settlement.accounting_policy_id')
+            ->where(static fn (Builder $query): Builder => $query->whereNull('journal.id')->orWhereNull('policy.id')->orWhereColumn('journal.company_id', '<>', 'settlement.company_id')->orWhereColumn('journal.currency', '<>', 'settlement.functional_currency')->orWhere('journal.source_type', '<>', 'ap_payment')->orWhereColumn('journal.source_id', '<>', 'settlement.ap_payment_id')->orWhereColumn('policy.company_id', '<>', 'settlement.company_id')->orWhereColumn('policy.version', '<>', 'settlement.accounting_policy_version')->orWhereRaw('journal.total_debit_minor <> GREATEST(settlement.settlement_functional_minor, settlement.released_carrying_minor)')->orWhereColumn('journal.total_debit_minor', '<>', 'journal.total_credit_minor'))
+            ->count();
+    }
+
+    private function supplierPaymentFxTreasuryMismatch(): int
+    {
+        if (! $this->apFxSettlementSchemaReady()) {
+            return 0;
+        }
+
+        return DB::table('supplier_payment_fx_settlements as settlement')
+            ->leftJoin('treasury_transactions as treasury', 'treasury.id', '=', 'settlement.treasury_transaction_id')
+            ->where(static fn (Builder $query): Builder => $query->whereNull('treasury.id')->orWhereColumn('treasury.company_id', '<>', 'settlement.company_id')->orWhere('treasury.source_type', '<>', 'ap_payment')->orWhereColumn('treasury.source_id', '<>', 'settlement.ap_payment_id')->orWhere('treasury.direction', '<>', 'outflow')->orWhereColumn('treasury.financial_account_id', '<>', 'settlement.treasury_financial_account_id')->orWhereColumn('treasury.currency', '<>', 'settlement.transaction_currency')->orWhereColumn('treasury.amount_minor', '<>', 'settlement.foreign_settled_minor')->orWhereColumn('treasury.accounting_journal_id', '<>', 'settlement.accounting_journal_id'))
+            ->count();
+    }
+
+    private function inventoryReceiptFxOrphanOrScopeMismatch(): int
+    {
+        if (! $this->inventoryReceiptFxSchemaReady()) {
+            return 0;
+        }
+
+        return DB::table('inventory_receipt_fx_valuations as valuation')
+            ->leftJoin('procurement_goods_receipt_lines as line', 'line.id', '=', 'valuation.goods_receipt_line_id')
+            ->leftJoin('procurement_goods_receipts as receipt', 'receipt.id', '=', 'line.goods_receipt_id')
+            ->leftJoin('purchase_orders as po', 'po.id', '=', 'receipt.purchase_order_id')
+            ->where(static fn (Builder $query): Builder => $query->whereNull('line.id')->orWhereNull('receipt.id')->orWhereNull('po.id')->orWhereColumn('valuation.goods_receipt_id', '<>', 'receipt.id')->orWhereColumn('valuation.purchase_order_id', '<>', 'po.id')->orWhereColumn('valuation.company_id', '<>', 'receipt.company_id')->orWhereColumn('valuation.branch_id', '<>', 'receipt.branch_id')->orWhereColumn('valuation.transaction_currency', '<>', 'po.currency'))
+            ->count();
+    }
+
+    private function inventoryReceiptFxSnapshotMismatch(): int
+    {
+        if (! $this->inventoryReceiptFxSchemaReady()) {
+            return 0;
+        }
+
+        return DB::table('inventory_receipt_fx_valuations as valuation')
+            ->leftJoin('finance_fx_rate_snapshots as snapshot', 'snapshot.id', '=', 'valuation.fx_rate_snapshot_id')
+            ->where('valuation.rate_type', '<>', 'identity')
+            ->where(static fn (Builder $query): Builder => $query->whereNull('snapshot.id')->orWhereColumn('snapshot.company_id', '<>', 'valuation.company_id')->orWhereColumn('snapshot.base_currency', '<>', 'valuation.transaction_currency')->orWhereColumn('snapshot.quote_currency', '<>', 'valuation.functional_currency')->orWhereColumn('snapshot.rate_decimal', '<>', 'valuation.rate_decimal')->orWhereColumn('snapshot.rate_date', '<>', 'valuation.recognition_date')->orWhere('snapshot.rate_type', '<>', 'spot')->orWhere('snapshot.source_type', '<>', 'inventory_receipt_valuation')->orWhereColumn('snapshot.source_id', '<>', 'valuation.goods_receipt_line_id'))
+            ->count();
+    }
+
+    private function inventoryReceiptFxMovementOrJournalMismatch(): int
+    {
+        if (! $this->inventoryReceiptFxSchemaReady()) {
+            return 0;
+        }
+
+        return DB::table('inventory_receipt_fx_valuations as valuation')
+            ->leftJoin('inventory_movements as movement', 'movement.id', '=', 'valuation.inventory_movement_id')
+            ->leftJoin('payroll_accounting_journals as journal', 'journal.id', '=', 'valuation.accounting_journal_id')
+            ->where(static fn (Builder $query): Builder => $query->whereNull('movement.id')->orWhereNull('journal.id')->orWhereColumn('movement.source_id', '<>', 'valuation.goods_receipt_line_id')->orWhere('movement.source_type', '<>', 'procurement_goods_receipt_line')->orWhereColumn('movement.movement_value_minor', '<>', 'valuation.functional_amount_minor')->orWhereColumn('journal.company_id', '<>', 'valuation.company_id')->orWhereColumn('journal.branch_id', '<>', 'valuation.branch_id')->orWhereColumn('journal.currency', '<>', 'valuation.functional_currency')->orWhereColumn('journal.total_debit_minor', '<>', 'journal.total_credit_minor')->orWhereColumn('journal.total_debit_minor', '<>', 'valuation.functional_amount_minor')->orWhere('journal.source_type', '<>', 'goods_receipt')->orWhereColumn('journal.source_id', '<>', 'valuation.goods_receipt_id'))
+            ->count();
+    }
+
+    private function inventoryReceiptFxBillMatchMismatch(): int
+    {
+        if (! $this->inventoryReceiptFxSchemaReady() || ! Schema::hasTable('vendor_bill_receipt_fx_matches')) {
+            return 0;
+        }
+
+        return DB::table('vendor_bill_receipt_fx_matches as matching')
+            ->leftJoin('vendor_bill_receipt_allocations as allocation', 'allocation.id', '=', 'matching.vendor_bill_receipt_allocation_id')
+            ->leftJoin('supplier_invoice_fx_recognitions as recognition', 'recognition.id', '=', 'matching.supplier_invoice_fx_recognition_id')
+            ->leftJoin('inventory_receipt_fx_valuations as valuation', 'valuation.id', '=', 'matching.inventory_receipt_fx_valuation_id')
+            ->where(static fn (Builder $query): Builder => $query->whereNull('allocation.id')->orWhereNull('recognition.id')->orWhereNull('valuation.id')->orWhereColumn('recognition.vendor_bill_id', '<>', 'matching.vendor_bill_id')->orWhereColumn('recognition.company_id', '<>', 'matching.company_id')->orWhereColumn('valuation.company_id', '<>', 'matching.company_id')->orWhereColumn('allocation.allocated_minor', '<>', 'matching.foreign_amount_minor')->orWhereRaw('matching.purchase_price_variance_minor <> CAST(matching.ap_functional_minor AS SIGNED) - CAST(matching.released_grni_functional_minor AS SIGNED)')->orWhereColumn('recognition.accounting_journal_id', '<>', 'matching.accounting_journal_id'))
+            ->count();
+    }
+
+    private function inventoryReceiptFxSchemaReady(): bool
+    {
+        return Schema::hasTable('inventory_receipt_fx_valuations') && Schema::hasTable('procurement_goods_receipt_lines') && Schema::hasTable('procurement_goods_receipts') && Schema::hasTable('purchase_orders') && Schema::hasTable('finance_fx_rate_snapshots');
+    }
+
+    private function apFxSettlementSchemaReady(): bool
+    {
+        return $this->apFxSchemaReady() && Schema::hasTable('supplier_payment_fx_settlements') && Schema::hasTable('ap_payments') && Schema::hasTable('ap_payment_allocations') && Schema::hasTable('treasury_financial_accounts') && Schema::hasTable('treasury_transactions');
+    }
+
+    private function apFxSchemaReady(): bool
+    {
+        return Schema::hasTable('supplier_invoice_fx_recognitions') && Schema::hasTable('vendor_bills') && Schema::hasTable('finance_fx_rate_snapshots');
+    }
+
+    private function arFxSchemaReady(): bool
+    {
+        return Schema::hasTable('customer_invoice_fx_recognitions') && Schema::hasTable('customer_collection_allocation_fx_settlements');
+    }
+
     private function isMissingServiceAcceptanceTable(QueryException $exception): bool
     {
         $message = $exception->getMessage();
@@ -944,5 +2140,25 @@ final class DataQualityAuditService
             || str_contains($message, 'service_acceptance_lines')
             || str_contains($message, 'service_acceptance_line_id')
             || str_contains($message, 'reversal_journal_id');
+    }
+
+    private static function evidenceInt(mixed $value): ?int
+    {
+        if (is_int($value)) {
+            return $value;
+        }
+
+        return is_string($value) && ctype_digit($value) ? (int) $value : null;
+    }
+
+    private static function evidenceString(mixed $value): ?string
+    {
+        return is_string($value) ? $value : null;
+    }
+
+    /** @return numeric-string|null */
+    private static function evidenceNumeric(mixed $value): ?string
+    {
+        return is_string($value) && is_numeric($value) ? $value : null;
     }
 }

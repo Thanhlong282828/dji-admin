@@ -58,7 +58,7 @@ HRM · TỔ CHỨC
     Connects   : Owner workspace and canonical detail/action routes
     Status     : IMPLEMENTED
 
-HRM · NHÂN SỰ
+WORKFORCE · NHÂN SỰ
 │
 ├── Cổng thông tin nhân viên
 │   Owner      : Cross-project/Admin UI
@@ -84,6 +84,18 @@ HRM · NHÂN SỰ
 │   Permission : employment-contract.view
 │   Connects   : Owner workspace and canonical detail/action routes
 │   Status     : IMPLEMENTED
+├── Hồ sơ tài liệu
+│   Owner      : Employee
+│   Route      : admin.hr.governance.documents
+│   Permission : hr.governance.view
+│   Connects   : Owner workspace and canonical detail/action routes
+│   Status     : IMPLEMENTED
+├── Chấp thuận dữ liệu
+│   Owner      : Employee
+│   Route      : admin.hr.governance.consents
+│   Permission : hr.governance.view
+│   Connects   : Owner workspace and canonical detail/action routes
+│   Status     : IMPLEMENTED
 └── HR Data Governance
     Owner      : Employee
     Route      : admin.hr.governance.dashboard
@@ -91,7 +103,7 @@ HRM · NHÂN SỰ
     Connects   : Owner workspace and canonical detail/action routes
     Status     : IMPLEMENTED
 
-HRM · CHẤM CÔNG VÀ NGHỈ PHÉP
+ATTENDANCE · CHẤM CÔNG
 │
 ├── Chấm công
 │   Owner      : Attendance
@@ -232,52 +244,28 @@ PAYROLL
     Connects   : Owner workspace and canonical detail/action routes
     Status     : IMPLEMENTED
 
-THUẾ & BẢO HIỂM BẮT BUỘC
+CRM · LEAD & OPPORTUNITY
 │
-├── Tổng quan thuế & nghĩa vụ
-│   Owner      : Finance
-│   Route      : admin.finance.tax-dashboard
-│   Permission : payroll.tax.view
+├── Pipeline
+│   Owner      : Cross-project/Admin UI
+│   Route      : admin.crm.index
+│   Permission : crm.view
 │   Connects   : Owner workspace and canonical detail/action routes
 │   Status     : IMPLEMENTED
-├── Hồ sơ thuế TNCN
-│   Owner      : Payroll
-│   Route      : admin.payroll.tax.employees.index
-│   Permission : payroll.tax.view
+├── Leads
+│   Owner      : Cross-project/Admin UI
+│   Route      : admin.crm.leads
+│   Permission : crm.view
 │   Connects   : Owner workspace and canonical detail/action routes
 │   Status     : IMPLEMENTED
-├── Chính sách thuế
-│   Owner      : Payroll
-│   Route      : admin.payroll.tax.policies.index
-│   Permission : payroll.tax.view
-│   Connects   : Owner workspace and canonical detail/action routes
-│   Status     : IMPLEMENTED
-├── Hồ sơ BHXH/BHYT/BHTN
-│   Owner      : Payroll
-│   Route      : admin.payroll.insurance.employees.index
-│   Permission : payroll.insurance.view
-│   Connects   : Owner workspace and canonical detail/action routes
-│   Status     : IMPLEMENTED
-├── Chính sách bảo hiểm
-│   Owner      : Payroll
-│   Route      : admin.payroll.insurance.policies.index
-│   Permission : payroll.insurance.view
-│   Connects   : Owner workspace and canonical detail/action routes
-│   Status     : IMPLEMENTED
-├── Đối soát thuế TNCN năm
-│   Owner      : Payroll
-│   Route      : admin.payroll.annual-tax.index
-│   Permission : payroll.annual_tax.view
-│   Connects   : Owner workspace and canonical detail/action routes
-│   Status     : IMPLEMENTED
-└── Government Filing
-    Owner      : Payroll
-    Route      : admin.payroll.government-filings.index
-    Permission : government.filing.view
+└── Opportunities
+    Owner      : Cross-project/Admin UI
+    Route      : admin.crm.opportunities
+    Permission : crm.view
     Connects   : Owner workspace and canonical detail/action routes
     Status     : IMPLEMENTED
 
-CRM & COMMERCE
+COMMERCE · SALES
 │
 ├── Tổng quan Seller
 │   Owner      : Commerce
@@ -297,17 +285,17 @@ CRM & COMMERCE
 │   Permission : product.view
 │   Connects   : Owner workspace and canonical detail/action routes
 │   Status     : IMPLEMENTED
-├── Tồn kho
-│   Owner      : Commerce
-│   Route      : admin.seller.inventory
-│   Permission : inventory.view
-│   Connects   : Product Variant → Inventory balance → append-only movement
+├── Khách hàng
+│   Owner      : Cross-project/Admin UI
+│   Route      : admin.branch-commerce.customers
+│   Permission : branch-commerce.view
+│   Connects   : Owner workspace and canonical detail/action routes
 │   Status     : IMPLEMENTED
-├── Lịch sử biến động kho
+├── Sales Invoice · Receivable
 │   Owner      : Commerce
-│   Route      : admin.seller.inventory.movements
-│   Permission : inventory.view
-│   Connects   : Product Variant → Inventory balance → append-only movement
+│   Route      : admin.sales.index
+│   Permission : sales.view
+│   Connects   : Customer → Quotation → Sales Order → Inventory → Invoice → AR → Collection → Treasury
 │   Status     : IMPLEMENTED
 ├── Đơn hàng
 │   Owner      : Commerce
@@ -352,6 +340,27 @@ CRM & COMMERCE
     Connects   : Owner workspace and canonical detail/action routes
     Status     : IMPLEMENTED
 
+INVENTORY · KHO
+│
+├── Tồn kho
+│   Owner      : Commerce
+│   Route      : admin.seller.inventory
+│   Permission : inventory.view
+│   Connects   : Product Variant → Inventory balance → append-only movement
+│   Status     : IMPLEMENTED
+├── Biến động kho
+│   Owner      : Commerce
+│   Route      : admin.seller.inventory.movements
+│   Permission : inventory.view
+│   Connects   : Product Variant → Inventory balance → append-only movement
+│   Status     : IMPLEMENTED
+└── Kiểm kê & điều chỉnh
+    Owner      : Commerce
+    Route      : admin.seller.inventory.governance
+    Permission : stock-count.view
+    Connects   : Owner workspace and canonical detail/action routes
+    Status     : IMPLEMENTED
+
 POS / BÁN HÀNG TẠI QUẦY
 │
 ├── Tổng quan POS
@@ -363,12 +372,6 @@ POS / BÁN HÀNG TẠI QUẦY
 ├── Thu ngân · Check-in / Checkout
 │   Owner      : Cross-project/Admin UI
 │   Route      : admin.branch-commerce.checkins
-│   Permission : branch-commerce.view
-│   Connects   : Owner workspace and canonical detail/action routes
-│   Status     : IMPLEMENTED
-├── Tệp khách hàng
-│   Owner      : Cross-project/Admin UI
-│   Route      : admin.branch-commerce.customers
 │   Permission : branch-commerce.view
 │   Connects   : Owner workspace and canonical detail/action routes
 │   Status     : IMPLEMENTED
@@ -423,6 +426,18 @@ MUA HÀNG
 │   Permission : goods-receipt.view
 │   Connects   : Owner workspace and canonical detail/action routes
 │   Status     : IMPLEMENTED
+├── Trả hàng nhà cung cấp
+│   Owner      : Procurement
+│   Route      : admin.procurement.goods-returns
+│   Permission : procurement-goods-return.view
+│   Connects   : Owner workspace and canonical detail/action routes
+│   Status     : IMPLEMENTED
+├── Giảm trừ công nợ NCC
+│   Owner      : Procurement
+│   Route      : admin.procurement.supplier-credits
+│   Permission : supplier-credit.view
+│   Connects   : Owner workspace and canonical detail/action routes
+│   Status     : IMPLEMENTED
 ├── Nghiệm thu dịch vụ
 │   Owner      : Procurement
 │   Route      : admin.procurement.service-acceptances
@@ -451,7 +466,7 @@ CHUỖI CUNG ỨNG
     Connects   : Owner workspace and canonical detail/action routes
     Status     : IMPLEMENTED
 
-TÀI CHÍNH
+ACCOUNTING · TÀI CHÍNH
 │
 ├── Tổng quan tài chính
 │   Owner      : Finance
@@ -464,12 +479,6 @@ TÀI CHÍNH
 │   Route      : admin.finance.cost-center-costs
 │   Permission : finance.operations.view
 │   Connects   : Owner workspace and canonical detail/action routes
-│   Status     : IMPLEMENTED
-├── Sales · AR · Collection
-│   Owner      : Commerce
-│   Route      : admin.sales.index
-│   Permission : sales.view
-│   Connects   : Customer → Quotation → Sales Order → Inventory → Invoice → AR → Collection → Treasury
 │   Status     : IMPLEMENTED
 ├── Chi phí · Tài sản · Ngân sách
 │   Owner      : Finance
@@ -513,13 +522,49 @@ TÀI CHÍNH
 │   Permission : payroll.accounting.view
 │   Connects   : Posted Journal → GL → Trial Balance → P&L / Balance Sheet / Cash Flow
 │   Status     : IMPLEMENTED
-├── Kế toán và bút toán
+├── Fiscal Year Governance
+│   Owner      : Finance
+│   Route      : admin.finance.fiscal-years
+│   Permission : accounting.period.view
+│   Connects   : Owner workspace and canonical detail/action routes
+│   Status     : IMPLEMENTED
+├── Hệ thống tài khoản
+│   Owner      : Payroll
+│   Route      : admin.payroll.accounting.accounts.index
+│   Permission : payroll.accounting.view
+│   Connects   : Owner workspace and canonical detail/action routes
+│   Status     : IMPLEMENTED
+├── Bút toán nhật ký
 │   Owner      : Payroll
 │   Route      : admin.payroll.accounting.journals.index
 │   Permission : payroll.accounting.view
 │   Connects   : Owner workspace and canonical detail/action routes
 │   Status     : IMPLEMENTED
-├── Cấu hình kế toán
+├── Accounting Policy Workspace
+│   Owner      : Finance
+│   Route      : admin.finance.accounting-policies
+│   Permission : payroll.accounting.view
+│   Connects   : Owner workspace and canonical detail/action routes
+│   Status     : IMPLEMENTED
+├── FX Rate Governance
+│   Owner      : Finance
+│   Route      : admin.finance.fx-rate
+│   Permission : finance.fx-rate.view
+│   Connects   : Owner workspace and canonical detail/action routes
+│   Status     : IMPLEMENTED
+├── FX Exposure
+│   Owner      : Finance
+│   Route      : admin.finance.fx-exposure
+│   Permission : finance.fx-exposure.view
+│   Connects   : Owner workspace and canonical detail/action routes
+│   Status     : IMPLEMENTED
+├── FX Revaluation
+│   Owner      : Finance
+│   Route      : admin.finance.fx-revaluation
+│   Permission : finance.fx-revaluation.view
+│   Connects   : Owner workspace and canonical detail/action routes
+│   Status     : IMPLEMENTED
+├── Posting Rules
 │   Owner      : Payroll
 │   Route      : admin.payroll.accounting.policies.index
 │   Permission : payroll.accounting.view
@@ -535,6 +580,57 @@ TÀI CHÍNH
     Owner      : Payroll
     Route      : admin.payroll.erp.connections.index
     Permission : erp.integration.connection.view
+    Connects   : Owner workspace and canonical detail/action routes
+    Status     : IMPLEMENTED
+
+TAX · THUẾ & NGHĨA VỤ
+│
+├── Tổng quan thuế & nghĩa vụ
+│   Owner      : Finance
+│   Route      : admin.finance.tax-dashboard
+│   Permission : payroll.tax.view
+│   Connects   : Owner workspace and canonical detail/action routes
+│   Status     : IMPLEMENTED
+├── VAT Policy Workspace
+│   Owner      : Finance
+│   Route      : admin.finance.tax-workspace
+│   Permission : tax-policy.view
+│   Connects   : Owner workspace and canonical detail/action routes
+│   Status     : IMPLEMENTED
+├── Hồ sơ thuế TNCN
+│   Owner      : Payroll
+│   Route      : admin.payroll.tax.employees.index
+│   Permission : payroll.tax.view
+│   Connects   : Owner workspace and canonical detail/action routes
+│   Status     : IMPLEMENTED
+├── Chính sách thuế
+│   Owner      : Payroll
+│   Route      : admin.payroll.tax.policies.index
+│   Permission : payroll.tax.view
+│   Connects   : Owner workspace and canonical detail/action routes
+│   Status     : IMPLEMENTED
+├── Hồ sơ BHXH/BHYT/BHTN
+│   Owner      : Payroll
+│   Route      : admin.payroll.insurance.employees.index
+│   Permission : payroll.insurance.view
+│   Connects   : Owner workspace and canonical detail/action routes
+│   Status     : IMPLEMENTED
+├── Chính sách bảo hiểm
+│   Owner      : Payroll
+│   Route      : admin.payroll.insurance.policies.index
+│   Permission : payroll.insurance.view
+│   Connects   : Owner workspace and canonical detail/action routes
+│   Status     : IMPLEMENTED
+├── Đối soát thuế TNCN năm
+│   Owner      : Payroll
+│   Route      : admin.payroll.annual-tax.index
+│   Permission : payroll.annual_tax.view
+│   Connects   : Owner workspace and canonical detail/action routes
+│   Status     : IMPLEMENTED
+└── Government Filing
+    Owner      : Payroll
+    Route      : admin.payroll.government-filings.index
+    Permission : government.filing.view
     Connects   : Owner workspace and canonical detail/action routes
     Status     : IMPLEMENTED
 
@@ -577,63 +673,6 @@ PROJECTS
     Owner      : Cross-project/Admin UI
     Route      : admin.projects.index
     Permission : project.view
-    Connects   : Owner workspace and canonical detail/action routes
-    Status     : IMPLEMENTED
-
-TỰ ĐỘNG HÓA DOANH NGHIỆP
-│
-├── Kho tài liệu
-│   Owner      : Document
-│   Route      : admin.documents.index
-│   Permission : document.view
-│   Connects   : Owner record → DMS metadata → immutable version/SHA-256 → Approval/Audit evidence → owner command
-│   Status     : IMPLEMENTED
-├── Approval Inbox
-│   Owner      : Cross-project/Admin UI
-│   Route      : admin.approvals.index
-│   Permission : approval.inbox.view
-│   Connects   : Owner workspace and canonical detail/action routes
-│   Status     : IMPLEMENTED
-├── Workflow Center
-│   Owner      : Cross-project/Admin UI
-│   Route      : admin.workflows.dashboard
-│   Permission : workflow.view
-│   Connects   : Owner workspace and canonical detail/action routes
-│   Status     : IMPLEMENTED
-├── Workflow Definitions
-│   Owner      : Cross-project/Admin UI
-│   Route      : admin.workflows.definitions
-│   Permission : workflow.view
-│   Connects   : Owner workspace and canonical detail/action routes
-│   Status     : IMPLEMENTED
-├── Workflow Tasks
-│   Owner      : Cross-project/Admin UI
-│   Route      : admin.workflows.tasks
-│   Permission : workflow.view
-│   Connects   : Owner workspace and canonical detail/action routes
-│   Status     : IMPLEMENTED
-├── Notification Center
-│   Owner      : Cross-project/Admin UI
-│   Route      : admin.notifications.index
-│   Permission : notification.view
-│   Connects   : Owner workspace and canonical detail/action routes
-│   Status     : IMPLEMENTED
-├── Notification Templates
-│   Owner      : Cross-project/Admin UI
-│   Route      : admin.notifications.templates.index
-│   Permission : notification.template.manage
-│   Connects   : Owner workspace and canonical detail/action routes
-│   Status     : IMPLEMENTED
-├── Notification Deliveries
-│   Owner      : Cross-project/Admin UI
-│   Route      : admin.notifications.deliveries.index
-│   Permission : notification.delivery.view
-│   Connects   : Owner workspace and canonical detail/action routes
-│   Status     : IMPLEMENTED
-└── Integration Hub
-    Owner      : Cross-project/Admin UI
-    Route      : admin.integrations.dashboard
-    Permission : integration.view
     Connects   : Owner workspace and canonical detail/action routes
     Status     : IMPLEMENTED
 
@@ -682,7 +721,58 @@ ANALYTICS & PLANNING
     Connects   : Owner workspace and canonical detail/action routes
     Status     : IMPLEMENTED
 
-IAM VÀ AUDIT
+TỰ ĐỘNG HÓA DOANH NGHIỆP
+│
+├── Kho tài liệu
+│   Owner      : Document
+│   Route      : admin.documents.index
+│   Permission : document.view
+│   Connects   : Owner record → DMS metadata → immutable version/SHA-256 → Approval/Audit evidence → owner command
+│   Status     : IMPLEMENTED
+├── Approval Inbox
+│   Owner      : Cross-project/Admin UI
+│   Route      : admin.approvals.index
+│   Permission : approval.inbox.view
+│   Connects   : Owner workspace and canonical detail/action routes
+│   Status     : IMPLEMENTED
+├── Workflow Center
+│   Owner      : Cross-project/Admin UI
+│   Route      : admin.workflows.dashboard
+│   Permission : workflow.view
+│   Connects   : Owner workspace and canonical detail/action routes
+│   Status     : IMPLEMENTED
+├── Workflow Definitions
+│   Owner      : Cross-project/Admin UI
+│   Route      : admin.workflows.definitions
+│   Permission : workflow.view
+│   Connects   : Owner workspace and canonical detail/action routes
+│   Status     : IMPLEMENTED
+├── Workflow Tasks
+│   Owner      : Cross-project/Admin UI
+│   Route      : admin.workflows.tasks
+│   Permission : workflow.view
+│   Connects   : Owner workspace and canonical detail/action routes
+│   Status     : IMPLEMENTED
+├── Notification Center
+│   Owner      : Cross-project/Admin UI
+│   Route      : admin.notifications.index
+│   Permission : notification.view
+│   Connects   : Owner workspace and canonical detail/action routes
+│   Status     : IMPLEMENTED
+├── Notification Templates
+│   Owner      : Cross-project/Admin UI
+│   Route      : admin.notifications.templates.index
+│   Permission : notification.template.manage
+│   Connects   : Owner workspace and canonical detail/action routes
+│   Status     : IMPLEMENTED
+└── Notification Deliveries
+    Owner      : Cross-project/Admin UI
+    Route      : admin.notifications.deliveries.index
+    Permission : notification.delivery.view
+    Connects   : Owner workspace and canonical detail/action routes
+    Status     : IMPLEMENTED
+
+ADMINISTRATION · IAM & AUDIT
 │
 ├── IAM Governance
 │   Owner      : Iam
@@ -727,8 +817,14 @@ IAM VÀ AUDIT
     Connects   : Owner workspace and canonical detail/action routes
     Status     : IMPLEMENTED
 
-VẬN HÀNH NỀN TẢNG
+SYSTEM · VẬN HÀNH NỀN TẢNG
 │
+├── Integrations
+│   Owner      : Cross-project/Admin UI
+│   Route      : admin.integrations.dashboard
+│   Permission : integration.view
+│   Connects   : Owner workspace and canonical detail/action routes
+│   Status     : IMPLEMENTED
 ├── Reliability
 │   Owner      : Cross-project/Admin UI
 │   Route      : admin.operations.reliability

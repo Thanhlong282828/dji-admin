@@ -15,6 +15,10 @@ class AuthenticationTest extends TestCase
         $response = $this->get('/login');
 
         $response->assertStatus(200);
+        $response->assertSee('images/la-thanh-dragon.png')
+            ->assertDontSee('ENTERPRISE CONTROL CENTER')
+            ->assertSee('data-password-toggle="password"', false)
+            ->assertSee('Đăng nhập bằng số điện thoại');
     }
 
     public function test_users_can_authenticate_using_the_login_screen(): void

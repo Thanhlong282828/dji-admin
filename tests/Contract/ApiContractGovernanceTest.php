@@ -10,9 +10,9 @@ final class ApiContractGovernanceTest extends TestCase
     public function test_all_governed_routes_are_documented_without_orphans_or_duplicate_ids(): void
     {
         $snapshot = app(ApiContractAuditService::class)->snapshot();
-        self::assertSame(11, $snapshot['actual_paths']);
-        self::assertSame(21, $snapshot['actual_route_records']);
-        self::assertSame(24, $snapshot['actual_operations']);
+        self::assertSame(13, $snapshot['actual_paths']);
+        self::assertSame(26, $snapshot['actual_route_records']);
+        self::assertSame(30, $snapshot['actual_operations']);
         self::assertSame($snapshot['actual_paths'], $snapshot['documented_paths']);
         self::assertSame($snapshot['actual_operations'], $snapshot['documented_operations']);
         self::assertSame([], $snapshot['undocumented_operations']);

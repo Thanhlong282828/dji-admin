@@ -14,6 +14,7 @@
 @endsection
 
 @section('content')
+    <div class="erp-title-with-help"><h2>Payroll Runs</h2><x-erp.process-help :title="$processHelp['title']" :steps="$processHelp['steps']" :route="route('admin.payroll.runs.index',['company_id'=>$companyId])" :description="$processHelp['description']" :owner="$processHelp['owner']" :accounting-impact="$processHelp['accounting_impact']" /></div>
     <div
         class="space-y-6"
         data-workforce-page
@@ -28,9 +29,9 @@
                 PAYROLL EXECUTION
             </span>
 
-            <h1>
+            <h2>
                 Payroll Runs
-            </h1>
+            </h2>
 
             <p>
                 Foundation component totals only.

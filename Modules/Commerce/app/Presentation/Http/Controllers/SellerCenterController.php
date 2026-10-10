@@ -11,13 +11,15 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Modules\Commerce\Application\Commands\SaveSellerStoreCommand;
+use Modules\Commerce\Application\Queries\GetSellerStoreProfileQuery;
 use Modules\Company\Domain\Services\BranchAccessService;
 use Modules\Core\Application\Buses\CommandBusInterface;
+use Modules\Core\Application\Buses\QueryBusInterface;
 use RuntimeException;
 
 final readonly class SellerCenterController
 {
-    public function __construct(private MediaService $media, private BranchAccessService $access, private CommandBusInterface $commands) {}
+    public function __construct(private MediaService $media, private BranchAccessService $access, private CommandBusInterface $commands, private QueryBusInterface $queries) {}
 
     public function dashboard(Request $request): View
     {
@@ -50,11 +52,16 @@ final readonly class SellerCenterController
     public function storeProfile(Request $request): View
     {
         $companyId = $this->companyId($request);
-        $seller = DB::table('seller_profiles')->where('company_id', $companyId)->where('user_id', $request->user()?->id)->first();
-        $store = $seller === null ? null : DB::table('stores')->where('seller_profile_id', $seller->id)->whereNull('deleted_at')->first();
-        $media = $store === null ? collect() : DB::table('media_assets')->where('owner_type', 'store')->where('owner_id', $store->id)->get()->keyBy('purpose');
+        $user = $request->user();
+        abort_unless($user instanceof User, 401);
+        $data = $this->queries->ask(new GetSellerStoreProfileQuery($companyId, $user->id));
+        abort_unless(is_array($data), 500);
+        $seller = $data['seller'] ?? null;
+        $store = $data['store'] ?? null;
+        $media = $data['media'] ?? collect();
+        $companySellers = $data['companySellers'] ?? collect();
 
-        return view('admin.seller.store', compact('seller', 'store', 'media', 'companyId'));
+        return view('admin.seller.store', compact('seller', 'store', 'media', 'companySellers', 'companyId'));
     }
 
     public function saveStore(StoreProfileRequest $request): RedirectResponse

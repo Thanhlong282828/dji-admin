@@ -14,6 +14,8 @@ use Illuminate\Support\Facades\DB;
 use Modules\Company\Application\Services\CompanyContextService;
 use Modules\Company\Domain\Services\BranchAccessService;
 use Modules\Core\Application\Buses\CommandBusInterface;
+use Modules\Core\Application\Buses\QueryBusInterface;
+use Modules\Inventory\Application\Queries\GetInventoryProcessHelpQuery;
 use Modules\Product\Application\Commands\ArchiveProductCommand;
 use Modules\Product\Application\Commands\SaveProductCatalogCommand;
 use Modules\Product\Application\Services\ProductMediaReadService;
@@ -21,7 +23,7 @@ use RuntimeException;
 
 final readonly class ProductCatalogController
 {
-    public function __construct(private MediaService $media, private ProductMediaReadService $productMedia, private CompanyContextService $context, private BranchAccessService $branchAccess, private CommandBusInterface $commands) {}
+    public function __construct(private MediaService $media, private ProductMediaReadService $productMedia, private CompanyContextService $context, private BranchAccessService $branchAccess, private CommandBusInterface $commands, private QueryBusInterface $queries) {}
 
     public function index(Request $request): View
     {
@@ -41,7 +43,7 @@ final readonly class ProductCatalogController
         $user = $this->user($request);
         $companyId = $this->context->companyId($request, $user);
 
-        return view('admin.products.form', ['product' => null, 'companyId' => $companyId, ...$this->options($user, $companyId)]);
+        return view('admin.products.form', ['product' => null, 'companyId' => $companyId, 'processHelp' => $this->queries->ask(new GetInventoryProcessHelpQuery($companyId, $request->integer('branch_id') ?: null, $user)), ...$this->options($user, $companyId)]);
     }
 
     public function store(ProductRequest $request): RedirectResponse
@@ -58,7 +60,7 @@ final readonly class ProductCatalogController
         abort_unless($this->branchAccess->branch($user, $companyId, $branchId), 404);
         $variants = DB::table('product_variants as v')->leftJoin('inventory_balances as ib', 'ib.product_variant_id', '=', 'v.id')->leftJoin('inventory_locations as il', static fn (JoinClause $join): JoinClause => $join->on('il.id', '=', 'ib.inventory_location_id')->where('il.branch_id', $branchId))->where('v.product_id', $product)->select('v.*')->selectRaw('COALESCE(MAX(CASE WHEN il.branch_id = ? THEN ib.on_hand END),0) on_hand, COALESCE(MAX(CASE WHEN il.branch_id = ? THEN ib.reserved END),0) reserved', [$branchId, $branchId])->groupBy('v.id')->get();
 
-        return view('admin.products.form', ['product' => $item, 'companyId' => $companyId, 'branchId' => $branchId, 'variants' => $variants, 'media' => DB::table('media_assets')->where('owner_type', 'product')->where('owner_id', $product)->get(), ...$this->options($user, $companyId)]);
+        return view('admin.products.form', ['product' => $item, 'companyId' => $companyId, 'branchId' => $branchId, 'variants' => $variants, 'media' => DB::table('media_assets')->where('owner_type', 'product')->where('owner_id', $product)->get(), 'processHelp' => $this->queries->ask(new GetInventoryProcessHelpQuery($companyId, $branchId, $user)), ...$this->options($user, $companyId)]);
     }
 
     public function update(ProductRequest $request, int $product): RedirectResponse

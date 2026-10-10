@@ -6,6 +6,7 @@ use App\Models\User;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
@@ -64,16 +65,13 @@ final class CartWishlistMarketplaceTest extends TestCase
         $this->get(route('public.stores.show', 'store-public'))->assertOk()->assertSee('Sản phẩm public');
     }
 
-    public function test_seller_inventory_adjustment_is_scoped_and_never_goes_below_reserved(): void
+    public function test_legacy_direct_inventory_adjustment_route_remains_removed(): void
     {
-        [, $variant, $seller] = $this->catalog('inventory');
-        $other = User::factory()->create(['email_verified_at' => now()]);
-        $other->assignRole('Seller');
+        [, $variant] = $this->catalog('inventory');
 
-        $this->actingAs($seller)->patch(route('admin.seller.inventory.adjust', $variant), ['operation' => 'decrease', 'quantity' => 2, 'reason' => 'Kiểm kê kho'])->assertRedirect();
-        $this->assertDatabaseHas('inventory_balances', ['product_variant_id' => $variant, 'on_hand' => 8, 'reserved' => 2]);
-        $this->actingAs($seller)->patch(route('admin.seller.inventory.adjust', $variant), ['operation' => 'decrease', 'quantity' => 7, 'reason' => 'Kiểm kê kho'])->assertSessionHasErrors('inventory');
-        $this->actingAs($other)->patch(route('admin.seller.inventory.adjust', $variant), ['operation' => 'increase', 'quantity' => 1, 'reason' => 'Không sở hữu'])->assertNotFound();
+        self::assertFalse(Route::has('admin.seller.inventory.adjust'));
+        self::assertTrue(Route::has('admin.seller.inventory.governance'));
+        $this->assertDatabaseHas('inventory_balances', ['product_variant_id' => $variant, 'on_hand' => 10, 'reserved' => 2]);
     }
 
     private function buyer(string $email): User

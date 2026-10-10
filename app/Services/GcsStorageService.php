@@ -21,15 +21,10 @@ final class GcsStorageService
 
     public function __construct()
     {
-        $projectId = (string) config('cloud-storage.project_id');
-        $bucketName = (string) config('cloud-storage.bucket');
-        $this->serviceAccountEmail = (string) config(
-            'cloud-storage.service_account_email'
-        );
-        $this->signedUrlTtlMinutes = (int) config(
-            'cloud-storage.signed_url_ttl_minutes',
-            5
-        );
+        $projectId = $this->stringConfig('cloud-storage.project_id');
+        $bucketName = $this->stringConfig('cloud-storage.bucket');
+        $this->serviceAccountEmail = $this->stringConfig('cloud-storage.service_account_email');
+        $this->signedUrlTtlMinutes = $this->integerConfig('cloud-storage.signed_url_ttl_minutes', 5);
 
         if ($projectId === '') {
             throw new RuntimeException(
@@ -56,6 +51,7 @@ final class GcsStorageService
         $this->bucket = $this->client->bucket($bucketName);
     }
 
+    /** @param array<string, mixed> $metadata */
     public function put(
         string $path,
         string $contents,
@@ -121,5 +117,23 @@ final class GcsStorageService
                     'serviceAccountEmail' => $this->serviceAccountEmail,
                 ]
             );
+    }
+
+    private function stringConfig(string $key): string
+    {
+        $value = config($key);
+
+        return is_string($value) ? $value : '';
+    }
+
+    private function integerConfig(string $key, int $default): int
+    {
+        $value = config($key, $default);
+
+        if (is_int($value)) {
+            return $value;
+        }
+
+        return is_string($value) && ctype_digit($value) ? (int) $value : $default;
     }
 }

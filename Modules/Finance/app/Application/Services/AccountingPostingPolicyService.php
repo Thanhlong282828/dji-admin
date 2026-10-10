@@ -139,7 +139,7 @@ final readonly class AccountingPostingPolicyService
             throw ValidationException::withMessages(['account_id' => 'ACCOUNTING_POSTING_POLICY_ACCOUNT_INVALID']);
         }
         $expected = match ($role) {
-            'EXPENSE' => ['expense'], 'ACCRUAL', 'AP' => ['liability'], 'CASH', 'INVENTORY', 'ASSET' => ['asset'], 'GRNI' => ['liability'],
+            'EXPENSE', 'INVENTORY_LOSS', 'IMPAIRMENT_LOSS', 'DISPOSAL_LOSS', 'FX_LOSS', 'PURCHASE_PRICE_VARIANCE_LOSS' => ['expense'], 'REVENUE', 'INVENTORY_GAIN', 'DISPOSAL_GAIN', 'FX_GAIN', 'PURCHASE_PRICE_VARIANCE_GAIN' => ['revenue'], 'ACCRUAL', 'AP', 'GRNI', 'CUSTOMER_CREDIT_LIABILITY', 'TAX_PAYABLE' => ['liability'], 'CASH', 'SOURCE_CASH', 'DESTINATION_CASH', 'CASH_PROCEEDS', 'INVENTORY', 'INVENTORY_ASSET', 'ASSET', 'ASSET_VALUE', 'FIXED_ASSET', 'RECEIVABLE', 'TAX_RECOVERABLE' => ['asset'], 'ACCUMULATED_DEPRECIATION' => ['contra_asset'], 'OPENING_EQUITY' => ['equity'],
             default => throw ValidationException::withMessages(['line_role' => 'ACCOUNTING_POSTING_POLICY_ROLE_INVALID']),
         };
         if (! in_array($this->objectText($account, 'account_type'), $expected, true)) {

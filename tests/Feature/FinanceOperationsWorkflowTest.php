@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Modules\Finance\Application\Services\AccountingAdjustmentService;
+use Modules\Finance\Application\Services\AccountingPostingPolicyService;
 use Modules\Finance\Application\Services\FinanceOperationsService;
 use Modules\Finance\Application\Services\SourceAccountingPostingService;
 use Tests\TestCase;
@@ -16,6 +17,24 @@ use Tests\TestCase;
 final class FinanceOperationsWorkflowTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_account_master_creation_is_company_scoped_idempotent_and_conflict_safe(): void
+    {
+        [$maker, , $company] = $this->runtime();
+        $service = app(FinanceOperationsService::class);
+        $payload = ['code' => '1120', 'name' => 'Operating Bank', 'account_type' => 'asset', 'normal_balance' => 'debit', 'currency' => 'VND', 'effective_from' => '2026-01-01'];
+
+        $account = $service->mutate('account.create', $company, $maker, $payload);
+        self::assertSame($account, $service->mutate('account.create', $company, $maker, $payload));
+        self::assertSame(1, DB::table('accounting_accounts')->where(['company_id' => $company, 'code' => '1120'])->count());
+
+        try {
+            $service->mutate('account.create', $company, $maker, [...$payload, 'name' => 'Conflicting Bank']);
+            self::fail('A conflicting account definition must not reuse the same company code.');
+        } catch (ValidationException $exception) {
+            self::assertArrayHasKey('code', $exception->errors());
+        }
+    }
 
     public function test_expense_asset_and_budget_share_posted_accounting_actuals(): void
     {
@@ -198,6 +217,24 @@ final class FinanceOperationsWorkflowTest extends TestCase
         $company = (int) DB::table('companies')->insertGetId(['uuid' => (string) Str::uuid(), 'code' => 'FINOPS', 'name' => 'Finance Operations Company', 'is_active' => true, 'created_at' => now(), 'updated_at' => now()]);
         $branch = (int) DB::table('branches')->insertGetId(['company_id' => $company, 'code' => 'HQ', 'name' => 'Trụ sở chính', 'status' => 'active', 'timezone' => 'Asia/Ho_Chi_Minh', 'created_at' => now(), 'updated_at' => now()]);
         DB::table('company_user_access')->insert([['company_id' => $company, 'user_id' => $maker->id, 'created_at' => now(), 'updated_at' => now()], ['company_id' => $company, 'user_id' => $checker->id, 'created_at' => now(), 'updated_at' => now()]]);
+        $posting = app(SourceAccountingPostingService::class);
+        $operatingExpense = $posting->accountEvidence($company, '5100', 'VND', $maker->id)['id'];
+        $cash = $posting->accountEvidence($company, '1100', 'VND', $maker->id)['id'];
+        $asset = $posting->accountEvidence($company, '1300', 'VND', $maker->id)['id'];
+        $payable = $posting->accountEvidence($company, '2100', 'VND', $maker->id)['id'];
+        $expense = $posting->accountEvidence($company, '5200', 'VND', $maker->id)['id'];
+        $accumulated = $posting->accountEvidence($company, '1390', 'VND', $maker->id)['id'];
+        $policies = app(AccountingPostingPolicyService::class);
+        foreach ([
+            ['OPERATING-EXPENSE-PAYABLE', 'finance_expense', 'OPERATING_EXPENSE', 'payable', [['entry_side' => 'debit', 'line_role' => 'EXPENSE', 'account_id' => $operatingExpense, 'requires_cost_center' => true], ['entry_side' => 'credit', 'line_role' => 'AP', 'account_id' => $payable]]],
+            ['OPERATING-EXPENSE-CASH', 'finance_expense_payment', 'OPERATING_EXPENSE', 'cash', [['entry_side' => 'debit', 'line_role' => 'AP', 'account_id' => $payable], ['entry_side' => 'credit', 'line_role' => 'CASH', 'account_id' => $cash]]],
+            ['ASSET-ACQUISITION', 'asset_acquisition', 'ASSET_ACQUISITION', null, [['entry_side' => 'debit', 'line_role' => 'FIXED_ASSET', 'account_id' => $asset], ['entry_side' => 'credit', 'line_role' => 'AP', 'account_id' => $payable]]],
+            ['ASSET-DEPRECIATION', 'asset_depreciation', 'ASSET_DEPRECIATION', null, [['entry_side' => 'debit', 'line_role' => 'EXPENSE', 'account_id' => $expense, 'requires_cost_center' => true], ['entry_side' => 'credit', 'line_role' => 'ACCUMULATED_DEPRECIATION', 'account_id' => $accumulated]]],
+        ] as [$key, $source, $event, $classification, $lines]) {
+            $policyId = $policies->create($company, $maker, ['policy_key' => $key, 'source_type' => $source, 'business_event' => $event, 'classification' => $classification, 'version' => 1, 'currency' => 'VND', 'effective_from' => '2026-01-01', 'lines' => $lines]);
+            $policies->submit($company, $policyId, $maker);
+            $policies->approve($company, $policyId, $checker);
+        }
 
         return [$maker, $checker, $company, $branch];
     }

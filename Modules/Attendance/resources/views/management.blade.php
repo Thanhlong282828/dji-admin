@@ -1,9 +1,9 @@
 @extends('layouts.admin')
 @section('title', 'Lịch và ca làm việc')
 @section('content')
-<section class="panel" data-company-id="{{ $companyId }}" data-workforce-management>
+<section class="panel workforce-management" data-company-id="{{ $companyId }}" data-workforce-management>
     <span class="eyebrow">WORKFORCE OPERATIONS</span>
-    <h1>Lịch và ca làm việc</h1>
+    <h2>Lịch và ca làm việc</h2>
     @if(session('success'))<div class="alert success">{{ session('success') }}</div>@endif
     @if($errors->any())<div class="alert error"><ul>@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul></div>@endif
     <nav class="tabs">
@@ -11,7 +11,7 @@
             <a href="{{ route('admin.workforce.management', ['section'=>$key,'company_id'=>$companyId]) }}" class="{{ $viewModel->section === $key ? 'active' : '' }}">{{ $label }}</a>
         @endforeach
     </nav>
-    <form method="GET"><input type="hidden" name="company_id" value="{{ $companyId }}"><input name="search" value="{{ request('search') }}" placeholder="Tìm mã hoặc tên"><button>Lọc</button></form>
+    <form method="GET" class="admin-filter-bar"><input type="hidden" name="company_id" value="{{ $companyId }}"><input name="search" value="{{ request('search') }}" placeholder="Tìm mã hoặc tên"><button class="admin-button">Lọc</button></form>
 
     @php($resource = ['calendars'=>'calendar','holidays'=>'holiday','shifts'=>'shift','assignments'=>'assignment'][$viewModel->section])
     @can(in_array($resource,['calendar','holiday']) ? 'work-calendar.manage' : ($resource === 'assignment' ? 'shift.assign' : 'shift.manage'))
@@ -28,8 +28,8 @@
         <button type="submit">Lưu</button>
     </form></details>
     @endcan
-    <div class="table-wrap"><table><thead><tr>@if(!empty($viewModel->rows))@foreach(array_keys($viewModel->rows[0]) as $column)<th>{{ str_replace('_',' ',strtoupper($column)) }}</th>@endforeach<th>Thao tác</th>@endif</tr></thead><tbody>
-    @forelse($viewModel->rows as $row)<tr>@foreach($row as $value)<td>{{ is_bool($value) ? ($value ? 'Có' : 'Không') : $value }}</td>@endforeach<td>@if($resource==='calendar')<a href="{{route('admin.workforce.calendar-days',['calendar'=>$row['id'],'company_id'=>$companyId])}}">Sửa 7 ngày</a>@elseif($resource==='shift')<a href="{{route('admin.workforce.shift-breaks',['shift'=>$row['id'],'company_id'=>$companyId])}}">Break rules</a>@endif @can(in_array($resource,['calendar','holiday']) ? 'work-calendar.manage' : ($resource === 'assignment' ? 'shift.assign' : 'shift.manage'))<form method="POST" action="{{ route('admin.workforce.destroy', [$resource,$row['id']]) }}" onsubmit="return confirm('Xác nhận xóa?')">@csrf @method('DELETE')<input type="hidden" name="company_id" value="{{ $companyId }}"><button>Xóa</button></form>@endcan</td></tr>@empty<tr><td>Chưa có dữ liệu phù hợp.</td></tr>@endforelse
+    <div class="table-wrap"><table class="data-table"><thead><tr>@if(!empty($viewModel->rows))@foreach(array_keys($viewModel->rows[0]) as $column)<th>{{ str_replace('_',' ',strtoupper($column)) }}</th>@endforeach<th>Thao tác</th>@endif</tr></thead><tbody>
+    @forelse($viewModel->rows as $row)<tr id="{{ $resource }}-{{ $row['id'] }}">@foreach($row as $column => $value)<td>@if($column === 'employee_id')<a class="erp-source-link" href="{{ route('admin.employees.show', ['employee' => $value, 'company_id' => $companyId]) }}"><strong>#{{ $value }}</strong><small>Mở nhân viên →</small></a>@elseif($column === 'work_calendar_id' && $value)<a class="erp-source-link" href="{{ route('admin.workforce.calendar-days', ['calendar' => $value, 'company_id' => $companyId]) }}">#{{ $value }}<small>Mở lịch →</small></a>@elseif($column === 'work_shift_id' && $value)<a class="erp-source-link" href="{{ route('admin.workforce.shift-breaks', ['shift' => $value, 'company_id' => $companyId]) }}">#{{ $value }}<small>Mở ca →</small></a>@else{{ is_bool($value) ? ($value ? 'Có' : 'Không') : $value }}@endif</td>@endforeach<td><div class="actions">@if($resource==='calendar')<a class="erp-source-link" href="{{route('admin.workforce.calendar-days',['calendar'=>$row['id'],'company_id'=>$companyId])}}">Sửa 7 ngày →</a>@elseif($resource==='shift')<a class="erp-source-link" href="{{route('admin.workforce.shift-breaks',['shift'=>$row['id'],'company_id'=>$companyId])}}">Break rules →</a>@endif @can(in_array($resource,['calendar','holiday']) ? 'work-calendar.manage' : ($resource === 'assignment' ? 'shift.assign' : 'shift.manage'))<form method="POST" action="{{ route('admin.workforce.destroy', [$resource,$row['id']]) }}" onsubmit="return confirm('Xác nhận xóa?')">@csrf @method('DELETE')<input type="hidden" name="company_id" value="{{ $companyId }}"><button>Xóa</button></form>@endcan</div></td></tr>@empty<tr><td colspan="12"><div class="erp-empty-state"><span>↗</span><div><strong>Chưa có dữ liệu phù hợp</strong><p>Thay đổi bộ lọc hoặc tạo record qua đúng form nghiệp vụ phía trên.</p></div><a href="{{ route('admin.workforce.management', ['section' => $viewModel->section, 'company_id' => $companyId]) }}">Mở workspace →</a></div></td></tr>@endforelse
     </tbody></table></div>
 </section>
 @endsection

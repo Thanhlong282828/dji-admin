@@ -8,7 +8,7 @@ use RuntimeException;
 
 final class InventoryService
 {
-    /** @param array{source_type?:string,source_id?:int,reference?:string,idempotency_key?:string,actor_id?:int,reason?:string,unit_cost_minor?:int} $context */
+    /** @param array{source_type?:string,source_id?:int,reference?:string,idempotency_key?:string,actor_id?:int,reason?:string,unit_cost_minor?:int,movement_value_minor?:int} $context */
     public function adjust(int $variantId, int $locationId, string $operation, int $quantity, array $context = []): int
     {
         if (! in_array($operation, ['increase', 'decrease', 'set'], true) || $quantity < 0) {
@@ -33,7 +33,16 @@ final class InventoryService
             if ($unitCost < 0) {
                 throw ValidationException::withMessages(['inventory' => 'Đơn giá tồn kho không hợp lệ.']);
             }
-            $movementValue = ($next - $current) * $unitCost;
+            $calculatedMovementValue = ($next - $current) * $unitCost;
+            $movementValue = in_array($operation, ['increase', 'decrease'], true) && array_key_exists('movement_value_minor', $context)
+                ? $context['movement_value_minor']
+                : $calculatedMovementValue;
+            if ($movementValue < 0 && $operation === 'increase') {
+                throw ValidationException::withMessages(['inventory' => 'Giá trị movement tồn kho không hợp lệ.']);
+            }
+            if ($movementValue > 0 && $operation === 'decrease') {
+                throw ValidationException::withMessages(['inventory' => 'Giá trị movement giảm tồn kho phải âm.']);
+            }
             $nextValue = match ($operation) {
                 'increase' => $currentValue + $movementValue,
                 'decrease' => $currentValue + $movementValue,
@@ -130,7 +139,7 @@ final class InventoryService
         }, 3);
     }
 
-    /** @param array{source_type?:string,source_id?:int,reference?:string,idempotency_key?:string,actor_id?:int,reason?:string,unit_cost_minor?:int} $context */
+    /** @param array{source_type?:string,source_id?:int,reference?:string,idempotency_key?:string,actor_id?:int,reason?:string,unit_cost_minor?:int,movement_value_minor?:int} $context */
     public function consumeReservedBalance(int $balanceId, int $quantity, array $context = []): void
     {
         if ($quantity < 1) {

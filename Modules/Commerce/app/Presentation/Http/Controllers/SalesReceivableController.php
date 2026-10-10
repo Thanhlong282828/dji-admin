@@ -15,6 +15,8 @@ use Modules\Commerce\Application\Commands\CreateCustomerInvoiceCommand;
 use Modules\Commerce\Application\Commands\CreateQuotationCommand;
 use Modules\Commerce\Application\Commands\FulfillSalesOrderCommand;
 use Modules\Commerce\Application\Commands\IssueCustomerInvoiceCommand;
+use Modules\Commerce\Application\Queries\GetCustomerRefundWorkspaceQuery;
+use Modules\Commerce\Application\Queries\GetSalesProcessHelpQuery;
 use Modules\Commerce\Application\Queries\GetSalesReceivableQuery;
 use Modules\Core\Application\Buses\CommandBusInterface;
 use Modules\Core\Application\Buses\QueryBusInterface;
@@ -26,8 +28,16 @@ final readonly class SalesReceivableController
     public function index(Request $request): View
     {
         $company = $this->company($request);
+        $user = $request->user();
+        abort_unless($user instanceof User, 401);
+        $branchId = $request->filled('branch_id') ? $request->integer('branch_id') : null;
 
-        return view('admin.commerce.sales-receivable', ['companyId' => $company, 'data' => $this->queries->ask(new GetSalesReceivableQuery($company))]);
+        return view('admin.commerce.sales-receivable', [
+            'companyId' => $company,
+            'data' => $this->queries->ask(new GetSalesReceivableQuery($company)),
+            'refundData' => $this->queries->ask(new GetCustomerRefundWorkspaceQuery($company)),
+            'processHelp' => $this->queries->ask(new GetSalesProcessHelpQuery($company, $branchId, $user)),
+        ]);
     }
 
     public function mutate(Request $request): RedirectResponse
@@ -35,7 +45,7 @@ final readonly class SalesReceivableController
         $company = $this->company($request);
         $user = $request->user();
         abort_unless($user instanceof User, 401);
-        $validated = $request->validate(['company_id' => ['required', 'integer'], 'action' => ['required', 'string', 'max:60'], 'id' => ['nullable', 'integer'], 'quotation_id' => ['nullable', 'integer'], 'sales_order_id' => ['nullable', 'integer'], 'sales_order_line_id' => ['nullable', 'integer'], 'customer_invoice_id' => ['nullable', 'integer'], 'branch_id' => ['nullable', 'integer'], 'customer_id' => ['nullable', 'integer'], 'product_variant_id' => ['nullable', 'integer'], 'inventory_location_id' => ['nullable', 'integer'], 'reference' => ['nullable', 'string', 'max:120'], 'description' => ['nullable', 'string', 'max:500'], 'quotation_date' => ['nullable', 'date'], 'valid_until' => ['nullable', 'date'], 'order_date' => ['nullable', 'date'], 'fulfilled_on' => ['nullable', 'date'], 'invoice_number' => ['nullable', 'string', 'max:120'], 'invoice_date' => ['nullable', 'date'], 'due_date' => ['nullable', 'date'], 'collection_date' => ['nullable', 'date'], 'method' => ['nullable', 'string', 'max:60'], 'quantity' => ['nullable', 'integer', 'min:1'], 'unit_price_minor' => ['nullable', 'integer', 'min:1'], 'discount_minor' => ['nullable', 'integer', 'min:0'], 'amount_minor' => ['nullable', 'integer', 'min:1']]);
+        $validated = $request->validate(['company_id' => ['required', 'integer'], 'action' => ['required', 'string', 'max:60'], 'id' => ['nullable', 'integer'], 'quotation_id' => ['nullable', 'integer'], 'sales_order_id' => ['nullable', 'integer'], 'sales_order_line_id' => ['nullable', 'integer'], 'customer_invoice_id' => ['nullable', 'integer'], 'branch_id' => ['nullable', 'integer'], 'customer_id' => ['nullable', 'integer'], 'product_variant_id' => ['nullable', 'integer'], 'inventory_location_id' => ['nullable', 'integer'], 'financial_account_id' => ['nullable', 'integer', 'min:1'], 'reference' => ['nullable', 'string', 'max:120'], 'description' => ['nullable', 'string', 'max:500'], 'currency' => ['nullable', 'string', 'size:3'], 'quotation_date' => ['nullable', 'date'], 'valid_until' => ['nullable', 'date'], 'order_date' => ['nullable', 'date'], 'fulfilled_on' => ['nullable', 'date'], 'invoice_number' => ['nullable', 'string', 'max:120'], 'invoice_date' => ['nullable', 'date'], 'due_date' => ['nullable', 'date'], 'tax_category_code' => ['nullable', 'string', 'max:50'], 'collection_date' => ['nullable', 'date'], 'method' => ['nullable', 'string', 'max:60'], 'quantity' => ['nullable', 'integer', 'min:1'], 'unit_price_minor' => ['nullable', 'integer', 'min:1'], 'discount_minor' => ['nullable', 'integer', 'min:0'], 'amount_minor' => ['nullable', 'integer', 'min:1']]);
         abort_unless(is_array($validated), 422);
         $action = $request->string('action')->toString();
         $permission = str_starts_with($action, 'collection.') ? 'collection.create' : (str_starts_with($action, 'invoice.') ? 'customer-invoice.manage' : 'sales.manage');

@@ -17,6 +17,7 @@ final class AdminRouteSecurityGovernanceTest extends TestCase
         'admin.attendance.export',
         'admin.attendance.transition',
         'admin.career.action',
+        'admin.finance.fx-revaluation.transition',
         'admin.leave-balances.export',
         'admin.leave.export',
         'admin.leave-management.execute',

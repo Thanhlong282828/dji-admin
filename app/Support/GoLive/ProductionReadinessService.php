@@ -45,6 +45,7 @@ final class ProductionReadinessService
             $this->dependency('ERP', 'MOCK_ONLY', 'Outbound delivery is kill-switch controlled; no live ERP traffic was authorized.'),
             $this->dependency('Government', 'MOCK_ONLY', 'Filing artifacts are local/demo only; no government submission was authorized.'),
             $this->dependency('Bank / payment', 'MOCK_ONLY', 'Payment batches create instructions only; no bank transfer was authorized.'),
+            $this->dependency('Vendor refund posting', 'COMPANY_SCOPED', 'Each company must verify effective SUPPLIER_CREDIT_PAID_PORTION and SUPPLIER_REFUND_RECEIVED policies plus an eligible Treasury account in Procurement → Supplier Credits.'),
         ];
 
         $passed = count(array_filter($checks, static fn (array $check): bool => $check['status'] === 'PASS'));

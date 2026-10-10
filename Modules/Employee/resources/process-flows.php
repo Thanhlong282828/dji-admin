@@ -10,5 +10,7 @@ return [
     'employee-portal' => $employee('employee-portal', 'READ_MODEL', ['employee-portal', 'attendance', 'leave', 'overtime', 'payslips']),
     'employee-lifecycle' => $employee('employee-lifecycle', 'BUSINESS_PROCESS', ['employees', 'employee-lifecycle', 'payroll-dashboard', 'payroll-inputs']),
     'hr-operations' => $employee('hr-operations', 'BUSINESS_PROCESS', ['employees', 'hr-operations', 'employee-lifecycle', 'payroll-inputs', 'notifications']),
+    'employee-documents' => $employee('employee-documents', 'CONTROL', ['employees', 'employee-documents', 'hr-governance', 'audit']),
+    'employee-consents' => $employee('employee-consents', 'CONTROL', ['employees', 'employee-consents', 'hr-governance', 'audit']),
     'hr-governance' => $employee('hr-governance', 'CONTROL', ['employees', 'hr-governance', 'audit']),
 ];

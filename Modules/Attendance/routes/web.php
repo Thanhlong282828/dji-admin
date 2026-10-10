@@ -9,7 +9,7 @@ use Modules\Attendance\Http\Controllers\ScheduleRuleController;
 use Modules\Attendance\Http\Controllers\WorkforceExportController;
 
 Route::middleware(['auth', 'verified'])->prefix('admin')->name('admin.')->group(function (): void {
-    Route::get('attendance', [AttendanceController::class, 'index'])->middleware('permission:attendance.view')->name('attendance.index');
+    Route::get('attendance', [AttendanceController::class, 'index'])->middleware('permission:attendance.view|attendance.view-own')->name('attendance.index');
     Route::post('attendance/check-in', [AttendanceController::class, 'checkIn'])->middleware('permission:attendance.check-in')->name('attendance.check-in');
     Route::post('attendance/check-out', [AttendanceController::class, 'checkOut'])->middleware('permission:attendance.check-out')->name('attendance.check-out');
     Route::get('workforce/{section?}', [AttendanceController::class, 'management'])->whereIn('section', ['calendars', 'holidays', 'shifts', 'assignments'])->name('workforce.management');
@@ -18,7 +18,7 @@ Route::middleware(['auth', 'verified'])->prefix('admin')->name('admin.')->group(
     Route::delete('workforce/{resource}/{id}', [AttendanceController::class, 'remove'])->whereIn('resource', ['calendar', 'holiday', 'shift', 'assignment'])->whereNumber('id')->name('workforce.destroy');
     Route::get('attendance-periods/{period}/readiness', [AttendanceWorkflowController::class, 'readiness'])->middleware('permission:attendance.lock')->name('attendance-periods.readiness');
     Route::post('attendance-periods/{period}/lock', [AttendanceWorkflowController::class, 'lock'])->middleware('permission:attendance.lock')->defaults('action', 'lock')->name('attendance-periods.lock');
-    Route::get('attendance/{record}', [AttendanceWorkflowController::class, 'show'])->middleware('permission:attendance.view')->whereNumber('record')->name('attendance.show');
+    Route::get('attendance/{record}', [AttendanceWorkflowController::class, 'show'])->middleware('permission:attendance.view|attendance.view-own')->whereNumber('record')->name('attendance.show');
     Route::post('attendance/{record}/adjustments', [AttendanceWorkflowController::class, 'adjustment'])->middleware('permission:attendance.adjust')->defaults('action', 'create')->name('attendance-adjustments.store');
     Route::post('attendance-adjustments/{record}/{action}', [AttendanceWorkflowController::class, 'adjustment'])->whereIn('action', ['submit', 'approve', 'reject', 'cancel'])->name('attendance-adjustments.transition');
     Route::post('attendance/{record}/{action}', [AttendanceWorkflowController::class, 'attendance'])->whereIn('action', ['submit', 'approve', 'reject'])->name('attendance.transition');

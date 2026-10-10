@@ -1,0 +1,3 @@
+<?php
+
+return ['language' => '语言', 'search' => '搜索导航', 'search_placeholder' => '例如：薪资、安全…', 'primary' => '主导航', 'open' => '打开主导航', 'close' => '关闭主导航', 'empty' => '没有匹配的导航项目。', 'locales' => ['vi' => 'Tiếng Việt', 'en' => 'English', 'zh_CN' => '简体中文'], 'groups' => ['overview' => 'ERP · 总览', 'organization' => 'HRM · 组织', 'people' => '员工管理', 'workforce' => '考勤', 'talent' => '招聘与人才', 'payroll' => '薪资', 'crm' => 'CRM · 线索与商机', 'commerce' => '商务 · 销售', 'inventory' => '库存', 'finance' => '会计 · 财务', 'tax' => '税务与合规', 'administration' => '管理 · IAM 与审计', 'system' => '系统运维'], 'items' => ['dashboard' => '仪表板', 'procurement-payables' => '供应商应付款']];

@@ -5,14 +5,17 @@ namespace Modules\Procurement\Application\Services;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
+use Modules\Company\Domain\Enums\SupportedCurrency;
 use Modules\Finance\Application\Services\AccountingPostingPolicyResolver;
 use Modules\Finance\Application\Services\SourceAccountingPostingService;
 use Modules\Finance\Application\Services\TreasuryService;
 use Modules\Inventory\Domain\Services\InventoryService;
+use Modules\Tax\Application\Services\TaxEvidenceService;
+use Modules\Tax\Application\Services\TaxPolicyResolver;
 
 final readonly class ProcurementService
 {
-    public function __construct(private InventoryService $inventory, private SourceAccountingPostingService $accounting, private TreasuryService $treasury, private AccountingPostingPolicyResolver $postingPolicies) {}
+    public function __construct(private InventoryService $inventory, private SourceAccountingPostingService $accounting, private TreasuryService $treasury, private AccountingPostingPolicyResolver $postingPolicies, private TaxPolicyResolver $taxPolicies, private TaxEvidenceService $taxEvidence, private SupplierInvoiceFxRecognitionService $fxRecognition, private SupplierPaymentFxSettlementService $fxSettlement, private InventoryReceiptFxValuationService $receiptFxValuation, private VendorBillReceiptFxMatchingService $receiptFxMatching) {}
 
     /** @param array<string,mixed> $data */
     public function mutate(string $action, int $companyId, User $actor, array $data): int
@@ -102,7 +105,8 @@ final readonly class ProcurementService
             foreach ($lines as $line) {
                 $subtotal += $this->id($line, 'estimated_total_minor');
             }
-            $id = (int) DB::table('purchase_orders')->insertGetId(['company_id' => $companyId, 'branch_id' => $this->id($request, 'branch_id'), 'purchase_request_id' => $requestId, 'cost_center_id' => $costCenter['id'], 'cost_center_code_snapshot' => $costCenter['code'], 'cost_center_name_snapshot' => $costCenter['name'], 'vendor_id' => $vendorId, 'reference' => $this->text($data, 'reference'), 'currency' => 'VND', 'order_date' => $this->date($data, 'order_date'), 'expected_date' => $this->nullable($data, 'expected_date'), 'payment_terms_days' => $this->integer($data, 'payment_terms_days', 0), 'status' => 'draft', 'subtotal_minor' => $subtotal, 'created_by' => $actor->id, 'created_at' => now(), 'updated_at' => now()]);
+            $currency = SupportedCurrency::from(strtoupper($this->nullable($data, 'currency') ?? 'VND'))->value;
+            $id = (int) DB::table('purchase_orders')->insertGetId(['company_id' => $companyId, 'branch_id' => $this->id($request, 'branch_id'), 'purchase_request_id' => $requestId, 'cost_center_id' => $costCenter['id'], 'cost_center_code_snapshot' => $costCenter['code'], 'cost_center_name_snapshot' => $costCenter['name'], 'vendor_id' => $vendorId, 'reference' => $this->text($data, 'reference'), 'currency' => $currency, 'order_date' => $this->date($data, 'order_date'), 'expected_date' => $this->nullable($data, 'expected_date'), 'payment_terms_days' => $this->integer($data, 'payment_terms_days', 0), 'status' => 'draft', 'subtotal_minor' => $subtotal, 'created_by' => $actor->id, 'created_at' => now(), 'updated_at' => now()]);
             foreach ($lines as $line) {
                 $account = DB::table('accounting_accounts')->where(['id' => $this->id($line, 'account_id'), 'company_id' => $companyId])->firstOrFail(['id', 'code', 'name']);
                 DB::table('purchase_order_lines')->insert(['purchase_order_id' => $id, 'purchase_request_line_id' => $this->id($line, 'id'), 'cost_center_id' => $costCenter['id'], 'cost_center_code_snapshot' => $costCenter['code'], 'cost_center_name_snapshot' => $costCenter['name'], 'procurement_classification' => $this->property($line, 'procurement_classification'), 'account_id' => $this->id($account, 'id'), 'account_code_snapshot' => $this->property($account, 'code'), 'account_name_snapshot' => $this->property($account, 'name'), 'product_variant_id' => $this->nullableId($line, 'product_variant_id'), 'description' => $this->property($line, 'description'), 'ordered_quantity' => $this->id($line, 'requested_quantity'), 'received_quantity' => 0, 'unit_cost_minor' => $this->id($line, 'estimated_unit_cost_minor'), 'line_total_minor' => $this->id($line, 'estimated_total_minor'), 'created_at' => now(), 'updated_at' => now()]);
@@ -173,25 +177,60 @@ final readonly class ProcurementService
             if ($this->property($receipt, 'status') !== 'draft') {
                 throw ValidationException::withMessages(['status' => 'Chỉ Goods Receipt draft được nhận.']);
             }
+            $orderCurrency = DB::table('purchase_orders')->where('id', $this->id($receipt, 'purchase_order_id'))->value('currency');
+            if (! is_string($orderCurrency)) {
+                throw ValidationException::withMessages(['currency' => 'PURCHASE_ORDER_CURRENCY_INVALID']);
+            }
+            $orderCurrency = strtoupper($orderCurrency);
+            $configuredFunctional = DB::table('companies')->where('id', $companyId)->value('functional_currency_code');
+            $functionalCurrency = is_string($configuredFunctional) && $configuredFunctional !== ''
+                ? strtoupper($configuredFunctional)
+                : null;
+            if ($functionalCurrency === null && $orderCurrency !== 'VND') {
+                throw ValidationException::withMessages(['functional_currency' => 'FUNCTIONAL_CURRENCY_NOT_CONFIGURED']);
+            }
+            $useFxEvidence = $functionalCurrency !== null;
+            $functionalCurrency ??= 'VND';
             $total = 0;
-            $accountingLines = [];
+            $valuations = [];
+            $dimension = ['cost_center_id' => null, 'cost_center_code_snapshot' => null, 'cost_center_name_snapshot' => null];
             foreach (DB::table('procurement_goods_receipt_lines as grl')->join('purchase_order_lines as pol', 'pol.id', '=', 'grl.purchase_order_line_id')->where('grl.goods_receipt_id', $id)->lockForUpdate()->get(['grl.*', 'pol.account_code_snapshot', 'pol.cost_center_id', 'pol.cost_center_code_snapshot', 'pol.cost_center_name_snapshot']) as $line) {
                 $quantity = $this->id($line, 'received_quantity');
-                $unit = $this->id($line, 'unit_cost_minor');
-                $this->inventory->adjust($this->id($line, 'product_variant_id'), $this->id($receipt, 'inventory_location_id'), 'increase', $quantity, ['source_type' => 'procurement_goods_receipt_line', 'source_id' => $this->id($line, 'id'), 'reference' => $this->property($receipt, 'reference'), 'idempotency_key' => 'procurement-gr-'.$this->id($line, 'id'), 'actor_id' => $actor->id, 'reason' => 'Purchase Order goods received', 'unit_cost_minor' => $unit]);
+                $valuation = $useFxEvidence ? $this->receiptFxValuation->prepare($companyId, $receipt, $line, $orderCurrency) : null;
+                $unit = $valuation === null ? $this->id($line, 'unit_cost_minor') : $this->arrayInteger($valuation, 'functional_unit_cost_minor');
+                $lineValue = $valuation === null ? $quantity * $unit : $this->arrayInteger($valuation, 'functional_amount_minor');
+                $this->inventory->adjust($this->id($line, 'product_variant_id'), $this->id($receipt, 'inventory_location_id'), 'increase', $quantity, ['source_type' => 'procurement_goods_receipt_line', 'source_id' => $this->id($line, 'id'), 'reference' => $this->property($receipt, 'reference'), 'idempotency_key' => 'procurement-gr-'.$this->id($line, 'id'), 'actor_id' => $actor->id, 'reason' => 'Purchase Order goods received', 'unit_cost_minor' => $unit, 'movement_value_minor' => $lineValue]);
                 $movementId = DB::table('inventory_movements')->where('idempotency_key', 'procurement-gr-'.$this->id($line, 'id'))->value('id');
                 DB::table('procurement_goods_receipt_lines')->where('id', $this->id($line, 'id'))->update(['inventory_movement_id' => is_numeric($movementId) ? (int) $movementId : null, 'updated_at' => now()]);
                 DB::table('purchase_order_lines')->where('id', $this->id($line, 'purchase_order_line_id'))->increment('received_quantity', $quantity, ['updated_at' => now()]);
-                $lineValue = $quantity * $unit;
                 $total += $lineValue;
-                $accountingLines[] = ['account_code' => $this->property($line, 'account_code_snapshot'), 'debit' => $lineValue, 'credit' => 0, 'description' => 'Inventory received', 'cost_center_id' => $this->nullableId($line, 'cost_center_id'), 'cost_center_code_snapshot' => $this->nullableProperty($line, 'cost_center_code_snapshot'), 'cost_center_name_snapshot' => $this->nullableProperty($line, 'cost_center_name_snapshot')];
+                if ($valuation !== null && is_numeric($movementId)) {
+                    $valuations[] = ['line' => $line, 'valuation' => $valuation, 'movement_id' => (int) $movementId];
+                }
+                $dimension = ['cost_center_id' => $this->nullableId($line, 'cost_center_id'), 'cost_center_code_snapshot' => $this->nullableProperty($line, 'cost_center_code_snapshot'), 'cost_center_name_snapshot' => $this->nullableProperty($line, 'cost_center_name_snapshot')];
             }
             DB::table('procurement_goods_receipts')->where('id', $id)->update(['status' => 'received', 'received_by' => $actor->id, 'received_at' => now(), 'updated_at' => now()]);
             $orderId = $this->id($receipt, 'purchase_order_id');
             $remaining = DB::table('purchase_order_lines')->where('purchase_order_id', $orderId)->whereColumn('received_quantity', '<', 'ordered_quantity')->exists();
             DB::table('purchase_orders')->where('id', $orderId)->update(['status' => $remaining ? 'partially_received' : 'received', 'updated_at' => now()]);
-            $accountingLines[] = ['account_code' => '2150', 'debit' => 0, 'credit' => $total, 'description' => 'Goods received not invoiced'];
-            $this->accounting->post($companyId, $this->id($receipt, 'branch_id'), 'goods_receipt', $id, 'inventory_accrual', $this->property($receipt, 'receipt_date'), 'VND', $accountingLines, $actor->id);
+            $date = $this->property($receipt, 'receipt_date');
+            if ($valuations !== []) {
+                $functionalCurrency = $this->arrayText($valuations[0]['valuation'], 'functional_currency');
+            }
+            $policy = $this->postingPolicies->resolve($companyId, 'INVENTORY_RECEIPT', 'inventory', $date, $functionalCurrency);
+            $accountingLines = array_map(fn (array $policyLine): array => [
+                'account_code' => $policyLine['account_code'],
+                'debit' => $policyLine['entry_side'] === 'debit' ? $total : 0,
+                'credit' => $policyLine['entry_side'] === 'credit' ? $total : 0,
+                'description' => 'Goods receipt '.$policyLine['line_role'],
+                'cost_center_id' => $policyLine['requires_cost_center'] ? $dimension['cost_center_id'] : null,
+                'cost_center_code_snapshot' => $policyLine['requires_cost_center'] ? $dimension['cost_center_code_snapshot'] : null,
+                'cost_center_name_snapshot' => $policyLine['requires_cost_center'] ? $dimension['cost_center_name_snapshot'] : null,
+            ], $policy['lines']);
+            $journalId = $this->accounting->postPolicyBacked($companyId, $this->id($receipt, 'branch_id'), 'goods_receipt', $id, 'inventory_accrual', $date, $functionalCurrency, $accountingLines, $actor->id, $policy['policy_id'], $policy['version']);
+            foreach ($valuations as $item) {
+                $this->receiptFxValuation->record($companyId, $receipt, $item['line'], $item['valuation'], $item['movement_id'], $policy['policy_id'], $policy['version'], $journalId, (int) $actor->id);
+            }
 
             return $id;
         }, 3);
@@ -226,9 +265,25 @@ final readonly class ProcurementService
             foreach ($lines as $line) {
                 $classification = $this->nullableProperty($line, 'procurement_classification');
                 $serviceAcceptanceLineId = null;
+                $goodsReceiptLine = null;
                 if ($classification === 'inventory') {
                     $billed = $this->persistenceInteger($billedByLine->get($this->id($line, 'id')));
                     $billable = $this->id($line, 'received_quantity') - $billed;
+                    $receiptLineId = $this->nullableInteger($data, 'goods_receipt_line_id');
+                    if ($receiptLineId !== null) {
+                        $goodsReceiptLine = DB::table('procurement_goods_receipt_lines as receipt_line')
+                            ->join('procurement_goods_receipts as receipt', 'receipt.id', '=', 'receipt_line.goods_receipt_id')
+                            ->where([
+                                'receipt_line.id' => $receiptLineId,
+                                'receipt_line.purchase_order_line_id' => $this->id($line, 'id'),
+                                'receipt.company_id' => $companyId,
+                                'receipt.purchase_order_id' => $orderId,
+                                'receipt.status' => 'received',
+                            ])->lockForUpdate()->first(['receipt_line.id', 'receipt_line.received_quantity', 'receipt_line.unit_cost_minor']);
+                        if ($goodsReceiptLine === null) {
+                            throw ValidationException::withMessages(['goods_receipt_line_id' => 'GOODS_BILL_RECEIPT_ALLOCATION_INVALID']);
+                        }
+                    }
                 } elseif ($classification === 'operating_expense') {
                     if ($requestedLine === null) {
                         throw ValidationException::withMessages(['purchase_order_line_id' => 'Service Vendor Bill phải chọn đúng một PO line.']);
@@ -250,9 +305,21 @@ final readonly class ProcurementService
                 if ($quantity === 0) {
                     continue;
                 }
+                if ($goodsReceiptLine !== null) {
+                    $allocated = (int) DB::table('vendor_bill_receipt_allocations as allocation')
+                        ->join('vendor_bill_lines as bill_line', 'bill_line.id', '=', 'allocation.vendor_bill_line_id')
+                        ->join('vendor_bills as bill', 'bill.id', '=', 'bill_line.vendor_bill_id')
+                        ->where('allocation.goods_receipt_line_id', $this->id($goodsReceiptLine, 'id'))
+                        ->whereNotIn('bill.status', ['cancelled', 'rejected', 'reversed'])
+                        ->lockForUpdate()->sum('allocation.quantity');
+                    if ($quantity > $this->id($goodsReceiptLine, 'received_quantity') - $allocated
+                        || $this->id($goodsReceiptLine, 'unit_cost_minor') !== $this->id($line, 'unit_cost_minor')) {
+                        throw ValidationException::withMessages(['quantity' => 'GOODS_BILL_RECEIPT_ALLOCATION_EXCEEDS_AVAILABLE']);
+                    }
+                }
                 $amount = $quantity * $this->id($line, 'unit_cost_minor');
                 $subtotal += $amount;
-                $billLines[] = ['line' => $line, 'quantity' => $quantity, 'amount' => $amount, 'service_acceptance_line_id' => $serviceAcceptanceLineId];
+                $billLines[] = ['line' => $line, 'quantity' => $quantity, 'amount' => $amount, 'service_acceptance_line_id' => $serviceAcceptanceLineId, 'goods_receipt_line' => $goodsReceiptLine];
             }
             if ($billLines === []) {
                 throw ValidationException::withMessages(['quantity' => 'Purchase Order không còn số lượng đã nhận có thể lập Bill.']);
@@ -260,10 +327,34 @@ final readonly class ProcurementService
             $costCenterIds = collect($billLines)->map(fn (array $item): ?int => $this->nullableId($item['line'], 'cost_center_id'))->unique()->values();
             $headerCostCenter = $costCenterIds->count() === 1 ? $costCenterIds->first() : null;
             $headerSource = $headerCostCenter === null ? null : $billLines[0]['line'];
-            $id = (int) DB::table('vendor_bills')->insertGetId(['company_id' => $companyId, 'branch_id' => $this->id($order, 'branch_id'), 'vendor_id' => $this->id($order, 'vendor_id'), 'purchase_order_id' => $orderId, 'cost_center_id' => $headerCostCenter, 'cost_center_code_snapshot' => $headerSource === null ? null : $this->nullableProperty($headerSource, 'cost_center_code_snapshot'), 'cost_center_name_snapshot' => $headerSource === null ? null : $this->nullableProperty($headerSource, 'cost_center_name_snapshot'), 'invoice_number' => $invoice, 'invoice_date' => $this->date($data, 'invoice_date'), 'due_date' => $this->date($data, 'due_date'), 'currency' => 'VND', 'subtotal_minor' => $subtotal, 'tax_minor' => 0, 'total_minor' => $subtotal, 'tax_status' => 'configuration_required', 'status' => 'draft', 'created_by' => $actor->id, 'created_at' => now(), 'updated_at' => now()]);
+            $invoiceDate = $this->date($data, 'invoice_date');
+            $taxPolicy = null;
+            $tax = 0;
+            $taxCategoryCode = $this->nullable($data, 'tax_category_code');
+            $currency = strtoupper($this->property($order, 'currency'));
+            if ($taxCategoryCode !== null) {
+                if ($currency !== 'VND') {
+                    throw ValidationException::withMessages(['tax_category_code' => 'TAX_FX_DEFERRED']);
+                }
+                $taxPolicy = $this->taxPolicies->resolve($companyId, 'vendor_bill', $invoiceDate, strtoupper($taxCategoryCode), $currency);
+                $tax = $this->taxPolicies->calculate($subtotal, $this->arrayInteger($taxPolicy, 'rate_basis_points'));
+            }
+            $id = (int) DB::table('vendor_bills')->insertGetId(['company_id' => $companyId, 'branch_id' => $this->id($order, 'branch_id'), 'vendor_id' => $this->id($order, 'vendor_id'), 'purchase_order_id' => $orderId, 'cost_center_id' => $headerCostCenter, 'cost_center_code_snapshot' => $headerSource === null ? null : $this->nullableProperty($headerSource, 'cost_center_code_snapshot'), 'cost_center_name_snapshot' => $headerSource === null ? null : $this->nullableProperty($headerSource, 'cost_center_name_snapshot'), 'invoice_number' => $invoice, 'invoice_date' => $invoiceDate, 'due_date' => $this->date($data, 'due_date'), 'currency' => $currency, 'subtotal_minor' => $subtotal, 'tax_minor' => $tax, 'total_minor' => $subtotal + $tax, 'tax_status' => $taxPolicy === null ? 'configuration_required' : 'configured', 'tax_category_id' => $taxPolicy['category_id'] ?? null, 'tax_policy_id' => $taxPolicy['policy_id'] ?? null, 'tax_policy_version' => $taxPolicy['version'] ?? null, 'tax_rate_basis_points' => $taxPolicy['rate_basis_points'] ?? null, 'status' => 'draft', 'created_by' => $actor->id, 'created_at' => now(), 'updated_at' => now()]);
             foreach ($billLines as $item) {
                 $line = $item['line'];
-                DB::table('vendor_bill_lines')->insert(['vendor_bill_id' => $id, 'purchase_order_line_id' => $this->id($line, 'id'), 'goods_receipt_line_id' => null, 'service_acceptance_line_id' => $item['service_acceptance_line_id'], 'cost_center_id' => $this->nullableId($line, 'cost_center_id'), 'cost_center_code_snapshot' => $this->nullableProperty($line, 'cost_center_code_snapshot'), 'cost_center_name_snapshot' => $this->nullableProperty($line, 'cost_center_name_snapshot'), 'procurement_classification' => $this->property($line, 'procurement_classification'), 'account_id' => $this->id($line, 'account_id'), 'account_code_snapshot' => $this->property($line, 'account_code_snapshot'), 'account_name_snapshot' => $this->property($line, 'account_name_snapshot'), 'description' => $this->property($line, 'description'), 'quantity' => $item['quantity'], 'unit_cost_minor' => $this->id($line, 'unit_cost_minor'), 'line_total_minor' => $item['amount'], 'created_at' => now(), 'updated_at' => now()]);
+                $receiptLine = $item['goods_receipt_line'];
+                $billLineId = (int) DB::table('vendor_bill_lines')->insertGetId(['vendor_bill_id' => $id, 'purchase_order_line_id' => $this->id($line, 'id'), 'goods_receipt_line_id' => is_object($receiptLine) ? $this->id($receiptLine, 'id') : null, 'service_acceptance_line_id' => $item['service_acceptance_line_id'], 'cost_center_id' => $this->nullableId($line, 'cost_center_id'), 'cost_center_code_snapshot' => $this->nullableProperty($line, 'cost_center_code_snapshot'), 'cost_center_name_snapshot' => $this->nullableProperty($line, 'cost_center_name_snapshot'), 'procurement_classification' => $this->property($line, 'procurement_classification'), 'account_id' => $this->id($line, 'account_id'), 'account_code_snapshot' => $this->property($line, 'account_code_snapshot'), 'account_name_snapshot' => $this->property($line, 'account_name_snapshot'), 'description' => $this->property($line, 'description'), 'quantity' => $item['quantity'], 'unit_cost_minor' => $this->id($line, 'unit_cost_minor'), 'line_total_minor' => $item['amount'], 'created_at' => now(), 'updated_at' => now()]);
+                if (is_object($receiptLine)) {
+                    DB::table('vendor_bill_receipt_allocations')->insert([
+                        'vendor_bill_line_id' => $billLineId,
+                        'goods_receipt_line_id' => $this->id($receiptLine, 'id'),
+                        'quantity' => $item['quantity'],
+                        'unit_cost_minor' => $this->id($line, 'unit_cost_minor'),
+                        'allocated_minor' => $item['amount'],
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ]);
+                }
             }
 
             return $id;
@@ -276,7 +367,7 @@ final readonly class ProcurementService
         $id = $this->positive($data, 'id');
 
         return DB::transaction(function () use ($companyId, $actor, $id): int {
-            $bill = DB::table('vendor_bills')->where(['id' => $id, 'company_id' => $companyId])->lockForUpdate()->firstOrFail();
+            $bill = DB::table('vendor_bills as bill')->leftJoin('tax_categories as category', 'category.id', '=', 'bill.tax_category_id')->where(['bill.id' => $id, 'bill.company_id' => $companyId])->lockForUpdate()->firstOrFail(['bill.*', 'category.code as tax_category_code']);
             if ($this->property($bill, 'status') === 'approved') {
                 return $id;
             }
@@ -288,18 +379,44 @@ final readonly class ProcurementService
             if ($classifications->count() !== 1) {
                 throw ValidationException::withMessages(['lines' => 'Vendor Bill không được trộn Goods và Service.']);
             }
-            $classification = $classifications->first();
-            $policyId = null;
-            $policyVersion = null;
-            if ($classification === 'operating_expense') {
-                $policy = $this->postingPolicies->resolve($companyId, 'SERVICE_VENDOR_BILL_POSTED', 'operating_expense', $this->property($bill, 'invoice_date'), $this->property($bill, 'currency'));
-                $lines = array_map(fn (array $line): array => ['account_code' => $line['account_code'], 'debit' => $line['entry_side'] === 'debit' ? $amount : 0, 'credit' => $line['entry_side'] === 'credit' ? $amount : 0, 'description' => 'Service vendor bill '.$line['line_role']], $policy['lines']);
-                $policyId = $policy['policy_id'];
-                $policyVersion = $policy['version'];
-            } else {
-                $lines = [['account_code' => '2150', 'debit' => $amount, 'credit' => 0, 'description' => 'Clear received not invoiced'], ['account_code' => '2100', 'debit' => 0, 'credit' => $amount, 'description' => 'Vendor payable']];
+            $classificationValue = $classifications->first();
+            if (! is_string($classificationValue) || $classificationValue === '') {
+                throw ValidationException::withMessages(['lines' => 'Vendor Bill classification không hợp lệ.']);
             }
-            $journalId = $this->accounting->post($companyId, $this->id($bill, 'branch_id'), 'vendor_bill', $id, $classification === 'operating_expense' ? 'service_vendor_bill' : 'vendor_bill', $this->property($bill, 'invoice_date'), $this->property($bill, 'currency'), $lines, $actor->id);
+            $classification = $classificationValue;
+            $event = $classification === 'operating_expense' ? 'SERVICE_VENDOR_BILL_POSTED' : 'VENDOR_BILL_POSTED';
+            $recognition = $this->fxRecognition->prepare($companyId, $bill);
+            $receiptMatching = null;
+            $taxPolicyId = $this->nullableId($bill, 'tax_policy_id');
+            if ($taxPolicyId !== null) {
+                $taxPolicy = $this->taxPolicies->resolve($companyId, 'vendor_bill', $this->property($bill, 'invoice_date'), $this->property($bill, 'tax_category_code'), $this->property($bill, 'currency'));
+                if ($taxPolicy['policy_id'] !== $taxPolicyId || $taxPolicy['version'] !== $this->id($bill, 'tax_policy_version') || $taxPolicy['rate_basis_points'] !== $this->id($bill, 'tax_rate_basis_points')) {
+                    throw ValidationException::withMessages(['tax_policy' => 'TAX_POLICY_SNAPSHOT_MISMATCH']);
+                }
+                $policy = ['policy_id' => $taxPolicy['accounting_policy_id'], 'version' => $taxPolicy['accounting_policy_version']];
+                $lines = $this->taxPolicies->postingLines($taxPolicy, $amount - $this->id($bill, 'tax_minor'), $this->id($bill, 'tax_minor'), 'Vendor bill');
+            } elseif ($classification === 'inventory' && ! $recognition->identity) {
+                $receiptMatching = $this->receiptFxMatching->prepare($companyId, $id, $recognition);
+                $variance = $receiptMatching['variance_minor'];
+                $event = $variance > 0
+                    ? 'INVENTORY_VENDOR_BILL_PRICE_VARIANCE_LOSS'
+                    : ($variance < 0 ? 'INVENTORY_VENDOR_BILL_PRICE_VARIANCE_GAIN' : 'INVENTORY_VENDOR_BILL_POSTED');
+                $policy = $this->postingPolicies->resolve($companyId, $event, $classification, $this->property($bill, 'invoice_date'), $recognition->functionalCurrency);
+                $lines = $this->inventoryBillFxLines($policy['lines'], $receiptMatching);
+            } else {
+                $policy = $this->postingPolicies->resolve($companyId, $event, $classification, $this->property($bill, 'invoice_date'), $recognition->functionalCurrency);
+                $lines = array_map(fn (array $line): array => ['account_code' => $line['account_code'], 'debit' => $line['entry_side'] === 'debit' ? $recognition->functionalAmountMinor : 0, 'credit' => $line['entry_side'] === 'credit' ? $recognition->functionalAmountMinor : 0, 'description' => 'Vendor bill '.$line['line_role']], $policy['lines']);
+            }
+            $policyId = $this->arrayInteger($policy, 'policy_id');
+            $policyVersion = $this->arrayInteger($policy, 'version');
+            $journalId = $this->accounting->postPolicyBacked($companyId, $this->id($bill, 'branch_id'), 'vendor_bill', $id, $classification === 'operating_expense' ? 'service_vendor_bill' : 'vendor_bill', $this->property($bill, 'invoice_date'), $recognition->functionalCurrency, $lines, $actor->id, $policyId, $policyVersion);
+            if ($taxPolicyId !== null) {
+                $this->taxEvidence->record($companyId, $this->id($bill, 'branch_id'), 'vendor_bill', $id, $this->property($bill, 'invoice_date'), $this->property($bill, 'currency'), $amount - $this->id($bill, 'tax_minor'), $this->id($bill, 'tax_minor'), $journalId, $taxPolicy);
+            }
+            $recognitionId = $this->fxRecognition->record($companyId, $bill, $recognition, $policyId, $policyVersion, $journalId, $actor->id);
+            if ($receiptMatching !== null) {
+                $this->receiptFxMatching->record($companyId, $id, $recognitionId, $journalId, (int) $actor->id, $receiptMatching);
+            }
             DB::table('vendor_bills')->where('id', $id)->update(['status' => 'approved', 'accounting_posting_policy_id' => $policyId, 'accounting_posting_policy_version' => $policyVersion, 'accounting_journal_id' => $journalId, 'approved_by' => $actor->id, 'approved_at' => now(), 'updated_at' => now()]);
 
             return $id;
@@ -312,26 +429,53 @@ final readonly class ProcurementService
         return DB::transaction(function () use ($companyId, $actor, $data): int {
             $billId = $this->positive($data, 'vendor_bill_id');
             $reference = $this->text($data, 'reference');
-            $existing = DB::table('ap_payments as p')->join('ap_payment_allocations as a', 'a.payment_id', '=', 'p.id')->where(['p.company_id' => $companyId, 'p.reference' => $reference])->lockForUpdate()->first(['p.id', 'p.amount_minor', 'a.vendor_bill_id', 'a.allocated_minor']);
+            $existing = DB::table('ap_payments as p')
+                ->join('ap_payment_allocations as a', 'a.payment_id', '=', 'p.id')
+                ->leftJoin('supplier_payment_fx_settlements as settlement', 'settlement.ap_payment_allocation_id', '=', 'a.id')
+                ->where(['p.company_id' => $companyId, 'p.reference' => $reference])
+                ->lockForUpdate()
+                ->first(['p.id', 'p.amount_minor', 'p.payment_date', 'p.method', 'a.vendor_bill_id', 'a.allocated_minor', 'settlement.treasury_financial_account_id']);
             if ($existing !== null) {
-                if ($this->id($existing, 'vendor_bill_id') !== $billId || $this->id($existing, 'amount_minor') !== $this->positive($data, 'amount_minor') || $this->id($existing, 'allocated_minor') !== $this->positive($data, 'amount_minor')) {
-                    throw ValidationException::withMessages(['reference' => 'Payment reference đã được dùng cho nghiệp vụ khác.']);
+                $requestedAccount = $this->nullableInteger($data, 'financial_account_id');
+                if ($this->id($existing, 'vendor_bill_id') !== $billId
+                    || $this->id($existing, 'amount_minor') !== $this->positive($data, 'amount_minor')
+                    || $this->id($existing, 'allocated_minor') !== $this->positive($data, 'amount_minor')
+                    || $this->property($existing, 'payment_date') !== $this->date($data, 'payment_date')
+                    || $this->property($existing, 'method') !== $this->text($data, 'method')
+                    || ($requestedAccount !== null && $this->nullableId($existing, 'treasury_financial_account_id') !== $requestedAccount)) {
+                    throw ValidationException::withMessages(['reference' => 'AP_PAYMENT_IDEMPOTENCY_CONFLICT']);
                 }
 
                 return $this->id($existing, 'id');
             }
-            $bill = DB::table('vendor_bills')->where(['id' => $billId, 'company_id' => $companyId])->whereIn('status', ['approved', 'partially_paid'])->lockForUpdate()->firstOrFail();
+            $bill = DB::table('vendor_bills')->where(['id' => $billId, 'company_id' => $companyId])->lockForUpdate()->firstOrFail();
             $amount = $this->positive($data, 'amount_minor');
+            $paymentDate = $this->date($data, 'payment_date');
+            $financialAccountId = $this->nullableInteger($data, 'financial_account_id');
             $allocated = (int) DB::table('ap_payment_allocations')->where('vendor_bill_id', $billId)->sum('allocated_minor');
-            if ($amount > $this->id($bill, 'total_minor') - $allocated) {
+            $credited = (int) DB::table('supplier_credit_notes')->where(['vendor_bill_id' => $billId, 'status' => 'posted'])->sum('ap_reduction_minor');
+            if (! in_array($this->property($bill, 'status'), ['approved', 'partially_paid'], true) || $amount > $this->id($bill, 'total_minor') - $allocated - $credited) {
                 throw ValidationException::withMessages(['amount_minor' => 'Payment allocation vượt Bill outstanding.']);
             }
+            $settlement = $this->fxSettlement->prepare($companyId, $billId, $amount, $financialAccountId, $paymentDate, (int) $actor->id);
             $paymentId = (int) DB::table('ap_payments')->insertGetId(['company_id' => $companyId, 'vendor_id' => $this->id($bill, 'vendor_id'), 'payment_date' => $this->date($data, 'payment_date'), 'amount_minor' => $amount, 'currency' => $this->property($bill, 'currency'), 'method' => $this->text($data, 'method'), 'reference' => $reference, 'status' => 'approved', 'created_by' => $actor->id, 'created_at' => now(), 'updated_at' => now()]);
-            DB::table('ap_payment_allocations')->insert(['payment_id' => $paymentId, 'vendor_bill_id' => $billId, 'allocated_minor' => $amount, 'created_at' => now(), 'updated_at' => now()]);
-            $outstanding = $this->id($bill, 'total_minor') - $allocated - $amount;
+            $allocationId = (int) DB::table('ap_payment_allocations')->insertGetId(['payment_id' => $paymentId, 'vendor_bill_id' => $billId, 'allocated_minor' => $amount, 'created_at' => now(), 'updated_at' => now()]);
+            $settlement = $this->fxSettlement->captureSnapshot($companyId, $allocationId, $settlement);
+            $outstanding = $this->id($bill, 'total_minor') - $credited - $allocated - $amount;
             DB::table('vendor_bills')->where('id', $billId)->update(['status' => $outstanding === 0 ? 'paid' : 'partially_paid', 'updated_at' => now()]);
-            $journal = $this->accounting->post($companyId, $this->id($bill, 'branch_id'), 'ap_payment', $paymentId, 'vendor_payment', $this->date($data, 'payment_date'), $this->property($bill, 'currency'), [['account_code' => '2100', 'debit' => $amount, 'credit' => 0, 'description' => 'Settle vendor payable'], ['account_code' => '1100', 'debit' => 0, 'credit' => $amount, 'description' => 'Payment clearing']], $actor->id);
-            $this->treasury->recordSource($companyId, $this->id($bill, 'branch_id'), 'ap_payment', $paymentId, $journal, $reference, $amount, $this->date($data, 'payment_date').' 12:00:00', $actor->id);
+            $realized = (int) $settlement['realized_fx_minor'];
+            $event = $realized > 0 ? 'VENDOR_PAYMENT_FX_GAIN' : ($realized < 0 ? 'VENDOR_PAYMENT_FX_LOSS' : 'VENDOR_PAYMENT');
+            $policy = $this->postingPolicies->resolve($companyId, $event, null, $paymentDate, (string) $settlement['functional_currency']);
+            $lines = array_map(function (array $line) use ($settlement, $realized): array {
+                $value = match ($line['line_role']) {
+                    'AP' => (int) $settlement['released_carrying_minor'], 'CASH' => (int) $settlement['settlement_functional_minor'], 'FX_GAIN', 'FX_LOSS' => abs($realized), default => throw ValidationException::withMessages(['accounting_policy' => 'VENDOR_PAYMENT_FX_POLICY_ROLE_INVALID'])
+                };
+
+                return ['account_code' => $line['account_code'], 'debit' => $line['entry_side'] === 'debit' ? $value : 0, 'credit' => $line['entry_side'] === 'credit' ? $value : 0, 'description' => 'Vendor payment '.$line['line_role']];
+            }, $policy['lines']);
+            $journal = $this->accounting->postPolicyBacked($companyId, $this->id($bill, 'branch_id'), 'ap_payment', $paymentId, 'vendor_payment', $paymentDate, (string) $settlement['functional_currency'], $lines, $actor->id, $policy['policy_id'], $policy['version']);
+            $treasuryId = $this->treasury->recordSourceToAccount($companyId, $this->id($bill, 'branch_id'), (int) $settlement['treasury_account_id'], 'ap_payment', $paymentId, $journal, $reference, $amount, $paymentDate.' 12:00:00', $actor->id);
+            $this->fxSettlement->record($companyId, $paymentId, $allocationId, $journal, $treasuryId, $policy['policy_id'], $policy['version'], $actor->id, $settlement);
 
             return $paymentId;
         }, 3);
@@ -457,6 +601,64 @@ final readonly class ProcurementService
         $value = $data[$key] ?? null;
 
         return $value === null || $value === '' ? null : $this->integer($data, $key);
+    }
+
+    /** @param array<string,mixed> $values */
+    private function arrayInteger(array $values, string $key): int
+    {
+        $value = $values[$key] ?? null;
+
+        return is_int($value) || (is_string($value) && ctype_digit($value))
+            ? (int) $value
+            : throw new \RuntimeException('Invalid integer value for '.$key.'.');
+    }
+
+    /** @param array<string,mixed> $values */
+    private function arrayText(array $values, string $key): string
+    {
+        $value = $values[$key] ?? null;
+
+        return is_string($value) && $value !== '' ? $value : throw new \RuntimeException("Missing text array value {$key}.");
+    }
+
+    /**
+     * @param  list<array{entry_side:string,line_role:string,account_code:string}>  $policyLines
+     * @param  array{released_grni_minor:int,ap_functional_minor:int,variance_minor:int,rows:list<array<string,int>>}  $matching
+     * @return list<array{account_code:string,debit:int,credit:int,description:string}>
+     */
+    private function inventoryBillFxLines(array $policyLines, array $matching): array
+    {
+        $variance = $matching['variance_minor'];
+        $expected = [
+            'GRNI' => ['side' => 'debit', 'amount' => $matching['released_grni_minor']],
+            'AP' => ['side' => 'credit', 'amount' => $matching['ap_functional_minor']],
+        ];
+        if ($variance > 0) {
+            $expected['PURCHASE_PRICE_VARIANCE_LOSS'] = ['side' => 'debit', 'amount' => $variance];
+        } elseif ($variance < 0) {
+            $expected['PURCHASE_PRICE_VARIANCE_GAIN'] = ['side' => 'credit', 'amount' => abs($variance)];
+        }
+
+        $lines = [];
+        foreach ($policyLines as $line) {
+            $role = $line['line_role'];
+            $configuration = $expected[$role] ?? null;
+            if ($configuration === null || $line['entry_side'] !== $configuration['side']) {
+                throw ValidationException::withMessages(['accounting_policy' => 'INVENTORY_VENDOR_BILL_FX_POLICY_ROLE_INVALID']);
+            }
+            $lines[] = [
+                'account_code' => $line['account_code'],
+                'debit' => $line['entry_side'] === 'debit' ? $configuration['amount'] : 0,
+                'credit' => $line['entry_side'] === 'credit' ? $configuration['amount'] : 0,
+                'description' => 'Foreign inventory vendor bill '.$role,
+            ];
+            unset($expected[$role]);
+        }
+        if ($expected !== []) {
+            throw ValidationException::withMessages(['accounting_policy' => 'INVENTORY_VENDOR_BILL_FX_POLICY_ROLE_MISSING']);
+        }
+
+        return $lines;
     }
 
     private function id(object $row, string $key): int

@@ -4,7 +4,7 @@
     "description": "Company-scoped vendor, purchase request, purchase order, goods receipt and accounts payable workflows.",
     "keywords": ["procurement", "vendor", "purchase", "accounts-payable"],
     "priority": 0,
-    "requires": ["Core", "Company", "Inventory", "Finance", "Workflow"],
+    "requires": ["Core", "Company", "Inventory", "Finance", "Workflow", "Tax"],
     "providers": ["Modules\\Procurement\\Providers\\EventServiceProvider"],
     "files": []
 }

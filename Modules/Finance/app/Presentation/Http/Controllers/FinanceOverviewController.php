@@ -8,6 +8,7 @@ use Illuminate\View\View;
 use Modules\Company\Domain\Services\BranchAccessService;
 use Modules\Core\Application\Buses\QueryBusInterface;
 use Modules\Finance\Application\Queries\GetFinanceOverviewQuery;
+use Modules\Finance\Application\Queries\GetFinancialStatementProcessHelpQuery;
 
 final readonly class FinanceOverviewController
 {
@@ -30,7 +31,8 @@ final readonly class FinanceOverviewController
         $dateTo = is_string($dateToInput) && $dateToInput !== '' ? $dateToInput : null;
         $data = $this->queries->ask(new GetFinanceOverviewQuery($companyId, $branchId, $dateFrom, $dateTo));
         abort_unless(is_array($data), 500);
+        $processHelp = $this->queries->ask(new GetFinancialStatementProcessHelpQuery($companyId, $branchId, $user));
 
-        return view('admin.finance.overview', compact('companyId', 'branchId', 'dateFrom', 'dateTo', 'data'));
+        return view('admin.finance.overview', compact('companyId', 'branchId', 'dateFrom', 'dateTo', 'data', 'processHelp'));
     }
 }

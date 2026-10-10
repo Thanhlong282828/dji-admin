@@ -8,13 +8,12 @@ use Illuminate\Database\Query\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\Rule;
 use Modules\Company\Application\Services\CompanyContextService;
 use Modules\Core\Application\Buses\CommandBusInterface;
 use Modules\Core\Application\Buses\QueryBusInterface;
-use Modules\Inventory\Application\Commands\AdjustInventoryCommand;
 use Modules\Inventory\Application\Commands\MutateInventoryOperationCommand;
 use Modules\Inventory\Application\Queries\GetInventoryMovementListQuery;
+use Modules\Inventory\Application\Queries\GetInventoryProcessHelpQuery;
 
 final readonly class SellerInventoryController
 {
@@ -35,6 +34,7 @@ final readonly class SellerInventoryController
             'receipts' => $data['receipts'] ?? null,
             'transfers' => $data['transfers'] ?? null,
             'companyId' => $data['companyId'] ?? $companyId,
+            'processHelp' => $this->queries->ask(new GetInventoryProcessHelpQuery($companyId, $request->integer('branch_id') ?: null, $user)),
         ]);
     }
 
@@ -86,22 +86,7 @@ final readonly class SellerInventoryController
 
         $threshold = config('commerce.inventory.low_stock_threshold', 5);
 
-        return view('admin.seller.inventory', ['items' => $query->orderBy('p.name')->paginate(30), 'lowStock' => max(0, is_numeric($threshold) ? (int) $threshold : 5), 'companyId' => $companyId]);
-    }
-
-    public function adjust(Request $request, int $variant): RedirectResponse
-    {
-        $request->validate(['operation' => ['required', Rule::in(['increase', 'decrease', 'set'])], 'quantity' => ['required', 'integer', 'min:0', 'max:1000000'], 'reason' => ['required', 'string', 'min:3', 'max:500']]);
-        $user = $this->user($request);
-        $companyId = $this->context->companyId($request, $user);
-        $location = $this->ownedVariants($user, $companyId)->where('v.id', $variant)->value('ib.inventory_location_id');
-        $quantity = $request->integer('quantity');
-        $operation = $request->string('operation')->toString();
-        $locationId = is_numeric($location) ? (int) $location : 0;
-        abort_if($locationId < 1, 404);
-        $this->commands->dispatch(new AdjustInventoryCommand($variant, $locationId, $operation, $quantity, $request->string('reason')->toString(), $user));
-
-        return back()->with('success', 'Đã điều chỉnh tồn kho.');
+        return view('admin.seller.inventory', ['items' => $query->orderBy('p.name')->paginate(30), 'lowStock' => max(0, is_numeric($threshold) ? (int) $threshold : 5), 'companyId' => $companyId, 'processHelp' => $this->queries->ask(new GetInventoryProcessHelpQuery($companyId, $request->integer('branch_id') ?: null, $user))]);
     }
 
     private function ownedVariants(User $user, int $companyId): Builder

@@ -70,7 +70,7 @@
     <article id="contracts"><h3>Hợp đồng</h3>
         @forelse($item['contracts'] ?? [] as $contract)
             <p>{{ $contract['contract_number'] }} · {{ $contract['type'] }} · {{ $contract['status'] }}
-                @can('employment-contract.view-salary') · {{ number_format((float) $contract['base_salary'], 0, ',', '.') }} {{ $contract['currency'] }} @endcan
+                @can('employment-contract.view-salary') · {{ number_format((float) data_get($contract, 'base_salary', 0), 0, ',', '.') }} {{ data_get($contract, 'currency', '—') }} @endcan
             </p>
         @empty<p>Chưa có hợp đồng.</p>@endforelse
     </article>

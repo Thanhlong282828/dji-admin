@@ -1,0 +1,9 @@
+{
+    "name": "nwidart/crm",
+    "description": "CRM lead and opportunity bounded context",
+    "autoload": {
+        "psr-4": {
+            "Modules\\CRM\\": "app/"
+        }
+    }
+}

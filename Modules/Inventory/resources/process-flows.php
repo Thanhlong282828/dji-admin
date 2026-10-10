@@ -13,4 +13,10 @@ return [
         ['key' => 'inventory-movements', 'label' => 'Nhập / Xuất / Chuyển', 'icon' => 'MV'],
         ['key' => 'supply-chain-overview', 'label' => 'SCM Overview', 'icon' => 'SCM'],
     ]],
+    'inventory-governance' => ['id' => 'inventory.governed-adjustment', 'category' => 'CONTROL', 'current' => 'inventory-governance', 'nodes' => [
+        ['key' => 'seller-inventory', 'label' => 'Tồn kho canonical', 'icon' => 'KHO'],
+        ['key' => 'inventory-governance', 'label' => 'Kiểm kê & điều chỉnh', 'icon' => 'ADJ'],
+        ['key' => 'inventory-movements', 'label' => 'Sổ chuyển động', 'icon' => 'MV'],
+        ['key' => 'accounting', 'label' => 'Accounting Journal', 'icon' => 'GL'],
+    ]],
 ];

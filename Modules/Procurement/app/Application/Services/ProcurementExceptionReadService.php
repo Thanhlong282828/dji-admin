@@ -25,6 +25,7 @@ final readonly class ProcurementExceptionReadService
         $this->serviceBillingExceptions($rows, $companyId, $filters);
         $this->payableExceptions($rows, $companyId, $filters);
         $this->serviceControlExceptions($rows, $companyId, $filters);
+        $this->persistedCases($rows, $companyId, $filters);
         $this->financialExceptions($rows, $companyId, $reconciliation);
 
         $filtered = $rows->filter(function (array $row) use ($filters): bool {
@@ -99,11 +100,12 @@ final readonly class ProcurementExceptionReadService
     private function payableExceptions(Collection $rows, int $companyId, array $filters): void
     {
         $allocated = $this->db->table('ap_payment_allocations as allocation')->leftJoin('ap_payment_allocation_reversals as reversal', fn (JoinClause $join): JoinClause => $join->on('reversal.ap_payment_allocation_id', '=', 'allocation.id')->where('reversal.effective_at', '<=', $filters['date_to'].' 23:59:59'))->selectRaw('allocation.vendor_bill_id, SUM(allocation.allocated_minor-COALESCE(reversal.reversed_minor,0)) amount')->groupBy('allocation.vendor_bill_id');
-        $query = $this->db->table('vendor_bills as bill')->join('procurement_vendors as vendor', 'vendor.id', '=', 'bill.vendor_id')->join('branches as branch', 'branch.id', '=', 'bill.branch_id')->leftJoinSub($allocated, 'allocated', 'allocated.vendor_bill_id', '=', 'bill.id')->whereNotIn('bill.status', ['draft', 'cancelled', 'rejected'])->whereNotExists(fn (Builder $q): Builder => $q->selectRaw('1')->from('vendor_bill_reversal_requests as reversal')->whereColumn('reversal.vendor_bill_id', 'bill.id')->where('reversal.status', 'reversed')->where('reversal.effective_at', '<=', $filters['date_to'].' 23:59:59'));
+        $credits = $this->db->table('supplier_credit_notes')->where('status', 'posted')->where('credit_date', '<=', $filters['date_to'])->selectRaw('vendor_bill_id, SUM(total_minor) amount')->groupBy('vendor_bill_id');
+        $query = $this->db->table('vendor_bills as bill')->join('procurement_vendors as vendor', 'vendor.id', '=', 'bill.vendor_id')->join('branches as branch', 'branch.id', '=', 'bill.branch_id')->leftJoinSub($allocated, 'allocated', 'allocated.vendor_bill_id', '=', 'bill.id')->leftJoinSub($credits, 'credited', 'credited.vendor_bill_id', '=', 'bill.id')->whereNotIn('bill.status', ['draft', 'cancelled', 'rejected'])->whereNotExists(fn (Builder $q): Builder => $q->selectRaw('1')->from('vendor_bill_reversal_requests as reversal')->whereColumn('reversal.vendor_bill_id', 'bill.id')->where('reversal.status', 'reversed')->where('reversal.effective_at', '<=', $filters['date_to'].' 23:59:59'));
         $this->headerScope($query, $companyId, $filters, 'bill', 'invoice_date');
         $this->linkedLineScope($query, $filters, 'bill.id', 'vendor_bill_lines', 'vendor_bill_id', 'purchase_order_line_id');
-        foreach ($query->selectRaw('bill.id, bill.invoice_number reference, bill.status, bill.due_date, bill.total_minor, COALESCE(allocated.amount,0) paid_minor, vendor.id vendor_id, vendor.name vendor_name, branch.name branch_name, GREATEST(DATEDIFF(CURRENT_DATE,bill.due_date),0) age_days')->get() as $source) {
-            $amount = $this->integer($source->total_minor) - $this->integer($source->paid_minor);
+        foreach ($query->selectRaw('bill.id, bill.invoice_number reference, bill.status, bill.due_date, bill.total_minor, COALESCE(allocated.amount,0) paid_minor, COALESCE(credited.amount,0) credited_minor, vendor.id vendor_id, vendor.name vendor_name, branch.name branch_name, GREATEST(DATEDIFF(CURRENT_DATE,bill.due_date),0) age_days')->get() as $source) {
+            $amount = $this->integer($source->total_minor) - $this->integer($source->paid_minor) - $this->integer($source->credited_minor);
             if ($amount <= 0) {
                 continue;
             }
@@ -129,6 +131,44 @@ final readonly class ProcurementExceptionReadService
         $this->linkedLineScope($workflow, $filters, 'sa.id', 'service_acceptance_lines', 'service_acceptance_id', 'purchase_order_line_id');
         foreach ($workflow->get(['instance.id', 'sa.reference', 'sa.status', 'sa.total_minor', 'task.assignment_source as workflow_status', 'vendor.id as vendor_id', 'vendor.name as vendor_name', 'branch.name as branch_name']) as $source) {
             $this->push($rows, 'WORKFLOW_APPROVAL_PENDING', $companyId, 'workflow_instance', $source, $this->integer($source->total_minor), 'INFO', 'admin.approvals.index', 'approval.inbox.view', 'approval.inbox.view');
+        }
+    }
+
+    /** @param Collection<int,array<string,mixed>> $rows
+     * @param  ExceptionFilters  $filters
+     */
+    private function persistedCases(Collection $rows, int $companyId, array $filters): void
+    {
+        $query = $this->db->table('procurement_exception_cases as exception')
+            ->leftJoin('procurement_vendors as vendor', 'vendor.id', '=', 'exception.vendor_id')
+            ->leftJoin('procurement_goods_returns as goods_return', 'goods_return.id', '=', 'exception.goods_return_id')
+            ->leftJoin('branches as branch', 'branch.id', '=', 'goods_return.branch_id')
+            ->where('exception.company_id', $companyId)
+            ->whereBetween('exception.detected_at', [$filters['date_from'].' 00:00:00', $filters['date_to'].' 23:59:59'])
+            ->when($filters['vendor_id'], fn (Builder $inner, int $id): Builder => $inner->where('exception.vendor_id', $id))
+            ->when($filters['branch_id'], fn (Builder $inner, int $id): Builder => $inner->where('goods_return.branch_id', $id));
+        foreach ($query->get(['exception.*', 'vendor.name as vendor_name', 'branch.name as branch_name', 'goods_return.return_number as reference']) as $source) {
+            $row = $this->row(
+                $this->text($source->exception_type),
+                $this->text($source->severity),
+                $companyId,
+                'procurement_exception_case',
+                $this->integer($source->id),
+                $this->text($source->reference) ?: 'Exception #'.$this->integer($source->id),
+                $source->vendor_name,
+                $source->branch_name,
+                null,
+                0,
+                'VND',
+                $this->text($source->status),
+                null,
+                null,
+                $source->goods_return_id === null ? 'admin.procurement.reports' : 'admin.procurement.goods-returns',
+                'procurement.view',
+                $source->goods_return_id === null ? 'procurement.view' : 'procurement-goods-return.view',
+            );
+            $row['vendor_id'] = $this->integer($source->vendor_id);
+            $rows->push($row);
         }
     }
 

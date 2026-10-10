@@ -16,5 +16,10 @@ return [
     'branch-financial-performance' => $definition('branch-financial-performance', 'READ_MODEL', ['branches', 'sales-receivable', 'payroll-runs', 'finance-operations', 'branch-financial-performance', 'enterprise-reports']),
     'payroll-finance-reconciliation' => $definition('payroll-finance-reconciliation', 'CONTROL', ['payroll-runs', 'accounting', 'payroll-finance-reconciliation', 'financial-statements']),
     'financial-statements' => $definition('financial-statements', 'REPORT', ['accounting', 'financial-statements', 'executive-dashboard']),
+    'fiscal-years' => $definition('fiscal-years', 'CONTROL', ['accounting', 'accounting-period-close', 'fiscal-years', 'financial-statements']),
     'accounting' => $definition('accounting', 'BUSINESS_PROCESS', ['sales-receivable', 'vendor-bills', 'payroll-runs', 'treasury', 'accounting', 'financial-statements']),
+    'accounting-policy-workspace' => $definition('accounting-policy-workspace', 'CONTROL', ['accounting-configuration', 'accounting-policy-workspace', 'accounting', 'financial-statements']),
+    'fx-rate-governance' => $definition('fx-rate-governance', 'CONTROL', ['accounting-policy-workspace', 'fx-rate-governance', 'fx-exposure', 'fx-revaluation']),
+    'fx-exposure' => $definition('fx-exposure', 'READ_MODEL', ['sales-receivable', 'vendor-bills', 'treasury', 'fx-rate-governance', 'fx-exposure', 'fx-revaluation']),
+    'fx-revaluation' => $definition('fx-revaluation', 'BUSINESS_PROCESS', ['fx-exposure', 'fx-rate-governance', 'fx-revaluation', 'accounting', 'financial-statements']),
 ];

@@ -41,6 +41,9 @@ final class EmployeePortalTest extends TestCase
 
         $this->actingAs($user)->get('/employee-portal')->assertOk()
             ->assertSeeText('Nhân viên Portal')
+            ->assertSeeText('Chấm công hôm nay')
+            ->assertSeeText('Biến động lương')
+            ->assertSeeText('QR challenge: NOT_IMPLEMENTED')
             ->assertDontSeeText('Nhân viên Không Được Lộ');
     }
 

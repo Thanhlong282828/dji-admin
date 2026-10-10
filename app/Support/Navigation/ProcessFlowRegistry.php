@@ -183,6 +183,8 @@ final class ProcessFlowRegistry
             'Onboarding' => base_path('Modules/Onboarding/resources/process-flows.php'),
             'Performance' => base_path('Modules/Performance/resources/process-flows.php'),
             'Payroll' => base_path('Modules/Payroll/resources/process-flows.php'),
+            'Tax' => base_path('Modules/Tax/resources/process-flows.php'),
+            'CRM' => base_path('Modules/CRM/resources/process-flows.php'),
             'Procurement' => base_path('Modules/Procurement/resources/process-flows.php'),
             'Commerce' => base_path('Modules/Commerce/resources/process-flows.php'),
             'Product' => base_path('Modules/Product/resources/process-flows.php'),

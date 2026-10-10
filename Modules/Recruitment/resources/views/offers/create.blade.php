@@ -1,7 +1,7 @@
 @extends('layouts.admin')
 @section('title','Tạo Candidate Offer')
 @section('content')
-<section class="panel"><h1>Tạo Candidate Offer</h1>@if($errors->any())<div class="alert error">{{ $errors->first() }}</div>@endif
+<section class="panel"><h2>Tạo Candidate Offer</h2>@if($errors->any())<div class="alert error">{{ $errors->first() }}</div>@endif
 <form method="POST" action="{{ route('admin.candidate-offers.store') }}" class="form-grid">@csrf<input type="hidden" name="company_id" value="{{ $companyId }}">
 <label>Application ID<input type="number" name="application_id" value="{{ old('application_id',request('application_id')) }}" required></label>
 <label>Loại làm việc<input name="employment_type" value="{{ old('employment_type','full_time') }}" required></label>

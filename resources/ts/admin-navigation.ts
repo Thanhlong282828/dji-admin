@@ -58,7 +58,8 @@ if (sidebar && openButton && closeButton && overlay && navigation && navigation.
     };
 
     const activeKey = validRenderedGroup(groups.find(group => group.dataset.routeActive === 'true')?.dataset.navGroup);
-    let normalOpenKey = activeKey ?? readPersistedGroup();
+    const firstVisibleKey = validRenderedGroup(groups.at(0)?.dataset.navGroup);
+    let normalOpenKey = activeKey ?? readPersistedGroup() ?? firstVisibleKey;
     let searching = false;
 
     const applyNormalGroupState = (): void => {
@@ -96,7 +97,7 @@ if (sidebar && openButton && closeButton && overlay && navigation && navigation.
     };
 
     const restoreNavigationState = (): void => {
-        normalOpenKey = activeKey ?? readPersistedGroup();
+        normalOpenKey = activeKey ?? readPersistedGroup() ?? firstVisibleKey;
         applyNormalGroupState();
         const scrollTop = readScrollPosition();
         if (scrollTop !== null) navigation.scrollTop = scrollTop;
@@ -228,8 +229,46 @@ const wireDialog = (
 wireDialog('[data-admin-help-open]', '[data-admin-help-dialog]');
 wireDialog('[data-compensation-reference-open]', '[data-compensation-reference-dialog]', '[data-compensation-reference-body]');
 
+document.querySelectorAll<HTMLDetailsElement>('[data-process-help]').forEach(details => {
+    if (details.dataset.initialized === 'true') return;
+    details.dataset.initialized = 'true';
+    const trigger = details.querySelector<HTMLElement>('.erp-process-help__trigger');
+    const close = details.querySelector<HTMLButtonElement>('[data-process-help-close]');
+    const synchronize = (): void => {
+        document.documentElement.classList.toggle('has-process-help-open', document.querySelector('[data-process-help][open]') !== null);
+        if (details.open) close?.focus();
+    };
+
+    details.addEventListener('toggle', synchronize);
+    close?.addEventListener('click', () => {
+        details.open = false;
+        trigger?.focus();
+    });
+    document.addEventListener('keydown', event => {
+        if (event.key !== 'Escape' || !details.open) return;
+        details.open = false;
+        trigger?.focus();
+    });
+    document.addEventListener('click', event => {
+        if (!details.open || event.target !== details) return;
+        details.open = false;
+        trigger?.focus();
+    });
+    if (details.open) synchronize();
+});
+
 document.querySelectorAll<HTMLTableCellElement>('table thead th').forEach(header => {
     if (!header.hasAttribute('scope')) header.setAttribute('scope', 'col');
+});
+
+document.querySelectorAll<HTMLElement>('[data-locale-switcher]').forEach(switcher => {
+    const toggle = switcher.querySelector<HTMLButtonElement>('[data-locale-toggle]');
+    const menu = switcher.querySelector<HTMLElement>('[data-locale-menu]');
+    if (!toggle || !menu) return;
+    const close = (): void => { menu.hidden = true; toggle.setAttribute('aria-expanded', 'false'); };
+    toggle.addEventListener('click', () => { const opening = menu.hidden; menu.hidden = !opening; toggle.setAttribute('aria-expanded', opening ? 'true' : 'false'); if (opening) menu.querySelector<HTMLButtonElement>('[role="menuitem"]')?.focus(); });
+    document.addEventListener('keydown', event => { if (event.key === 'Escape' && !menu.hidden) { close(); toggle.focus(); } });
+    document.addEventListener('click', event => { if (!switcher.contains(event.target as Node)) close(); });
 });
 
 document.querySelectorAll<HTMLElement>('.table-scroll').forEach(container => {

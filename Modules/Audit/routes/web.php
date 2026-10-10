@@ -13,6 +13,7 @@ if (app()->environment(['local', 'testing'])) {
         Auth::login($user);
         $company = DB::table('companies')->where('code', 'AUDIT-FIXTURE')->value('id');
         abort_unless(is_numeric($company), 404);
+        session(['company_id' => (int) $company]);
 
         return redirect()->route('admin.audit.dashboard', ['company_id' => (int) $company]);
     })->name('audit.fixture.login');

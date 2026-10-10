@@ -100,7 +100,7 @@ final readonly class WorkforceForecastService
         );
     }
 
-    /** @return list<array{position_id:int,position_title:string,unit_id:int,unit_name:string,career_level:int,approved_headcount:int,current_headcount:int}> */
+    /** @return list<array{position_id:int,position_title:string,unit_id:int,organization_unit_id:int,unit_name:string,career_level:int,approved_headcount:int,current_headcount:int}> */
     private function positions(int $companyId, ?int $unitId): array
     {
         $current = DB::table('employee_assignments')->selectRaw('job_position_id, COUNT(DISTINCT employee_id) AS people')->where('assignment_type', 'primary')->whereDate('effective_from', '<=', today())->where(fn (Builder $query): Builder => $query->whereNull('effective_to')->orWhereDate('effective_to', '>=', today()))->groupBy('job_position_id');
@@ -112,7 +112,7 @@ final readonly class WorkforceForecastService
             if (! is_numeric($row['id'] ?? null) || ! is_string($row['title'] ?? null) || ! is_numeric($row['organization_unit_id'] ?? null) || ! is_string($row['unit_name'] ?? null) || ! is_numeric($row['career_level'] ?? null) || ! is_numeric($row['approved_headcount'] ?? null) || ! is_numeric($row['current_headcount'] ?? null)) {
                 continue;
             }
-            $result[] = ['position_id' => (int) $row['id'], 'position_title' => $row['title'], 'unit_id' => (int) $row['organization_unit_id'], 'unit_name' => $row['unit_name'], 'career_level' => (int) $row['career_level'], 'approved_headcount' => (int) $row['approved_headcount'], 'current_headcount' => (int) $row['current_headcount']];
+            $result[] = ['position_id' => (int) $row['id'], 'position_title' => $row['title'], 'unit_id' => (int) $row['organization_unit_id'], 'organization_unit_id' => (int) $row['organization_unit_id'], 'unit_name' => $row['unit_name'], 'career_level' => (int) $row['career_level'], 'approved_headcount' => (int) $row['approved_headcount'], 'current_headcount' => (int) $row['current_headcount']];
         }
 
         return $result;

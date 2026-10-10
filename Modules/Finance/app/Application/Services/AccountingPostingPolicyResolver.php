@@ -29,6 +29,20 @@ final readonly class AccountingPostingPolicyResolver
         }
         $policy = $policies->first();
         $lines = $this->lines($companyId, $this->integer($policy->id ?? null));
+        if ($lines->count() < 2) {
+            throw ValidationException::withMessages(['accounting_policy' => 'ACCOUNTING_POSTING_POLICY_LINES_INVALID']);
+        }
+        foreach ($lines as $line) {
+            if (($line->account_status ?? null) !== 'active' || ! (bool) ($line->allow_posting ?? false)) {
+                throw ValidationException::withMessages(['accounting_policy' => 'ACCOUNTING_POSTING_POLICY_ACCOUNT_INVALID']);
+            }
+            if (($line->account_currency ?? null) !== null && ($line->account_currency ?? null) !== $currency) {
+                throw ValidationException::withMessages(['accounting_policy' => 'ACCOUNTING_POSTING_POLICY_ACCOUNT_CURRENCY_INVALID']);
+            }
+            if (($line->account_effective_from ?? null) > $postingDate || (($line->account_effective_to ?? null) !== null && ($line->account_effective_to ?? null) < $postingDate)) {
+                throw ValidationException::withMessages(['accounting_policy' => 'ACCOUNTING_POSTING_POLICY_ACCOUNT_NOT_EFFECTIVE']);
+            }
+        }
 
         return [
             'policy_id' => $this->integer($policy->id ?? null),
@@ -54,7 +68,7 @@ final readonly class AccountingPostingPolicyResolver
     {
         return $this->db->table('accounting_posting_policy_lines as l')->join('accounting_accounts as a', 'a.id', '=', 'l.account_id')
             ->where(['l.accounting_posting_policy_id' => $policyId, 'a.company_id' => $companyId])
-            ->orderBy('l.sequence')->get(['l.sequence', 'l.entry_side', 'l.line_role', 'l.account_id', 'l.requires_cost_center', 'a.code as account_code', 'a.name as account_name', 'a.account_type']);
+            ->orderBy('l.sequence')->get(['l.sequence', 'l.entry_side', 'l.line_role', 'l.account_id', 'l.requires_cost_center', 'a.code as account_code', 'a.name as account_name', 'a.account_type', 'a.status as account_status', 'a.allow_posting', 'a.currency as account_currency', 'a.effective_from as account_effective_from', 'a.effective_to as account_effective_to']);
     }
 
     private function integer(mixed $value): int

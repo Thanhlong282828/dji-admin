@@ -5,6 +5,7 @@ namespace Modules\Attendance\Http\Controllers;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\View\View;
 use Modules\Attendance\Application\Commands\CheckIn\CheckInCommand;
@@ -26,10 +27,23 @@ final readonly class AttendanceController
 
     public function index(Request $request): View
     {
-        $companyId = $this->company($request, 'attendance.view');
-        Gate::authorize('attendance.view-any', [$companyId]);
-        $dashboard = $this->queries->ask(new GetAttendanceDashboardQuery($companyId));
-        abort_unless($dashboard instanceof AttendanceDashboard, 500);
+        $user = $request->user();
+        abort_unless($user instanceof User, 401);
+        $canViewAll = $user->can('attendance.view');
+        $companyId = $this->company($request, $canViewAll ? 'attendance.view' : 'attendance.view-own');
+        $employeeId = null;
+        if ($canViewAll) {
+            Gate::authorize('attendance.view-any', [$companyId]);
+        } else {
+            $resolved = DB::table('employees')->where('company_id', $companyId)->where('user_id', $user->id)->value('id');
+            abort_unless(is_numeric($resolved), 404, 'Tài khoản chưa liên kết Employee trong company.');
+            $employeeId = (int) $resolved;
+        }
+        $dashboard = null;
+        if ($canViewAll) {
+            $dashboard = $this->queries->ask(new GetAttendanceDashboardQuery($companyId));
+            abort_unless($dashboard instanceof AttendanceDashboard, 500);
+        }
 
         $filters = [];
         foreach ($request->only(['range', 'search', 'attendance_status', 'approval_status', 'branch_id', 'organization_unit_id', 'start_date', 'end_date']) as $key => $value) {
@@ -38,7 +52,7 @@ final readonly class AttendanceController
             }
         }
 
-        return view('attendance::index', ['dashboard' => $dashboard, 'operations' => $this->operations->snapshot($companyId, $filters), 'companyId' => $companyId]);
+        return view('attendance::index', ['dashboard' => $dashboard, 'operations' => $this->operations->snapshot($companyId, $filters, $employeeId), 'companyId' => $companyId, 'ownScope' => ! $canViewAll]);
     }
 
     public function checkIn(CaptureAttendanceRequest $request): RedirectResponse

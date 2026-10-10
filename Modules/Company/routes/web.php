@@ -9,6 +9,7 @@ Route::middleware(['auth', 'verified'])->prefix('admin/companies')->name('admin.
     Route::post('/', [CompanyController::class, 'store'])->middleware('permission:company.create')->name('store');
     Route::get('/{company}', [CompanyController::class, 'show'])->middleware('permission:company.view')->whereNumber('company')->name('show');
     Route::get('/{company}/edit', [CompanyController::class, 'edit'])->middleware('permission:company.update')->whereNumber('company')->name('edit');
+    Route::patch('/{company}/functional-currency', [CompanyController::class, 'configureFunctionalCurrency'])->middleware('permission:company.update')->whereNumber('company')->name('functional-currency.configure');
     Route::match(['put', 'patch'], '/{company}', [CompanyController::class, 'update'])->middleware('permission:company.update')->whereNumber('company')->name('update');
     Route::delete('/{company}', [CompanyController::class, 'destroy'])->middleware('permission:company.delete')->whereNumber('company')->name('destroy');
     Route::post('/{company}/restore', [CompanyController::class, 'restore'])->middleware('permission:company.restore')->whereNumber('company')->name('restore');

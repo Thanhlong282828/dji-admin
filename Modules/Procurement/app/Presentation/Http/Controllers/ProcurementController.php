@@ -10,13 +10,26 @@ use Illuminate\View\View;
 use Modules\Company\Domain\Services\BranchAccessService;
 use Modules\Core\Application\Buses\CommandBusInterface;
 use Modules\Core\Application\Buses\QueryBusInterface;
+use Modules\Procurement\Application\Commands\ApproveGoodsReturnCommand;
 use Modules\Procurement\Application\Commands\ApproveServiceAcceptanceCommand;
 use Modules\Procurement\Application\Commands\ApproveServiceAcceptanceReversalCommand;
+use Modules\Procurement\Application\Commands\ApproveSupplierCreditCommand;
+use Modules\Procurement\Application\Commands\ApproveSupplierRefundCommand;
+use Modules\Procurement\Application\Commands\CreateGoodsReturnCommand;
 use Modules\Procurement\Application\Commands\CreateServiceAcceptanceCommand;
+use Modules\Procurement\Application\Commands\CreateSupplierCreditCommand;
+use Modules\Procurement\Application\Commands\CreateSupplierRefundCommand;
 use Modules\Procurement\Application\Commands\MutateProcurementCommand;
+use Modules\Procurement\Application\Commands\PostGoodsReturnCommand;
+use Modules\Procurement\Application\Commands\PostSupplierCreditCommand;
+use Modules\Procurement\Application\Commands\PostSupplierRefundCommand;
 use Modules\Procurement\Application\Commands\RequestServiceAcceptanceReversalCommand;
+use Modules\Procurement\Application\Commands\SubmitGoodsReturnCommand;
 use Modules\Procurement\Application\Commands\SubmitServiceAcceptanceCommand;
+use Modules\Procurement\Application\Commands\SubmitSupplierCreditCommand;
+use Modules\Procurement\Application\Commands\SubmitSupplierRefundCommand;
 use Modules\Procurement\Application\Queries\GetProcurementPageQuery;
+use Modules\Procurement\Application\Queries\GetProcurementProcessHelpQuery;
 use Modules\Procurement\Presentation\Http\Requests\ProcurementRequest;
 
 final readonly class ProcurementController
@@ -29,7 +42,7 @@ final readonly class ProcurementController
         abort_unless($user instanceof User, 401);
         $company = $request->integer('company_id', 1);
         abort_unless($this->access->company($user, $company), 404);
-        abort_unless(in_array($page, ['vendors', 'requests', 'orders', 'receipts', 'service-acceptances', 'payables', 'reports'], true), 404);
+        abort_unless(in_array($page, ['vendors', 'requests', 'orders', 'receipts', 'goods-returns', 'supplier-credits', 'service-acceptances', 'payables', 'reports'], true), 404);
         $data = $this->queries->ask(new GetProcurementPageQuery($company, $page, [
             'date_from' => $request->query('date_from'),
             'date_to' => $request->query('date_to'),
@@ -45,7 +58,7 @@ final readonly class ProcurementController
         ]));
         abort_unless(is_array($data), 500);
 
-        return view('admin.procurement.index', ['companyId' => $company, 'data' => $data]);
+        return view('admin.procurement.index', ['companyId' => $company, 'data' => $data, 'processHelp' => $this->queries->ask(new GetProcurementProcessHelpQuery($company, $request->integer('branch_id') ?: null, $user))]);
     }
 
     public function mutate(ProcurementRequest $request): RedirectResponse
@@ -63,6 +76,18 @@ final readonly class ProcurementController
             'order.transition' => $request->string('to')->toString() === 'approved' ? 'purchase-order.approve' : ($request->string('to')->toString() === 'sent' ? 'purchase-order.send' : 'purchase-order.cancel'),
             'receipt.create' => 'goods-receipt.create',
             'receipt.receive' => 'goods-receipt.receive',
+            'goods-return.create' => 'procurement-goods-return.create',
+            'goods-return.submit' => 'procurement-goods-return.submit',
+            'goods-return.approve' => 'procurement-goods-return.approve',
+            'goods-return.post' => 'procurement-goods-return.post',
+            'supplier-credit.create' => 'supplier-credit.create',
+            'supplier-credit.submit' => 'supplier-credit.submit',
+            'supplier-credit.approve' => 'supplier-credit.approve',
+            'supplier-credit.post' => 'supplier-credit.post',
+            'supplier-refund.create' => 'supplier-refund.create',
+            'supplier-refund.submit' => 'supplier-refund.submit',
+            'supplier-refund.approve' => 'supplier-refund.approve',
+            'supplier-refund.post' => 'supplier-refund.post',
             'service-acceptance.create' => 'service-acceptance.create',
             'service-acceptance.submit' => 'service-acceptance.submit',
             'service-acceptance.approve' => 'service-acceptance.approve',
@@ -80,6 +105,18 @@ final readonly class ProcurementController
             'service-acceptance.approve' => $this->commands->dispatch(new ApproveServiceAcceptanceCommand($company, $request->integer('id'), $user)),
             'service-acceptance.reversal.request' => $this->commands->dispatch(new RequestServiceAcceptanceReversalCommand($company, $request->integer('id'), $request->integer('target_accounting_period_id'), $request->string('reason')->toString(), $request->string('idempotency_key')->toString(), $user)),
             'service-acceptance.reversal.approve' => $this->commands->dispatch(new ApproveServiceAcceptanceReversalCommand($company, $request->integer('id'), $user)),
+            'goods-return.create' => $this->commands->dispatch(new CreateGoodsReturnCommand($company, $user, $data)),
+            'goods-return.submit' => $this->commands->dispatch(new SubmitGoodsReturnCommand($company, $request->integer('id'), $user)),
+            'goods-return.approve' => $this->commands->dispatch(new ApproveGoodsReturnCommand($company, $request->integer('id'), $user)),
+            'goods-return.post' => $this->commands->dispatch(new PostGoodsReturnCommand($company, $request->integer('id'), $user)),
+            'supplier-credit.create' => $this->commands->dispatch(new CreateSupplierCreditCommand($company, $user, $data)),
+            'supplier-credit.submit' => $this->commands->dispatch(new SubmitSupplierCreditCommand($company, $request->integer('id'), $user)),
+            'supplier-credit.approve' => $this->commands->dispatch(new ApproveSupplierCreditCommand($company, $request->integer('id'), $user)),
+            'supplier-credit.post' => $this->commands->dispatch(new PostSupplierCreditCommand($company, $request->integer('id'), $user)),
+            'supplier-refund.create' => $this->commands->dispatch(new CreateSupplierRefundCommand($company, $user, $data)),
+            'supplier-refund.submit' => $this->commands->dispatch(new SubmitSupplierRefundCommand($company, $request->integer('id'), $user)),
+            'supplier-refund.approve' => $this->commands->dispatch(new ApproveSupplierRefundCommand($company, $request->integer('id'), $user)),
+            'supplier-refund.post' => $this->commands->dispatch(new PostSupplierRefundCommand($company, $request->integer('id'), $user)),
             default => $this->commands->dispatch(new MutateProcurementCommand($action, $company, $user, $data)),
         };
 

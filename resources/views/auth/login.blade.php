@@ -1,56 +1,49 @@
-<x-guest-layout>
+<x-guest-layout variant="login">
     <!-- Session Status -->
     <x-auth-session-status class="mb-4" :status="session('status')" />
 
-    <form method="POST" action="{{ route('login') }}">
+    <div class="auth-card__heading"><span class="auth-eyebrow">SECURE ACCESS</span><h2 id="login-title">Đăng nhập</h2><p>Sử dụng tài khoản doanh nghiệp được cấp quyền.</p></div>
+    <form method="POST" action="{{ route('login') }}" class="auth-form">
         @csrf
 
         <!-- Email Address -->
-        <div>
+        <div class="auth-field">
             <x-input-label for="email" :value="__('Email')" />
-            <x-text-input id="email" class="block mt-1 w-full" type="email" name="email" :value="old('email')" required autofocus autocomplete="username" />
-            <x-input-error :messages="$errors->get('email')" class="mt-2" />
+            <x-text-input id="email" class="auth-input" type="email" name="email" :value="old('email')" required autofocus autocomplete="username" placeholder="name@company.com" :aria-invalid="$errors->has('email') ? 'true' : 'false'" aria-describedby="email-error" />
+            <x-input-error id="email-error" :messages="$errors->get('email')" class="mt-2" />
         </div>
 
         <!-- Password -->
-        <div class="mt-4">
+        <div class="auth-field">
             <x-input-label for="password" :value="__('Password')" />
 
-            <x-text-input id="password" class="block mt-1 w-full"
-                            type="password"
-                            name="password"
-                            required autocomplete="current-password" />
+            <div class="auth-password"><x-text-input id="password" class="auth-input" type="password" name="password" required autocomplete="current-password" :aria-invalid="$errors->has('password') ? 'true' : 'false'" aria-describedby="password-error" /><button type="button" class="auth-password__toggle" data-password-toggle="password" aria-label="Hiện mật khẩu" aria-pressed="false">Hiện</button></div>
 
-            <x-input-error :messages="$errors->get('password')" class="mt-2" />
+            <x-input-error id="password-error" :messages="$errors->get('password')" class="mt-2" />
         </div>
 
         <!-- Remember Me -->
-        <div class="block mt-4">
-            <label for="remember_me" class="inline-flex items-center">
-                <input id="remember_me" type="checkbox" class="rounded border-gray-300 text-indigo-600 shadow-sm focus:ring-indigo-500" name="remember">
-                <span class="ms-2 text-sm text-gray-600">{{ __('Remember me') }}</span>
+        <div class="auth-form__options">
+            <label for="remember_me" class="auth-check">
+                <input id="remember_me" type="checkbox" name="remember">
+                <span>{{ __('Remember me') }}</span>
             </label>
-        </div>
-
-        <div class="flex items-center justify-end mt-4">
             @if (Route::has('password.request'))
-                <a class="underline text-sm text-gray-600 hover:text-gray-900 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500" href="{{ route('password.request') }}">
+                <a class="auth-link" href="{{ route('password.request') }}">
                     {{ __('Forgot your password?') }}
                 </a>
             @endif
-
-            <x-primary-button class="ms-3">
-                {{ __('Log in') }}
-            </x-primary-button>
         </div>
+        <x-primary-button class="auth-submit">{{ __('Log in') }} <span aria-hidden="true">→</span></x-primary-button>
     </form>
 
-    <div class="mt-6 border-t pt-5 space-y-3">
+    <div class="auth-alternatives">
+        <span class="auth-divider">Hoặc tiếp tục với</span>
         @foreach (['google' => 'Google', 'facebook' => 'Facebook'] as $provider => $label)
             @if (config("services.$provider.enabled"))
-                <a class="flex w-full justify-center rounded-md border px-4 py-2 text-sm font-medium" href="{{ route('social.redirect', $provider) }}">Đăng nhập với {{ $label }}</a>
+                <a class="auth-secondary" href="{{ route('social.redirect', $provider) }}">Đăng nhập với {{ $label }}</a>
             @endif
         @endforeach
-        <a class="flex w-full justify-center rounded-md border px-4 py-2 text-sm font-medium" href="{{ route('phone.login') }}">Đăng nhập bằng số điện thoại</a>
+        @if(Route::has('phone.login'))<a class="auth-secondary" href="{{ route('phone.login') }}">Đăng nhập bằng số điện thoại</a>@endif
     </div>
 </x-guest-layout>

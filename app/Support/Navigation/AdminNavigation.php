@@ -3,20 +3,24 @@
 namespace App\Support\Navigation;
 
 use App\Models\User;
+use Illuminate\Database\Query\Builder;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 final class AdminNavigation
 {
     /**
-     * @return list<array{key:string,label:string,icon:string,active:bool,items:list<array{key:string,label:string,route:string,parameters:array<string,int|string>,patterns:list<string>,permission:string,active:bool}>}>
+     * @return list<array{key:string,label:string,icon:string,active:bool,items:list<array{key:string,label:string,route:string,parameters:array<string,int|string>,patterns:list<string>,permission:string,process_help:bool,active:bool}>}>
      */
     public function for(User $user, Request $request, int $companyId): array
     {
+        $context = $this->contextAvailability($user, $companyId);
         $visible = [];
         foreach ($this->definitions($companyId) as $group) {
             $items = [];
             foreach ($group['items'] as $item) {
-                if ($user->can($item['permission'])) {
+                if ($user->can($item['permission']) && ($context[$item['key']] ?? true)) {
                     $item['active'] = $request->routeIs(...$item['patterns']);
                     $items[] = $item;
                 }
@@ -29,8 +33,36 @@ final class AdminNavigation
         return $visible;
     }
 
+    /** @return array<string, bool> */
+    private function contextAvailability(User $user, int $companyId): array
+    {
+        $hasEmployeePortal = Schema::hasTable('employees')
+            && DB::table('employees')->where('user_id', $user->id)->whereNull('deleted_at')->exists();
+
+        $hasAccessibleBranch = false;
+        if (Schema::hasTable('branches')) {
+            $branches = DB::table('branches as b')
+                ->where('b.company_id', $companyId)
+                ->whereNull('b.deleted_at');
+            if (! $user->can('organization.tenant-all')) {
+                $branches->whereExists(static function (Builder $query) use ($user): void {
+                    $query->selectRaw('1')
+                        ->from('branch_user_access as bua')
+                        ->whereColumn('bua.branch_id', 'b.id')
+                        ->where('bua.user_id', $user->id);
+                });
+            }
+            $hasAccessibleBranch = $branches->exists();
+        }
+
+        return [
+            'employee-portal' => $hasEmployeePortal,
+            'branch-warehouse' => $hasAccessibleBranch,
+        ];
+    }
+
     /**
-     * @return list<array{key:string,label:string,icon:string,items:list<array{key:string,label:string,route:string,parameters:array<string,int|string>,patterns:list<string>,permission:string,active:bool}>}>
+     * @return list<array{key:string,label:string,icon:string,items:list<array{key:string,label:string,route:string,parameters:array<string,int|string>,patterns:list<string>,permission:string,process_help:bool,active:bool}>}>
      */
     public function definitions(int $companyId = 1): array
     {
@@ -49,14 +81,16 @@ final class AdminNavigation
                 $this->item('job-positions', 'Vị trí công việc', 'admin.job-positions.index', ['admin.job-positions.*'], 'job-position.view', $company),
                 $this->item('headcount', 'Báo cáo định biên', 'admin.organization.headcount', ['admin.organization.headcount'], 'organization-unit.view', $company),
             ]),
-            $this->group('people', 'HRM · Nhân sự', '♙', [
+            $this->group('people', 'Workforce · Nhân sự', '♙', [
                 $this->item('employee-portal', 'Cổng thông tin nhân viên', 'employee.portal', ['employee.portal'], 'employee.portal.view'),
                 $this->item('employees', 'Nhân viên', 'admin.employees.index', ['admin.employees.*'], 'employee.view', $company),
                 $this->item('employee-lifecycle', 'Vòng đời nhân sự', 'admin.employee-lifecycle.index', ['admin.employee-lifecycle.*'], 'hr.lifecycle.view', $company),
                 $this->item('hr-operations', 'Hợp đồng & Offboarding', 'admin.hr.operations.index', ['admin.hr.operations.*'], 'employment-contract.view', $company),
+                $this->item('employee-documents', 'Hồ sơ tài liệu', 'admin.hr.governance.documents', ['admin.hr.governance.documents'], 'hr.governance.view', $company),
+                $this->item('employee-consents', 'Chấp thuận dữ liệu', 'admin.hr.governance.consents', ['admin.hr.governance.consents'], 'hr.governance.view', $company),
                 $this->item('hr-governance', 'HR Data Governance', 'admin.hr.governance.dashboard', ['admin.hr.governance.*'], 'hr.governance.view', $company),
             ]),
-            $this->group('workforce', 'HRM · Chấm công và nghỉ phép', '◷', [
+            $this->group('workforce', 'Attendance · Chấm công', '◷', [
                 $this->item('attendance', 'Chấm công', 'admin.attendance.index', ['admin.attendance.*'], 'attendance.view', $company),
                 $this->item('shifts', 'Ca và lịch làm việc', 'admin.workforce.management', ['admin.workforce.*'], 'shift.view', ['section' => 'shifts', ...$company]),
                 $this->item('leave', 'Nghỉ phép', 'admin.leave.index', ['admin.leave.*'], 'leave.view', $company),
@@ -84,8 +118,9 @@ final class AdminNavigation
                 $this->item('payslips', 'Phiếu lương', 'admin.payroll.payslips.index', ['admin.payroll.payslips.*'], 'payroll.payslip.view', $company),
                 $this->item('payments', 'Thanh toán', 'admin.payroll.payment-batches.index', ['admin.payroll.payment-accounts.*', 'admin.payroll.payment-batches.*'], 'payroll.payment.view', $company),
             ]),
-            $this->group('tax-statutory', 'Thuế & Bảo hiểm bắt buộc', '§', [
+            $this->group('tax-statutory', 'Tax · Thuế & nghĩa vụ', '§', [
                 $this->item('finance-tax-dashboard', 'Tổng quan thuế & nghĩa vụ', 'admin.finance.tax-dashboard', ['admin.finance.tax-dashboard'], 'payroll.tax.view', $company),
+                $this->item('vat-policy-workspace', 'VAT Policy Workspace', 'admin.finance.tax-workspace', ['admin.finance.tax-workspace'], 'tax-policy.view', $company, true),
                 $this->item('tax-administration', 'Hồ sơ thuế TNCN', 'admin.payroll.tax.employees.index', ['admin.payroll.tax.employees.*'], 'payroll.tax.view', $company),
                 $this->item('tax-policies', 'Chính sách thuế', 'admin.payroll.tax.policies.index', ['admin.payroll.tax.policies.*'], 'payroll.tax.view', $company),
                 $this->item('insurance-administration', 'Hồ sơ BHXH/BHYT/BHTN', 'admin.payroll.insurance.employees.index', ['admin.payroll.insurance.employees.*'], 'payroll.insurance.view', $company),
@@ -93,28 +128,40 @@ final class AdminNavigation
                 $this->item('annual-tax', 'Đối soát thuế TNCN năm', 'admin.payroll.annual-tax.index', ['admin.payroll.annual-tax.*'], 'payroll.annual_tax.view', $company),
                 $this->item('government', 'Government Filing', 'admin.payroll.government-filings.index', ['admin.payroll.government-filings.*'], 'government.filing.view', $company),
             ]),
+            $this->group('crm', 'CRM · Lead & Opportunity', '◉', [
+                $this->item('crm-pipeline', 'Pipeline', 'admin.crm.index', ['admin.crm.index'], 'crm.view', $company, true),
+                $this->item('crm-leads', 'Leads', 'admin.crm.leads', ['admin.crm.leads'], 'crm.view', $company),
+                $this->item('crm-opportunities', 'Opportunities', 'admin.crm.opportunities', ['admin.crm.opportunities'], 'crm.view', $company),
+            ]),
             $this->group('procurement', 'Mua hàng', '✓', [
                 $this->item('procurement-vendors', 'Nhà cung cấp', 'admin.procurement.vendors', ['admin.procurement.vendors'], 'vendor.view', $company),
                 $this->item('purchase-requests', 'Yêu cầu mua hàng', 'admin.procurement.requests', ['admin.procurement.requests'], 'purchase-request.view', $company),
                 $this->item('purchase-orders', 'Đơn mua hàng', 'admin.procurement.orders', ['admin.procurement.orders'], 'purchase-order.view', $company),
                 $this->item('goods-receipts', 'Phiếu nhận hàng', 'admin.procurement.receipts', ['admin.procurement.receipts'], 'goods-receipt.view', $company),
+                $this->item('goods-returns', 'Trả hàng nhà cung cấp', 'admin.procurement.goods-returns', ['admin.procurement.goods-returns'], 'procurement-goods-return.view', $company),
+                $this->item('supplier-credits', 'Giảm trừ công nợ NCC', 'admin.procurement.supplier-credits', ['admin.procurement.supplier-credits'], 'supplier-credit.view', $company),
                 $this->item('service-acceptances', 'Nghiệm thu dịch vụ', 'admin.procurement.service-acceptances', ['admin.procurement.service-acceptances'], 'service-acceptance.view', $company),
                 $this->item('vendor-bills', 'Hóa đơn NCC · AP', 'admin.procurement.payables', ['admin.procurement.payables'], 'vendor-bill.view', $company),
                 $this->item('procurement-reports', 'Báo cáo mua hàng', 'admin.procurement.reports', ['admin.procurement.reports'], 'procurement.view', $company),
             ]),
-            $this->group('finance', 'Tài chính', '₫', [
+            $this->group('finance', 'Accounting · Tài chính', '₫', [
                 $this->item('finance-overview', 'Tổng quan tài chính', 'admin.finance.overview', ['admin.finance.overview'], 'payroll.accounting.view', $company),
                 $this->item('cost-center-cost-management', 'Chi phí theo Cost Center', 'admin.finance.cost-center-costs', ['admin.finance.cost-center-costs'], 'finance.operations.view', $company),
-                $this->item('sales-receivable', 'Sales · AR · Collection', 'admin.sales.index', ['admin.sales.*'], 'sales.view', $company),
                 $this->item('finance-operations', 'Chi phí · Tài sản · Ngân sách', 'admin.finance.operations', ['admin.finance.operations'], 'finance.operations.view', $company + ['page' => 'expenses']),
-                $this->item('treasury', 'Treasury · Dòng tiền', 'admin.finance.treasury', ['admin.finance.treasury*'], 'treasury.view', $company),
+                $this->item('treasury', 'Treasury · Dòng tiền', 'admin.finance.treasury', ['admin.finance.treasury*'], 'treasury.view', $company, true),
                 $this->item('accounting-period-close', 'Accounting Period Close', 'admin.finance.period-close', ['admin.finance.period-close*'], 'accounting.period.view', $company),
                 $this->item('accounting-adjustments', 'Accounting Adjustments', 'admin.finance.accounting-adjustments', ['admin.finance.accounting-adjustments*'], 'accounting.adjustment.view', $company),
                 $this->item('branch-financial-performance', 'Hiệu quả tài chính chi nhánh', 'admin.finance.branch-performance', ['admin.finance.branch-performance'], 'payroll.assignment.view', $company),
                 $this->item('payroll-finance-reconciliation', 'Đối soát Payroll', 'admin.finance.payroll-reconciliation', ['admin.finance.payroll-reconciliation'], 'payroll.accounting.view', $company),
                 $this->item('financial-statements', 'Sổ cái & Báo cáo tài chính', 'admin.finance.financial-statements', ['admin.finance.financial-statements'], 'payroll.accounting.view', $company),
-                $this->item('accounting', 'Kế toán và bút toán', 'admin.payroll.accounting.journals.index', ['admin.payroll.accounting.journals.*'], 'payroll.accounting.view', $company),
-                $this->item('accounting-configuration', 'Cấu hình kế toán', 'admin.payroll.accounting.policies.index', ['admin.payroll.accounting.policies.*', 'admin.payroll.accounting.accounts.*', 'admin.payroll.accounting.mappings.*'], 'payroll.accounting.view', $company),
+                $this->item('fiscal-years', 'Fiscal Year Governance', 'admin.finance.fiscal-years', ['admin.finance.fiscal-years*'], 'accounting.period.view', $company, true),
+                $this->item('chart-of-accounts', 'Hệ thống tài khoản', 'admin.payroll.accounting.accounts.index', ['admin.payroll.accounting.accounts.*'], 'payroll.accounting.view', $company),
+                $this->item('accounting', 'Bút toán nhật ký', 'admin.payroll.accounting.journals.index', ['admin.payroll.accounting.journals.*'], 'payroll.accounting.view', $company),
+                $this->item('accounting-policy-workspace', 'Accounting Policy Workspace', 'admin.finance.accounting-policies', ['admin.finance.accounting-policies'], 'payroll.accounting.view', $company, true),
+                $this->item('fx-rate-governance', 'FX Rate Governance', 'admin.finance.fx-rate', ['admin.finance.fx-rate*'], 'finance.fx-rate.view', $company, true),
+                $this->item('fx-exposure', 'FX Exposure', 'admin.finance.fx-exposure', ['admin.finance.fx-exposure'], 'finance.fx-exposure.view', $company, true),
+                $this->item('fx-revaluation', 'FX Revaluation', 'admin.finance.fx-revaluation', ['admin.finance.fx-revaluation*'], 'finance.fx-revaluation.view', $company, true),
+                $this->item('accounting-configuration', 'Posting Rules', 'admin.payroll.accounting.policies.index', ['admin.payroll.accounting.policies.*', 'admin.payroll.accounting.mappings.*'], 'payroll.accounting.view', $company),
                 $this->item('erp', 'ERP Export', 'admin.payroll.erp.exports.index', ['admin.payroll.erp.exports.*'], 'erp.integration.view', $company),
                 $this->item('erp-configuration', 'Kết nối ERP', 'admin.payroll.erp.connections.index', ['admin.payroll.erp.connections.*', 'admin.payroll.erp.mappings.*'], 'erp.integration.connection.view', $company),
             ]),
@@ -149,9 +196,8 @@ final class AdminNavigation
                 $this->item('notifications', 'Notification Center', 'admin.notifications.index', ['admin.notifications.index', 'admin.notifications.show'], 'notification.view', $company),
                 $this->item('notification-templates', 'Notification Templates', 'admin.notifications.templates.index', ['admin.notifications.templates.*'], 'notification.template.manage', $company),
                 $this->item('notification-deliveries', 'Notification Deliveries', 'admin.notifications.deliveries.index', ['admin.notifications.deliveries.*'], 'notification.delivery.view', $company),
-                $this->item('integrations', 'Integration Hub', 'admin.integrations.dashboard', ['admin.integrations.*'], 'integration.view', $company),
             ]),
-            $this->group('access', 'IAM và Audit', '◆', [
+            $this->group('access', 'Administration · IAM & Audit', '◆', [
                 $this->item('iam', 'IAM Governance', 'admin.iam.dashboard', ['admin.iam.dashboard', 'admin.iam.access-360'], 'iam.view', $company),
                 $this->item('access-requests', 'Access Requests', 'admin.iam.requests.index', ['admin.iam.requests.*'], 'iam.view', $company),
                 $this->item('roles-permissions', 'Roles & Permissions', 'admin.iam.roles', ['admin.iam.roles'], 'iam.view', $company),
@@ -160,7 +206,8 @@ final class AdminNavigation
                 $this->item('access-reviews', 'Access Reviews', 'admin.iam.reviews', ['admin.iam.reviews*'], 'iam.review.manage', $company),
                 $this->item('audit', 'Audit Platform', 'admin.audit.dashboard', ['admin.audit.*'], 'audit.view', $company),
             ]),
-            $this->group('operations', 'Vận hành nền tảng', '◉', [
+            $this->group('operations', 'System · Vận hành nền tảng', '◉', [
+                $this->item('integrations', 'Integrations', 'admin.integrations.dashboard', ['admin.integrations.*'], 'integration.view', $company),
                 $this->item('reliability', 'Reliability', 'admin.operations.reliability', ['admin.operations.reliability'], 'operations.view'),
                 $this->item('observability', 'Observability', 'admin.operations.observability', ['admin.operations.observability*'], 'operations.view'),
                 $this->item('performance-engineering', 'Performance', 'admin.operations.performance', ['admin.operations.performance'], 'operations.view'),
@@ -178,12 +225,12 @@ final class AdminNavigation
                 $this->item('go-live-readiness', 'Go-Live Readiness', 'admin.operations.go-live', ['admin.operations.go-live'], 'operations.view'),
                 $this->item('api-documentation', 'API Documentation', 'admin.operations.api-documentation', ['admin.operations.api-documentation'], 'api.documentation.view'),
             ]),
-            $this->group('seller', 'CRM & Commerce', '▣', [
+            $this->group('seller', 'Commerce · Sales', '▣', [
                 $this->item('seller-dashboard', 'Tổng quan Seller', 'admin.seller.dashboard', ['admin.seller.dashboard'], 'commerce.store.view', $company),
                 $this->item('store-profile', 'Hồ sơ cửa hàng', 'admin.seller.store', ['admin.seller.store*'], 'commerce.store.view', $company),
                 $this->item('products', 'Sản phẩm', 'admin.products.index', ['admin.products.*'], 'product.view', $company),
-                $this->item('seller-inventory', 'Tồn kho', 'admin.seller.inventory', ['admin.seller.inventory'], 'inventory.view', $company),
-                $this->item('inventory-movements', 'Lịch sử biến động kho', 'admin.seller.inventory.movements', ['admin.seller.inventory.movements'], 'inventory.view', $company),
+                $this->item('branch-customers', 'Khách hàng', 'admin.branch-commerce.customers', ['admin.branch-commerce.customers*'], 'branch-commerce.view', $company),
+                $this->item('sales-receivable', 'Sales Invoice · Receivable', 'admin.sales.index', ['admin.sales.*'], 'sales.view', $company, true),
                 $this->item('seller-orders', 'Đơn hàng', 'admin.seller.orders.index', ['admin.seller.orders.*'], 'commerce.store.view', $company),
                 $this->item('commerce-sales-history', 'Lịch sử đơn hàng đã bán', 'admin.commerce.sales-history', ['admin.commerce.sales-history'], 'commerce.payment.view', $company),
                 $this->item('commerce-payments', 'Commerce Payments', 'admin.commerce.payments.index', ['admin.commerce.payments.*'], 'commerce.payment.view', $company),
@@ -192,25 +239,29 @@ final class AdminNavigation
                 $this->item('articles', 'Kho nội dung', 'articles.index', ['articles.index', 'articles.edit'], 'article.view', $company),
                 $this->item('article-create', 'Viết bài mới', 'articles.create', ['articles.create'], 'article.create', $company),
             ]),
+            $this->group('inventory', 'Inventory · Kho', '⇅', [
+                $this->item('seller-inventory', 'Tồn kho', 'admin.seller.inventory', ['admin.seller.inventory'], 'inventory.view', $company),
+                $this->item('inventory-movements', 'Biến động kho', 'admin.seller.inventory.movements', ['admin.seller.inventory.movements'], 'inventory.view', $company),
+                $this->item('inventory-governance', 'Kiểm kê & điều chỉnh', 'admin.seller.inventory.governance', ['admin.seller.inventory.governance*'], 'stock-count.view', $company),
+            ]),
             $this->group('pos', 'POS / Bán hàng tại quầy', '▦', [
                 $this->item('pos-dashboard', 'Tổng quan POS', 'admin.branch-commerce.dashboard', ['admin.branch-commerce.dashboard'], 'branch-commerce.view', $company),
                 $this->item('customer-checkins', 'Thu ngân · Check-in / Checkout', 'admin.branch-commerce.checkins', ['admin.branch-commerce.checkins*', 'admin.branch-commerce.checkout*'], 'branch-commerce.view', $company),
-                $this->item('branch-customers', 'Tệp khách hàng', 'admin.branch-commerce.customers', ['admin.branch-commerce.customers*'], 'branch-commerce.view', $company),
                 $this->item('company-services', 'Dịch vụ công ty', 'admin.branch-commerce.services', ['admin.branch-commerce.services*'], 'branch-commerce.view', $company),
                 $this->item('branch-warehouse', 'Kho POS / Tồn kho chi nhánh', 'admin.branch-commerce.warehouse', ['admin.branch-commerce.warehouse'], 'branch-commerce.view', $company),
                 $this->item('branch-sales', 'Phiếu thu · Doanh số POS', 'admin.branch-commerce.sales', ['admin.branch-commerce.sales'], 'branch-commerce.view', $company),
                 $this->item('pos-receipts', 'Lịch sử phiếu thu', 'admin.branch-commerce.receipts', ['admin.branch-commerce.receipts*'], 'branch-commerce.view', $company),
             ]),
         ];
-        $order = ['overview', 'organization', 'people', 'workforce', 'talent', 'payroll', 'tax-statutory', 'seller', 'pos', 'procurement', 'supply-chain', 'finance', 'asset-maintenance', 'projects', 'automation', 'analytics-planning', 'access', 'operations'];
+        $order = ['overview', 'organization', 'people', 'workforce', 'talent', 'payroll', 'crm', 'seller', 'inventory', 'pos', 'procurement', 'supply-chain', 'finance', 'tax-statutory', 'asset-maintenance', 'projects', 'analytics-planning', 'automation', 'access', 'operations'];
         $priority = array_flip($order);
         usort($groups, static fn (array $left, array $right): int => $priority[$left['key']] <=> $priority[$right['key']]);
 
         return $groups;
     }
 
-    /** @param list<array{key:string,label:string,route:string,parameters:array<string,int|string>,patterns:list<string>,permission:string,active:bool}> $items
-     * @return array{key:string,label:string,icon:string,items:list<array{key:string,label:string,route:string,parameters:array<string,int|string>,patterns:list<string>,permission:string,active:bool}>}
+    /** @param list<array{key:string,label:string,route:string,parameters:array<string,int|string>,patterns:list<string>,permission:string,process_help:bool,active:bool}> $items
+     * @return array{key:string,label:string,icon:string,items:list<array{key:string,label:string,route:string,parameters:array<string,int|string>,patterns:list<string>,permission:string,process_help:bool,active:bool}>}
      */
     private function group(string $key, string $label, string $icon, array $items): array
     {
@@ -219,10 +270,10 @@ final class AdminNavigation
 
     /** @param list<string> $patterns
      * @param  array<string, int|string>  $parameters
-     * @return array{key:string,label:string,route:string,parameters:array<string,int|string>,patterns:list<string>,permission:string,active:bool}
+     * @return array{key:string,label:string,route:string,parameters:array<string,int|string>,patterns:list<string>,permission:string,process_help:bool,active:bool}
      */
-    private function item(string $key, string $label, string $route, array $patterns, string $permission, array $parameters = []): array
+    private function item(string $key, string $label, string $route, array $patterns, string $permission, array $parameters = [], bool $processHelp = false): array
     {
-        return compact('key', 'label', 'route', 'parameters', 'patterns', 'permission') + ['active' => false];
+        return compact('key', 'label', 'route', 'parameters', 'patterns', 'permission') + ['process_help' => $processHelp, 'active' => false];
     }
 }

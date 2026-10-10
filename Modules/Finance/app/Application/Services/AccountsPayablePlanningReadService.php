@@ -6,11 +6,12 @@ use Carbon\CarbonImmutable;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Database\Query\JoinClause;
+use Illuminate\Support\Facades\Schema;
 
 /** @phpstan-type ApFilters array{as_of_date:string,vendor_id:?int,branch_id:?int,cost_center_id:?int,due_bucket:?string,payment_status:?string,currency:string,sort:string,direction:string} */
 final readonly class AccountsPayablePlanningReadService
 {
-    public function __construct(private ConnectionInterface $db) {}
+    public function __construct(private ConnectionInterface $db, private TreasuryCashPositionReadService $cashPosition) {}
 
     /**
      * @param  ApFilters  $filters
@@ -29,11 +30,19 @@ final readonly class AccountsPayablePlanningReadService
             ->whereDate('payment.payment_date', '<=', $asOf->toDateString())
             ->selectRaw('allocation.vendor_bill_id, SUM(allocation.allocated_minor-COALESCE(allocation_reversal.reversed_minor,0)) allocated_minor')
             ->groupBy('allocation.vendor_bill_id');
+        $credits = Schema::hasTable('supplier_credit_notes')
+            ? $this->db->table('supplier_credit_notes as credit')
+                ->where(['credit.company_id' => $companyId, 'credit.status' => 'posted'])
+                ->whereDate('credit.credit_date', '<=', $asOf->toDateString())
+                ->selectRaw('credit.vendor_bill_id, SUM(credit.ap_reduction_minor) credited_minor')
+                ->groupBy('credit.vendor_bill_id')
+            : $this->db->table('vendor_bills')->whereRaw('1=0')->selectRaw('id as vendor_bill_id, 0 as credited_minor');
 
         $query = $this->db->table('vendor_bills as bill')
             ->join('procurement_vendors as vendor', 'vendor.id', '=', 'bill.vendor_id')
             ->join('branches as branch', 'branch.id', '=', 'bill.branch_id')
             ->leftJoinSub($allocated, 'allocated', 'allocated.vendor_bill_id', '=', 'bill.id')
+            ->leftJoinSub($credits, 'credited', 'credited.vendor_bill_id', '=', 'bill.id')
             ->leftJoin('vendor_bill_reversal_requests as bill_reversal', function (JoinClause $join) use ($asOf): void {
                 $join->on('bill_reversal.vendor_bill_id', '=', 'bill.id')->where('bill_reversal.status', '=', 'reversed')->where('bill_reversal.effective_at', '<=', $asOf->endOfDay()->toDateTimeString());
             })
@@ -46,15 +55,16 @@ final readonly class AccountsPayablePlanningReadService
             ->when($filters['branch_id'], fn (Builder $inner, int $id): Builder => $inner->where('bill.branch_id', $id));
         $this->costCenterScope($query, $filters['cost_center_id']);
 
-        $sourceRows = $query->selectRaw('bill.id, bill.invoice_number, bill.invoice_date, bill.due_date, bill.status, bill.total_minor, bill.currency, bill.accounting_journal_id, bill.vendor_id, vendor.code vendor_code, vendor.name vendor_name, bill.branch_id, branch.name branch_name, COALESCE(allocated.allocated_minor,0) paid_minor, bill.total_minor-COALESCE(allocated.allocated_minor,0) outstanding_minor')
+        $sourceRows = $query->selectRaw('bill.id, bill.invoice_number, bill.invoice_date, bill.due_date, bill.status, bill.total_minor, bill.currency, bill.accounting_journal_id, bill.vendor_id, vendor.code vendor_code, vendor.name vendor_name, bill.branch_id, branch.name branch_name, COALESCE(allocated.allocated_minor,0) paid_minor, COALESCE(credited.credited_minor,0) credited_minor, bill.total_minor-COALESCE(allocated.allocated_minor,0)-COALESCE(credited.credited_minor,0) outstanding_minor')
             ->get();
 
         $hasClearingEvidence = $this->db->table('accounting_accounts')->where(['company_id' => $companyId, 'code' => '1100', 'status' => 'active'])->exists();
         $rows = [];
-        $ledgerTotals = ['original' => 0, 'paid' => 0, 'outstanding' => 0];
+        $ledgerTotals = ['original' => 0, 'credits' => 0, 'paid' => 0, 'outstanding' => 0];
         foreach ($sourceRows as $source) {
             $outstanding = $this->integer($source->outstanding_minor ?? null);
             $ledgerTotals['original'] += $this->integer($source->total_minor ?? null);
+            $ledgerTotals['credits'] += $this->integer($source->credited_minor ?? null);
             $ledgerTotals['paid'] += $this->integer($source->paid_minor ?? null);
             $ledgerTotals['outstanding'] += max(0, $outstanding);
             if ($outstanding <= 0) {
@@ -75,6 +85,7 @@ final readonly class AccountsPayablePlanningReadService
                 'branch_id' => $this->integer($source->branch_id ?? null),
                 'branch_name' => $this->text($source->branch_name ?? null),
                 'original' => $this->integer($source->total_minor ?? null),
+                'credits' => $this->integer($source->credited_minor ?? null),
                 'paid' => $this->integer($source->paid_minor ?? null),
                 'outstanding' => $outstanding,
                 'currency' => $this->text($source->currency ?? null),
@@ -112,22 +123,56 @@ final readonly class AccountsPayablePlanningReadService
 
         $hasRowFilter = $filters['due_bucket'] !== null || $filters['payment_status'] !== null;
         $original = $hasRowFilter ? array_sum(array_column($rows, 'original')) : $ledgerTotals['original'];
+        $credits = $hasRowFilter ? array_sum(array_column($rows, 'credits')) : $ledgerTotals['credits'];
         $paid = $hasRowFilter ? array_sum(array_column($rows, 'paid')) : $ledgerTotals['paid'];
         $outstanding = $hasRowFilter ? array_sum(array_column($rows, 'outstanding')) : $ledgerTotals['outstanding'];
-        $gl = $this->apGeneralLedger($companyId, $asOf, $filters['branch_id'], $filters['currency']);
+        $coverageScopeIsComplete = $filters['vendor_id'] === null && $filters['cost_center_id'] === null && $filters['due_bucket'] === null && $filters['payment_status'] === null;
+        $gl = $coverageScopeIsComplete
+            ? $this->apGeneralLedger($companyId, $asOf, $filters['branch_id'], $filters['currency'])
+            : null;
+
+        $dueThirty = $forecast['OVERDUE'] + $forecast['DUE_TODAY'] + $forecast['NEXT_7'] + $forecast['NEXT_30'];
+        if ($coverageScopeIsComplete) {
+            $cash = $this->cashPosition->read($companyId, $asOf->toDateString(), $filters['branch_id']);
+            $availableByCurrency = $cash['available_cash'] ?? null;
+            $available = is_array($availableByCurrency) ? ($availableByCurrency[$filters['currency']] ?? null) : null;
+            $cashEvidence = $this->cashEvidence($available, $dueThirty, $filters['currency']);
+        } else {
+            $cashEvidence = ['available_cash' => null, 'coverage_basis_points' => null, 'status' => 'NOT_ENOUGH_EVIDENCE', 'reason' => 'Coverage requires the complete AP scope, not vendor/cost-center/status subsets.', 'currency' => $filters['currency'], 'denominator_minor' => $dueThirty];
+        }
 
         return [
             'filters' => $filters,
             'rows' => $rows,
-            'totals' => ['original' => $original, 'paid' => $paid, 'outstanding' => $outstanding],
+            'totals' => ['original' => $original, 'credits' => $credits, 'paid' => $paid, 'outstanding' => $outstanding],
             'aging' => $aging,
             'forecast' => $forecast,
             'vendors' => array_values($vendors),
             'readiness' => $readiness,
-            'reconciliation' => ['subledger' => $outstanding, 'gl_2100' => $filters['vendor_id'] === null && $filters['cost_center_id'] === null && $filters['due_bucket'] === null && $filters['payment_status'] === null ? $gl : null, 'difference' => $filters['vendor_id'] === null && $filters['cost_center_id'] === null && $filters['due_bucket'] === null && $filters['payment_status'] === null ? $outstanding - $gl : null, 'scope' => 'PROCUREMENT_VENDOR_BILL_AND_AP_PAYMENT_ONLY'],
-            'cash_evidence' => ['available_cash' => null, 'coverage' => null, 'status' => 'NOT_ENOUGH_EVIDENCE', 'reason' => 'Treasury has movement and clearing evidence but no verified opening cash balance.'],
+            'reconciliation' => ['subledger' => $outstanding, 'gl_2100' => $gl, 'difference' => $gl === null ? null : $outstanding - $gl, 'scope' => 'PROCUREMENT_VENDOR_BILL_AND_AP_PAYMENT_ONLY'],
+            'cash_evidence' => $cashEvidence,
             'limitations' => ['allocation_reversal' => 'EFFECTIVE_DATED_APPEND_ONLY', 'forecast' => 'AP_OUTFLOW_ONLY_NOT_FULL_CASH_FLOW_FORECAST'],
         ];
+    }
+
+    /**
+     * @return array{available_cash:?int,coverage_basis_points:?int,status:string,reason:string,currency:string,denominator_minor:int}
+     */
+    private function cashEvidence(mixed $available, int $dueThirty, string $currency): array
+    {
+        if (! is_array($available)) {
+            $available = [];
+        }
+        $status = is_string($available['status'] ?? null) ? $available['status'] : 'NOT_ENOUGH_EVIDENCE';
+        $cash = is_int($available['available_cash_minor'] ?? null) ? $available['available_cash_minor'] : null;
+        if ($status !== 'SUPPORTED' || $cash === null) {
+            return ['available_cash' => null, 'coverage_basis_points' => null, 'status' => $status, 'reason' => 'Canonical posted opening balance for every included cash/bank account is required.', 'currency' => $currency, 'denominator_minor' => $dueThirty];
+        }
+        if ($dueThirty === 0) {
+            return ['available_cash' => $cash, 'coverage_basis_points' => null, 'status' => 'NO_AP_DUE', 'reason' => 'No AP is overdue or due within 30 days.', 'currency' => $currency, 'denominator_minor' => 0];
+        }
+
+        return ['available_cash' => $cash, 'coverage_basis_points' => intdiv($cash * 10000, $dueThirty), 'status' => 'SUPPORTED', 'reason' => 'Available cash divided by overdue and next-30-day AP in the same currency.', 'currency' => $currency, 'denominator_minor' => $dueThirty];
     }
 
     private function agingBucket(CarbonImmutable $asOf, ?CarbonImmutable $due): string

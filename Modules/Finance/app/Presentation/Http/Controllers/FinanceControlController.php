@@ -8,14 +8,19 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\View\View;
 use Modules\Company\Domain\Services\BranchAccessService;
+use Modules\Core\Application\Buses\QueryBusInterface;
+use Modules\Finance\Application\Queries\GetAccountingPeriodCloseQuery;
+use Modules\Finance\Application\Queries\GetFinancialStatementProcessHelpQuery;
+use Modules\Finance\Application\Queries\GetTreasuryCashPositionQuery;
 use Modules\Finance\Application\Services\AccountingPeriodCloseService;
 use Modules\Finance\Application\Services\AccountsPayablePlanningReadService;
 use Modules\Finance\Application\Services\ApprovalInboxService;
+use Modules\Finance\Application\Services\TreasuryInternalTransferService;
 use Modules\Finance\Application\Services\TreasuryService;
 
 final readonly class FinanceControlController
 {
-    public function __construct(private BranchAccessService $access, private TreasuryService $treasury, private AccountingPeriodCloseService $periods, private ApprovalInboxService $approvals, private AccountsPayablePlanningReadService $payables) {}
+    public function __construct(private BranchAccessService $access, private TreasuryService $treasury, private TreasuryInternalTransferService $transfers, private AccountingPeriodCloseService $periods, private ApprovalInboxService $approvals, private AccountsPayablePlanningReadService $payables, private QueryBusInterface $queries) {}
 
     public function treasury(Request $request): View
     {
@@ -41,8 +46,11 @@ final readonly class FinanceControlController
         ];
         $data = $this->treasury->read($company);
         $data['payablePlanning'] = $this->payables->read($company, $filters);
+        $data['cashPosition'] = $this->queries->ask(new GetTreasuryCashPositionQuery($company, $filters['as_of_date']));
+        $data['internalTransfers'] = $this->transfers->read($company);
+        $processHelp = $this->queries->ask(new GetFinancialStatementProcessHelpQuery($company, $filters['branch_id'], $user));
 
-        return view('admin.finance.treasury', ['companyId' => $company, 'data' => $data, 'user' => $user]);
+        return view('admin.finance.treasury', ['companyId' => $company, 'data' => $data, 'user' => $user, 'processHelp' => $processHelp]);
     }
 
     public function treasuryMutate(Request $request): RedirectResponse
@@ -63,7 +71,7 @@ final readonly class FinanceControlController
     {
         [$user, $company] = $this->scope($request);
 
-        return view('admin.finance.period-close', ['companyId' => $company, 'data' => $this->periods->read($company), 'user' => $user]);
+        return view('admin.finance.period-close', ['companyId' => $company, 'data' => $this->queries->ask(new GetAccountingPeriodCloseQuery($company)), 'user' => $user]);
     }
 
     public function periodMutate(Request $request): RedirectResponse

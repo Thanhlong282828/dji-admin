@@ -4,6 +4,7 @@
 
 @section('content')
     <div class="space-y-7">
+        <div class="erp-title-with-help"><h2>Payroll Run</h2><x-erp.process-help :title="$processHelp['title']" :steps="$processHelp['steps']" :route="route('admin.payroll.runs.show',['run'=>$viewModel->summary['id'],'company_id'=>$companyId])" :description="$processHelp['description']" :owner="$processHelp['owner']" :accounting-impact="$processHelp['accounting_impact']" /></div>
 
         {{-- ============================================================
             PAYSLIPS

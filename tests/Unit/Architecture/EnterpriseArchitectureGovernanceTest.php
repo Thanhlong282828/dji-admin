@@ -13,7 +13,7 @@ final class EnterpriseArchitectureGovernanceTest extends TestCase
     {
         $snapshot = app(ArchitectureAuditService::class)->snapshot();
 
-        self::assertSame(46, $snapshot['modules']);
+        self::assertSame(47, $snapshot['modules']);
         self::assertSame([], $snapshot['cycles']);
         self::assertSame([], $snapshot['undeclared_edges']);
         self::assertContains('Integration -> Organization', app(ArchitectureAuditService::class)->declaredEdges(app(ArchitectureAuditService::class)->manifests()));

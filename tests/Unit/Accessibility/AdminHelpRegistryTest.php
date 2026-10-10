@@ -112,8 +112,8 @@ final class AdminHelpRegistryTest extends TestCase
         $registry = new ProcessFlowRegistry;
         $definitions = $registry->all();
 
-        self::assertCount(128, $items);
-        self::assertCount(128, $definitions);
+        self::assertCount(143, $items);
+        self::assertCount(143, $definitions);
         self::assertEqualsCanonicalizing(array_column($items, 'key'), array_keys($definitions));
         self::assertFalse(method_exists(AdminHelpRegistry::class, 'menuFlowKeys'));
 
@@ -171,6 +171,6 @@ final class AdminHelpRegistryTest extends TestCase
     {
         $documentation = file_get_contents(base_path('docs/erp-process-flow-convention.md'));
         self::assertIsString($documentation);
-        self::assertSame(127, preg_match_all('/^\| .* \| `[^`]+` \| `(?:MASTER_DATA|CONFIGURATION|BUSINESS_PROCESS|CONTROL|READ_MODEL|REPORT|EXTERNAL|SYSTEM)` \| `[^`]+` \| `Modules\/[^`]+\/resources\/process-flows\.php` \| `[^`]+` \| `[^`]+` \|$/m', $documentation));
+        self::assertSame(128, preg_match_all('/^\| .* \| `[^`]+` \| `(?:MASTER_DATA|CONFIGURATION|BUSINESS_PROCESS|CONTROL|READ_MODEL|REPORT|EXTERNAL|SYSTEM)` \| `[^`]+` \| `Modules\/[^`]+\/resources\/process-flows\.php` \| `[^`]+` \| `[^`]+` \|$/m', $documentation));
     }
 }

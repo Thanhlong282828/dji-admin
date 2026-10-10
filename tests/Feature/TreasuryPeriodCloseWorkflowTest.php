@@ -8,8 +8,10 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Modules\Finance\Application\Services\AccountingPeriodCloseService;
+use Modules\Finance\Application\Services\AccountingPostingPolicyService;
 use Modules\Finance\Application\Services\ApprovalInboxService;
 use Modules\Finance\Application\Services\FinanceOperationsService;
+use Modules\Finance\Application\Services\SourceAccountingPostingService;
 use Modules\Finance\Application\Services\TreasuryService;
 use Tests\TestCase;
 
@@ -62,6 +64,19 @@ final class TreasuryPeriodCloseWorkflowTest extends TestCase
         $company = (int) DB::table('companies')->insertGetId(['uuid' => (string) Str::uuid(), 'code' => 'TREASURY', 'name' => 'Treasury Company', 'is_active' => true, 'created_at' => now(), 'updated_at' => now()]);
         $branch = (int) DB::table('branches')->insertGetId(['company_id' => $company, 'code' => 'HQ', 'name' => 'Trụ sở', 'status' => 'active', 'timezone' => 'Asia/Ho_Chi_Minh', 'created_at' => now(), 'updated_at' => now()]);
         DB::table('company_user_access')->insert([['company_id' => $company, 'user_id' => $maker->id, 'created_at' => now(), 'updated_at' => now()], ['company_id' => $company, 'user_id' => $checker->id, 'created_at' => now(), 'updated_at' => now()]]);
+        $posting = app(SourceAccountingPostingService::class);
+        $expense = $posting->accountEvidence($company, '5100', 'VND', $maker->id)['id'];
+        $payable = $posting->accountEvidence($company, '2100', 'VND', $maker->id)['id'];
+        $cash = $posting->accountEvidence($company, '1100', 'VND', $maker->id)['id'];
+        $policies = app(AccountingPostingPolicyService::class);
+        foreach ([
+            ['EXPENSE-PAYABLE', 'finance_expense', 'payable', [['entry_side' => 'debit', 'line_role' => 'EXPENSE', 'account_id' => $expense], ['entry_side' => 'credit', 'line_role' => 'AP', 'account_id' => $payable]]],
+            ['EXPENSE-CASH', 'finance_expense_payment', 'cash', [['entry_side' => 'debit', 'line_role' => 'AP', 'account_id' => $payable], ['entry_side' => 'credit', 'line_role' => 'CASH', 'account_id' => $cash]]],
+        ] as [$key, $source, $classification, $lines]) {
+            $policy = $policies->create($company, $maker, ['policy_key' => $key, 'source_type' => $source, 'business_event' => 'OPERATING_EXPENSE', 'classification' => $classification, 'version' => 1, 'currency' => 'VND', 'effective_from' => '2026-01-01', 'lines' => $lines]);
+            $policies->submit($company, $policy, $maker);
+            $policies->approve($company, $policy, $checker);
+        }
 
         return [$maker, $checker, $company, $branch];
     }

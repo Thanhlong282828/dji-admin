@@ -27,6 +27,7 @@ COPY . .
 COPY --from=vendor /app/vendor ./vendor
 COPY --from=assets /app/public/build ./public/build
 COPY docker/php/php.ini /usr/local/etc/php/conf.d/99-schema.ini
+COPY docker/php/zz-runtime-pool.conf /usr/local/etc/php-fpm.d/zz-runtime-pool.conf
 RUN mkdir -p storage/framework/cache storage/framework/sessions storage/framework/views storage/logs bootstrap/cache \
     && php -r "foreach (['bcmath', 'gd', 'intl', 'pcntl', 'pdo_mysql', 'zip'] as \$extension) { if (! extension_loaded(\$extension)) { fwrite(STDERR, \"Missing runtime extension: {\$extension}\\n\"); exit(1); } }" \
     && chown -R www-data:www-data storage bootstrap/cache

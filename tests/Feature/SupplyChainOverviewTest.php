@@ -30,7 +30,17 @@ final class SupplyChainOverviewTest extends TestCase
 
         $this->get(route('admin.supply-chain.index', ['company_id' => $company]))->assertRedirect();
         $this->actingAs($user)->get(route('admin.supply-chain.index', ['company_id' => $foreign]))->assertNotFound();
-        $this->actingAs($user)->get(route('admin.supply-chain.index', ['company_id' => $company]))->assertOk()->assertSee('Tổng quan chuỗi cung ứng')->assertSee('NOT_CONNECTED')->assertSee('NOT_ENOUGH_EVIDENCE');
+        $response = $this->actingAs($user)->get(route('admin.supply-chain.index', ['company_id' => $company]));
+        $response->assertOk()->assertSee('Tổng quan chuỗi cung ứng')->assertSee('Trạng thái vận hành')->assertSee('NOT_CONNECTED')->assertSee('NOT_ENOUGH_EVIDENCE')->assertSee('erp-kpi-grid', false);
+        self::assertSame(1, preg_match_all('/<h1(?:\s[^>]*)?>/i', $response->getContent()), 'Supply Chain must render exactly one page-level H1.');
+        $response->assertSee(route('admin.seller.inventory', ['company_id' => $company]), false);
+        $response->assertDontSee(route('admin.procurement.orders', ['company_id' => $company]), false);
+
+        $user->givePermissionTo(['purchase-order.view', 'goods-receipt.view']);
+        $authorized = $this->actingAs($user)->get(route('admin.supply-chain.index', ['company_id' => $company]));
+        $authorized->assertOk()
+            ->assertSee(route('admin.procurement.orders', ['company_id' => $company]), false)
+            ->assertSee(route('admin.procurement.receipts', ['company_id' => $company]), false);
 
         $data = app(SupplyChainOverviewReadService::class)->read($company);
         self::assertSame((int) data_get($data, 'inventory.on_hand') - (int) data_get($data, 'inventory.reserved'), (int) data_get($data, 'inventory.available'));

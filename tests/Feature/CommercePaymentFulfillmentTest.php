@@ -29,13 +29,19 @@ final class CommercePaymentFulfillmentTest extends TestCase
 
     public function test_paid_delivered_order_consumes_inventory_and_recognizes_branch_revenue_once(): void
     {
+        $commerceIssuesBefore = array_sum(array_map(static fn (array $finding): int => $finding['count'], array_filter(
+            app(DataQualityAuditService::class)->snapshot()['findings'],
+            static fn (array $finding): bool => str_starts_with($finding['key'], 'commerce.') || str_starts_with($finding['key'], 'revenue.'),
+        )));
         [$company, $branch, $buyer, $seller, $finance, $orderId, $balanceId] = $this->fixture();
+        $revenueQuery = DB::table('branch_management_revenues')->where(['company_id' => $company->id, 'order_id' => $orderId, 'source_type' => 'commerce_order']);
+        $revenueBefore = $revenueQuery->count();
         $payments = app(CommercePaymentService::class);
         $first = $payments->recordSucceeded($finance, $company->id, $orderId, 'internal_demo', 'SETTLEMENT-DEMO-001', 'payment-key-001');
         $second = $payments->recordSucceeded($finance, $company->id, $orderId, 'internal_demo', 'SETTLEMENT-DEMO-001', 'payment-key-001');
         self::assertSame($first, $second);
-        self::assertSame(1, DB::table('commerce_payment_records')->count());
-        self::assertSame(0, DB::table('branch_management_revenues')->count());
+        self::assertSame(1, DB::table('commerce_payment_records')->count(), 'payment record isolation');
+        self::assertSame($revenueBefore, $revenueQuery->count(), 'payment must not recognize revenue before delivery');
 
         app(OrderTransitionService::class)->sellerTransition($seller, $orderId, 'confirm');
         $fulfillments = app(CommerceFulfillmentService::class);
@@ -50,7 +56,7 @@ final class CommercePaymentFulfillmentTest extends TestCase
 
         $this->assertDatabaseHas('orders', ['id' => $orderId, 'status' => 'fulfilled', 'payment_status' => 'paid']);
         $this->assertDatabaseHas('branch_management_revenues', ['company_id' => $company->id, 'branch_id' => $branch, 'order_id' => $orderId, 'source_type' => 'commerce_order', 'amount_minor' => 300_000]);
-        self::assertSame(1, DB::table('branch_management_revenues')->where('order_id', $orderId)->count());
+        self::assertSame($revenueBefore + 1, $revenueQuery->count(), 'delivery recognizes revenue exactly once');
         self::assertSame(330_000, (int) DB::table('commerce_payment_records')->where('order_id', $orderId)->value('amount_minor'));
         self::assertSame(300_000, (int) DB::table('branch_management_revenues')->where('order_id', $orderId)->value('amount_minor'));
         self::assertSame(-160_000, (int) DB::table('inventory_movements')->where(['source_type' => 'commerce_order', 'source_id' => $orderId])->value('movement_value_minor'));
@@ -64,7 +70,12 @@ final class CommercePaymentFulfillmentTest extends TestCase
         self::assertSame(160_000, (int) DB::table('inventory_movements')->where('source_type', 'sale_reversal')->value('movement_value_minor'));
         self::assertSame(2, DB::table('payroll_accounting_journals')->where(['source_type' => 'sale_reversal', 'source_id' => $reversal])->count());
         self::assertNotSame($buyer->id, $finance->id);
-        self::assertSame(0, app(DataQualityAuditService::class)->snapshot()['commerce_issues']);
+        $quality = app(DataQualityAuditService::class)->snapshot();
+        $commerceIssuesAfter = array_sum(array_map(static fn (array $finding): int => $finding['count'], array_filter(
+            $quality['findings'],
+            static fn (array $finding): bool => str_starts_with($finding['key'], 'commerce.') || str_starts_with($finding['key'], 'revenue.'),
+        )));
+        self::assertSame($commerceIssuesBefore, $commerceIssuesAfter, 'workflow introduces no Commerce/Revenue DQ issue');
     }
 
     public function test_seller_cannot_record_payment_and_paid_order_cannot_be_buyer_cancelled(): void

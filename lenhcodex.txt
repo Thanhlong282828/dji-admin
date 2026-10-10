@@ -1,0 +1,8 @@
+Lệnh này sẽ giữ đúng hướng đang làm:
+
+không chỉ sửa giao diện
+mỗi con số/card có nguồn
+có link truy ngược dữ liệu
+đúng Module + CQRS
+không bơm dữ liệu giả
+giữ tone ERP tối vàng của project.

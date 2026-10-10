@@ -1,5 +1,9 @@
+@php
+    $presentationLocale = request()->attributes->get('presentation_locale', session('locale', 'default'));
+    $useOriginalCopy = $presentationLocale === 'default';
+@endphp
 <!doctype html>
-<html lang="vi">
+<html lang="{{ $useOriginalCopy ? 'vi' : str_replace('_', '-', app()->getLocale()) }}">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -33,8 +37,14 @@
 <aside id="admin-sidebar" class="admin-sidebar" aria-label="Điều hướng quản trị" data-sidebar aria-hidden="false">
     <div class="sidebar-brand-row">
         <a class="brand" href="{{ route('dashboard') }}" aria-label="LA THÀNH Control Center">
-            <span class="brand-title" aria-hidden="true">LA THÀNH</span>
-            <span class="brand-subtitle" aria-hidden="true">CONTROL CENTER</span>
+            <span class="brand-logo" aria-hidden="true" style="--brand-logo-image:url('{{ asset('images/la-thanh-dragon.png') }}')">
+                <img src="{{ asset('images/la-thanh-dragon.png') }}" alt="" width="52" height="54">
+                <span class="brand-logo-shine"></span>
+            </span>
+            <span class="brand-copy" aria-hidden="true">
+                <span class="brand-title">LA THÀNH</span>
+                <span class="brand-subtitle">CONTROL CENTER</span>
+            </span>
         </a>
         <button class="sidebar-close" type="button" aria-label="Đóng điều hướng chính" data-sidebar-close><span aria-hidden="true">×</span></button>
     </div>
@@ -49,30 +59,38 @@
             : null;
     @endphp
     <div class="nav-search-wrap">
-        <label for="admin-navigation-search">Tìm nhanh trong menu</label>
-        <input id="admin-navigation-search" type="search" autocomplete="off" placeholder="Ví dụ: payroll, bảo mật…" data-nav-search>
+        <label for="admin-navigation-search">{{ $useOriginalCopy ? 'Tìm nhanh trong menu' : __('navigation.search') }}</label>
+        <input id="admin-navigation-search" type="search" autocomplete="off" placeholder="{{ $useOriginalCopy ? 'Ví dụ: payroll, bảo mật…' : __('navigation.search_placeholder') }}" data-nav-search>
     </div>
     <nav class="primary-navigation" aria-label="Điều hướng chính" data-primary-navigation>
-        @foreach($navigationGroups as $group)
+        @forelse($navigationGroups as $group)
             <section class="nav-group {{ $group['active'] ? 'is-active is-open' : '' }}" data-nav-group="{{ $group['key'] }}" data-route-active="{{ $group['active'] ? 'true' : 'false' }}">
                 <h2>
                     <button type="button" class="nav-group-toggle" aria-expanded="{{ $group['active'] ? 'true' : 'false' }}" aria-controls="nav-group-{{ $group['key'] }}" data-nav-group-toggle>
                         <span class="nav-group-icon" aria-hidden="true">{{ $group['icon'] }}</span>
-                        <span>{{ $group['label'] }}</span>
+                        <span>{{ ! $useOriginalCopy && trans()->has('navigation.groups.'.$group['key']) ? __('navigation.groups.'.$group['key']) : $group['label'] }}</span>
                         <span class="nav-chevron" aria-hidden="true">⌄</span>
                     </button>
                 </h2>
                 <div id="nav-group-{{ $group['key'] }}" class="nav-group-items" @if(!$group['active']) hidden @endif>
                     @foreach($group['items'] as $item)
-                        <a class="nav-item {{ $item['active'] ? 'active' : '' }}" href="{{ route($item['route'], $item['parameters']) }}" @if($item['active']) aria-current="page" @endif data-nav-label="{{ Illuminate\Support\Str::lower($group['label'].' '.$item['label']) }}">
-                            <span>{{ $item['label'] }}</span>
-                            @if($item['key'] === 'notifications')<i data-notification-unread aria-label="Thông báo chưa đọc">—</i>@endif
-                        </a>
+                        <div class="nav-item-row">
+                            <a class="nav-item {{ $item['active'] ? 'active' : '' }}" href="{{ route($item['route'], $item['parameters']) }}" @if($item['active']) aria-current="page" @endif data-nav-label="{{ Illuminate\Support\Str::lower($group['label'].' '.$item['label']) }}">
+                                <span>{{ ! $useOriginalCopy && trans()->has('navigation.items.'.$item['key']) ? __('navigation.items.'.$item['key']) : $item['label'] }}</span>
+                                @if($item['key'] === 'notifications')<i data-notification-unread aria-label="Thông báo chưa đọc">—</i>@endif
+                            </a>
+                            @if($item['process_help'])<a class="nav-item-help-link" href="{{ route($item['route'], [...$item['parameters'], 'process_help' => 'open']) }}" aria-label="Mở giải thích quy trình {{ $item['label'] }}" title="Owner Module · CQRS source · Business meaning · Next step">?</a>@endif
+                        </div>
                     @endforeach
                 </div>
             </section>
-        @endforeach
-        <p class="nav-search-empty" data-nav-search-empty hidden>Không tìm thấy mục điều hướng phù hợp.</p>
+        @empty
+            <div class="nav-permission-empty" role="status">
+                <strong>Chưa có chức năng được cấp quyền</strong>
+                <span>Liên hệ quản trị viên để được gán quyền truy cập phù hợp.</span>
+            </div>
+        @endforelse
+        <p class="nav-search-empty" data-nav-search-empty hidden>{{ $useOriginalCopy ? 'Không tìm thấy mục điều hướng phù hợp.' : __('navigation.empty') }}</p>
     </nav>
     <script>
         (() => {
@@ -83,7 +101,7 @@
             const groups = Array.from(navigation.querySelectorAll('[data-nav-group]'));
             const active = groups.find(group => group.dataset.routeActive === 'true');
             const saved = groups.find(group => group.dataset.navGroup === root.dataset.adminNavOpenGroup);
-            const selected = active ?? saved ?? null;
+            const selected = active ?? saved ?? groups.at(0) ?? null;
 
             groups.forEach(group => {
                 const expanded = group === selected;
@@ -99,6 +117,7 @@
             delete root.dataset.adminNavInitializing;
         })();
     </script>
+    <div class="sidebar-locale" data-locale-switcher><button type="button" aria-label="{{ $useOriginalCopy ? 'Ngôn ngữ hiển thị' : __('navigation.language') }}" aria-haspopup="true" aria-expanded="false" aria-controls="sidebar-locale-menu" data-locale-toggle><span aria-hidden="true">◎</span><span>{{ $useOriginalCopy ? 'Mặc định' : __('navigation.locales.'.$presentationLocale) }}</span></button><div id="sidebar-locale-menu" role="menu" hidden data-locale-menu>@foreach(['default'=>'◉','vi'=>'🇻🇳','en'=>'🇬🇧','zh_CN'=>'🇨🇳'] as $locale=>$flag)<form method="POST" action="{{ route('locale.update') }}" role="none">@csrf<input type="hidden" name="locale" value="{{ $locale }}"><button role="menuitem" type="submit">{{ $flag }} {{ $locale === 'default' ? 'Mặc định' : __('navigation.locales.'.$locale) }} @if($presentationLocale===$locale)<span aria-hidden="true">✓</span>@endif</button></form>@endforeach</div></div>
     <div class="user">{{ auth()->user()?->name ?? 'SYSTEM ADMIN' }}<br><small>Enterprise HRM</small></div>
 </aside>
 <main id="main-content" tabindex="-1">

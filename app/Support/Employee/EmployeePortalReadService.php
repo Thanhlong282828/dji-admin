@@ -47,6 +47,15 @@ final readonly class EmployeePortalReadService
             ->orderByDesc('work_date')->limit(14)
             ->get(['id', 'work_date', 'check_in_at', 'check_out_at', 'worked_minutes', 'late_minutes', 'overtime_minutes', 'attendance_status', 'approval_status'])
             ->map(static fn (object $row): array => (array) $row)->all();
+        $todayAttendance = $this->db->table('attendance_records as ar')
+            ->leftJoin('work_shifts as ws', 'ws.id', '=', 'ar.work_shift_id')
+            ->where('ar.company_id', $companyId)->where('ar.employee_id', $employeeId)->whereDate('ar.work_date', today())
+            ->select(['ar.id', 'ar.work_date', 'ar.check_in_at', 'ar.check_out_at', 'ar.scheduled_minutes', 'ar.worked_minutes', 'ar.late_minutes', 'ar.early_leave_minutes', 'ar.overtime_minutes', 'ar.attendance_status', 'ar.approval_status', 'ar.calculation_status', 'ws.name as shift_name', 'ws.starts_at as shift_start', 'ws.ends_at as shift_end'])
+            ->first();
+        $todayLeave = $this->db->table('leave_requests as lr')->join('leave_types as lt', 'lt.id', '=', 'lr.leave_type_id')
+            ->where('lr.company_id', $companyId)->where('lr.employee_id', $employeeId)->where('lr.status', 'approved')
+            ->whereDate('lr.starts_at', '<=', today())->whereDate('lr.ends_at', '>=', today())
+            ->select(['lr.id', 'lt.name as leave_type', 'lr.requested_minutes'])->first();
         $leave = $this->db->table('leave_requests as r')->join('leave_types as t', 't.id', '=', 'r.leave_type_id')
             ->where('r.company_id', $companyId)->where('r.employee_id', $employeeId)
             ->orderByDesc('r.starts_at')->limit(10)
@@ -61,8 +70,14 @@ final readonly class EmployeePortalReadService
             ->where('i.company_id', $companyId)->where('i.employee_id', $employeeId)
             ->whereIn('r.status', ['approved', 'finalized', 'locked', 'paid'])
             ->orderByDesc('r.period_end')->limit(12)
-            ->get(['i.id', 'r.code as run_code', 'r.period_start', 'r.period_end', 'i.currency_code', 'i.gross_amount_minor', 'i.insurance_employee_total_minor', 'i.personal_income_tax_minor', 'i.deduction_amount_minor', 'i.net_amount_minor', 'i.calculation_status'])
+            ->get(['i.id', 'r.code as run_code', 'r.status as run_status', 'r.period_start', 'r.period_end', 'i.currency_code', 'i.scheduled_minutes', 'i.worked_minutes', 'i.paid_leave_minutes', 'i.unpaid_leave_minutes', 'i.approved_overtime_minutes', 'i.gross_amount_minor', 'i.insurance_employee_total_minor', 'i.personal_income_tax_minor', 'i.deduction_amount_minor', 'i.net_amount_minor', 'i.calculation_status'])
             ->map(static fn (object $row): array => (array) $row)->all();
+        foreach ($payroll as $index => &$movement) {
+            $previous = $payroll[$index + 1] ?? null;
+            $movement['net_delta_minor'] = is_array($previous) ? $this->arrayInteger($movement, 'net_amount_minor') - $this->arrayInteger($previous, 'net_amount_minor') : null;
+            $movement['attendance_payroll_treatment'] = 'NOT_SEPARATELY_ATTRIBUTABLE';
+        }
+        unset($movement);
         $payslips = $this->db->table('payroll_payslips as p')->join('payroll_periods as pp', 'pp.id', '=', 'p.payroll_period_id')
             ->where('p.company_id', $companyId)->where('p.employee_id', $employeeId)
             ->whereIn('p.status', ['generated', 'published'])
@@ -71,12 +86,20 @@ final readonly class EmployeePortalReadService
             ->map(static fn (object $row): array => (array) $row)->all();
         $notificationCount = $this->db->table('notifications')->where('notifiable_type', 'App\\Models\\User')->where('notifiable_id', $userId)->whereNull('read_at')->count();
 
-        return compact('employee', 'assignment', 'branches', 'attendance', 'leave', 'overtime', 'payroll', 'payslips', 'notificationCount', 'companyId');
+        return compact('employee', 'assignment', 'branches', 'attendance', 'todayAttendance', 'todayLeave', 'leave', 'overtime', 'payroll', 'payslips', 'notificationCount', 'companyId');
     }
 
     private function integer(object $row, string $key): int
     {
         $value = $row->{$key} ?? null;
+
+        return is_numeric($value) ? (int) $value : 0;
+    }
+
+    /** @param array<array-key, mixed> $row */
+    private function arrayInteger(array $row, string $key): int
+    {
+        $value = $row[$key] ?? null;
 
         return is_numeric($value) ? (int) $value : 0;
     }

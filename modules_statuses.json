@@ -12,7 +12,7 @@
     "Leave": true,
     "Payroll": true,
     "Insurance": false,
-    "Tax": false,
+    "Tax": true,
     "Performance": true,
     "Training": false,
     "Benefit": false,
@@ -44,5 +44,6 @@
     "Finance": true,
     "Procurement": true,
     "Project": true,
-    "Maintenance": true
+    "Maintenance": true,
+    "CRM": true
 }

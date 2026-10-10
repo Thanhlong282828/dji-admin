@@ -51,7 +51,7 @@ final class ApiDocumentationTest extends TestCase
         self::assertArrayHasKey('openapi', $document);
         self::assertArrayHasKey('info', $document);
         self::assertIsArray($document['paths'] ?? null);
-        self::assertCount(11, $document['paths']);
+        self::assertCount(13, $document['paths']);
 
         $encoded = json_encode($document, JSON_THROW_ON_ERROR);
         self::assertStringNotContainsString('BEGIN PRIVATE KEY', $encoded);

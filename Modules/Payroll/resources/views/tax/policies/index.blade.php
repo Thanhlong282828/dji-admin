@@ -25,9 +25,9 @@
             PERSONAL INCOME TAX FOUNDATION
         </span>
 
-        <h1>
+        <h2>
             Tax Policies
-        </h1>
+        </h2>
 
         <p>
             Effective-dated, versioned configuration.

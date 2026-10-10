@@ -1,0 +1,16 @@
+@extends('layouts.admin')
+@section('title','Accounting Policy Workspace')
+@section('content')
+<section class="admin-hero"><div><p class="admin-eyebrow">ACCOUNTING GOVERNANCE · POLICY LINEAGE</p><h2>Accounting Policy Workspace</h2><p>Policy version, account mapping và journal sử dụng thực tế trong đúng phạm vi Company.</p></div></section>
+<section class="erp-kpi-grid">
+@foreach([['Policies',$workspace['totals']['policies']],['Approved',$workspace['totals']['approved']],['Journal usage',$workspace['totals']['used_by_journals']]] as [$label,$value])
+<article class="erp-kpi-card"><span>{{ $label }}</span><strong>{{ number_format($value) }}</strong><small>Source: accounting_posting_policies</small><a class="erp-source-link" href="{{ route('admin.finance.accounting-policies',['company_id'=>$companyId]) }}">View source ↗</a></article>
+@endforeach
+</section>
+<section class="admin-card"><form method="get"><input type="hidden" name="company_id" value="{{ $companyId }}"><label>Policy ID<input name="policy_id" type="number" min="1" value="{{ $policyId }}"></label><button class="admin-button" type="submit">Lọc</button></form></section>
+@forelse($workspace['policies'] as $policy)
+<section class="admin-card" id="policy-{{ $policy['id'] }}"><h2>{{ $policy['key'] }} · v{{ $policy['version'] }}</h2><p>{{ $policy['business_event'] }} · {{ $policy['classification'] ?? 'general' }} · {{ $policy['currency'] }} · {{ $policy['status'] }}</p><p>Effective: {{ $policy['effective_from'] }} → {{ $policy['effective_to'] ?? 'Open' }}</p>
+<div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>Side</th><th>Role</th><th>Account mapping</th><th>Cost center</th></tr></thead><tbody>@foreach($policy['lines'] as $line)<tr><td>{{ strtoupper($line['side']) }}</td><td>{{ $line['role'] }}</td><td>@if($line['account_url'])<a class="erp-source-link" href="{{ $line['account_url'] }}">{{ $line['account'] }} ↗</a>@else{{ $line['account'] }}@endif</td><td>{{ $line['requires_cost_center']?'Required':'Optional' }}</td></tr>@endforeach</tbody></table></div>
+<h3>Where used</h3><div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>Journal</th><th>Source document</th><th>Posting</th><th>Date</th></tr></thead><tbody>@forelse($policy['usage'] as $usage)<tr><td>@if($usage['url'])<a class="erp-source-link" href="{{ $usage['url'] }}">{{ $usage['number'] }} ↗</a>@else{{ $usage['number'] }}@endif</td><td><span>{{ $usage['source_label'] }} #{{ $usage['source_id'] }}</span>@if($usage['source_url'])<br><a class="erp-source-link" href="{{ $usage['source_url'] }}">Open source workspace ↗</a>@endif</td><td>{{ $usage['posting_type'] }}</td><td>{{ $usage['date'] }}</td></tr>@empty<tr><td colspan="4">No operating data available.</td></tr>@endforelse</tbody></table></div></section>
+@empty<section class="admin-card"><h2>No operating data available</h2><p>Không có Accounting Policy trong phạm vi lọc. Tạo policy từ upstream Accounting Configuration sau khi mapping được phê duyệt.</p>@can('payroll.accounting.manage')<a class="admin-button" href="{{ route('admin.payroll.accounting.policies.index',['company_id'=>$companyId]) }}">Open Accounting Configuration</a>@endcan</section>@endforelse
+@endsection

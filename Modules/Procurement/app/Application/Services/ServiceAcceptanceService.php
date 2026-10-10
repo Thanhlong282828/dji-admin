@@ -8,7 +8,11 @@ use Illuminate\Database\Query\JoinClause;
 use Illuminate\Validation\ValidationException;
 use Modules\Finance\Application\Services\AccountingAdjustmentService;
 use Modules\Finance\Application\Services\AccountingPostingPolicyResolver;
+use Modules\Finance\Application\Services\FxMoneyConverter;
+use Modules\Finance\Application\Services\FxRateResolver;
+use Modules\Finance\Application\Services\FxRateSnapshotService;
 use Modules\Finance\Application\Services\SourceAccountingPostingService;
+use Modules\Finance\Domain\Enums\FxRateType;
 
 final readonly class ServiceAcceptanceService
 {
@@ -17,6 +21,9 @@ final readonly class ServiceAcceptanceService
         private AccountingPostingPolicyResolver $policies,
         private SourceAccountingPostingService $accounting,
         private AccountingAdjustmentService $adjustments,
+        private FxRateResolver $rates,
+        private FxMoneyConverter $converter,
+        private FxRateSnapshotService $snapshots,
     ) {}
 
     /** @param array<string,mixed> $data */
@@ -107,25 +114,40 @@ final readonly class ServiceAcceptanceService
                 }
             }
             $date = $this->textValue($acceptance->acceptance_date ?? null);
-            $currency = $this->textValue($acceptance->currency ?? null);
-            $policy = $this->policies->resolve($companyId, 'SERVICE_ACCEPTANCE_APPROVED', 'operating_expense', $date, $currency);
-            $amount = $this->integer($acceptance->total_minor ?? null);
+            $transactionCurrency = strtoupper($this->textValue($acceptance->currency ?? null));
+            $company = $this->db->table('companies')->where('id', $companyId)->lockForUpdate()->first(['functional_currency_code']);
+            $functionalCurrency = is_object($company) && is_string($company->functional_currency_code ?? null)
+                ? strtoupper($company->functional_currency_code)
+                : '';
+            if ($functionalCurrency === '') {
+                throw ValidationException::withMessages(['functional_currency' => 'FUNCTIONAL_CURRENCY_NOT_CONFIGURED']);
+            }
+            $transactionAmount = $this->integer($acceptance->total_minor ?? null);
+            $functionalAmount = $transactionAmount;
+            if ($transactionCurrency !== $functionalCurrency) {
+                $rate = $this->rates->resolve($companyId, $transactionCurrency, $functionalCurrency, $date, FxRateType::Spot->value);
+                $functionalAmount = $this->converter->convertMinor($transactionAmount, $transactionCurrency, $functionalCurrency, $this->arrayString($rate, 'rate_decimal'));
+                $this->snapshots->capture($companyId, $rate, 'service_acceptance_recognition', $acceptanceId);
+            }
+            $policy = $this->policies->resolve($companyId, 'SERVICE_ACCEPTANCE_APPROVED', 'operating_expense', $date, $functionalCurrency);
             $firstLine = $lines->first();
             if (! is_object($firstLine)) {
                 throw ValidationException::withMessages(['lines' => 'SERVICE_ACCEPTANCE_LINES_REQUIRED']);
             }
             foreach ($policy['lines'] as $line) {
                 $postingLines[] = [
-                    'account_code' => $line['account_code'], 'debit' => $line['entry_side'] === 'debit' ? $amount : 0,
-                    'credit' => $line['entry_side'] === 'credit' ? $amount : 0, 'description' => 'Service acceptance '.$line['line_role'],
+                    'account_code' => $line['account_code'], 'debit' => $line['entry_side'] === 'debit' ? $functionalAmount : 0,
+                    'credit' => $line['entry_side'] === 'credit' ? $functionalAmount : 0, 'description' => 'Service acceptance '.$line['line_role'],
                     'cost_center_id' => $line['requires_cost_center'] ? $this->nullableIntegerValue($firstLine->cost_center_id ?? null) : null,
                     'cost_center_code_snapshot' => $line['requires_cost_center'] ? $this->nullableStringValue($firstLine->cost_center_code_snapshot ?? null) : null,
                     'cost_center_name_snapshot' => $line['requires_cost_center'] ? $this->nullableStringValue($firstLine->cost_center_name_snapshot ?? null) : null,
                 ];
             }
-            $journalId = $this->accounting->post($companyId, $this->integer($acceptance->branch_id ?? null), 'service_acceptance', $acceptanceId, 'service_acceptance_approved', $date, $currency, $postingLines, $actor->id);
+            $policyId = $this->arrayInteger($policy, 'policy_id');
+            $policyVersion = $this->arrayInteger($policy, 'version');
+            $journalId = $this->accounting->postPolicyBacked($companyId, $this->integer($acceptance->branch_id ?? null), 'service_acceptance', $acceptanceId, 'service_acceptance_approved', $date, $functionalCurrency, $postingLines, $actor->id, $policyId, $policyVersion);
             $this->db->table('service_acceptances')->where('id', $acceptanceId)->update([
-                'status' => 'approved', 'accounting_policy_id' => $policy['policy_id'], 'accounting_policy_version' => $policy['version'],
+                'status' => 'approved', 'accounting_policy_id' => $policyId, 'accounting_policy_version' => $policyVersion,
                 'accounting_journal_id' => $journalId, 'approved_by' => $actor->id, 'approved_at' => now(), 'updated_at' => now(),
             ]);
 
@@ -250,5 +272,25 @@ final readonly class ServiceAcceptanceService
     private function nullableStringValue(mixed $value): ?string
     {
         return is_string($value) && $value !== '' ? $value : null;
+    }
+
+    /** @param array<string,mixed> $values */
+    private function arrayInteger(array $values, string $key): int
+    {
+        $value = $values[$key] ?? null;
+
+        return is_int($value) || (is_string($value) && ctype_digit($value))
+            ? (int) $value
+            : throw new \RuntimeException('Invalid integer value for '.$key.'.');
+    }
+
+    /** @param array<string,mixed> $values */
+    private function arrayString(array $values, string $key): string
+    {
+        $value = $values[$key] ?? null;
+
+        return is_string($value) && $value !== ''
+            ? $value
+            : throw new \RuntimeException('Invalid string value for '.$key.'.');
     }
 }

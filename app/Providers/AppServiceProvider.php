@@ -28,6 +28,7 @@ use Illuminate\Support\ServiceProvider;
 use Laravel\Passport\Passport;
 use Psr\Log\LoggerInterface;
 use RuntimeException;
+use Spatie\Permission\PermissionRegistrar;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -45,12 +46,16 @@ class AppServiceProvider extends ServiceProvider
             ? array_values(array_filter($protectedValue, static fn (mixed $name): bool => is_string($name)))
             : [];
         $environmentValue = config('app.env');
+        $localDatabaseValue = config('environment-safety.local_database');
+        $productionDatabaseValue = config('release.production_database');
         EnvironmentSafetyGuard::assertSafe(
             is_string($environmentValue) ? $environmentValue : 'production',
             (bool) config('app.debug'),
             $database,
             $protectedDatabases,
             (bool) config('environment-safety.require_testing_suffix', true),
+            is_string($localDatabaseValue) ? $localDatabaseValue : 'schema_admin',
+            is_string($productionDatabaseValue) ? $productionDatabaseValue : '',
         );
 
         $this->app->bind(WorkforceNotificationChannelSenderInterface::class, LaravelWorkforceNotificationChannelSender::class);
@@ -75,6 +80,20 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        Gate::before(function (User $user, string $ability): ?bool {
+            if (! $user->hasRole('Super Admin')) {
+                return null;
+            }
+
+            $isRegisteredPermission = app(PermissionRegistrar::class)
+                ->getPermissions()
+                ->where('guard_name', 'web')
+                ->where('name', $ability)
+                ->isNotEmpty();
+
+            return $isRegisteredPermission ? true : null;
+        });
+
         Passport::tokensCan([
             'company:read' => 'Đọc dữ liệu công ty',
             'company:write' => 'Thay đổi dữ liệu công ty',

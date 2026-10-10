@@ -7,21 +7,59 @@ use Carbon\CarbonImmutable;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Database\Query\JoinClause;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 final readonly class FinanceOperationsService
 {
-    public function __construct(private ConnectionInterface $db, private SourceAccountingPostingService $accounting, private TreasuryService $treasury, private BudgetExposureService $budgetExposure) {}
+    public function __construct(private ConnectionInterface $db, private SourceAccountingPostingService $accounting, private TreasuryService $treasury, private BudgetExposureService $budgetExposure, private AccountingPostingPolicyResolver $postingPolicies) {}
 
     /** @param array<string,mixed> $data */
     public function mutate(string $action, int $companyId, User $actor, array $data): int
     {
         return match ($action) {
+            'account.create' => $this->account($companyId, $actor, $data),
             'expense-category.create' => $this->expenseCategory($companyId, $data), 'expense.create' => $this->expense($companyId, $actor, $data), 'expense.transition' => $this->expenseTransition($companyId, $actor, $data),
-            'asset-category.create' => $this->assetCategory($companyId, $data), 'asset.create' => $this->asset($companyId, $actor, $data), 'asset.activate' => $this->activateAsset($companyId, $actor, $data), 'asset.transfer' => $this->transferAsset($companyId, $actor, $data), 'asset.depreciate' => $this->depreciate($companyId, $actor, $data), 'asset.dispose' => $this->dispose($companyId, $actor, $data),
+            'asset-category.create' => $this->assetCategory($companyId, $data), 'asset.create' => $this->asset($companyId, $actor, $data), 'asset.activate' => $this->activateAsset($companyId, $actor, $data), 'asset.transfer' => $this->transferAsset($companyId, $actor, $data), 'asset.depreciate' => $this->depreciate($companyId, $actor, $data),
             'budget.create' => $this->budget($companyId, $actor, $data), 'budget.line' => $this->budgetLine($companyId, $data), 'budget.approve' => $this->approveBudget($companyId, $actor, $data),
             default => throw ValidationException::withMessages(['action' => 'Finance operation không được hỗ trợ.']),
         };
+    }
+
+    /** @param array<string,mixed> $d */
+    private function account(int $companyId, User $actor, array $d): int
+    {
+        return $this->db->transaction(function () use ($companyId, $actor, $d): int {
+            $this->db->table('companies')->where('id', $companyId)->lockForUpdate()->firstOrFail(['id']);
+            $code = strtoupper($this->text($d, 'code'));
+            $existing = $this->db->table('accounting_accounts')->where(['company_id' => $companyId, 'code' => $code])->first();
+            if ($existing !== null) {
+                $existingData = get_object_vars($existing);
+                foreach (['name', 'account_type', 'normal_balance', 'currency'] as $field) {
+                    if (($existingData[$field] ?? null) !== ($field === 'currency' ? strtoupper($this->text($d, $field)) : $this->text($d, $field))) {
+                        throw ValidationException::withMessages(['code' => 'ACCOUNTING_ACCOUNT_CODE_CONFLICT']);
+                    }
+                }
+
+                return $this->int($existingData['id'] ?? null);
+            }
+            $type = $this->text($d, 'account_type');
+            if (! in_array($type, ['asset', 'liability', 'equity', 'revenue', 'expense', 'contra_asset'], true)) {
+                throw ValidationException::withMessages(['account_type' => 'ACCOUNTING_ACCOUNT_TYPE_INVALID']);
+            }
+            $normal = $this->text($d, 'normal_balance');
+            if (! in_array($normal, ['debit', 'credit'], true)) {
+                throw ValidationException::withMessages(['normal_balance' => 'ACCOUNTING_ACCOUNT_NORMAL_BALANCE_INVALID']);
+            }
+
+            return (int) $this->db->table('accounting_accounts')->insertGetId([
+                'uuid' => (string) Str::uuid(), 'company_id' => $companyId, 'parent_id' => null, 'code' => $code,
+                'name' => $this->text($d, 'name'), 'account_type' => $type, 'normal_balance' => $normal,
+                'currency' => strtoupper($this->text($d, 'currency')), 'allow_posting' => true, 'status' => 'active',
+                'effective_from' => $this->text($d, 'effective_from'), 'effective_to' => null, 'created_by' => $actor->id,
+                'created_at' => now(), 'updated_at' => now(),
+            ]);
+        }, 3);
     }
 
     /** @return array<string,mixed> */
@@ -122,10 +160,16 @@ final readonly class FinanceOperationsService
             if (in_array($to, ['approved', 'rejected'], true)) {
                 $updates += ['reviewed_by' => $u->id, 'reviewed_at' => now(), 'decision_reason' => $d['decision_reason'] ?? null];
             }if ($to === 'approved') {
-                $updates['accounting_journal_id'] = $this->accounting->post($c, $this->rowInt($e, 'branch_id'), 'finance_expense', $id, 'expense_incurred', $this->rowText($e, 'expense_date'), 'VND', [['account_code' => '5100', 'debit' => $this->rowInt($e, 'amount_minor'), 'credit' => 0, 'description' => 'Operating expense', ...$this->expenseDimension($e)], ['account_code' => '2100', 'debit' => 0, 'credit' => $this->rowInt($e, 'amount_minor'), 'description' => 'Expense payable']], $u->id);
+                $date = $this->rowText($e, 'expense_date');
+                $policy = $this->postingPolicies->resolve($c, 'OPERATING_EXPENSE', 'payable', $date, 'VND');
+                $lines = $this->expensePolicyLines($policy, $this->rowInt($e, 'amount_minor'), $e, 'Operating expense');
+                $updates['accounting_journal_id'] = $this->accounting->postPolicyBacked($c, $this->rowInt($e, 'branch_id'), 'finance_expense', $id, 'expense_incurred', $date, 'VND', $lines, $u->id, $policy['policy_id'], $policy['version']);
             }if ($to === 'paid') {
                 $updates['payment_status'] = 'paid';
-                $journal = $this->accounting->post($c, $this->rowInt($e, 'branch_id'), 'finance_expense', $id, 'expense_payment', now()->toDateString(), 'VND', [['account_code' => '2100', 'debit' => $this->rowInt($e, 'amount_minor'), 'credit' => 0, 'description' => 'Expense payable settled'], ['account_code' => '1100', 'debit' => 0, 'credit' => $this->rowInt($e, 'amount_minor'), 'description' => 'Payment clearing']], $u->id);
+                $date = now()->toDateString();
+                $policy = $this->postingPolicies->resolve($c, 'OPERATING_EXPENSE', 'cash', $date, 'VND');
+                $lines = $this->expensePolicyLines($policy, $this->rowInt($e, 'amount_minor'), $e, 'Expense payment');
+                $journal = $this->accounting->postPolicyBacked($c, $this->rowInt($e, 'branch_id'), 'finance_expense', $id, 'expense_payment', $date, 'VND', $lines, $u->id, $policy['policy_id'], $policy['version']);
                 $updates['payment_journal_id'] = $journal;
                 $this->treasury->recordSource($c, $this->rowInt($e, 'branch_id'), 'finance_expense_payment', $id, $journal, $this->rowText($e, 'reference'), $this->rowInt($e, 'amount_minor'), now()->toDateTimeString(), $u->id);
             } $this->db->table('finance_expenses')->where('id', $id)->update($updates);
@@ -172,7 +216,12 @@ final readonly class FinanceOperationsService
                 return $id;
             }if ($a->status !== 'draft') {
                 throw ValidationException::withMessages(['status' => 'Chỉ asset draft được activate.']);
-            }$j = $this->accounting->post($c, $this->rowInt($a, 'branch_id'), 'finance_asset', $id, 'asset_acquisition', $this->rowText($a, 'acquisition_date'), 'VND', [['account_code' => '1300', 'debit' => $this->rowInt($a, 'acquisition_cost_minor'), 'credit' => 0, 'description' => 'Fixed asset acquisition'], ['account_code' => '2100', 'debit' => 0, 'credit' => $this->rowInt($a, 'acquisition_cost_minor'), 'description' => 'Asset payable']], $u->id);
+            }$amount = $this->rowInt($a, 'acquisition_cost_minor');
+            $date = $this->rowText($a, 'acquisition_date');
+            $currency = $this->rowText($a, 'currency');
+            $policy = $this->postingPolicies->resolve($c, 'ASSET_ACQUISITION', null, $date, $currency);
+            $lines = array_map(fn (array $line): array => ['account_code' => $line['account_code'], 'debit' => $line['entry_side'] === 'debit' ? $amount : 0, 'credit' => $line['entry_side'] === 'credit' ? $amount : 0, 'description' => 'Asset acquisition '.$line['line_role']], $policy['lines']);
+            $j = $this->accounting->postPolicyBacked($c, $this->rowInt($a, 'branch_id'), 'finance_asset', $id, 'asset_acquisition', $date, $currency, $lines, $u->id, $policy['policy_id'], $policy['version']);
             $this->db->table('finance_assets')->where('id', $id)->update(['status' => 'active', 'acquisition_journal_id' => $j, 'updated_at' => now()]);
             $this->db->table('finance_asset_assignments')->insert(['company_id' => $c, 'asset_id' => $id, 'branch_id' => $a->branch_id, 'cost_center_id' => $a->cost_center_id, 'effective_from' => $a->in_service_date, 'reason' => 'Initial in-service assignment', 'created_by' => $u->id, 'created_at' => now(), 'updated_at' => now()]);
 
@@ -220,31 +269,20 @@ final readonly class FinanceOperationsService
                 throw ValidationException::withMessages(['asset' => 'Asset đã depreciate hết giá trị.']);
             }$assignment = $this->assetAssignment($c, $id, $month->endOfMonth()->toDateString());
             $dimension = $this->costCenter($c, $this->nullableRowInt($assignment, 'cost_center_id'));
-            $j = $this->accounting->post($c, $this->rowInt($assignment, 'branch_id'), 'finance_asset', $id, 'depreciation_'.$month->format('Ym'), $month->endOfMonth()->toDateString(), 'VND', [['account_code' => '5200', 'debit' => $amount, 'credit' => 0, 'description' => 'Monthly depreciation', 'cost_center_id' => $dimension['id'], 'cost_center_code_snapshot' => $dimension['code'], 'cost_center_name_snapshot' => $dimension['name']], ['account_code' => '1390', 'debit' => 0, 'credit' => $amount, 'description' => 'Accumulated depreciation']], $u->id);
+            $date = $month->endOfMonth()->toDateString();
+            $currency = $this->rowText($a, 'currency');
+            $policy = $this->postingPolicies->resolve($c, 'ASSET_DEPRECIATION', null, $date, $currency);
+            $lines = array_map(function (array $line) use ($amount, $dimension): array {
+                $mapped = ['account_code' => $line['account_code'], 'debit' => $line['entry_side'] === 'debit' ? $amount : 0, 'credit' => $line['entry_side'] === 'credit' ? $amount : 0, 'description' => 'Asset depreciation '.$line['line_role']];
+                if ($line['requires_cost_center']) {
+                    $mapped += ['cost_center_id' => $dimension['id'], 'cost_center_code_snapshot' => $dimension['code'], 'cost_center_name_snapshot' => $dimension['name']];
+                }
+
+                return $mapped;
+            }, $policy['lines']);
+            $j = $this->accounting->postPolicyBacked($c, $this->rowInt($assignment, 'branch_id'), 'finance_asset', $id, 'depreciation_'.$month->format('Ym'), $date, $currency, $lines, $u->id, $policy['policy_id'], $policy['version']);
 
             return (int) $this->db->table('finance_depreciation_entries')->insertGetId(['company_id' => $c, 'asset_id' => $id, 'cost_center_id' => $dimension['id'], 'cost_center_code_snapshot' => $dimension['code'], 'cost_center_name_snapshot' => $dimension['name'], 'period_month' => $month->toDateString(), 'amount_minor' => $amount, 'accumulated_minor' => $acc + $amount, 'book_value_minor' => $this->rowInt($a, 'acquisition_cost_minor') - $acc - $amount, 'status' => 'posted', 'accounting_journal_id' => $j, 'created_by' => $u->id, 'created_at' => now(), 'updated_at' => now()]);
-        }, 3);
-    }
-
-    /** @param array<string,mixed> $d */
-    private function dispose(int $c, User $u, array $d): int
-    {
-        $id = $this->integer($d, 'id');
-        $date = $this->text($d, 'disposed_on');
-
-        return $this->db->transaction(function () use ($c, $u, $id, $date): int {
-            $a = $this->db->table('finance_assets')->where(['id' => $id, 'company_id' => $c, 'status' => 'active'])->lockForUpdate()->firstOrFail();
-            $acc = (int) $this->db->table('finance_depreciation_entries')->where('asset_id', $id)->sum('amount_minor');
-            $book = max(0, $this->rowInt($a, 'acquisition_cost_minor') - $acc);
-            $lines = [['account_code' => '1390', 'debit' => $acc, 'credit' => 0, 'description' => 'Remove accumulated depreciation']];
-            if ($book > 0) {
-                $lines[] = ['account_code' => '5300', 'debit' => $book, 'credit' => 0, 'description' => 'Asset disposal loss'];
-            }$lines[] = ['account_code' => '1300', 'debit' => 0, 'credit' => $this->rowInt($a, 'acquisition_cost_minor'), 'description' => 'Remove fixed asset cost'];
-            $j = $this->accounting->post($c, $this->rowInt($a, 'branch_id'), 'finance_asset', $id, 'asset_disposal', $date, 'VND', $lines, $u->id);
-            $this->db->table('finance_assets')->where('id', $id)->update(['status' => 'disposed', 'disposed_on' => $date, 'disposal_journal_id' => $j, 'updated_at' => now()]);
-            $this->db->table('finance_asset_assignments')->where('asset_id', $id)->whereNull('effective_to')->update(['effective_to' => $date, 'updated_at' => now()]);
-
-            return $id;
         }, 3);
     }
 
@@ -324,6 +362,18 @@ final readonly class FinanceOperationsService
     private function expenseDimension(object $expense): array
     {
         return ['cost_center_id' => $this->nullableRowInt($expense, 'cost_center_id'), 'cost_center_code_snapshot' => $this->nullableRowText($expense, 'cost_center_code_snapshot'), 'cost_center_name_snapshot' => $this->nullableRowText($expense, 'cost_center_name_snapshot')];
+    }
+
+    /** @param array{lines:list<array{entry_side:string,line_role:string,account_code:string,requires_cost_center:bool}>} $policy @return list<array<string,mixed>> */
+    private function expensePolicyLines(array $policy, int $amount, object $expense, string $description): array
+    {
+        return array_map(fn (array $line): array => [
+            'account_code' => $line['account_code'],
+            'debit' => $line['entry_side'] === 'debit' ? $amount : 0,
+            'credit' => $line['entry_side'] === 'credit' ? $amount : 0,
+            'description' => $description.' '.$line['line_role'],
+            ...($line['requires_cost_center'] ? $this->expenseDimension($expense) : []),
+        ], $policy['lines']);
     }
 
     private function assetAssignment(int $companyId, int $assetId, string $date): object

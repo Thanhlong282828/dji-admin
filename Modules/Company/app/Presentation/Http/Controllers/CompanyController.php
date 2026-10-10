@@ -14,6 +14,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\View\View;
 use Modules\Company\Application\Commands\ChangeCompanyStatus\ChangeCompanyStatusCommand;
+use Modules\Company\Application\Commands\ConfigureFunctionalCurrency\ConfigureFunctionalCurrencyCommand;
 use Modules\Company\Application\Commands\CreateCompany\CreateCompanyCommand;
 use Modules\Company\Application\Commands\DeleteCompany\DeleteCompanyCommand;
 use Modules\Company\Application\Commands\RestoreCompany\RestoreCompanyCommand;
@@ -25,8 +26,11 @@ use Modules\Company\Application\Queries\GetCompanyEdit\GetCompanyEditQuery;
 use Modules\Company\Application\Queries\GetCompanyList\GetCompanyListQuery;
 use Modules\Company\Application\Services\CompanySellerAccountService;
 use Modules\Company\Domain\Enums\CompanyStatus;
+use Modules\Company\Domain\Enums\SupportedCurrency;
 use Modules\Company\Domain\Models\Company;
+use Modules\Company\Domain\Services\BranchAccessService;
 use Modules\Company\Presentation\Http\Requests\ChangeCompanyStatusRequest;
+use Modules\Company\Presentation\Http\Requests\ConfigureFunctionalCurrencyRequest;
 use Modules\Company\Presentation\Http\Requests\StoreCompanyRequest;
 use Modules\Company\Presentation\Http\Requests\UpdateCompanyRequest;
 use Modules\Core\Application\Buses\CommandBusInterface;
@@ -35,7 +39,7 @@ use Symfony\Component\HttpFoundation\Response;
 
 final class CompanyController extends Controller
 {
-    public function __construct(private readonly CommandBusInterface $commands, private readonly QueryBusInterface $queries, private readonly RoleHierarchyService $hierarchy, private readonly CompanySellerAccountService $sellerAccounts) {}
+    public function __construct(private readonly CommandBusInterface $commands, private readonly QueryBusInterface $queries, private readonly RoleHierarchyService $hierarchy, private readonly CompanySellerAccountService $sellerAccounts, private readonly BranchAccessService $access) {}
 
     public function index(Request $request): View|JsonResponse
     {
@@ -79,7 +83,7 @@ final class CompanyController extends Controller
         /** @var CompanyViewModel $item */
         $item = $this->queries->ask(new GetCompanyDetailQuery($company, true));
 
-        return view('company::companies.show', ['company' => $item, 'branches' => $this->branches($company), 'sellerAccounts' => $this->sellerAccounts($company)]);
+        return view('company::companies.show', ['company' => $item, 'branches' => $this->branches($company), 'sellerAccounts' => $this->sellerAccounts($company), 'supportedCurrencies' => SupportedCurrency::values()]);
     }
 
     public function edit(int $company): View
@@ -127,6 +131,18 @@ final class CompanyController extends Controller
         $this->commands->dispatch(new ChangeCompanyStatusCommand($company, CompanyStatus::from($status), $this->actorId($request)));
 
         return back()->with('success', 'Trạng thái công ty đã được cập nhật.');
+    }
+
+    public function configureFunctionalCurrency(ConfigureFunctionalCurrencyRequest $request, int $company): RedirectResponse
+    {
+        Gate::authorize('update', Company::class);
+        $actor = $request->user();
+        abort_unless($actor instanceof User && $this->access->company($actor, $company), 404);
+        $currency = $request->validated('functional_currency_code');
+        abort_unless(is_string($currency), Response::HTTP_UNPROCESSABLE_ENTITY);
+        $this->commands->dispatch(new ConfigureFunctionalCurrencyCommand($company, $currency, $this->actorId($request)));
+
+        return to_route('admin.companies.show', $company)->with('success', 'Functional currency đã được cấu hình và khóa bất biến.');
     }
 
     public function destroySellerAccount(Request $request, int $company, int $seller): RedirectResponse

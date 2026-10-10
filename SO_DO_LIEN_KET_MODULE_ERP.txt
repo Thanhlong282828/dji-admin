@@ -41,6 +41,17 @@ Read boundary  : Query/read services; Dashboard/Reporting aggregate read-only.
 [DEPENDS] Audit → Employee
 [DEPENDS] Audit → Payroll
 
+MODULE: CRM
+Responsibility : Lead and opportunity bounded context.
+Status         : IMPLEMENTED
+Manifest       : Modules/CRM/module.json
+Main routes    : Modules/CRM/routes/web.php (alias crm)
+Write boundary : CRM-owned application/domain services and tables.
+Read boundary  : Query/read services; Dashboard/Reporting aggregate read-only.
+[DEPENDS] CRM → Core
+[DEPENDS] CRM → Company
+[DEPENDS] CRM → Commerce
+
 MODULE: Commerce
 Responsibility : Seller, store, buyer, cart, checkout, order, payment and fulfillment bounded context.
 Status         : IMPLEMENTED
@@ -52,6 +63,7 @@ Read boundary  : Query/read services; Dashboard/Reporting aggregate read-only.
 [DEPENDS] Commerce → Company
 [DEPENDS] Commerce → Inventory
 [DEPENDS] Commerce → Finance
+[DEPENDS] Commerce → Tax
 
 MODULE: Company
 Responsibility : Owner bounded context theo module runtime hiện tại.
@@ -149,6 +161,7 @@ Write boundary : Inventory-owned application/domain services and tables.
 Read boundary  : Query/read services; Dashboard/Reporting aggregate read-only.
 [DEPENDS] Inventory → Core
 [DEPENDS] Inventory → Company
+[DEPENDS] Inventory → Finance
 
 MODULE: Leave
 Responsibility : Owner bounded context theo module runtime hiện tại.
@@ -261,6 +274,7 @@ Read boundary  : Query/read services; Dashboard/Reporting aggregate read-only.
 [DEPENDS] Procurement → Inventory
 [DEPENDS] Procurement → Finance
 [DEPENDS] Procurement → Workflow
+[DEPENDS] Procurement → Tax
 
 MODULE: Product
 Responsibility : Product catalog, category, variant and SKU ownership.
@@ -300,6 +314,16 @@ Read boundary  : Query/read services; Dashboard/Reporting aggregate read-only.
 [DEPENDS] Recruitment → Employee
 [DEPENDS] Recruitment → Organization
 [DEPENDS] Recruitment → Onboarding
+
+MODULE: Tax
+Responsibility : Owner bounded context theo module runtime hiện tại.
+Status         : IMPLEMENTED
+Manifest       : Modules/Tax/module.json
+Main routes    : Modules/Tax/routes/web.php, Modules/Tax/routes/api.php (alias tax)
+Write boundary : Tax-owned application/domain services and tables.
+Read boundary  : Query/read services; Dashboard/Reporting aggregate read-only.
+[DEPENDS] Tax → Core
+[DEPENDS] Tax → Company
 
 MODULE: Workflow
 Responsibility : Owner bounded context theo module runtime hiện tại.

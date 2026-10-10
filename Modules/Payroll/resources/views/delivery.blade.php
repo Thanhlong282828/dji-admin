@@ -14,9 +14,7 @@
                     Schema HRM
                 </p>
 
-                <h1 class="text-3xl font-semibold">
-                    Payroll Delivery
-                </h1>
+                <div class="erp-title-with-help"><h1 class="text-3xl font-semibold">Payroll Delivery</h1><x-erp.process-help :title="$processHelp['title']" :steps="$processHelp['steps']" :route="route('admin.payroll.delivery.index',['company_id'=>$companyId])" :description="$processHelp['description']" :owner="$processHelp['owner']" :accounting-impact="$processHelp['accounting_impact']" /></div>
             </div>
 
             <a
@@ -298,9 +296,12 @@
 
                 <tbody>
                     @forelse($viewModel->components as $component)
-                        <tr class="border-t border-zinc-800">
+                        <tr id="payroll-component-{{ $component['id'] }}" class="border-t border-zinc-800">
                             <td class="p-3">
-                                {{ $component['code'] }}
+                                <a class="erp-source-link" href="#payroll-component-{{ $component['id'] }}">
+                                    <strong>{{ $component['code'] }}</strong>
+                                    <small>Payroll component #{{ $component['id'] }} · canonical</small>
+                                </a>
                             </td>
 
                             <td>
@@ -312,7 +313,7 @@
                             </td>
 
                             <td>
-                                {{ $component['status'] }}
+                                <span class="status-pill">{{ $component['status'] }}</span>
                             </td>
                         </tr>
                     @empty
@@ -321,7 +322,10 @@
                                 colspan="4"
                                 class="p-8 text-center text-zinc-500"
                             >
-                                Chưa có thành phần lương.
+                                <div class="erp-empty-state">
+                                    <span>↗</span>
+                                    <div><strong>Chưa có thành phần lương</strong><p>Tạo component qua form cấu hình phía trên; hệ thống không thêm dòng mẫu.</p></div>
+                                </div>
                             </td>
                         </tr>
                     @endforelse

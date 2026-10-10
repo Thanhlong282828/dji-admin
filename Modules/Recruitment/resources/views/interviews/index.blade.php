@@ -2,7 +2,7 @@
 @section('title', 'Lịch phỏng vấn')
 @section('content')
 <section class="panel" data-recruitment-page data-company-id="{{ $companyId }}" data-realtime-entity="interview" data-refresh-url="{{ request()->fullUrl() }}">
-    <div class="page-heading"><div><span class="eyebrow">RECRUITMENT</span><h1>Lịch phỏng vấn</h1></div><span data-realtime-state>Đã đồng bộ</span><button type="button" data-realtime-refresh>Làm mới</button>
+    <div class="page-heading"><div><span class="eyebrow">RECRUITMENT</span><h2>Lịch phỏng vấn</h2></div><span data-realtime-state>Đã đồng bộ</span><button type="button" data-realtime-refresh>Làm mới</button>
         @can('interview.schedule')<a class="button" href="{{ route('admin.interviews.create', ['company_id' => $companyId]) }}">Lên lịch</a>@endcan
         @can('interview.view')<a class="button" href="{{ route('admin.interviews.export', ['company_id' => $companyId]) }}">Export CSV</a>@endcan
     </div>
