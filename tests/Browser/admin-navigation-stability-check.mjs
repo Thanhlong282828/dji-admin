@@ -79,7 +79,7 @@ async function verifyDesktop() {
 
     await gotoStable(page, `${baseUrl}/admin/analytics/workforce?company_id=${companyId}`);
     const analytics = await clickMenu(page, 'Workforce Forecasting', 0);
-    current = await state(page, 'overview');
+    current = await state(page, 'analytics-planning');
     if (current.groupOpen !== 'true' || current.openGroups !== 1) throw new Error(`desktop analytics state ${JSON.stringify(current)}`);
 
     await page.getByRole('button', { name: 'Hướng dẫn sử dụng trang này' }).click();

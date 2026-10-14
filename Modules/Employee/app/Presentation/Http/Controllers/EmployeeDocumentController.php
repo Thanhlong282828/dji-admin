@@ -6,11 +6,13 @@ use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Modules\Employee\Domain\Enums\DocumentClassification;
 use Modules\Employee\Domain\Services\EmployeeDocumentService;
 use Modules\Employee\Policies\EmployeeDocumentPolicy;
 use Modules\Employee\Presentation\Http\Requests\UploadEmployeeDocumentRequest;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
+use Symfony\Component\HttpFoundation\RedirectResponse as SymfonyRedirectResponse;
 
 final readonly class EmployeeDocumentController
 {
@@ -30,15 +32,19 @@ final readonly class EmployeeDocumentController
         return back()->with('success', 'Đã tải tài liệu riêng tư.');
     }
 
-    public function download(Request $request, int $document): BinaryFileResponse
+    public function download(Request $request, int $document): BinaryFileResponse|SymfonyRedirectResponse
     {
         $companyId = $request->integer('company_id');
         $user = $request->user();
         abort_unless($user instanceof User && $this->policy->download($user, $companyId), 403);
         $record = $this->documents->download($companyId, $document);
         activity('employee-document')->causedBy($user)->event('downloaded')->withProperties(['company_id' => $companyId, 'document_id' => $document])->log('Employee document downloaded');
+        $location = $this->documents->downloadLocation($record);
+        if ($location['temporary_url'] !== null) {
+            return redirect()->away($location['temporary_url']);
+        }
 
-        return response()->download(storage_path('app/private/'.$record->storage_key), $record->name, ['Content-Type' => $record->mime_type ?? 'application/octet-stream']);
+        return response()->download(Storage::disk($location['disk'])->path($location['path']), $record->name, ['Content-Type' => $record->mime_type ?? 'application/octet-stream', 'Cache-Control' => 'private, no-store', 'X-Content-Type-Options' => 'nosniff']);
     }
 
     public function archive(Request $request, int $document): RedirectResponse

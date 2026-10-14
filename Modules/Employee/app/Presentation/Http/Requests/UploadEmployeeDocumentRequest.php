@@ -20,7 +20,7 @@ final class UploadEmployeeDocumentRequest extends FormRequest
             'company_id' => ['required', 'integer', 'exists:companies,id'],
             'type' => ['required', Rule::enum(DocumentClassification::class)],
             'name' => ['required', 'string', 'max:255'],
-            'document' => ['required', 'file', 'max:10240', 'mimetypes:application/pdf,image/jpeg,image/png,application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+            'document' => ['required', 'file', 'max:10240', 'mimetypes:application/pdf,image/jpeg,image/png,image/webp,application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
         ];
     }
 }

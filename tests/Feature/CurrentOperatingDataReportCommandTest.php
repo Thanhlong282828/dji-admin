@@ -6,6 +6,7 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
@@ -19,7 +20,7 @@ final class CurrentOperatingDataReportCommandTest extends TestCase
         $user = User::factory()->create([
             'name' => 'Người vận hành snapshot',
             'email' => 'snapshot.operator@example.test',
-            'password' => bcrypt('NEVER-EXPOSE-THIS-PASSWORD'),
+            'password' => Hash::make('NEVER-EXPOSE-THIS-PASSWORD'),
         ]);
         $company = (int) DB::table('companies')->insertGetId([
             'uuid' => (string) Str::uuid(),

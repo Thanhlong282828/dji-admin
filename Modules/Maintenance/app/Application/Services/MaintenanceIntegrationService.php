@@ -4,6 +4,7 @@ namespace Modules\Maintenance\Application\Services;
 
 use App\Models\User;
 use Illuminate\Database\ConnectionInterface;
+use Illuminate\Validation\ValidationException;
 use Modules\Finance\Application\Services\FinanceOperationsService;
 use Modules\Procurement\Application\Services\ProcurementService;
 
@@ -30,7 +31,10 @@ final readonly class MaintenanceIntegrationService
     /** @return array{id:int,code:string} */
     private function order(int $companyId, int $workOrderId): array
     {
-        $values = get_object_vars($this->db->table('maintenance_work_orders')->where(['id' => $workOrderId, 'company_id' => $companyId])->firstOrFail(['id', 'code']));
+        $values = get_object_vars($this->db->table('maintenance_work_orders')->where(['id' => $workOrderId, 'company_id' => $companyId])->firstOrFail(['id', 'code', 'status']));
+        if (($values['status'] ?? null) === 'CLOSED') {
+            throw ValidationException::withMessages(['work_order' => 'MAINTENANCE_WORK_ORDER_CLOSED']);
+        }
 
         return ['id' => $workOrderId, 'code' => $this->text($values['code'] ?? null)];
     }

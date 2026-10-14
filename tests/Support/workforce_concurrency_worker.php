@@ -7,6 +7,7 @@ use App\Services\WorkforceNotificationDeliveryService;
 use Carbon\CarbonImmutable;
 use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Foundation\Application;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Modules\Attendance\Application\Commands\ManageOvertimeCommand;
@@ -27,6 +28,7 @@ use Modules\Commerce\Application\Services\CheckoutService;
 use Modules\Commerce\Application\Services\CustomerCreditNoteService;
 use Modules\Commerce\Application\Services\CustomerRefundService;
 use Modules\Commerce\Application\Services\SalesReceivableService;
+use Modules\Document\Application\Services\EnterpriseDocumentService;
 use Modules\Employee\Application\DTOs\LifecycleTransitionData;
 use Modules\Employee\Domain\Services\EmployeeLifecycleService;
 use Modules\Employee\Domain\Services\HRDataGovernanceService;
@@ -46,6 +48,8 @@ use Modules\Inventory\Application\Services\InventoryAdjustmentService;
 use Modules\Leave\Domain\Enums\LeaveRequestStatus;
 use Modules\Leave\Domain\Services\AutomatedLeaveLedgerService;
 use Modules\Leave\Domain\Services\LeaveWorkflowService;
+use Modules\Maintenance\Application\Services\MaintenanceService;
+use Modules\Maintenance\Application\Services\MaintenanceWorkOrderCloseoutService;
 use Modules\Notification\Application\DTOs\QueueNotificationData;
 use Modules\Notification\Domain\Services\NotificationDeliveryService;
 use Modules\Notification\Domain\Services\NotificationReadStateService;
@@ -74,7 +78,10 @@ use Modules\Performance\Domain\Services\PerformanceCycleService;
 use Modules\Performance\Domain\Services\PerformanceReviewService;
 use Modules\Performance\Domain\Services\SuccessionPlanningService;
 use Modules\Performance\Domain\Services\WorkforceAnalyticsService;
+use Modules\Procurement\Application\Services\GoodsReturnService;
 use Modules\Procurement\Application\Services\ProcurementService;
+use Modules\Procurement\Application\Services\SupplierCreditService;
+use Modules\Procurement\Application\Services\VendorRefundService;
 use Modules\Tax\Application\Services\TaxEvidenceService;
 use Modules\Workflow\Application\DTOs\StartWorkflowData;
 use Modules\Workflow\Domain\Services\WorkflowExecutionService;
@@ -221,6 +228,10 @@ try {
         'customer_refund_post' => customerRefundPost($app->make(CustomerRefundService::class), $payload),
         'inventory_stock_count_create' => inventoryStockCountCreate($app->make(InventoryAdjustmentService::class), $payload),
         'inventory_adjustment_post' => inventoryAdjustmentPost($app->make(InventoryAdjustmentService::class), $payload),
+        'maintenance_part_issue' => maintenancePartIssue($app->make(MaintenanceService::class), $payload),
+        'maintenance_part_return' => maintenancePartReturn($app->make(MaintenanceService::class), $payload),
+        'maintenance_work_order_close' => maintenanceWorkOrderClose($app->make(MaintenanceWorkOrderCloseoutService::class), $payload),
+        'enterprise_document_upload' => enterpriseDocumentUpload($app->make(EnterpriseDocumentService::class), $payload),
         'asset_disposal_create' => assetDisposalCreate($app->make(AssetLifecycleService::class), $payload),
         'asset_disposal_approve' => assetDisposalApprove($app->make(AssetLifecycleService::class), $payload),
         'asset_disposal_post' => assetDisposalPost($app->make(AssetLifecycleService::class), $payload),
@@ -244,6 +255,10 @@ try {
             'invoice_date' => requiredString($payload, 'invoice_date'),
             'due_date' => requiredString($payload, 'due_date'),
         ]),
+        'inventory_fx_goods_return_post' => $app->make(GoodsReturnService::class)->post(requiredInt($payload, 'company_id'), requiredInt($payload, 'goods_return_id'), User::query()->findOrFail(requiredInt($payload, 'actor_id'))),
+        'inventory_fx_supplier_credit_approve' => $app->make(SupplierCreditService::class)->approve(requiredInt($payload, 'company_id'), requiredInt($payload, 'supplier_credit_id'), User::query()->findOrFail(requiredInt($payload, 'actor_id'))),
+        'inventory_fx_supplier_credit_post' => $app->make(SupplierCreditService::class)->post(requiredInt($payload, 'company_id'), requiredInt($payload, 'supplier_credit_id'), User::query()->findOrFail(requiredInt($payload, 'actor_id'))),
+        'inventory_fx_vendor_refund_post' => $app->make(VendorRefundService::class)->post(requiredInt($payload, 'company_id'), requiredInt($payload, 'supplier_refund_receipt_id'), User::query()->findOrFail(requiredInt($payload, 'actor_id'))),
         'ap_fx_payment' => $app->make(ProcurementService::class)->mutate('payment.allocate', requiredInt($payload, 'company_id'), User::query()->findOrFail(requiredInt($payload, 'actor_id')), $payload),
         'fx_revaluation_post' => fxRevaluationPost($app->make(FxRevaluationService::class), $payload),
         'fx_revaluation_reverse' => fxRevaluationReverse($app->make(FxRevaluationService::class), $payload),
@@ -258,6 +273,23 @@ try {
     fwrite(STDOUT, json_encode(['status' => 'rejected', 'type' => $throwable::class, 'message' => $throwable->getMessage()], JSON_THROW_ON_ERROR)."\n");
     @unlink($ready);
     exit(2);
+}
+
+/** @param array<string,bool|int|string|null> $payload */
+function enterpriseDocumentUpload(EnterpriseDocumentService $service, array $payload): int
+{
+    config()->set('document.storage_disk', 'local');
+    $source = requiredString($payload, 'source_path');
+    if (! is_file($source)) {
+        throw new RuntimeException('document-race-source-missing');
+    }
+
+    return $service->upload(
+        requiredInt($payload, 'company_id'),
+        requiredInt($payload, 'document_id'),
+        new UploadedFile($source, requiredString($payload, 'original_name'), 'application/pdf', null, true),
+        requiredInt($payload, 'actor_id'),
+    );
 }
 
 /** @param array<string,bool|int|string|null> $payload */
@@ -519,6 +551,33 @@ function inventoryAdjustmentPost(InventoryAdjustmentService $service, array $pay
     $actor = User::query()->findOrFail(requiredInt($payload, 'actor_id'));
 
     return $service->postAdjustment(requiredInt($payload, 'company_id'), requiredInt($payload, 'adjustment_id'), $actor);
+}
+
+/** @param array<string,bool|int|string|null> $payload */
+function maintenancePartIssue(MaintenanceService $service, array $payload): int
+{
+    $part = requiredInt($payload, 'part_id');
+    $service->issuePart(requiredInt($payload, 'company_id'), requiredInt($payload, 'order_id'), $part, requiredInt($payload, 'actor_id'));
+
+    return $part;
+}
+
+/** @param array<string,bool|int|string|null> $payload */
+function maintenancePartReturn(MaintenanceService $service, array $payload): int
+{
+    return $service->returnPart(requiredInt($payload, 'company_id'), requiredInt($payload, 'order_id'), requiredInt($payload, 'part_id'), requiredInt($payload, 'actor_id'), [
+        'quantity' => requiredInt($payload, 'quantity'),
+        'return_reference' => requiredString($payload, 'return_reference'),
+        'idempotency_key' => requiredString($payload, 'idempotency_key'),
+        'return_date' => requiredString($payload, 'return_date'),
+        'reason' => requiredString($payload, 'reason'),
+    ]);
+}
+
+/** @param array<string,bool|int|string|null> $payload */
+function maintenanceWorkOrderClose(MaintenanceWorkOrderCloseoutService $service, array $payload): int
+{
+    return $service->close(requiredInt($payload, 'company_id'), requiredInt($payload, 'order_id'), requiredInt($payload, 'actor_id'), requiredString($payload, 'idempotency_key'));
 }
 
 /** @param array<string,bool|int|string|null> $payload */

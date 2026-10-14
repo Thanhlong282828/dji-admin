@@ -90,7 +90,7 @@ final class RolePermissionSeeder extends Seeder
             'crm.view', 'crm.manage', 'sales.view', 'sales.manage', 'customer-invoice.view', 'customer-invoice.manage', 'customer-credit-note.view', 'customer-credit-note.create', 'customer-credit-note.submit', 'customer-credit-note.approve', 'customer-credit-note.post', 'customer-refund.view', 'customer-refund.create', 'customer-refund.submit', 'customer-refund.approve', 'customer-refund.post', 'ar.view', 'collection.view', 'collection.create', 'cash-flow.view',
             'branch-commerce.view', 'branch-commerce.manage', 'branch-commerce.checkout',
             'project.manage-members', 'project.manage-task', 'project.timesheet.create', 'project.timesheet.approve', 'project.complete',
-            'maintenance.request.create', 'maintenance.request.submit', 'maintenance.request.approve', 'maintenance.work-order.create', 'maintenance.work-order.assign', 'maintenance.work-order.execute', 'maintenance.part.issue', 'maintenance.plan.manage',
+            'maintenance.request.create', 'maintenance.request.submit', 'maintenance.request.approve', 'maintenance.work-order.create', 'maintenance.work-order.assign', 'maintenance.work-order.execute', 'maintenance.part.issue', 'maintenance.part.return', 'maintenance.plan.manage',
         ] as $permission) {
             Permission::query()->firstOrCreate(['name' => $permission, 'guard_name' => 'web']);
         }

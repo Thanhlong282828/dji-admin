@@ -4,11 +4,20 @@ namespace Modules\Maintenance\Application\Services;
 
 use Carbon\CarbonImmutable;
 use Illuminate\Database\ConnectionInterface;
+use Illuminate\Database\Query\Builder;
+use Illuminate\Validation\ValidationException;
+use Modules\Finance\Application\Services\AccountingPostingPolicyResolver;
+use Modules\Finance\Application\Services\SourceAccountingPostingService;
 use Modules\Inventory\Domain\Services\InventoryService;
 
 final readonly class MaintenanceService
 {
-    public function __construct(private ConnectionInterface $db, private InventoryService $inventory) {}
+    public function __construct(
+        private ConnectionInterface $db,
+        private InventoryService $inventory,
+        private AccountingPostingPolicyResolver $policies,
+        private SourceAccountingPostingService $accounting,
+    ) {}
 
     /** @param array<string,mixed> $data */
     public function createRequest(array $data, int $actorId): int
@@ -85,6 +94,7 @@ final readonly class MaintenanceService
         $this->db->transaction(function () use ($company, $order, $target, $actor, $data): void {
             $row = $this->workOrder($company, $order, true);
             $current = $this->string($row, 'status');
+            abort_if($current === 'CLOSED', 409, 'Work Order đã đóng và không thể thay đổi.');
             if ($current === $target && $target === 'COMPLETED') {
                 return;
             }
@@ -127,7 +137,8 @@ final readonly class MaintenanceService
     public function assign(int $company, int $order, int $employee, int $actor): void
     {
         $this->employee($company, $employee);
-        $this->workOrder($company, $order);
+        $workOrder = $this->workOrder($company, $order);
+        abort_if($this->string($workOrder, 'status') === 'CLOSED', 409, 'Work Order đã đóng và không thể thay đổi.');
         $this->db->table('maintenance_work_orders')->where('id', $order)->update(['assigned_employee_id' => $employee, 'updated_at' => now()]);
         $this->audit('technician_assigned', $company, $order, $actor, ['employee_id' => $employee]);
     }
@@ -163,7 +174,8 @@ final readonly class MaintenanceService
     /** @param array<string,mixed> $data */
     public function requirePart(int $company, int $order, array $data, int $actor): int
     {
-        $this->workOrder($company, $order);
+        $workOrder = $this->workOrder($company, $order);
+        abort_if($this->string($workOrder, 'status') === 'CLOSED', 409, 'Work Order đã đóng và không thể thay đổi.');
         $variant = $this->positive($data['product_variant_id'] ?? null);
         $location = $this->positive($data['inventory_location_id'] ?? null);
         $belongsToCompany = $this->db->table('inventory_locations as l')
@@ -182,21 +194,149 @@ final readonly class MaintenanceService
     public function issuePart(int $company, int $order, int $part, int $actor): void
     {
         $this->db->transaction(function () use ($company, $order, $part, $actor): void {
-            $this->workOrder($company, $order);
+            $workOrder = $this->workOrder($company, $order);
+            abort_if($this->string($workOrder, 'status') === 'CLOSED', 409, 'Work Order đã đóng và không thể thay đổi.');
             $row = $this->db->table('maintenance_part_requirements')->where(['id' => $part, 'work_order_id' => $order])->lockForUpdate()->first();
             abort_unless($row !== null, 404);
             if ($this->string($row, 'status') === 'ISSUED') {
                 return;
             }
 
+            $inventoryEvidence = $this->inventoryEvidence($company, $this->integer($row, 'product_variant_id'), $this->integer($row, 'inventory_location_id'));
+            $workOrderBranch = $this->nullableInteger($workOrder, 'branch_id');
+            abort_if($workOrderBranch !== null && $workOrderBranch !== $inventoryEvidence['branch_id'], 422, 'Kho xuất phụ tùng không thuộc chi nhánh Work Order.');
             $this->inventory->adjust($this->integer($row, 'product_variant_id'), $this->integer($row, 'inventory_location_id'), 'decrease', $this->integer($row, 'quantity'), ['source_type' => 'maintenance_work_order', 'source_id' => $order, 'reference' => 'MWO-PART-'.$part, 'idempotency_key' => $this->string($row, 'idempotency_key'), 'actor_id' => $actor, 'reason' => 'Maintenance spare part issue']);
             $movement = $this->db->table('inventory_movements')->where('idempotency_key', $this->string($row, 'idempotency_key'))->first();
             abort_unless($movement !== null, 500);
-            $this->db->table('maintenance_part_requirements')->where('id', $part)->update(['status' => 'ISSUED', 'inventory_movement_id' => $this->integer($movement, 'id'), 'actual_cost_minor' => abs($this->integer($movement, 'movement_value_minor')), 'updated_at' => now()]);
-            $this->audit('part_issued', $company, $order, $actor, ['part_id' => $part]);
+            $amount = abs($this->integer($movement, 'movement_value_minor'));
+            abort_if($amount < 1, 422, 'Spare part phải có giá trị tồn kho trước khi xuất.');
+            $postingDate = substr($this->string($movement, 'occurred_at'), 0, 10);
+            $currency = $inventoryEvidence['currency'];
+            $policy = $this->policies->resolve($company, 'MAINTENANCE_PART_CONSUMPTION', null, $postingDate, $currency);
+            $description = 'Maintenance spare part consumption · MWO '.$order.' · part '.$part;
+            $journal = $this->accounting->postPolicyBacked(
+                $company,
+                $this->nullableInteger($workOrder, 'branch_id'),
+                'maintenance_part_requirement',
+                $part,
+                'maintenance_part_consumption',
+                $postingDate,
+                $currency,
+                [
+                    ['account_code' => $this->policyAccount($policy['lines'], 'EXPENSE', 'debit'), 'debit' => $amount, 'credit' => 0, 'description' => $description],
+                    ['account_code' => $this->policyAccount($policy['lines'], 'INVENTORY_ASSET', 'credit'), 'debit' => 0, 'credit' => $amount, 'description' => $description],
+                ],
+                $actor,
+                $policy['policy_id'],
+                $policy['version'],
+            );
+            $this->db->table('maintenance_part_requirements')->where('id', $part)->update(['status' => 'ISSUED', 'inventory_movement_id' => $this->integer($movement, 'id'), 'actual_cost_minor' => $amount, 'updated_at' => now()]);
+            $this->audit('part_issued', $company, $order, $actor, ['part_id' => $part, 'inventory_movement_id' => $this->integer($movement, 'id'), 'accounting_journal_id' => $journal, 'accounting_policy_id' => $policy['policy_id'], 'accounting_policy_version' => $policy['version']]);
         }
 
         );
+    }
+
+    /** @param array<string,mixed> $data */
+    public function returnPart(int $company, int $order, int $part, int $actor, array $data): int
+    {
+        return $this->db->transaction(function () use ($company, $order, $part, $actor, $data): int {
+            $workOrder = $this->workOrder($company, $order);
+            abort_if($this->string($workOrder, 'status') === 'CLOSED', 409, 'Work Order đã đóng và không thể thay đổi.');
+            $requirement = $this->db->table('maintenance_part_requirements')->where(['id' => $part, 'work_order_id' => $order])->lockForUpdate()->first();
+            abort_unless($requirement !== null, 404);
+            abort_unless($this->string($requirement, 'status') === 'ISSUED', 409, 'Chỉ phụ tùng đã xuất mới được trả kho.');
+
+            $quantity = $this->positive($data['quantity'] ?? null);
+            $reference = is_string($data['return_reference'] ?? null) ? trim($data['return_reference']) : '';
+            $key = is_string($data['idempotency_key'] ?? null) ? trim($data['idempotency_key']) : '';
+            $reason = is_string($data['reason'] ?? null) ? trim($data['reason']) : '';
+            $postingDate = is_string($data['return_date'] ?? null) ? $data['return_date'] : '';
+            $existing = $this->db->table('maintenance_part_returns')->where('company_id', $company)->where(static fn (Builder $query): Builder => $query->where('return_reference', $reference)->orWhere('idempotency_key', $key))->lockForUpdate()->first();
+            if ($existing !== null) {
+                if ($this->integer($existing, 'maintenance_part_requirement_id') !== $part || $this->integer($existing, 'quantity') !== $quantity || $this->string($existing, 'return_reference') !== $reference || $this->string($existing, 'idempotency_key') !== $key) {
+                    throw ValidationException::withMessages(['idempotency_key' => 'MAINTENANCE_PART_RETURN_CONFLICT']);
+                }
+
+                return $this->integer($existing, 'id');
+            }
+
+            $issueMovementId = $this->nullableInteger($requirement, 'inventory_movement_id');
+            abort_if($issueMovementId === null, 409, 'Thiếu Inventory Movement của lần xuất gốc.');
+            $issueMovement = $this->db->table('inventory_movements')->where('id', $issueMovementId)->first();
+            abort_unless($issueMovement !== null, 409, 'Inventory Movement gốc không tồn tại.');
+            $issuedQuantity = $this->integer($requirement, 'quantity');
+            $issuedValue = $this->integer($requirement, 'actual_cost_minor');
+            abort_if($issuedValue < 1, 422, 'Thiếu cost basis của lần xuất gốc.');
+            $returned = $this->db->table('maintenance_part_returns')->where(['maintenance_part_requirement_id' => $part, 'status' => 'POSTED'])->selectRaw('COALESCE(SUM(quantity),0) quantity, COALESCE(SUM(returned_value_minor),0) value')->first();
+            $returnedQuantity = $returned === null ? 0 : $this->integer($returned, 'quantity');
+            $returnedValue = $returned === null ? 0 : $this->integer($returned, 'value');
+            abort_if($returnedQuantity + $quantity > $issuedQuantity, 422, 'Số lượng trả vượt số lượng phụ tùng đã xuất.');
+
+            $cumulativeQuantity = $returnedQuantity + $quantity;
+            $cumulativeValue = $cumulativeQuantity === $issuedQuantity ? $issuedValue : intdiv(($issuedValue * $cumulativeQuantity) + intdiv($issuedQuantity, 2), $issuedQuantity);
+            $returnValue = $cumulativeValue - $returnedValue;
+            abort_if($returnValue < 1, 422, 'Giá trị trả kho theo cost basis gốc không hợp lệ.');
+            $inventoryEvidence = $this->inventoryEvidence($company, $this->integer($requirement, 'product_variant_id'), $this->integer($requirement, 'inventory_location_id'));
+            $workOrderBranch = $this->nullableInteger($workOrder, 'branch_id');
+            abort_if($workOrderBranch !== null && $workOrderBranch !== $inventoryEvidence['branch_id'], 422, 'Kho trả phụ tùng không thuộc chi nhánh Work Order.');
+            $policy = $this->policies->resolve($company, 'MAINTENANCE_PART_RETURN', null, $postingDate, $inventoryEvidence['currency']);
+            $returnId = (int) $this->db->table('maintenance_part_returns')->insertGetId([
+                'company_id' => $company, 'branch_id' => $workOrderBranch, 'work_order_id' => $order, 'maintenance_part_requirement_id' => $part,
+                'original_issue_movement_id' => $issueMovementId, 'inventory_location_id' => $this->integer($requirement, 'inventory_location_id'),
+                'quantity' => $quantity, 'returned_value_minor' => $returnValue, 'currency' => $inventoryEvidence['currency'], 'return_reference' => $reference,
+                'idempotency_key' => $key, 'return_type' => 'UNUSED_PHYSICAL_RETURN', 'reason' => $reason, 'status' => 'POSTED',
+                'accounting_policy_id' => $policy['policy_id'], 'accounting_policy_version' => $policy['version'], 'created_by' => $actor, 'posted_at' => now(), 'created_at' => now(), 'updated_at' => now(),
+            ]);
+            $unitCost = intdiv($returnValue + intdiv($quantity, 2), $quantity);
+            $this->inventory->adjust($this->integer($requirement, 'product_variant_id'), $this->integer($requirement, 'inventory_location_id'), 'increase', $quantity, [
+                'source_type' => 'maintenance_part_return', 'source_id' => $returnId, 'reference' => $reference, 'idempotency_key' => $key,
+                'actor_id' => $actor, 'reason' => 'Unused maintenance spare part physical return', 'unit_cost_minor' => $unitCost, 'movement_value_minor' => $returnValue,
+            ]);
+            $movement = $this->db->table('inventory_movements')->where('idempotency_key', $key)->first();
+            abort_unless($movement !== null && $this->integer($movement, 'movement_value_minor') === $returnValue, 500, 'Inventory return movement không khớp cost basis gốc.');
+            $description = 'Unused maintenance spare part return · MWO '.$order.' · return '.$returnId;
+            $journal = $this->accounting->postPolicyBacked($company, $workOrderBranch, 'maintenance_part_return', $returnId, 'maintenance_part_return', $postingDate, $inventoryEvidence['currency'], [
+                ['account_code' => $this->policyAccount($policy['lines'], 'INVENTORY_ASSET', 'debit'), 'debit' => $returnValue, 'credit' => 0, 'description' => $description],
+                ['account_code' => $this->policyAccount($policy['lines'], 'EXPENSE', 'credit'), 'debit' => 0, 'credit' => $returnValue, 'description' => $description],
+            ], $actor, $policy['policy_id'], $policy['version']);
+            $this->db->table('maintenance_part_returns')->where('id', $returnId)->update(['inventory_movement_id' => $this->integer($movement, 'id'), 'accounting_journal_id' => $journal, 'updated_at' => now()]);
+            $this->audit('part_returned', $company, $order, $actor, ['part_id' => $part, 'part_return_id' => $returnId, 'original_issue_movement_id' => $issueMovementId, 'inventory_movement_id' => $this->integer($movement, 'id'), 'accounting_journal_id' => $journal, 'accounting_policy_id' => $policy['policy_id'], 'accounting_policy_version' => $policy['version']]);
+
+            return $returnId;
+        }, 3);
+    }
+
+    /** @return array{currency:string,branch_id:int} */
+    private function inventoryEvidence(int $company, int $variant, int $location): array
+    {
+        $evidence = $this->db->table('inventory_locations as l')
+            ->join('stores as s', 's.id', '=', 'l.store_id')
+            ->join('seller_profiles as sp', 'sp.id', '=', 's.seller_profile_id')
+            ->join('products as p', 'p.store_id', '=', 's.id')
+            ->join('product_variants as v', 'v.product_id', '=', 'p.id')
+            ->where(['l.id' => $location, 'v.id' => $variant, 'sp.company_id' => $company])
+            ->whereNull('p.deleted_at')
+            ->first(['p.currency', 'l.branch_id']);
+        abort_unless($evidence !== null, 404);
+        $currency = get_object_vars($evidence)['currency'] ?? null;
+        if (! is_string($currency) || ! preg_match('/^[A-Z]{3}$/', $currency)) {
+            throw ValidationException::withMessages(['currency' => 'MAINTENANCE_PART_CURRENCY_INVALID']);
+        }
+
+        return ['currency' => $currency, 'branch_id' => $this->integer($evidence, 'branch_id')];
+    }
+
+    /** @param list<array{entry_side:string,line_role:string,account_code:string}> $lines */
+    private function policyAccount(array $lines, string $role, string $side): string
+    {
+        foreach ($lines as $line) {
+            if ($line['line_role'] === $role && $line['entry_side'] === $side) {
+                return $line['account_code'];
+            }
+        }
+
+        throw ValidationException::withMessages(['accounting_policy' => 'MAINTENANCE_PART_POLICY_INVALID']);
     }
 
     private function requestTransition(int $c, int $id, int $a, string $from, string $to, string $event): void

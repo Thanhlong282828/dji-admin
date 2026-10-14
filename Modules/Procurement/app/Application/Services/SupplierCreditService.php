@@ -31,9 +31,27 @@ final readonly class SupplierCreditService
     {
         return $this->db->transaction(function () use ($companyId, $actor, $data): int {
             $key = $this->text($data['idempotency_key'] ?? null, 'idempotency_key');
-            $existing = $this->db->table('supplier_credit_notes')->where(['company_id' => $companyId, 'idempotency_key' => $key])->lockForUpdate()->value('id');
-            if (is_numeric($existing)) {
-                return (int) $existing;
+            $existing = $this->db->table('supplier_credit_notes')->where(['company_id' => $companyId, 'idempotency_key' => $key])->lockForUpdate()->first();
+            if (is_object($existing)) {
+                $line = $this->db->table('supplier_credit_note_lines')->where('supplier_credit_note_id', data_get($existing, 'id'))->first();
+                $expected = [
+                    'credit_number' => $this->text($data['credit_number'] ?? null, 'credit_number'),
+                    'credit_date' => $this->text($data['credit_date'] ?? null, 'credit_date'),
+                    'reason' => $this->text($data['reason'] ?? null, 'reason'),
+                ];
+                foreach ($expected as $field => $value) {
+                    if ((string) data_get($existing, $field) !== (string) $value) {
+                        throw ValidationException::withMessages(['idempotency_key' => 'SUPPLIER_CREDIT_IDEMPOTENCY_CONFLICT']);
+                    }
+                }
+                if (! is_object($line)
+                    || (int) data_get($line, 'goods_return_line_id') !== $this->positive($data['goods_return_line_id'] ?? null, 'goods_return_line_id')
+                    || (int) data_get($line, 'vendor_bill_receipt_allocation_id') !== $this->positive($data['vendor_bill_receipt_allocation_id'] ?? null, 'vendor_bill_receipt_allocation_id')
+                    || (isset($data['quantity']) && (int) data_get($line, 'quantity') !== $this->positive($data['quantity'], 'quantity'))) {
+                    throw ValidationException::withMessages(['idempotency_key' => 'SUPPLIER_CREDIT_IDEMPOTENCY_CONFLICT']);
+                }
+
+                return $this->int($existing, 'id');
             }
             $returnLineId = $this->positive($data['goods_return_line_id'] ?? null, 'goods_return_line_id');
             $allocationId = $this->positive($data['vendor_bill_receipt_allocation_id'] ?? null, 'vendor_bill_receipt_allocation_id');
@@ -201,14 +219,14 @@ final readonly class SupplierCreditService
                     ['account_code' => $this->policyAccount($mixedPolicy, 'GRNI', 'credit'), 'debit' => 0, 'credit' => $preparedFx['inventory_return_basis_minor'] ?? $amount, 'description' => 'Supplier credit clears returned goods GRNI'],
                 ];
             }
-            if ($mixedPolicy === null && $apReduction > 0) {
+            if ($foreignPolicy === null && $mixedPolicy === null && $apReduction > 0) {
                 if ($apPolicy === null) {
                     throw new \LogicException('AP reduction policy preflight was not resolved.');
                 }
                 $accountingLines[] = ['account_code' => $this->policyAccount($apPolicy, 'AP', 'debit'), 'debit' => $apReduction, 'credit' => 0, 'description' => 'Supplier credit reduces Accounts Payable'];
                 $accountingLines[] = ['account_code' => $this->policyAccount($apPolicy, 'GRNI', 'credit'), 'debit' => 0, 'credit' => $preparedFx['inventory_return_basis_minor'] ?? $apReduction, 'description' => 'Supplier credit clears returned goods GRNI'];
             }
-            if ($mixedPolicy === null && $vendorReceivable > 0) {
+            if ($foreignPolicy === null && $mixedPolicy === null && $vendorReceivable > 0) {
                 if ($paidPolicy === null) {
                     throw new \LogicException('Paid-portion policy preflight was not resolved.');
                 }

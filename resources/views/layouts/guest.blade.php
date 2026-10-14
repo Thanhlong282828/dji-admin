@@ -7,6 +7,8 @@
         <meta name="csrf-token" content="{{ csrf_token() }}">
 
         <title>{{ config('app.name', 'Laravel') }}</title>
+        <link rel="icon" type="image/png" href="{{ asset('images/la-thanh-dragon.png') }}">
+        <link rel="apple-touch-icon" href="{{ asset('images/la-thanh-dragon.png') }}">
 
         <!-- Fonts -->
         <!-- Scripts -->
@@ -22,10 +24,16 @@
                         <span class="auth-dragon__shine" aria-hidden="true" style="--auth-dragon-image:url('{{ asset('images/la-thanh-dragon.png') }}')"></span>
                     </a>
                 </section>
-                <section class="auth-card" aria-labelledby="login-title">{{ $slot }}</section>
+                <section class="auth-card" aria-labelledby="login-title">
+                    <a class="auth-card__mobile-brand auth-dragon" href="/" aria-label="LA THÀNH — Về trang chủ">
+                        <img src="{{ asset('images/la-thanh-dragon.png') }}" alt="" width="246" height="256">
+                        <span class="auth-dragon__shine" aria-hidden="true" style="--auth-dragon-image:url('{{ asset('images/la-thanh-dragon.png') }}')"></span>
+                    </a>
+                    {{ $slot }}
+                </section>
             </main>
         @else
-            <main class="auth-shell auth-shell--simple"><a class="auth-brand__logo" href="/" aria-label="Về trang chủ"><x-application-logo class="auth-brand__mark" /></a><section class="auth-card">{{ $slot }}</section></main>
+            <main class="auth-shell auth-shell--simple"><a class="auth-dragon auth-dragon--compact" href="/" aria-label="LA THÀNH — Về trang chủ"><img src="{{ asset('images/la-thanh-dragon.png') }}" alt="" width="246" height="256"><span class="auth-dragon__shine" aria-hidden="true" style="--auth-dragon-image:url('{{ asset('images/la-thanh-dragon.png') }}')"></span></a><section class="auth-card">{{ $slot }}</section></main>
         @endif
     </body>
 </html>

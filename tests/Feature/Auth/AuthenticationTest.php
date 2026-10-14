@@ -16,7 +16,10 @@ class AuthenticationTest extends TestCase
 
         $response->assertStatus(200);
         $response->assertSee('images/la-thanh-dragon.png')
+            ->assertSee('rel="icon" type="image/png"', false)
+            ->assertSee('auth-card__mobile-brand', false)
             ->assertDontSee('ENTERPRISE CONTROL CENTER')
+            ->assertDontSee('application-logo')
             ->assertSee('data-password-toggle="password"', false)
             ->assertSee('Đăng nhập bằng số điện thoại');
     }

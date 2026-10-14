@@ -27,6 +27,20 @@ final class SecurityPolicyTest extends TestCase
         self::assertFalse($policy->compliant(['X-Content-Type-Options' => 'nosniff']));
     }
 
+    public function test_production_bundle_contract_disables_source_maps_and_keeps_supabase_secrets_server_side(): void
+    {
+        $root = dirname(__DIR__, 2);
+        $vite = file_get_contents($root.'/vite.config.js');
+        $environment = file_get_contents($root.'/.env.example');
+        self::assertIsString($vite);
+        self::assertIsString($environment);
+        self::assertStringContainsString('sourcemap: false', $vite);
+        self::assertStringContainsString('minify: true', $vite);
+        self::assertStringNotContainsString('VITE_SUPABASE_STORAGE_SECRET', $environment);
+        self::assertStringNotContainsString('VITE_SUPABASE_SERVICE', $environment);
+        self::assertStringContainsString('SUPABASE_STORAGE_SECRET_ACCESS_KEY=', $environment);
+    }
+
     #[DataProvider('unsafeUrls')]
     public function test_outbound_policy_rejects_unsafe_targets(string $url): void
     {

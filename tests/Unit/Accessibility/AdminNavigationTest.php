@@ -150,9 +150,23 @@ final class AdminNavigationTest extends TestCase
     public function test_top_level_groups_follow_stable_erp_business_order(): void
     {
         self::assertSame(
-            ['overview', 'organization', 'people', 'workforce', 'talent', 'payroll', 'crm', 'seller', 'inventory', 'pos', 'procurement', 'supply-chain', 'finance', 'tax-statutory', 'asset-maintenance', 'projects', 'analytics-planning', 'automation', 'access', 'operations'],
+            ['overview', 'people', 'workforce', 'talent', 'payroll', 'crm', 'supply-chain', 'inventory', 'seller', 'pos', 'procurement', 'finance', 'tax-statutory', 'asset-maintenance', 'documents', 'analytics-planning', 'content', 'access', 'automation', 'operations'],
             array_column((new AdminNavigation)->definitions(), 'key'),
         );
+    }
+
+    public function test_groups_use_canonical_erp_domain_labels_without_empty_domains(): void
+    {
+        $groups = (new AdminNavigation)->definitions();
+        $domains = array_map(static fn (array $group): string => trim(explode('·', $group['label'], 2)[0]), $groups);
+
+        self::assertSame(
+            ['ERP', 'HRM', 'HRM', 'HRM', 'HRM', 'CRM', 'SCM', 'WMS', 'OMS', 'POS', 'PMS', 'FMS', 'FMS', 'EAM', 'DMS', 'BI', 'CMS', 'IAM', 'SYS', 'ITSM'],
+            $domains,
+        );
+        foreach ($groups as $group) {
+            self::assertNotSame([], $group['items'], 'Canonical navigation groups must not be empty: '.$group['key']);
+        }
     }
 
     public function test_contextual_capabilities_do_not_create_duplicate_sidebar_destinations(): void

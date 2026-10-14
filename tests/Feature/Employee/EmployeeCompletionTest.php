@@ -4,6 +4,7 @@ namespace Tests\Feature\Employee;
 
 use App\Models\User;
 use Database\Seeders\RolePermissionSeeder;
+use Illuminate\Contracts\Filesystem\Filesystem;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
@@ -11,10 +12,12 @@ use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Modules\Company\Domain\Models\Company;
+use Modules\Employee\Domain\Enums\DocumentScanStatus;
 use Modules\Employee\Domain\Models\DataConsent;
 use Modules\Employee\Domain\Models\Employee;
 use Modules\Employee\Domain\Models\EmployeeAssignment;
 use Modules\Employee\Domain\Models\EmploymentContract;
+use Modules\Employee\Domain\Services\MalwareScannerInterface;
 use Modules\Employee\Notifications\EmployeeUserInvitationNotification;
 use Modules\Organization\Domain\Models\JobPosition;
 use Modules\Organization\Domain\Models\OrganizationUnit;
@@ -27,6 +30,7 @@ final class EmployeeCompletionTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        config()->set('employee.document_disk', 'local');
         $this->seed(RolePermissionSeeder::class);
     }
 
@@ -99,6 +103,156 @@ final class EmployeeCompletionTest extends TestCase
         self::assertStringNotContainsString('http', (string) $document->storage_key);
 
         $this->actingAs(User::factory()->create())->get(route('admin.employee-documents.download', ['document' => $document->id, 'company_id' => $company->id]))->assertForbidden();
+    }
+
+    public function test_private_employee_document_uses_supabase_and_downloads_with_temporary_url(): void
+    {
+        Storage::fake('supabase');
+        Storage::disk('supabase')->buildTemporaryUrlsUsing(fn (string $path): string => 'https://storage.test/signed/'.$path);
+        config()->set('employee.document_disk', 'supabase');
+        config()->set('filesystems.disks.supabase.key', 'testing-key');
+        config()->set('filesystems.disks.supabase.secret', 'testing-secret');
+        config()->set('filesystems.disks.supabase.bucket', 'testing-bucket');
+        config()->set('filesystems.disks.supabase.endpoint', 'https://storage.test');
+
+        [$company, , , $employee] = $this->organization('S3');
+        $user = $this->authorized($company, ['employee-document.upload', 'employee-document.download']);
+        $file = UploadedFile::fake()->createWithContent('contract.pdf', "%PDF-1.4\nPrivate employment contract");
+
+        $this->actingAs($user)->post(route('admin.employees.documents.store', $employee), [
+            'company_id' => $company->id, 'type' => 'contract', 'name' => 'Hợp đồng lao động', 'document' => $file,
+        ])->assertRedirect();
+
+        $document = DB::table('employee_documents')->where('employee_id', $employee->id)->first();
+        Storage::disk('supabase')->assertExists((string) $document->storage_key);
+        $policy = json_decode((string) $document->access_policy, true, 512, JSON_THROW_ON_ERROR);
+        self::assertSame('supabase', $policy['storage_disk']);
+        $this->actingAs($user)->get(route('admin.employee-documents.download', ['document' => $document->id, 'company_id' => $company->id]))
+            ->assertRedirect('https://storage.test/signed/'.$document->storage_key);
+    }
+
+    public function test_private_employee_document_rejects_guest_forged_company_employee_and_archive_access(): void
+    {
+        Storage::fake('supabase');
+        $signedUrlCalls = 0;
+        Storage::disk('supabase')->buildTemporaryUrlsUsing(function (string $path) use (&$signedUrlCalls): string {
+            $signedUrlCalls++;
+
+            return 'https://storage.test/signed/'.$path;
+        });
+        config()->set('employee.document_disk', 'supabase');
+        config()->set('filesystems.disks.supabase.key', 'testing-key');
+        config()->set('filesystems.disks.supabase.secret', 'testing-secret');
+        config()->set('filesystems.disks.supabase.bucket', 'testing-bucket');
+        config()->set('filesystems.disks.supabase.endpoint', 'https://storage.test');
+
+        [$company, , , $employee] = $this->organization('BOUNDARY-A');
+        [$foreign, , , $foreignEmployee] = $this->organization('BOUNDARY-B');
+        $user = $this->authorized($company, ['employee-document.upload', 'employee-document.download', 'employee-document.archive']);
+        DB::table('company_user_access')->insert(['company_id' => $foreign->id, 'user_id' => $user->id]);
+        $this->actingAs($user)->post(route('admin.employees.documents.store', $employee), [
+            'company_id' => $company->id,
+            'type' => 'identity',
+            'name' => 'Tenant boundary',
+            'document' => UploadedFile::fake()->createWithContent('identity.pdf', "%PDF-1.4\nprivate"),
+        ])->assertRedirect();
+        $document = DB::table('employee_documents')->where('employee_id', $employee->id)->firstOrFail();
+
+        $this->app['auth']->forgetGuards();
+        $this->get(route('admin.employee-documents.download', ['document' => $document->id, 'company_id' => $company->id]))->assertRedirect(route('login'));
+        self::assertSame(0, $signedUrlCalls);
+
+        $this->actingAs($user)->get(route('admin.employee-documents.download', ['document' => $document->id, 'company_id' => $foreign->id]))->assertNotFound();
+        $this->actingAs($user)->delete(route('admin.employee-documents.archive', ['document' => $document->id]), ['company_id' => $foreign->id])->assertNotFound();
+        $this->actingAs($user)->post(route('admin.employees.documents.store', $foreignEmployee), [
+            'company_id' => $company->id,
+            'type' => 'identity',
+            'name' => 'Forged employee',
+            'document' => UploadedFile::fake()->createWithContent('forged.pdf', '%PDF-1.4'),
+        ])->assertNotFound();
+        self::assertSame(0, $signedUrlCalls);
+        self::assertNull(DB::table('employee_documents')->where('id', $document->id)->value('archived_at'));
+        self::assertSame(0, DB::table('employee_documents')->where('employee_id', $foreignEmployee->id)->count());
+
+        Storage::disk('supabase')->delete((string) $document->storage_key);
+        $this->actingAs($user)->get(route('admin.employee-documents.download', ['document' => $document->id, 'company_id' => $company->id]))->assertNotFound();
+        self::assertSame(0, $signedUrlCalls);
+    }
+
+    public function test_private_employee_document_fails_closed_when_scanner_is_unavailable(): void
+    {
+        Storage::fake('local');
+        $this->app->instance(MalwareScannerInterface::class, new class implements MalwareScannerInterface
+        {
+            public function scan(string $absolutePath): DocumentScanStatus
+            {
+                return DocumentScanStatus::Failed;
+            }
+        });
+        [$company, , , $employee] = $this->organization('SCAN');
+        $user = $this->authorized($company, ['employee-document.upload']);
+
+        $this->actingAs($user)->post(route('admin.employees.documents.store', $employee), [
+            'company_id' => $company->id,
+            'type' => 'identity',
+            'name' => 'Scanner unavailable',
+            'document' => UploadedFile::fake()->createWithContent('identity.pdf', "%PDF-1.4\nprivate"),
+        ])->assertStatus(503);
+
+        self::assertSame(0, DB::table('employee_documents')->where('employee_id', $employee->id)->count());
+        self::assertSame([], Storage::disk('local')->allFiles());
+    }
+
+    public function test_private_employee_document_rejects_supabase_mime_outside_bucket_allowlist(): void
+    {
+        Storage::fake('supabase');
+        config()->set('employee.document_disk', 'supabase');
+        config()->set('filesystems.disks.supabase.key', 'testing-key');
+        config()->set('filesystems.disks.supabase.secret', 'testing-secret');
+        config()->set('filesystems.disks.supabase.bucket', 'testing-bucket');
+        config()->set('filesystems.disks.supabase.endpoint', 'https://storage.test');
+        [$company, , , $employee] = $this->organization('MIME');
+        $user = $this->authorized($company, ['employee-document.upload']);
+
+        $this->actingAs($user)->post(route('admin.employees.documents.store', $employee), [
+            'company_id' => $company->id,
+            'type' => 'contract',
+            'name' => 'Unsupported Supabase DOCX',
+            'document' => UploadedFile::fake()->createWithContent('contract.docx', "PK\x03\x04document"),
+        ])->assertSessionHasErrors('document');
+
+        self::assertSame(0, DB::table('employee_documents')->where('employee_id', $employee->id)->count());
+        self::assertSame([], Storage::disk('supabase')->allFiles());
+    }
+
+    public function test_private_employee_document_transport_failure_creates_no_metadata(): void
+    {
+        config()->set('employee.document_disk', 'supabase');
+        config()->set('filesystems.disks.supabase.key', 'testing-key');
+        config()->set('filesystems.disks.supabase.secret', 'testing-secret');
+        config()->set('filesystems.disks.supabase.bucket', 'testing-bucket');
+        config()->set('filesystems.disks.supabase.endpoint', 'https://storage.test');
+        $filesystem = \Mockery::mock(Filesystem::class);
+        $filesystem->shouldReceive('exists')->once()->andReturnFalse();
+        $filesystem->shouldReceive('putFileAs')->once()->withArgs(fn (string $directory, UploadedFile $file, string $name, array $options): bool => str_starts_with($directory, 'employees/') && str_ends_with($name, '.pdf') && $options === ['ContentType' => 'application/pdf'])->andThrow(new \RuntimeException('Simulated S3 transport failure.'));
+        Storage::set('supabase', $filesystem);
+        [$company, , , $employee] = $this->organization('TRANSPORT');
+        $user = $this->authorized($company, ['employee-document.upload']);
+
+        $this->withoutExceptionHandling();
+        try {
+            $this->actingAs($user)->post(route('admin.employees.documents.store', $employee), [
+                'company_id' => $company->id,
+                'type' => 'identity',
+                'name' => 'Transport failure',
+                'document' => UploadedFile::fake()->createWithContent('identity.pdf', "%PDF-1.4\nprivate"),
+            ]);
+            self::fail('Expected the simulated S3 transport failure.');
+        } catch (\RuntimeException $exception) {
+            self::assertSame('Simulated S3 transport failure.', $exception->getMessage());
+        }
+
+        self::assertSame(0, DB::table('employee_documents')->where('employee_id', $employee->id)->count());
     }
 
     public function test_contract_state_machine_rejects_invalid_transition_and_allows_valid_flow(): void

@@ -4,64 +4,73 @@ SƠ ĐỒ LUỒNG MENU ERP HIỆN TẠI
 
 Nguồn: AdminNavigation + Laravel named routes. Không liệt kê action-only/backend-only.
 
-ERP · TỔNG QUAN
+ERP · HOẠCH ĐỊNH NGUỒN LỰC
 │
-└── Dashboard
-    Owner      : Dashboard
-    Route      : dashboard
-    Permission : dashboard.view
-    Connects   : People + Sales + Supply Chain + Finance + Control
-    Status     : IMPLEMENTED
-
-HRM · TỔ CHỨC
-│
+├── Dashboard
+│   Owner      : Dashboard
+│   Route      : dashboard
+│   Permission : dashboard.view
+│   Connects   : People + Sales + Supply Chain + Finance + Control
+│   Status     : IMPLEMENTED
 ├── Công ty
-│   Owner      : Cross-project/Admin UI
+│   Owner      : Company
 │   Route      : admin.companies.index
 │   Permission : company.view
 │   Connects   : Owner workspace and canonical detail/action routes
 │   Status     : IMPLEMENTED
 ├── Chi nhánh
-│   Owner      : Cross-project/Admin UI
+│   Owner      : Company
 │   Route      : admin.branches.index
 │   Permission : branch.view
 │   Connects   : Owner workspace and canonical detail/action routes
 │   Status     : IMPLEMENTED
 ├── Trung tâm chi phí
-│   Owner      : Cross-project/Admin UI
+│   Owner      : Organization
 │   Route      : admin.cost-centers.index
 │   Permission : cost-center.view
 │   Connects   : Owner workspace and canonical detail/action routes
 │   Status     : IMPLEMENTED
 ├── Đơn vị tổ chức
-│   Owner      : Cross-project/Admin UI
+│   Owner      : Organization
 │   Route      : admin.organization-units.index
 │   Permission : organization-unit.view
 │   Connects   : Owner workspace and canonical detail/action routes
 │   Status     : IMPLEMENTED
 ├── Cây tổ chức
-│   Owner      : Cross-project/Admin UI
+│   Owner      : Organization
 │   Route      : admin.organization-units.tree
 │   Permission : organization-unit.view
 │   Connects   : Owner workspace and canonical detail/action routes
 │   Status     : IMPLEMENTED
 ├── Vị trí công việc
-│   Owner      : Cross-project/Admin UI
+│   Owner      : Position
 │   Route      : admin.job-positions.index
 │   Permission : job-position.view
 │   Connects   : Owner workspace and canonical detail/action routes
 │   Status     : IMPLEMENTED
-└── Báo cáo định biên
-    Owner      : Cross-project/Admin UI
-    Route      : admin.organization.headcount
-    Permission : organization-unit.view
+├── Báo cáo định biên
+│   Owner      : Organization
+│   Route      : admin.organization.headcount
+│   Permission : organization-unit.view
+│   Connects   : Owner workspace and canonical detail/action routes
+│   Status     : IMPLEMENTED
+├── Tổng quan dự án
+│   Owner      : Project
+│   Route      : admin.projects.overview
+│   Permission : project.view
+│   Connects   : Owner workspace and canonical detail/action routes
+│   Status     : IMPLEMENTED
+└── Dự án
+    Owner      : Project
+    Route      : admin.projects.index
+    Permission : project.view
     Connects   : Owner workspace and canonical detail/action routes
     Status     : IMPLEMENTED
 
-WORKFORCE · NHÂN SỰ
+HRM · NHÂN SỰ CỐT LÕI
 │
 ├── Cổng thông tin nhân viên
-│   Owner      : Cross-project/Admin UI
+│   Owner      : Employee
 │   Route      : employee.portal
 │   Permission : employee.portal.view
 │   Connects   : Owner workspace and canonical detail/action routes
@@ -73,7 +82,7 @@ WORKFORCE · NHÂN SỰ
 │   Connects   : Employee → Assignment → Attendance → Payroll
 │   Status     : IMPLEMENTED
 ├── Vòng đời nhân sự
-│   Owner      : Cross-project/Admin UI
+│   Owner      : Employee
 │   Route      : admin.employee-lifecycle.index
 │   Permission : hr.lifecycle.view
 │   Connects   : Owner workspace and canonical detail/action routes
@@ -103,7 +112,7 @@ WORKFORCE · NHÂN SỰ
     Connects   : Owner workspace and canonical detail/action routes
     Status     : IMPLEMENTED
 
-ATTENDANCE · CHẤM CÔNG
+HRM · CHẤM CÔNG & THỜI GIAN
 │
 ├── Chấm công
 │   Owner      : Attendance
@@ -112,7 +121,7 @@ ATTENDANCE · CHẤM CÔNG
 │   Connects   : Owner workspace and canonical detail/action routes
 │   Status     : IMPLEMENTED
 ├── Ca và lịch làm việc
-│   Owner      : Cross-project/Admin UI
+│   Owner      : Shift
 │   Route      : admin.workforce.management
 │   Permission : shift.view
 │   Connects   : Owner workspace and canonical detail/action routes
@@ -124,13 +133,13 @@ ATTENDANCE · CHẤM CÔNG
 │   Connects   : Owner workspace and canonical detail/action routes
 │   Status     : IMPLEMENTED
 ├── Chính sách nghỉ phép
-│   Owner      : Cross-project/Admin UI
+│   Owner      : Leave
 │   Route      : admin.leave-management.index
 │   Permission : leave.manage-policy
 │   Connects   : Owner workspace and canonical detail/action routes
 │   Status     : IMPLEMENTED
 └── Tăng ca
-    Owner      : Cross-project/Admin UI
+    Owner      : Attendance
     Route      : admin.overtime.index
     Permission : overtime.view
     Connects   : Owner workspace and canonical detail/action routes
@@ -151,49 +160,49 @@ HRM · TUYỂN DỤNG VÀ PHÁT TRIỂN
 │   Connects   : Owner workspace and canonical detail/action routes
 │   Status     : IMPLEMENTED
 ├── Ứng viên
-│   Owner      : Cross-project/Admin UI
+│   Owner      : Recruitment
 │   Route      : admin.candidates.index
 │   Permission : candidate.view
 │   Connects   : Owner workspace and canonical detail/action routes
 │   Status     : IMPLEMENTED
 ├── Pipeline ứng tuyển
-│   Owner      : Cross-project/Admin UI
+│   Owner      : Recruitment
 │   Route      : admin.applications.pipeline
 │   Permission : application.view
 │   Connects   : Owner workspace and canonical detail/action routes
 │   Status     : IMPLEMENTED
 ├── Phỏng vấn
-│   Owner      : Cross-project/Admin UI
+│   Owner      : Recruitment
 │   Route      : admin.interviews.index
 │   Permission : interview.view
 │   Connects   : Owner workspace and canonical detail/action routes
 │   Status     : IMPLEMENTED
 ├── Offer tuyển dụng
-│   Owner      : Cross-project/Admin UI
+│   Owner      : Recruitment
 │   Route      : admin.candidate-offers.index
 │   Permission : candidate-offer.view
 │   Connects   : Owner workspace and canonical detail/action routes
 │   Status     : IMPLEMENTED
 ├── Onboarding
-│   Owner      : Cross-project/Admin UI
+│   Owner      : Onboarding
 │   Route      : admin.onboarding.dashboard
 │   Permission : onboarding.view
 │   Connects   : Owner workspace and canonical detail/action routes
 │   Status     : IMPLEMENTED
 ├── Hiệu suất và tài năng
-│   Owner      : Cross-project/Admin UI
+│   Owner      : Performance
 │   Route      : admin.talent.performance.index
 │   Permission : talent.performance.view
 │   Connects   : Owner workspace and canonical detail/action routes
 │   Status     : IMPLEMENTED
 └── Career và kế nhiệm
-    Owner      : Cross-project/Admin UI
+    Owner      : Succession
     Route      : admin.career.index
     Permission : career.view
     Connects   : Owner workspace and canonical detail/action routes
     Status     : IMPLEMENTED
 
-PAYROLL
+HRM · PAYROLL
 │
 ├── Cấu hình lương
 │   Owner      : Payroll
@@ -226,7 +235,7 @@ PAYROLL
 │   Connects   : Owner workspace and canonical detail/action routes
 │   Status     : IMPLEMENTED
 ├── Thưởng chi nhánh
-│   Owner      : Cross-project/Admin UI
+│   Owner      : Payroll
 │   Route      : admin.branch-bonuses.index
 │   Permission : branch.bonus.view
 │   Connects   : Owner workspace and canonical detail/action routes
@@ -247,25 +256,55 @@ PAYROLL
 CRM · LEAD & OPPORTUNITY
 │
 ├── Pipeline
-│   Owner      : Cross-project/Admin UI
+│   Owner      : CRM
 │   Route      : admin.crm.index
 │   Permission : crm.view
 │   Connects   : Owner workspace and canonical detail/action routes
 │   Status     : IMPLEMENTED
 ├── Leads
-│   Owner      : Cross-project/Admin UI
+│   Owner      : CRM
 │   Route      : admin.crm.leads
 │   Permission : crm.view
 │   Connects   : Owner workspace and canonical detail/action routes
 │   Status     : IMPLEMENTED
 └── Opportunities
-    Owner      : Cross-project/Admin UI
+    Owner      : CRM
     Route      : admin.crm.opportunities
     Permission : crm.view
     Connects   : Owner workspace and canonical detail/action routes
     Status     : IMPLEMENTED
 
-COMMERCE · SALES
+SCM · CHUỖI CUNG ỨNG
+│
+└── Tổng quan chuỗi cung ứng
+    Owner      : Dashboard
+    Route      : admin.supply-chain.index
+    Permission : inventory.view
+    Connects   : Owner workspace and canonical detail/action routes
+    Status     : IMPLEMENTED
+
+WMS · KHO & TỒN KHO
+│
+├── Tồn kho
+│   Owner      : Commerce
+│   Route      : admin.seller.inventory
+│   Permission : inventory.view
+│   Connects   : Product Variant → Inventory balance → append-only movement
+│   Status     : IMPLEMENTED
+├── Biến động kho
+│   Owner      : Commerce
+│   Route      : admin.seller.inventory.movements
+│   Permission : inventory.view
+│   Connects   : Product Variant → Inventory balance → append-only movement
+│   Status     : IMPLEMENTED
+└── Kiểm kê & điều chỉnh
+    Owner      : Commerce
+    Route      : admin.seller.inventory.governance
+    Permission : stock-count.view
+    Connects   : Owner workspace and canonical detail/action routes
+    Status     : IMPLEMENTED
+
+OMS · BÁN HÀNG & ĐƠN HÀNG
 │
 ├── Tổng quan Seller
 │   Owner      : Commerce
@@ -286,7 +325,7 @@ COMMERCE · SALES
 │   Connects   : Owner workspace and canonical detail/action routes
 │   Status     : IMPLEMENTED
 ├── Khách hàng
-│   Owner      : Cross-project/Admin UI
+│   Owner      : POS
 │   Route      : admin.branch-commerce.customers
 │   Permission : branch-commerce.view
 │   Connects   : Owner workspace and canonical detail/action routes
@@ -316,91 +355,58 @@ COMMERCE · SALES
 │   Connects   : Owner workspace and canonical detail/action routes
 │   Status     : IMPLEMENTED
 ├── Danh mục sản phẩm
-│   Owner      : Product
+│   Owner      : ProductCategory
 │   Route      : admin.product-categories.index
 │   Permission : product-category.view
 │   Connects   : Owner workspace and canonical detail/action routes
 │   Status     : IMPLEMENTED
-├── Quản trị Seller
-│   Owner      : Commerce
-│   Route      : admin.commerce.sellers.index
-│   Permission : commerce.seller.governance.view
-│   Connects   : Owner workspace and canonical detail/action routes
-│   Status     : IMPLEMENTED
-├── Kho nội dung
-│   Owner      : Cross-project/Admin UI
-│   Route      : articles.index
-│   Permission : article.view
-│   Connects   : Owner workspace and canonical detail/action routes
-│   Status     : IMPLEMENTED
-└── Viết bài mới
-    Owner      : Cross-project/Admin UI
-    Route      : articles.create
-    Permission : article.create
-    Connects   : Owner workspace and canonical detail/action routes
-    Status     : IMPLEMENTED
-
-INVENTORY · KHO
-│
-├── Tồn kho
-│   Owner      : Commerce
-│   Route      : admin.seller.inventory
-│   Permission : inventory.view
-│   Connects   : Product Variant → Inventory balance → append-only movement
-│   Status     : IMPLEMENTED
-├── Biến động kho
-│   Owner      : Commerce
-│   Route      : admin.seller.inventory.movements
-│   Permission : inventory.view
-│   Connects   : Product Variant → Inventory balance → append-only movement
-│   Status     : IMPLEMENTED
-└── Kiểm kê & điều chỉnh
+└── Quản trị Seller
     Owner      : Commerce
-    Route      : admin.seller.inventory.governance
-    Permission : stock-count.view
+    Route      : admin.commerce.sellers.index
+    Permission : commerce.seller.governance.view
     Connects   : Owner workspace and canonical detail/action routes
     Status     : IMPLEMENTED
 
-POS / BÁN HÀNG TẠI QUẦY
+POS · BÁN HÀNG TẠI QUẦY
 │
 ├── Tổng quan POS
-│   Owner      : Cross-project/Admin UI
+│   Owner      : POS
 │   Route      : admin.branch-commerce.dashboard
 │   Permission : branch-commerce.view
 │   Connects   : Customer Visit → Receipt → Inventory → Revenue → Finance
 │   Status     : IMPLEMENTED
 ├── Thu ngân · Check-in / Checkout
-│   Owner      : Cross-project/Admin UI
+│   Owner      : POS
 │   Route      : admin.branch-commerce.checkins
 │   Permission : branch-commerce.view
 │   Connects   : Owner workspace and canonical detail/action routes
 │   Status     : IMPLEMENTED
 ├── Dịch vụ công ty
-│   Owner      : Cross-project/Admin UI
+│   Owner      : POS
 │   Route      : admin.branch-commerce.services
 │   Permission : branch-commerce.view
 │   Connects   : Owner workspace and canonical detail/action routes
 │   Status     : IMPLEMENTED
 ├── Kho POS / Tồn kho chi nhánh
-│   Owner      : Cross-project/Admin UI
+│   Owner      : POS
 │   Route      : admin.branch-commerce.warehouse
 │   Permission : branch-commerce.view
 │   Connects   : Owner workspace and canonical detail/action routes
 │   Status     : IMPLEMENTED
 ├── Phiếu thu · Doanh số POS
-│   Owner      : Cross-project/Admin UI
+│   Owner      : POS
 │   Route      : admin.branch-commerce.sales
 │   Permission : branch-commerce.view
 │   Connects   : Owner workspace and canonical detail/action routes
 │   Status     : IMPLEMENTED
 └── Lịch sử phiếu thu
-    Owner      : Cross-project/Admin UI
+    Owner      : POS
     Route      : admin.branch-commerce.receipts
     Permission : branch-commerce.view
     Connects   : Owner workspace and canonical detail/action routes
     Status     : IMPLEMENTED
 
-MUA HÀNG
+PMS · MUA HÀNG
 │
 ├── Nhà cung cấp
 │   Owner      : Procurement
@@ -457,16 +463,7 @@ MUA HÀNG
     Connects   : Owner workspace and canonical detail/action routes
     Status     : IMPLEMENTED
 
-CHUỖI CUNG ỨNG
-│
-└── Tổng quan chuỗi cung ứng
-    Owner      : Dashboard
-    Route      : admin.supply-chain.index
-    Permission : inventory.view
-    Connects   : Owner workspace and canonical detail/action routes
-    Status     : IMPLEMENTED
-
-ACCOUNTING · TÀI CHÍNH
+FMS · TÀI CHÍNH & KẾ TOÁN
 │
 ├── Tổng quan tài chính
 │   Owner      : Finance
@@ -583,7 +580,7 @@ ACCOUNTING · TÀI CHÍNH
     Connects   : Owner workspace and canonical detail/action routes
     Status     : IMPLEMENTED
 
-TAX · THUẾ & NGHĨA VỤ
+FMS · THUẾ & NGHĨA VỤ
 │
 ├── Tổng quan thuế & nghĩa vụ
 │   Owner      : Finance
@@ -634,52 +631,52 @@ TAX · THUẾ & NGHĨA VỤ
     Connects   : Owner workspace and canonical detail/action routes
     Status     : IMPLEMENTED
 
-TÀI SẢN & BẢO TRÌ
+EAM · TÀI SẢN & BẢO TRÌ
 │
 ├── Tổng quan bảo trì
-│   Owner      : Cross-project/Admin UI
+│   Owner      : Maintenance
 │   Route      : admin.maintenance.overview
 │   Permission : maintenance.view
 │   Connects   : Owner workspace and canonical detail/action routes
 │   Status     : IMPLEMENTED
 ├── Yêu cầu bảo trì
-│   Owner      : Cross-project/Admin UI
+│   Owner      : Maintenance
 │   Route      : admin.maintenance.requests
 │   Permission : maintenance.view
 │   Connects   : Owner workspace and canonical detail/action routes
 │   Status     : IMPLEMENTED
 ├── Lệnh công việc
-│   Owner      : Cross-project/Admin UI
+│   Owner      : Maintenance
 │   Route      : admin.maintenance.work-orders
 │   Permission : maintenance.view
 │   Connects   : Owner workspace and canonical detail/action routes
 │   Status     : IMPLEMENTED
 └── Bảo trì định kỳ
-    Owner      : Cross-project/Admin UI
+    Owner      : Maintenance
     Route      : admin.maintenance.plans
     Permission : maintenance.view
     Connects   : Owner workspace and canonical detail/action routes
     Status     : IMPLEMENTED
 
-PROJECTS
+DMS · TÀI LIỆU DOANH NGHIỆP
 │
-├── Tổng quan dự án
-│   Owner      : Cross-project/Admin UI
-│   Route      : admin.projects.overview
-│   Permission : project.view
-│   Connects   : Owner workspace and canonical detail/action routes
+├── Kho tài liệu
+│   Owner      : Document
+│   Route      : admin.documents.index
+│   Permission : document.view
+│   Connects   : Owner record → DMS metadata → immutable version/SHA-256 → Approval/Audit evidence → owner command
 │   Status     : IMPLEMENTED
-└── Dự án
-    Owner      : Cross-project/Admin UI
-    Route      : admin.projects.index
-    Permission : project.view
+└── Approval Inbox
+    Owner      : Workflow
+    Route      : admin.approvals.index
+    Permission : approval.inbox.view
     Connects   : Owner workspace and canonical detail/action routes
     Status     : IMPLEMENTED
 
-ANALYTICS & PLANNING
+BI · PHÂN TÍCH & HOẠCH ĐỊNH
 │
 ├── Executive Dashboard
-│   Owner      : Cross-project/Admin UI
+│   Owner      : Dashboard
 │   Route      : admin.executive.index
 │   Permission : analytics.view
 │   Connects   : Owner workspace and canonical detail/action routes
@@ -691,88 +688,52 @@ ANALYTICS & PLANNING
 │   Connects   : Owner workspace and canonical detail/action routes
 │   Status     : IMPLEMENTED
 ├── Enterprise Analytics
-│   Owner      : Cross-project/Admin UI
+│   Owner      : Performance
 │   Route      : admin.analytics.workforce
 │   Permission : analytics.view
 │   Connects   : Owner workspace and canonical detail/action routes
 │   Status     : IMPLEMENTED
 ├── Workforce Forecasting
-│   Owner      : Cross-project/Admin UI
+│   Owner      : Performance
 │   Route      : admin.analytics.forecasting
 │   Permission : analytics.view
 │   Connects   : Owner workspace and canonical detail/action routes
 │   Status     : IMPLEMENTED
 ├── Executive Planning
-│   Owner      : Cross-project/Admin UI
+│   Owner      : Performance
 │   Route      : admin.planning.executive
 │   Permission : analytics.view
 │   Connects   : Owner workspace and canonical detail/action routes
 │   Status     : IMPLEMENTED
 ├── Planning Execution
-│   Owner      : Cross-project/Admin UI
+│   Owner      : Performance
 │   Route      : admin.planning.execution
 │   Permission : analytics.view
 │   Connects   : Owner workspace and canonical detail/action routes
 │   Status     : IMPLEMENTED
 └── Enterprise Reports
-    Owner      : Cross-project/Admin UI
+    Owner      : Report
     Route      : admin.reports.index
     Permission : analytics.view
     Connects   : Owner workspace and canonical detail/action routes
     Status     : IMPLEMENTED
 
-TỰ ĐỘNG HÓA DOANH NGHIỆP
+CMS · NỘI DUNG WEBSITE
 │
-├── Kho tài liệu
-│   Owner      : Document
-│   Route      : admin.documents.index
-│   Permission : document.view
-│   Connects   : Owner record → DMS metadata → immutable version/SHA-256 → Approval/Audit evidence → owner command
-│   Status     : IMPLEMENTED
-├── Approval Inbox
-│   Owner      : Cross-project/Admin UI
-│   Route      : admin.approvals.index
-│   Permission : approval.inbox.view
+├── Kho nội dung
+│   Owner      : Article
+│   Route      : articles.index
+│   Permission : article.view
 │   Connects   : Owner workspace and canonical detail/action routes
 │   Status     : IMPLEMENTED
-├── Workflow Center
-│   Owner      : Cross-project/Admin UI
-│   Route      : admin.workflows.dashboard
-│   Permission : workflow.view
-│   Connects   : Owner workspace and canonical detail/action routes
-│   Status     : IMPLEMENTED
-├── Workflow Definitions
-│   Owner      : Cross-project/Admin UI
-│   Route      : admin.workflows.definitions
-│   Permission : workflow.view
-│   Connects   : Owner workspace and canonical detail/action routes
-│   Status     : IMPLEMENTED
-├── Workflow Tasks
-│   Owner      : Cross-project/Admin UI
-│   Route      : admin.workflows.tasks
-│   Permission : workflow.view
-│   Connects   : Owner workspace and canonical detail/action routes
-│   Status     : IMPLEMENTED
-├── Notification Center
-│   Owner      : Cross-project/Admin UI
-│   Route      : admin.notifications.index
-│   Permission : notification.view
-│   Connects   : Owner workspace and canonical detail/action routes
-│   Status     : IMPLEMENTED
-├── Notification Templates
-│   Owner      : Cross-project/Admin UI
-│   Route      : admin.notifications.templates.index
-│   Permission : notification.template.manage
-│   Connects   : Owner workspace and canonical detail/action routes
-│   Status     : IMPLEMENTED
-└── Notification Deliveries
-    Owner      : Cross-project/Admin UI
-    Route      : admin.notifications.deliveries.index
-    Permission : notification.delivery.view
+└── Viết bài mới
+    Owner      : Article
+    Route      : articles.create
+    Permission : article.create
     Connects   : Owner workspace and canonical detail/action routes
     Status     : IMPLEMENTED
 
-ADMINISTRATION · IAM & AUDIT
+IAM · DANH TÍNH & KIỂM SOÁT
 │
 ├── IAM Governance
 │   Owner      : Iam
@@ -811,112 +772,151 @@ ADMINISTRATION · IAM & AUDIT
 │   Connects   : Owner workspace and canonical detail/action routes
 │   Status     : IMPLEMENTED
 └── Audit Platform
-    Owner      : Cross-project/Admin UI
+    Owner      : Audit
     Route      : admin.audit.dashboard
     Permission : audit.view
     Connects   : Owner workspace and canonical detail/action routes
     Status     : IMPLEMENTED
 
-SYSTEM · VẬN HÀNH NỀN TẢNG
+SYS · QUY TRÌNH & THÔNG BÁO
+│
+├── Workflow Center
+│   Owner      : Workflow
+│   Route      : admin.workflows.dashboard
+│   Permission : workflow.view
+│   Connects   : Owner workspace and canonical detail/action routes
+│   Status     : IMPLEMENTED
+├── Workflow Definitions
+│   Owner      : Workflow
+│   Route      : admin.workflows.definitions
+│   Permission : workflow.view
+│   Connects   : Owner workspace and canonical detail/action routes
+│   Status     : IMPLEMENTED
+├── Workflow Tasks
+│   Owner      : Workflow
+│   Route      : admin.workflows.tasks
+│   Permission : workflow.view
+│   Connects   : Owner workspace and canonical detail/action routes
+│   Status     : IMPLEMENTED
+├── Notification Center
+│   Owner      : Notification
+│   Route      : admin.notifications.index
+│   Permission : notification.view
+│   Connects   : Owner workspace and canonical detail/action routes
+│   Status     : IMPLEMENTED
+├── Notification Templates
+│   Owner      : Notification
+│   Route      : admin.notifications.templates.index
+│   Permission : notification.template.manage
+│   Connects   : Owner workspace and canonical detail/action routes
+│   Status     : IMPLEMENTED
+└── Notification Deliveries
+    Owner      : Notification
+    Route      : admin.notifications.deliveries.index
+    Permission : notification.delivery.view
+    Connects   : Owner workspace and canonical detail/action routes
+    Status     : IMPLEMENTED
+
+ITSM · VẬN HÀNH NỀN TẢNG
 │
 ├── Integrations
-│   Owner      : Cross-project/Admin UI
+│   Owner      : Integration
 │   Route      : admin.integrations.dashboard
 │   Permission : integration.view
 │   Connects   : Owner workspace and canonical detail/action routes
 │   Status     : IMPLEMENTED
 ├── Reliability
-│   Owner      : Cross-project/Admin UI
+│   Owner      : System
 │   Route      : admin.operations.reliability
 │   Permission : operations.view
 │   Connects   : Owner workspace and canonical detail/action routes
 │   Status     : IMPLEMENTED
 ├── Observability
-│   Owner      : Cross-project/Admin UI
+│   Owner      : System
 │   Route      : admin.operations.observability
 │   Permission : operations.view
 │   Connects   : Owner workspace and canonical detail/action routes
 │   Status     : IMPLEMENTED
 ├── Performance
-│   Owner      : Cross-project/Admin UI
+│   Owner      : System
 │   Route      : admin.operations.performance
 │   Permission : operations.view
 │   Connects   : Owner workspace and canonical detail/action routes
 │   Status     : IMPLEMENTED
 ├── Architecture
-│   Owner      : Cross-project/Admin UI
+│   Owner      : System
 │   Route      : admin.operations.architecture
 │   Permission : operations.view
 │   Connects   : Owner workspace and canonical detail/action routes
 │   Status     : IMPLEMENTED
 ├── Test Quality
-│   Owner      : Cross-project/Admin UI
+│   Owner      : System
 │   Route      : admin.operations.test-quality
 │   Permission : operations.view
 │   Connects   : Owner workspace and canonical detail/action routes
 │   Status     : IMPLEMENTED
 ├── API Contracts
-│   Owner      : Cross-project/Admin UI
+│   Owner      : System
 │   Route      : admin.operations.api-contracts
 │   Permission : operations.view
 │   Connects   : Owner workspace and canonical detail/action routes
 │   Status     : IMPLEMENTED
 ├── Releases
-│   Owner      : Cross-project/Admin UI
+│   Owner      : System
 │   Route      : admin.operations.releases
 │   Permission : operations.view
 │   Connects   : Owner workspace and canonical detail/action routes
 │   Status     : IMPLEMENTED
 ├── Runtime Configuration
-│   Owner      : Cross-project/Admin UI
+│   Owner      : System
 │   Route      : admin.operations.configuration
 │   Permission : operations.view
 │   Connects   : Owner workspace and canonical detail/action routes
 │   Status     : IMPLEMENTED
 ├── Secrets
-│   Owner      : Cross-project/Admin UI
+│   Owner      : System
 │   Route      : admin.operations.secrets
 │   Permission : operations.view
 │   Connects   : Owner workspace and canonical detail/action routes
 │   Status     : IMPLEMENTED
 ├── Data Protection
-│   Owner      : Cross-project/Admin UI
+│   Owner      : System
 │   Route      : admin.operations.data-protection
 │   Permission : operations.view
 │   Connects   : Owner workspace and canonical detail/action routes
 │   Status     : IMPLEMENTED
 ├── Data Lifecycle
-│   Owner      : Cross-project/Admin UI
+│   Owner      : System
 │   Route      : admin.operations.data-lifecycle
 │   Permission : operations.view
 │   Connects   : Owner workspace and canonical detail/action routes
 │   Status     : IMPLEMENTED
 ├── Data Quality
-│   Owner      : Cross-project/Admin UI
+│   Owner      : System
 │   Route      : admin.operations.data-quality
 │   Permission : operations.view
 │   Connects   : Owner workspace and canonical detail/action routes
 │   Status     : IMPLEMENTED
 ├── Business Continuity
-│   Owner      : Cross-project/Admin UI
+│   Owner      : System
 │   Route      : admin.operations.continuity
 │   Permission : operations.view
 │   Connects   : Owner workspace and canonical detail/action routes
 │   Status     : IMPLEMENTED
 ├── Security Assurance
-│   Owner      : Cross-project/Admin UI
+│   Owner      : System
 │   Route      : admin.operations.security-assurance
 │   Permission : operations.view
 │   Connects   : Owner workspace and canonical detail/action routes
 │   Status     : IMPLEMENTED
 ├── Go-Live Readiness
-│   Owner      : Cross-project/Admin UI
+│   Owner      : System
 │   Route      : admin.operations.go-live
 │   Permission : operations.view
 │   Connects   : Owner workspace and canonical detail/action routes
 │   Status     : IMPLEMENTED
 └── API Documentation
-    Owner      : Cross-project/Admin UI
+    Owner      : System
     Route      : admin.operations.api-documentation
     Permission : api.documentation.view
     Connects   : Owner workspace and canonical detail/action routes

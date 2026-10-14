@@ -7,7 +7,12 @@ $maintenance = [
     ['key' => 'maintenance-work-orders', 'label' => 'Lệnh công việc', 'icon' => 'WO'],
     ['key' => 'technician', 'label' => 'Kỹ thuật viên', 'permission' => 'maintenance.view', 'icon' => 'KT'],
     ['key' => 'parts-expense', 'label' => 'Vật tư / Chi phí', 'permission' => 'maintenance.view', 'icon' => 'VT'],
+    ['key' => 'inventory-movement', 'label' => 'Inventory Movement', 'permission' => 'inventory.view', 'icon' => 'IM'],
+    ['key' => 'part-return', 'label' => 'Trả phụ tùng chưa dùng', 'permission' => 'maintenance.part.return', 'icon' => '↩'],
+    ['key' => 'accounting-journal', 'label' => 'Accounting Journal', 'permission' => 'payroll.accounting.view', 'icon' => 'GL'],
     ['key' => 'completed', 'label' => 'Hoàn tất / Lịch sử', 'permission' => 'maintenance.view', 'icon' => '✓'],
+    ['key' => 'acceptance', 'label' => 'Nghiệm thu', 'permission' => 'maintenance.work-order.execute', 'icon' => 'A'],
+    ['key' => 'closeout', 'label' => 'Đối soát & đóng', 'permission' => 'maintenance.work-order.execute', 'icon' => 'C'],
 ];
 
 return [

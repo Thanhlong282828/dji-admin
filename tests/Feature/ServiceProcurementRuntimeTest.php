@@ -208,6 +208,7 @@ final class ServiceProcurementRuntimeTest extends TestCase
     public function test_service_acceptance_evidence_reuses_private_dms_and_enforces_tenant_linkage(): void
     {
         Storage::fake('local');
+        config()->set('document.storage_disk', 'local');
         $f = $this->fixture();
         $acceptance = $this->acceptances()->create($f['company'], $f['maker'], $this->acceptanceData($f, 'SA-DMS', 2));
         $documents = app(EnterpriseDocumentService::class);

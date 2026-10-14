@@ -24,9 +24,22 @@ final readonly class VendorRefundService
     {
         return $this->db->transaction(function () use ($companyId, $actor, $data): int {
             $key = $this->text($data['idempotency_key'] ?? null, 'idempotency_key');
-            $existing = $this->db->table('supplier_refund_receipts')->where(['company_id' => $companyId, 'idempotency_key' => $key])->lockForUpdate()->value('id');
-            if (is_numeric($existing)) {
-                return (int) $existing;
+            $existing = $this->db->table('supplier_refund_receipts')->where(['company_id' => $companyId, 'idempotency_key' => $key])->lockForUpdate()->first();
+            if (is_object($existing)) {
+                $expected = [
+                    'vendor_refund_receivable_id' => $this->positive($data['vendor_refund_receivable_id'] ?? null, 'vendor_refund_receivable_id'),
+                    'financial_account_id' => $this->positive($data['financial_account_id'] ?? null, 'financial_account_id'),
+                    'reference' => $this->text($data['reference'] ?? null, 'reference'),
+                    'refund_date' => $this->text($data['refund_date'] ?? null, 'refund_date'),
+                    'amount_minor' => $this->positive($data['amount_minor'] ?? null, 'amount_minor'),
+                ];
+                foreach ($expected as $field => $value) {
+                    if ((string) data_get($existing, $field) !== (string) $value) {
+                        throw ValidationException::withMessages(['idempotency_key' => 'SUPPLIER_REFUND_IDEMPOTENCY_CONFLICT']);
+                    }
+                }
+
+                return $this->int($existing, 'id');
             }
             $receivableId = $this->positive($data['vendor_refund_receivable_id'] ?? null, 'vendor_refund_receivable_id');
             $receivable = $this->receivable($companyId, $receivableId, true);

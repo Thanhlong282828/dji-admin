@@ -19,11 +19,13 @@ use App\Support\Media\MediaStorageInterface;
 use App\Support\RuntimeConfiguration\RuntimeConfigurationService;
 use App\Support\Secrets\ConfiguredSecretProvider;
 use App\Support\Secrets\SecretProviderInterface;
+use App\Support\Storage\SupabaseAclNeutralFilesystemFactory;
 use Illuminate\Broadcasting\BroadcastManager;
 use Illuminate\Contracts\Broadcasting\Broadcaster as BroadcasterContract;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Broadcast;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\ServiceProvider;
 use Laravel\Passport\Passport;
 use Psr\Log\LoggerInterface;
@@ -80,6 +82,10 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        Storage::extend('supabase-s3', function (Application $app, array $config) {
+            return $app->make(SupabaseAclNeutralFilesystemFactory::class)->create($config);
+        });
+
         Gate::before(function (User $user, string $ability): ?bool {
             if (! $user->hasRole('Super Admin')) {
                 return null;

@@ -10,10 +10,12 @@ use Illuminate\View\View;
 use Modules\Company\Domain\Services\BranchAccessService;
 use Modules\Core\Application\Buses\CommandBusInterface;
 use Modules\Core\Application\Buses\QueryBusInterface;
+use Modules\Maintenance\Application\Commands\AcceptMaintenanceWorkOrderCommand;
 use Modules\Maintenance\Application\Commands\AddMaintenancePartCommand;
 use Modules\Maintenance\Application\Commands\ApproveMaintenanceRequestCommand;
 use Modules\Maintenance\Application\Commands\AssignMaintenanceWorkOrderCommand;
 use Modules\Maintenance\Application\Commands\ChangeMaintenanceWorkOrderStatusCommand;
+use Modules\Maintenance\Application\Commands\CloseMaintenanceWorkOrderCommand;
 use Modules\Maintenance\Application\Commands\ConvertMaintenanceRequestCommand;
 use Modules\Maintenance\Application\Commands\CreateMaintenanceExpenseCommand;
 use Modules\Maintenance\Application\Commands\CreateMaintenancePurchaseRequestCommand;
@@ -22,6 +24,7 @@ use Modules\Maintenance\Application\Commands\CreateMaintenanceWorkOrderCommand;
 use Modules\Maintenance\Application\Commands\CreatePreventiveMaintenancePlanCommand;
 use Modules\Maintenance\Application\Commands\GeneratePreventiveWorkOrderCommand;
 use Modules\Maintenance\Application\Commands\IssueMaintenancePartCommand;
+use Modules\Maintenance\Application\Commands\ReturnMaintenancePartCommand;
 use Modules\Maintenance\Application\Commands\SubmitMaintenanceRequestCommand;
 use Modules\Maintenance\Application\Queries\GetMaintenanceQuery;
 use Modules\Maintenance\Presentation\Http\Requests\MaintenanceRequest;
@@ -127,6 +130,22 @@ final class MaintenanceController extends Controller
         return back()->with('success', 'Đã cập nhật Work Order.');
     }
 
+    public function accept(MaintenanceRequest $request, int $order): RedirectResponse
+    {
+        [$user, $company] = $this->actor($request);
+        $this->c->dispatch(new AcceptMaintenanceWorkOrderCommand($company, $order, (int) $user->id, $request->string('acceptance_note')->toString(), $request->string('idempotency_key')->toString()));
+
+        return back()->with('success', 'Đã ghi nhận nghiệm thu Work Order.');
+    }
+
+    public function close(MaintenanceRequest $request, int $order): RedirectResponse
+    {
+        [$user, $company] = $this->actor($request);
+        $this->c->dispatch(new CloseMaintenanceWorkOrderCommand($company, $order, (int) $user->id, $request->string('idempotency_key')->toString()));
+
+        return back()->with('success', 'Đã đóng Work Order với snapshot chi phí bất biến.');
+    }
+
     public function storePlan(MaintenanceRequest $r): RedirectResponse
     {
         [$u,$company] = $this->actor($r);
@@ -157,6 +176,14 @@ final class MaintenanceController extends Controller
         $this->c->dispatch(new IssueMaintenancePartCommand($company, $order, $part, (int) $u->id));
 
         return back()->with('success', 'Đã xuất spare part.');
+    }
+
+    public function returnPart(MaintenanceRequest $request, int $order, int $part): RedirectResponse
+    {
+        [$user, $company] = $this->actor($request);
+        $this->c->dispatch(new ReturnMaintenancePartCommand($company, $order, $part, (int) $user->id, $request->validated()));
+
+        return back()->with('success', 'Đã trả spare part chưa sử dụng về kho và ghi nhận journal bù.');
     }
 
     public function expense(MaintenanceRequest $r, int $order): RedirectResponse

@@ -172,6 +172,11 @@ final class DataQualityAuditService
             new DataQualityFinding('maintenance.invalid_work_order_timeline', 'Maintenance', 'critical', 'Work Order không được có timeline sai hoặc completed thiếu completion evidence.', $this->invalidMaintenanceTimeline()),
             new DataQualityFinding('maintenance.invalid_preventive_occurrence', 'Maintenance', 'critical', 'Mỗi kế hoạch/ngày định kỳ chỉ có một Work Order.', $this->invalidPreventiveOccurrence()),
             new DataQualityFinding('maintenance.part_missing_inventory', 'Maintenance/Inventory', 'critical', 'Spare part ISSUED phải có canonical Inventory Movement khớp source.', $this->maintenancePartMissingInventory()),
+            new DataQualityFinding('maintenance.part_missing_accounting', 'Maintenance/Inventory/Accounting', 'critical', 'Spare part ISSUED phải có đúng một policy-backed Journal cân và khớp giá trị xuất kho.', $this->maintenancePartMissingAccounting()),
+            new DataQualityFinding('maintenance.part_return_inventory_invalid', 'Maintenance/Inventory', 'critical', 'Spare-part return phải không vượt issued quantity và có movement tăng kho theo đúng cost basis/source.', $this->maintenancePartReturnInventoryInvalid()),
+            new DataQualityFinding('maintenance.part_return_accounting_invalid', 'Maintenance/Inventory/Accounting', 'critical', 'Spare-part return phải có đúng một balanced policy-backed compensating Journal khớp movement.', $this->maintenancePartReturnAccountingInvalid()),
+            new DataQualityFinding('maintenance.closeout_lineage_invalid', 'Maintenance/Inventory/Accounting', 'critical', 'Work Order CLOSED phải có acceptance và closeout evidence cùng tenant, đúng actor và duy nhất.', $this->maintenanceCloseoutLineageInvalid()),
+            new DataQualityFinding('maintenance.closeout_cost_snapshot_invalid', 'Maintenance/Inventory/Accounting', 'critical', 'Closeout cost snapshot phải tự cân, khớp lineage JSON và checksum bất biến.', $this->maintenanceCloseoutCostSnapshotInvalid()),
             new DataQualityFinding('integration.project_source_invalid', 'Project/Finance/Procurement', 'critical', 'Chứng từ mang nguồn PROJECT phải trỏ đến Project tồn tại cùng Company.', $this->invalidProjectSourceReferences()),
             new DataQualityFinding('integration.maintenance_source_invalid', 'Maintenance/Finance/Procurement', 'critical', 'Chứng từ mang nguồn MAINTENANCE_WORK_ORDER phải trỏ đến Work Order tồn tại cùng Company.', $this->invalidMaintenanceSourceReferences()),
             new DataQualityFinding('integration.duplicate_source_action', 'Cross-domain', 'critical', 'Source idempotency key không được tạo nhiều owner document.', $this->duplicateIntegrationSourceActions()),
@@ -227,6 +232,11 @@ final class DataQualityAuditService
             new DataQualityFinding('inventory_receipt_fx_snapshot_mismatch', 'Procurement/Inventory/FX', 'critical', 'Foreign receipt valuation phải có immutable direct spot snapshot đúng pair/date/source.', $this->inventoryReceiptFxSnapshotMismatch()),
             new DataQualityFinding('inventory_receipt_fx_movement_or_journal_mismatch', 'Procurement/Inventory/Accounting', 'critical', 'Functional inventory movement và GRNI journal phải khớp receipt valuation, policy và source.', $this->inventoryReceiptFxMovementOrJournalMismatch()),
             new DataQualityFinding('inventory_receipt_fx_bill_match_mismatch', 'Procurement/AP/FX', 'critical', 'Bill matching phải release đúng GRNI, AP recognition và purchase price variance.', $this->inventoryReceiptFxBillMatchMismatch()),
+            new DataQualityFinding('inventory_return_fx_lineage_mismatch', 'Procurement/Inventory/FX', 'critical', 'Return FX reversal phải trỏ đúng receipt valuation, movement, tenant, currency và functional carrying basis.', $this->inventoryReturnFxLineageMismatch()),
+            new DataQualityFinding('supplier_credit_fx_carrying_mismatch', 'Procurement/AP/FX', 'critical', 'Supplier Credit FX evidence phải khớp Invoice recognition, Return reversal và phân bổ AP/receivable/PPV.', $this->supplierCreditFxCarryingMismatch()),
+            new DataQualityFinding('supplier_credit_fx_policy_journal_mismatch', 'Procurement/AP/FX/Accounting', 'critical', 'Supplier Credit FX evidence phải giữ policy version và balanced Journal đúng source.', $this->supplierCreditFxPolicyJournalMismatch()),
+            new DataQualityFinding('supplier_refund_fx_snapshot_lineage_mismatch', 'Procurement/AP/FX', 'critical', 'Vendor Refund FX settlement phải khớp receivable, credit evidence và immutable direct spot snapshot.', $this->supplierRefundFxSnapshotLineageMismatch()),
+            new DataQualityFinding('supplier_refund_fx_accounting_treasury_mismatch', 'Procurement/AP/FX/Treasury', 'critical', 'Vendor Refund FX settlement phải khớp balanced Journal và Treasury inflow canonical.', $this->supplierRefundFxAccountingTreasuryMismatch()),
         ];
         $rows = array_values(array_map(static fn (DataQualityFinding $finding): array => $finding->toArray(), $findings));
         $failed = count(array_filter($rows, static fn (array $row): bool => $row['count'] > 0 && $row['severity'] === 'critical'));
@@ -1499,7 +1509,7 @@ final class DataQualityAuditService
 
     private function invalidMaintenanceTimeline(): int
     {
-        return DB::table('maintenance_work_orders')->where(static fn (Builder $q): Builder => $q->whereRaw('scheduled_end IS NOT NULL AND scheduled_start IS NOT NULL AND scheduled_end < scheduled_start')->orWhereRaw('actual_end IS NOT NULL AND actual_start IS NOT NULL AND actual_end < actual_start')->orWhere(static fn (Builder $done): Builder => $done->where('status', 'COMPLETED')->where(static fn (Builder $missing): Builder => $missing->whereNull('actual_end')->orWhereNull('completion_note'))))->count();
+        return DB::table('maintenance_work_orders')->where(static fn (Builder $q): Builder => $q->whereRaw('scheduled_end IS NOT NULL AND scheduled_start IS NOT NULL AND scheduled_end < scheduled_start')->orWhereRaw('actual_end IS NOT NULL AND actual_start IS NOT NULL AND actual_end < actual_start')->orWhere(static fn (Builder $done): Builder => $done->whereIn('status', ['COMPLETED', 'CLOSED'])->where(static fn (Builder $missing): Builder => $missing->whereNull('actual_end')->orWhereNull('completion_note'))))->count();
     }
 
     private function invalidPreventiveOccurrence(): int
@@ -1511,7 +1521,128 @@ final class DataQualityAuditService
 
     private function maintenancePartMissingInventory(): int
     {
-        return DB::table('maintenance_part_requirements as p')->join('maintenance_work_orders as w', 'w.id', '=', 'p.work_order_id')->leftJoin('inventory_movements as m', 'm.id', '=', 'p.inventory_movement_id')->where('p.status', 'ISSUED')->where(static fn (Builder $q): Builder => $q->whereNull('m.id')->orWhere('m.source_type', '<>', 'maintenance_work_order')->orWhereColumn('m.source_id', '<>', 'w.id')->orWhereColumn('m.product_variant_id', '<>', 'p.product_variant_id')->orWhereColumn('m.inventory_location_id', '<>', 'p.inventory_location_id'))->count();
+        $invalid = DB::table('maintenance_part_requirements as p')->join('maintenance_work_orders as w', 'w.id', '=', 'p.work_order_id')->leftJoin('inventory_movements as m', 'm.id', '=', 'p.inventory_movement_id')->where('p.status', 'ISSUED')->where(static fn (Builder $q): Builder => $q->whereNull('m.id')->orWhere('m.source_type', '<>', 'maintenance_work_order')->orWhereColumn('m.source_id', '<>', 'w.id')->orWhereColumn('m.product_variant_id', '<>', 'p.product_variant_id')->orWhereColumn('m.inventory_location_id', '<>', 'p.inventory_location_id')->orWhereColumn('m.idempotency_key', '<>', 'p.idempotency_key')->orWhereRaw("m.reference <> CONCAT('MWO-PART-', p.id)"))->count();
+        $duplicateMovements = DB::table('maintenance_part_requirements as p')
+            ->join('maintenance_work_orders as w', 'w.id', '=', 'p.work_order_id')
+            ->join('inventory_movements as m', static fn (JoinClause $join): JoinClause => $join->on('m.source_id', '=', 'w.id')->where('m.source_type', 'maintenance_work_order'))
+            ->where('p.status', 'ISSUED')->whereColumn('m.product_variant_id', 'p.product_variant_id')->whereColumn('m.inventory_location_id', 'p.inventory_location_id')->whereRaw("m.reference = CONCAT('MWO-PART-', p.id)")
+            ->selectRaw('p.id, COUNT(m.id) movement_count')->groupBy('p.id')->havingRaw('COUNT(m.id) > 1');
+        $duplicates = DB::query()->fromSub($duplicateMovements, 'duplicate_movements')->count();
+
+        return $invalid + $duplicates;
+    }
+
+    private function maintenancePartMissingAccounting(): int
+    {
+        $journalTotals = DB::table('payroll_accounting_journal_lines')
+            ->selectRaw("journal_id, SUM(debit_minor) debit_total, SUM(credit_minor) credit_total, SUM(CASE WHEN JSON_UNQUOTE(JSON_EXTRACT(mapping_snapshot, '$.policy_id')) REGEXP '^[1-9][0-9]*$' AND JSON_UNQUOTE(JSON_EXTRACT(mapping_snapshot, '$.policy_version')) REGEXP '^[1-9][0-9]*$' THEN 1 ELSE 0 END) policy_lineage_count")
+            ->groupBy('journal_id');
+
+        $invalid = DB::table('maintenance_part_requirements as p')
+            ->join('maintenance_work_orders as w', 'w.id', '=', 'p.work_order_id')
+            ->leftJoin('payroll_accounting_journals as j', static fn (JoinClause $join): JoinClause => $join->on('j.source_id', '=', 'p.id')->where('j.source_type', 'maintenance_part_requirement')->where('j.posting_type', 'maintenance_part_consumption')->whereNull('j.reversal_of_journal_id'))
+            ->leftJoinSub($journalTotals, 'jt', 'jt.journal_id', '=', 'j.id')
+            ->where('p.status', 'ISSUED')
+            ->where(static fn (Builder $query): Builder => $query->whereNull('j.id')->orWhereColumn('j.company_id', '<>', 'w.company_id')->orWhere('jt.policy_lineage_count', '<', 2)->orWhereColumn('jt.debit_total', '<>', 'jt.credit_total')->orWhereColumn('jt.debit_total', '<>', 'p.actual_cost_minor'))
+            ->count();
+        $duplicateJournals = DB::table('payroll_accounting_journals')
+            ->where(['source_type' => 'maintenance_part_requirement', 'posting_type' => 'maintenance_part_consumption'])
+            ->whereNull('reversal_of_journal_id')->selectRaw('company_id, source_id, COUNT(*) journal_count')->groupBy('company_id', 'source_id')->havingRaw('COUNT(*) > 1');
+        $duplicates = DB::query()->fromSub($duplicateJournals, 'duplicate_journals')->count();
+
+        return $invalid + $duplicates;
+    }
+
+    private function maintenancePartReturnInventoryInvalid(): int
+    {
+        if (! Schema::hasTable('maintenance_part_returns')) {
+            return 0;
+        }
+
+        $invalid = DB::table('maintenance_part_returns as r')
+            ->leftJoin('maintenance_part_requirements as p', 'p.id', '=', 'r.maintenance_part_requirement_id')
+            ->leftJoin('maintenance_work_orders as w', 'w.id', '=', 'r.work_order_id')
+            ->leftJoin('inventory_movements as issue', 'issue.id', '=', 'r.original_issue_movement_id')
+            ->leftJoin('inventory_movements as movement', 'movement.id', '=', 'r.inventory_movement_id')
+            ->where('r.status', 'POSTED')->where(static fn (Builder $query): Builder => $query
+            ->whereNull('p.id')->orWhereNull('w.id')->orWhereNull('issue.id')->orWhereNull('movement.id')
+            ->orWhereColumn('w.company_id', '<>', 'r.company_id')->orWhereColumn('p.work_order_id', '<>', 'r.work_order_id')
+            ->orWhereColumn('p.inventory_movement_id', '<>', 'r.original_issue_movement_id')->orWhereColumn('p.inventory_location_id', '<>', 'r.inventory_location_id')
+            ->orWhere('movement.source_type', '<>', 'maintenance_part_return')->orWhereColumn('movement.source_id', '<>', 'r.id')
+            ->orWhereColumn('movement.inventory_location_id', '<>', 'r.inventory_location_id')->orWhereColumn('movement.product_variant_id', '<>', 'p.product_variant_id')
+            ->orWhereColumn('movement.quantity_delta', '<>', 'r.quantity')->orWhereColumn('movement.movement_value_minor', '<>', 'r.returned_value_minor')
+            ->orWhere('r.quantity', '<', 1)->orWhere('r.returned_value_minor', '<', 1))->count();
+        $overReturnedQuery = DB::table('maintenance_part_returns as r')->join('maintenance_part_requirements as p', 'p.id', '=', 'r.maintenance_part_requirement_id')->where('r.status', 'POSTED')->selectRaw('r.maintenance_part_requirement_id, MAX(p.quantity) issued_quantity, SUM(r.quantity) returned_quantity, MAX(p.actual_cost_minor) issued_value, SUM(r.returned_value_minor) returned_value')->groupBy('r.maintenance_part_requirement_id')->havingRaw('SUM(r.quantity) > MAX(p.quantity) OR SUM(r.returned_value_minor) > MAX(p.actual_cost_minor)');
+        $overReturned = DB::query()->fromSub($overReturnedQuery, 'over_returned_parts')->count();
+        $duplicateMovements = DB::table('inventory_movements')->where('source_type', 'maintenance_part_return')->selectRaw('source_id, COUNT(*) total')->groupBy('source_id')->havingRaw('COUNT(*) > 1');
+
+        return $invalid + $overReturned + DB::query()->fromSub($duplicateMovements, 'duplicate_return_movements')->count();
+    }
+
+    private function maintenancePartReturnAccountingInvalid(): int
+    {
+        if (! Schema::hasTable('maintenance_part_returns')) {
+            return 0;
+        }
+
+        $totals = DB::table('payroll_accounting_journal_lines')->selectRaw("journal_id, SUM(debit_minor) debit_total, SUM(credit_minor) credit_total, SUM(CASE WHEN JSON_UNQUOTE(JSON_EXTRACT(mapping_snapshot, '$.policy_id')) REGEXP '^[1-9][0-9]*$' AND JSON_UNQUOTE(JSON_EXTRACT(mapping_snapshot, '$.policy_version')) REGEXP '^[1-9][0-9]*$' THEN 1 ELSE 0 END) policy_lineage_count")->groupBy('journal_id');
+        $invalid = DB::table('maintenance_part_returns as r')
+            ->leftJoin('payroll_accounting_journals as j', 'j.id', '=', 'r.accounting_journal_id')
+            ->leftJoinSub($totals, 'totals', 'totals.journal_id', '=', 'j.id')
+            ->where('r.status', 'POSTED')->where(static fn (Builder $query): Builder => $query
+            ->whereNull('j.id')->orWhereColumn('j.company_id', '<>', 'r.company_id')->orWhereRaw('NOT (j.branch_id <=> r.branch_id)')
+            ->orWhere('j.source_type', '<>', 'maintenance_part_return')->orWhereColumn('j.source_id', '<>', 'r.id')->orWhere('j.posting_type', '<>', 'maintenance_part_return')
+            ->orWhereColumn('j.currency', '<>', 'r.currency')->orWhereRaw("NOT EXISTS (SELECT 1 FROM payroll_accounting_journal_lines policy_line WHERE policy_line.journal_id=j.id AND JSON_UNQUOTE(JSON_EXTRACT(policy_line.mapping_snapshot, '$.policy_id')) = CAST(r.accounting_policy_id AS CHAR) AND JSON_UNQUOTE(JSON_EXTRACT(policy_line.mapping_snapshot, '$.policy_version')) = CAST(r.accounting_policy_version AS CHAR))")
+            ->orWhere('totals.policy_lineage_count', '<', 2)->orWhereColumn('totals.debit_total', '<>', 'totals.credit_total')->orWhereColumn('totals.debit_total', '<>', 'r.returned_value_minor'))->count();
+        $duplicateJournals = DB::table('payroll_accounting_journals')->where(['source_type' => 'maintenance_part_return', 'posting_type' => 'maintenance_part_return'])->whereNull('reversal_of_journal_id')->selectRaw('company_id, source_id, COUNT(*) total')->groupBy('company_id', 'source_id')->havingRaw('COUNT(*) > 1');
+
+        return $invalid + DB::query()->fromSub($duplicateJournals, 'duplicate_return_journals')->count();
+    }
+
+    private function maintenanceCloseoutLineageInvalid(): int
+    {
+        if (! Schema::hasTable('maintenance_work_order_closeouts')) {
+            return 0;
+        }
+
+        return DB::table('maintenance_work_orders as w')
+            ->leftJoin('maintenance_work_order_closeouts as c', 'c.work_order_id', '=', 'w.id')
+            ->leftJoin('maintenance_work_order_acceptances as a', 'a.id', '=', 'c.acceptance_id')
+            ->where('w.status', 'CLOSED')->where(static fn (Builder $query): Builder => $query
+            ->whereNull('c.id')->orWhereNull('a.id')->orWhereColumn('c.company_id', '<>', 'w.company_id')
+            ->orWhereColumn('a.company_id', '<>', 'w.company_id')->orWhereColumn('a.work_order_id', '<>', 'w.id')
+            ->orWhereRaw('NOT (c.branch_id <=> w.branch_id)')->orWhereRaw('NOT (a.branch_id <=> w.branch_id)')
+            ->orWhereNull('c.closed_by')->orWhereNull('c.closed_at')->orWhereNull('a.accepted_by')->orWhereNull('a.accepted_at'))
+            ->count();
+    }
+
+    private function maintenanceCloseoutCostSnapshotInvalid(): int
+    {
+        if (! Schema::hasTable('maintenance_work_order_closeouts')) {
+            return 0;
+        }
+
+        return DB::table('maintenance_work_order_closeouts')->get()->sum(static function (object $row): int {
+            $snapshot = is_string($row->lineage_snapshot ?? null) ? json_decode($row->lineage_snapshot, true) : null;
+            if (! is_array($snapshot)) {
+                return 1;
+            }
+            ksort($snapshot);
+            $canonical = json_encode($snapshot, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
+            $gross = self::evidenceInt($row->gross_spare_cost_minor ?? null);
+            $returned = self::evidenceInt($row->returned_spare_cost_minor ?? null);
+            $net = self::evidenceInt($row->net_spare_cost_minor ?? null);
+            $other = self::evidenceInt($row->other_verified_cost_minor ?? null);
+            $total = self::evidenceInt($row->total_actual_cost_minor ?? null);
+            if ($gross === null || $returned === null || $net === null || $other === null || $total === null) {
+                return 1;
+            }
+
+            return $returned > $gross || $net !== $gross - $returned || $total !== $net + $other
+                || ($snapshot['gross_spare_cost_minor'] ?? null) !== $gross || ($snapshot['returned_spare_cost_minor'] ?? null) !== $returned
+                || ($snapshot['net_spare_cost_minor'] ?? null) !== $net || ($snapshot['other_verified_cost_minor'] ?? null) !== $other
+                || ($snapshot['total_actual_cost_minor'] ?? null) !== $total || hash('sha256', $canonical) !== ($row->snapshot_checksum ?? null) ? 1 : 0;
+        });
     }
 
     private function invalidProjectSourceReferences(): int
@@ -2110,6 +2241,165 @@ final class DataQualityAuditService
             ->leftJoin('inventory_receipt_fx_valuations as valuation', 'valuation.id', '=', 'matching.inventory_receipt_fx_valuation_id')
             ->where(static fn (Builder $query): Builder => $query->whereNull('allocation.id')->orWhereNull('recognition.id')->orWhereNull('valuation.id')->orWhereColumn('recognition.vendor_bill_id', '<>', 'matching.vendor_bill_id')->orWhereColumn('recognition.company_id', '<>', 'matching.company_id')->orWhereColumn('valuation.company_id', '<>', 'matching.company_id')->orWhereColumn('allocation.allocated_minor', '<>', 'matching.foreign_amount_minor')->orWhereRaw('matching.purchase_price_variance_minor <> CAST(matching.ap_functional_minor AS SIGNED) - CAST(matching.released_grni_functional_minor AS SIGNED)')->orWhereColumn('recognition.accounting_journal_id', '<>', 'matching.accounting_journal_id'))
             ->count();
+    }
+
+    private function inventoryReturnFxLineageMismatch(): int
+    {
+        if (! $this->inventoryReturnFxSchemaReady()) {
+            return 0;
+        }
+
+        return DB::table('inventory_return_fx_reversals as reversal')
+            ->leftJoin('procurement_goods_return_lines as return_line', 'return_line.id', '=', 'reversal.goods_return_line_id')
+            ->leftJoin('procurement_goods_returns as goods_return', 'goods_return.id', '=', 'return_line.goods_return_id')
+            ->leftJoin('procurement_goods_receipt_lines as receipt_line', 'receipt_line.id', '=', 'return_line.goods_receipt_line_id')
+            ->leftJoin('inventory_receipt_fx_valuations as valuation', 'valuation.id', '=', 'reversal.inventory_receipt_fx_valuation_id')
+            ->leftJoin('inventory_movements as movement', 'movement.id', '=', 'reversal.inventory_movement_id')
+            ->where(static fn (Builder $query): Builder => $query
+                ->whereNull('return_line.id')->orWhereNull('goods_return.id')->orWhereNull('receipt_line.id')->orWhereNull('valuation.id')->orWhereNull('movement.id')
+                ->orWhereColumn('reversal.goods_return_id', '<>', 'goods_return.id')
+                ->orWhereColumn('reversal.company_id', '<>', 'goods_return.company_id')
+                ->orWhereColumn('reversal.branch_id', '<>', 'goods_return.branch_id')
+                ->orWhereColumn('valuation.company_id', '<>', 'reversal.company_id')
+                ->orWhereColumn('valuation.goods_receipt_line_id', '<>', 'return_line.goods_receipt_line_id')
+                ->orWhereColumn('valuation.transaction_currency', '<>', 'reversal.transaction_currency')
+                ->orWhereColumn('valuation.functional_currency', '<>', 'reversal.functional_currency')
+                ->orWhereColumn('reversal.return_quantity', '<>', 'return_line.quantity')
+                ->orWhere('movement.source_type', '<>', 'procurement_goods_return_line')
+                ->orWhereColumn('movement.source_id', '<>', 'return_line.id')
+                ->orWhereRaw('movement.movement_value_minor <> -CAST(reversal.released_functional_basis_minor AS SIGNED)')
+                ->orWhereColumn('reversal.cumulative_return_quantity', '>', 'receipt_line.received_quantity')
+                ->orWhereColumn('reversal.cumulative_released_basis_minor', '>', 'valuation.functional_amount_minor'))
+            ->count();
+    }
+
+    private function supplierCreditFxCarryingMismatch(): int
+    {
+        if (! $this->supplierCreditFxSchemaReady()) {
+            return 0;
+        }
+
+        return DB::table('supplier_credit_fx_evidence as evidence')
+            ->leftJoin('supplier_credit_notes as credit', 'credit.id', '=', 'evidence.supplier_credit_note_id')
+            ->leftJoin('supplier_invoice_fx_recognitions as recognition', 'recognition.id', '=', 'evidence.supplier_invoice_fx_recognition_id')
+            ->leftJoin('inventory_return_fx_reversals as reversal', 'reversal.id', '=', 'evidence.inventory_return_fx_reversal_id')
+            ->where(static fn (Builder $query): Builder => $query
+                ->whereNull('credit.id')->orWhereNull('recognition.id')->orWhereNull('reversal.id')
+                ->orWhereColumn('evidence.company_id', '<>', 'credit.company_id')
+                ->orWhereColumn('evidence.branch_id', '<>', 'credit.branch_id')
+                ->orWhereColumn('evidence.vendor_bill_id', '<>', 'credit.vendor_bill_id')
+                ->orWhereColumn('evidence.goods_return_id', '<>', 'credit.goods_return_id')
+                ->orWhereColumn('recognition.company_id', '<>', 'evidence.company_id')
+                ->orWhereColumn('recognition.vendor_bill_id', '<>', 'evidence.vendor_bill_id')
+                ->orWhereColumn('reversal.company_id', '<>', 'evidence.company_id')
+                ->orWhereColumn('reversal.goods_return_id', '<>', 'evidence.goods_return_id')
+                ->orWhereColumn('evidence.transaction_currency', '<>', 'recognition.transaction_currency')
+                ->orWhereColumn('evidence.functional_currency', '<>', 'recognition.functional_currency')
+                ->orWhereColumn('evidence.foreign_credit_minor', '<>', 'credit.total_minor')
+                ->orWhereRaw('CAST(evidence.ap_carrying_release_minor AS SIGNED) + CAST(evidence.supplier_receivable_functional_minor AS SIGNED) + evidence.purchase_price_variance_minor <> CAST(reversal.released_functional_basis_minor AS SIGNED)')
+                ->orWhereColumn('evidence.cumulative_foreign_credit_minor', '>', 'recognition.transaction_amount_minor')
+                ->orWhereColumn('evidence.cumulative_ap_carrying_release_minor', '>', 'recognition.functional_amount_minor'))
+            ->count();
+    }
+
+    private function supplierCreditFxPolicyJournalMismatch(): int
+    {
+        if (! $this->supplierCreditFxSchemaReady()) {
+            return 0;
+        }
+
+        return DB::table('supplier_credit_fx_evidence as evidence')
+            ->leftJoin('accounting_posting_policies as policy', 'policy.id', '=', 'evidence.accounting_policy_id')
+            ->leftJoin('payroll_accounting_journals as journal', 'journal.id', '=', 'evidence.accounting_journal_id')
+            ->where(static fn (Builder $query): Builder => $query
+                ->whereNull('policy.id')->orWhereNull('journal.id')
+                ->orWhereColumn('policy.company_id', '<>', 'evidence.company_id')
+                ->orWhereColumn('policy.version', '<>', 'evidence.accounting_policy_version')
+                ->orWhereColumn('journal.company_id', '<>', 'evidence.company_id')
+                ->orWhereColumn('journal.branch_id', '<>', 'evidence.branch_id')
+                ->orWhereColumn('journal.currency', '<>', 'evidence.functional_currency')
+                ->orWhere('journal.source_type', '<>', 'supplier_credit')
+                ->orWhereColumn('journal.source_id', '<>', 'evidence.supplier_credit_note_id')
+                ->orWhereColumn('journal.total_debit_minor', '<>', 'journal.total_credit_minor'))
+            ->count();
+    }
+
+    private function supplierRefundFxSnapshotLineageMismatch(): int
+    {
+        if (! $this->supplierRefundFxSchemaReady()) {
+            return 0;
+        }
+
+        return DB::table('supplier_refund_fx_settlements as settlement')
+            ->leftJoin('supplier_refund_receipts as refund', 'refund.id', '=', 'settlement.supplier_refund_receipt_id')
+            ->leftJoin('vendor_refund_receivables as receivable', 'receivable.id', '=', 'settlement.vendor_refund_receivable_id')
+            ->leftJoin('supplier_credit_fx_evidence as credit', 'credit.id', '=', 'settlement.supplier_credit_fx_evidence_id')
+            ->leftJoin('finance_fx_rate_snapshots as snapshot', 'snapshot.id', '=', 'settlement.settlement_fx_snapshot_id')
+            ->where(static fn (Builder $query): Builder => $query
+                ->whereNull('refund.id')->orWhereNull('receivable.id')->orWhereNull('credit.id')->orWhereNull('snapshot.id')
+                ->orWhereColumn('settlement.company_id', '<>', 'refund.company_id')
+                ->orWhereColumn('settlement.company_id', '<>', 'receivable.company_id')
+                ->orWhereColumn('settlement.company_id', '<>', 'credit.company_id')
+                ->orWhereColumn('refund.vendor_refund_receivable_id', '<>', 'receivable.id')
+                ->orWhereColumn('receivable.supplier_credit_note_id', '<>', 'credit.supplier_credit_note_id')
+                ->orWhereColumn('settlement.transaction_currency', '<>', 'refund.currency')
+                ->orWhereColumn('settlement.transaction_currency', '<>', 'credit.transaction_currency')
+                ->orWhereColumn('settlement.functional_currency', '<>', 'credit.functional_currency')
+                ->orWhereColumn('settlement.foreign_refunded_minor', '<>', 'refund.amount_minor')
+                ->orWhereRaw('settlement.realized_fx_minor <> CAST(settlement.functional_cash_minor AS SIGNED) - CAST(settlement.released_carrying_minor AS SIGNED)')
+                ->orWhereColumn('snapshot.company_id', '<>', 'settlement.company_id')
+                ->orWhereColumn('snapshot.base_currency', '<>', 'settlement.transaction_currency')
+                ->orWhereColumn('snapshot.quote_currency', '<>', 'settlement.functional_currency')
+                ->orWhereColumn('snapshot.rate_decimal', '<>', 'settlement.rate_decimal')
+                ->orWhereColumn('snapshot.rate_date', '<>', 'settlement.rate_date')
+                ->orWhere('snapshot.rate_type', '<>', 'spot')
+                ->orWhere('snapshot.source_type', '<>', 'supplier_refund_receipt_settlement')
+                ->orWhereColumn('snapshot.source_id', '<>', 'settlement.supplier_refund_receipt_id'))
+            ->count();
+    }
+
+    private function supplierRefundFxAccountingTreasuryMismatch(): int
+    {
+        if (! $this->supplierRefundFxSchemaReady()) {
+            return 0;
+        }
+
+        return DB::table('supplier_refund_fx_settlements as settlement')
+            ->leftJoin('accounting_posting_policies as policy', 'policy.id', '=', 'settlement.accounting_policy_id')
+            ->leftJoin('payroll_accounting_journals as journal', 'journal.id', '=', 'settlement.accounting_journal_id')
+            ->leftJoin('treasury_transactions as treasury', 'treasury.id', '=', 'settlement.treasury_transaction_id')
+            ->where(static fn (Builder $query): Builder => $query
+                ->whereNull('policy.id')->orWhereNull('journal.id')->orWhereNull('treasury.id')
+                ->orWhereColumn('policy.company_id', '<>', 'settlement.company_id')
+                ->orWhereColumn('policy.version', '<>', 'settlement.accounting_policy_version')
+                ->orWhereColumn('journal.company_id', '<>', 'settlement.company_id')
+                ->orWhereColumn('journal.currency', '<>', 'settlement.functional_currency')
+                ->orWhere('journal.source_type', '<>', 'supplier_refund_receipt')
+                ->orWhereColumn('journal.source_id', '<>', 'settlement.supplier_refund_receipt_id')
+                ->orWhereColumn('journal.total_debit_minor', '<>', 'journal.total_credit_minor')
+                ->orWhereColumn('treasury.company_id', '<>', 'settlement.company_id')
+                ->orWhere('treasury.source_type', '<>', 'supplier_refund_receipt')
+                ->orWhereColumn('treasury.source_id', '<>', 'settlement.supplier_refund_receipt_id')
+                ->orWhere('treasury.direction', '<>', 'inflow')
+                ->orWhereColumn('treasury.currency', '<>', 'settlement.transaction_currency')
+                ->orWhereColumn('treasury.amount_minor', '<>', 'settlement.foreign_refunded_minor')
+                ->orWhereColumn('treasury.accounting_journal_id', '<>', 'settlement.accounting_journal_id'))
+            ->count();
+    }
+
+    private function inventoryReturnFxSchemaReady(): bool
+    {
+        return $this->inventoryReceiptFxSchemaReady() && Schema::hasTable('inventory_return_fx_reversals') && Schema::hasTable('procurement_goods_return_lines') && Schema::hasTable('procurement_goods_returns');
+    }
+
+    private function supplierCreditFxSchemaReady(): bool
+    {
+        return $this->inventoryReturnFxSchemaReady() && $this->apFxSchemaReady() && Schema::hasTable('supplier_credit_fx_evidence') && Schema::hasTable('supplier_credit_notes');
+    }
+
+    private function supplierRefundFxSchemaReady(): bool
+    {
+        return $this->supplierCreditFxSchemaReady() && Schema::hasTable('supplier_refund_fx_settlements') && Schema::hasTable('supplier_refund_receipts') && Schema::hasTable('vendor_refund_receivables') && Schema::hasTable('treasury_transactions');
     }
 
     private function inventoryReceiptFxSchemaReady(): bool

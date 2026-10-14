@@ -88,6 +88,23 @@ final class RuntimeResourceHardeningTest extends TestCase
         self::assertStringNotContainsString('MemoryMax=', $reverb);
     }
 
+    public function test_document_storage_runtime_is_packaged_and_preflighted_for_vps(): void
+    {
+        $dockerfile = $this->projectFile('Dockerfile');
+        $preflight = $this->projectFile('scripts/operations/document-storage-vps-preflight.sh');
+        $provider = $this->projectFile('Modules/Document/app/Providers/DocumentServiceProvider.php');
+
+        self::assertStringContainsString('clamav-scanner clamav-db', $dockerfile);
+        self::assertStringContainsString('/var/lib/clamav', $dockerfile);
+        self::assertStringContainsString('documents:storage-readiness --strict-production', $preflight);
+        self::assertStringContainsString('APP_ENV must be production', $preflight);
+        self::assertStringContainsString('DOCUMENT_RECONCILIATION_SCHEDULE_ENABLED', $this->projectFile('.env.example'));
+        self::assertStringContainsString('documents:storage-reconcile-tenants', $provider);
+        self::assertStringContainsString('everyFiveMinutes()', $provider);
+        self::assertStringContainsString('onOneServer()', $provider);
+        self::assertStringContainsString('withoutOverlapping(10)', $provider);
+    }
+
     private function projectFile(string $path): string
     {
         $contents = file_get_contents(base_path($path));

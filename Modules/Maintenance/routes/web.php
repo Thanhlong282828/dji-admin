@@ -15,8 +15,11 @@ Route::middleware(['auth', 'verified'])->prefix('admin/maintenance')->name('admi
     Route::get('/work-orders/{order}', [MaintenanceController::class, 'show'])->middleware('permission:maintenance.view')->name('work-orders.show');
     Route::post('/work-orders/{order}/assign', [MaintenanceController::class, 'assign'])->middleware('permission:maintenance.work-order.assign')->name('work-orders.assign');
     Route::post('/work-orders/{order}/status', [MaintenanceController::class, 'status'])->middleware('permission:maintenance.work-order.execute')->name('work-orders.status');
+    Route::post('/work-orders/{order}/accept', [MaintenanceController::class, 'accept'])->middleware('permission:maintenance.work-order.execute')->name('work-orders.accept');
+    Route::post('/work-orders/{order}/close', [MaintenanceController::class, 'close'])->middleware('permission:maintenance.work-order.execute')->name('work-orders.close');
     Route::post('/work-orders/{order}/parts', [MaintenanceController::class, 'part'])->middleware('permission:maintenance.part.issue')->name('parts.store');
     Route::post('/work-orders/{order}/parts/{part}/issue', [MaintenanceController::class, 'issue'])->middleware('permission:maintenance.part.issue')->name('parts.issue');
+    Route::post('/work-orders/{order}/parts/{part}/return', [MaintenanceController::class, 'returnPart'])->middleware('permission:maintenance.part.return')->name('parts.return');
     Route::post('/work-orders/{order}/expenses', [MaintenanceController::class, 'expense'])->middleware('permission:finance.operations.manage')->name('expenses.store');
     Route::post('/work-orders/{order}/purchase-requests', [MaintenanceController::class, 'purchaseRequest'])->middleware('permission:procurement.manage')->name('purchase-requests.store');
     Route::get('/preventive-plans', [MaintenanceController::class, 'plans'])->middleware('permission:maintenance.view')->name('plans');

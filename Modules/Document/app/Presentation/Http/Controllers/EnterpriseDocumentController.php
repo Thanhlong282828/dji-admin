@@ -7,6 +7,7 @@ use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
 use Modules\Company\Domain\Services\BranchAccessService;
 use Modules\Core\Application\Buses\CommandBusInterface;
@@ -18,6 +19,7 @@ use Modules\Document\Application\Queries\GetDocumentsQuery;
 use Modules\Document\Application\Services\EnterpriseDocumentService;
 use Modules\Document\Presentation\Http\Requests\DocumentRequest;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
+use Symfony\Component\HttpFoundation\RedirectResponse as SymfonyRedirectResponse;
 
 final class EnterpriseDocumentController extends Controller
 {
@@ -62,13 +64,17 @@ final class EnterpriseDocumentController extends Controller
         return to_route('admin.documents.index', ['company_id' => $company])->with('success', 'Đã lưu trữ tài liệu.');
     }
 
-    public function download(Request $request, int $version): BinaryFileResponse
+    public function download(Request $request, int $version): BinaryFileResponse|SymfonyRedirectResponse
     {
         [$user, $company] = $this->actor($request);
-        $file = $this->documents->downloadPath($company, $version);
-        activity('enterprise-document')->causedBy($user)->event('downloaded')->withProperties(['company_id' => $company, 'version_id' => $version])->log('Enterprise document downloaded');
+        $file = $this->documents->download($company, $version);
+        activity('enterprise-document')->causedBy($user)->event('downloaded')->withProperties(['company_id' => $company, 'version_id' => $version, 'storage_driver' => $file['disk']])->log('Enterprise document downloaded');
 
-        return response()->download($file['path'], $file['name'], ['Content-Type' => $file['mime']]);
+        if (is_string($file['temporary_url'])) {
+            return redirect()->away($file['temporary_url']);
+        }
+
+        return response()->download(Storage::disk($file['disk'])->path($file['path']), $file['name'], ['Content-Type' => $file['mime'], 'Cache-Control' => 'private, no-store', 'X-Content-Type-Options' => 'nosniff']);
     }
 
     private function view(Request $request, ?int $document): View

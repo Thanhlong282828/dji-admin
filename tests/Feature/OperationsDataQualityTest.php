@@ -37,7 +37,7 @@ final class OperationsDataQualityTest extends TestCase
         $first = app(DataQualityAuditService::class)->snapshot();
         $second = app(DataQualityAuditService::class)->snapshot();
         self::assertSame($first['checksum'], $second['checksum']);
-        self::assertSame(211, $first['rules']);
+        self::assertSame(221, $first['rules']);
         foreach (['crm_lead_without_company', 'crm_opportunity_without_company', 'crm_invalid_stage', 'customer_refund_without_credit_note', 'customer_refund_over_liability', 'customer_refund_without_treasury', 'customer_refund_without_journal', 'credit_note_without_invoice', 'credit_note_over_remaining_creditable', 'inventory_stock_count_without_warehouse', 'inventory_adjustment_without_reason', 'inventory_adjustment_without_movement', 'inventory_adjustment_without_journal', 'inventory_variance_mismatch', 'asset_impairment_without_asset', 'asset_impairment_without_journal', 'asset_disposal_without_asset', 'asset_disposal_without_journal', 'asset_gain_loss_mismatch', 'fiscal_year_without_company', 'period_without_fiscal_year', 'closed_period_with_posting', 'overlapping_fiscal_year', 'invalid_period_date_range', 'opening_balance_without_source', 'journal_without_source', 'journal_without_policy', 'journal_line_unbalanced', 'posted_journal_in_closed_period', 'duplicate_source_posting', 'missing_account_mapping', 'posting_without_policy', 'posting_without_mapping', 'legacy_account_mapping_usage', 'journal_without_policy_snapshot', 'policy_version_missing', 'receipt_without_policy', 'collection_without_policy', 'cogs_without_inventory_source', 'expense_without_policy', 'tax_posting_without_mapping', 'tax_without_policy', 'tax_without_rate', 'tax_without_mapping', 'tax_journal_without_source', 'invalid_tax_period'] as $key) {
             self::assertNotNull(collect($first['findings'])->firstWhere('key', $key));
         }
@@ -51,6 +51,9 @@ final class OperationsDataQualityTest extends TestCase
             self::assertNotNull(collect($first['findings'])->firstWhere('key', $key));
         }
         foreach (['duplicate_invoice_fx_recognition', 'recognition_company_mismatch', 'recognition_invoice_currency_mismatch', 'recognition_functional_currency_mismatch', 'recognition_snapshot_pair_mismatch', 'recognition_snapshot_rate_mismatch', 'recognition_identity_snapshot_invalid', 'recognition_functional_journal_mismatch', 'duplicate_allocation_fx_settlement', 'settlement_without_recognition', 'settlement_recognition_lineage_mismatch', 'settlement_currency_mismatch', 'settlement_snapshot_pair_mismatch', 'released_carrying_exceeds_recognition', 'settled_foreign_exceeds_invoice', 'settlement_realized_fx_arithmetic_mismatch', 'settlement_journal_currency_mismatch', 'settlement_treasury_currency_mismatch'] as $key) {
+            self::assertNotNull(collect($first['findings'])->firstWhere('key', $key));
+        }
+        foreach (['inventory_return_fx_lineage_mismatch', 'supplier_credit_fx_carrying_mismatch', 'supplier_credit_fx_policy_journal_mismatch', 'supplier_refund_fx_snapshot_lineage_mismatch', 'supplier_refund_fx_accounting_treasury_mismatch'] as $key) {
             self::assertNotNull(collect($first['findings'])->firstWhere('key', $key));
         }
         self::assertSame('testing', $first['environment']);
