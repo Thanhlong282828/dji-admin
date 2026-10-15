@@ -50,7 +50,11 @@ Scheduled reconciliation is opt-in. When `DOCUMENT_RECONCILIATION_SCHEDULE_ENABL
 
 With the default batch size of 25, 1,000 active companies form 40 cursor batches. The five-minute scheduler starts the next bounded batch only after the overlap lock is free. A slow provider may extend the full cycle, but it cannot turn the operation into an unbounded single process.
 
-For native Debian VPS deployment, install `clamav` and `clamav-freshclam`, populate `/var/lib/clamav`, and grant the PHP/queue service user read/execute access. For the canonical Docker runtime, the image packages `clamav-scanner` and `clamav-db`; rebuild the image when the packaged database changes or mount a separately maintained read-only signature volume.
+For native Debian VPS deployment, install `clamav` and `clamav-freshclam`, populate `/var/lib/clamav`, and grant the PHP/queue service user read/execute access. Do not run a resident ClamAV daemon on the 964 MiB application VPS unless staging measurements and a separate approval prove sufficient capacity.
+
+For the canonical Alpine Docker runtime, the image packages `clamav-scanner` and `freshclam`. During the immutable image build, `/usr/local/bin/laraveldji-clamav-update` downloads the official signature databases under a bounded timeout and then requires `clamscan --database=<directory> --version` to load them successfully. A missing, empty, stale or unloadable database fails readiness; never create placeholder signatures or bypass scanning. The application does not start `clamd` and never updates signatures from an HTTP request. Refresh signatures by rebuilding the immutable image, by a separately governed read-only signature volume, or by an approved remote-scanner topology.
+
+Laravel package discovery in the Docker build runs with a non-production testing identity only so the production database guard is not weakened or supplied with fabricated production credentials. Runtime production startup must still provide and pass the real environment safety configuration.
 
 ## Alerting and recovery
 

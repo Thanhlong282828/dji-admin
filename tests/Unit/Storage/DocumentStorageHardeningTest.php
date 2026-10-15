@@ -21,7 +21,7 @@ final class DocumentStorageHardeningTest extends TestCase
         $scanner = $this->script('exit 0');
         $signatures = sys_get_temp_dir().'/clamav-signatures-'.bin2hex(random_bytes(6));
         mkdir($signatures, 0700, true);
-        file_put_contents($signatures.'/main.cvd', 'test-only-signature-metadata');
+        file_put_contents($signatures.'/main.cvd', 'ClamAV-VDB:test-only-signature-metadata');
 
         try {
             config()->set([
@@ -47,6 +47,14 @@ final class DocumentStorageHardeningTest extends TestCase
             self::assertStringContainsString('"ready":true', $output);
             self::assertStringNotContainsString('configured-test-key', $output);
             self::assertStringNotContainsString('configured-test-secret', $output);
+
+            unlink($signatures.'/main.cvd');
+            self::assertSame(1, Artisan::call('documents:storage-readiness'));
+            $missingSignatureOutput = Artisan::output();
+            self::assertStringContainsString('"clamav_signatures_present":false', $missingSignatureOutput);
+            self::assertStringContainsString('"clamav_signature_database_loadable":false', $missingSignatureOutput);
+
+            file_put_contents($signatures.'/main.cvd', 'ClamAV-VDB:test-only-signature-metadata');
 
             config()->set('document.reconciliation.companies_per_run', 0);
             self::assertSame(1, Artisan::call('documents:storage-readiness'));

@@ -4,6 +4,8 @@ namespace Modules\Document\Console\Commands;
 
 use Illuminate\Console\Command;
 use Symfony\Component\Process\ExecutableFinder;
+use Symfony\Component\Process\Process;
+use Throwable;
 
 final class StorageRuntimeReadinessCommand extends Command
 {
@@ -19,8 +21,13 @@ final class StorageRuntimeReadinessCommand extends Command
             ? (str_contains($binary, DIRECTORY_SEPARATOR) && is_executable($binary) ? $binary : $executables->find($binary))
             : null;
         $databaseDirectory = config('document.malware_scanner_database_directory', '/var/lib/clamav');
-        $signatureAge = $this->newestSignatureAgeHours(is_string($databaseDirectory) ? $databaseDirectory : '');
+        $databasePath = is_string($databaseDirectory) ? $databaseDirectory : '';
+        $signatureAge = $this->newestSignatureAgeHours($databasePath);
         $maxSignatureAge = max(1, (int) config('document.malware_scanner_max_signature_age_hours', 48));
+        $scannerReady = is_string($binaryPath)
+            && is_executable($binaryPath)
+            && $signatureAge !== null
+            && $this->scannerAcceptsDatabase($binaryPath, $databasePath);
         $scheduleEnabled = (bool) config('document.reconciliation.schedule_enabled', false);
         $companiesPerRun = (int) config('document.reconciliation.companies_per_run', 25);
         $batchMaxSeconds = (int) config('document.reconciliation.batch_max_seconds', 240);
@@ -38,6 +45,7 @@ final class StorageRuntimeReadinessCommand extends Command
             'clamav_binary_executable' => is_string($binaryPath) && is_executable($binaryPath),
             'clamav_signatures_present' => $signatureAge !== null,
             'clamav_signatures_fresh' => $signatureAge !== null && $signatureAge <= $maxSignatureAge,
+            'clamav_signature_database_loadable' => $scannerReady,
             'reconciliation_tenant_scoped' => ! $scheduleEnabled || ($companiesPerRun >= 1 && $companiesPerRun <= 100 && $batchMaxSeconds >= 30 && $batchMaxSeconds <= 300),
         ];
 
@@ -60,5 +68,23 @@ final class StorageRuntimeReadinessCommand extends Command
         }
 
         return (int) floor((time() - max($modified)) / 3600);
+    }
+
+    private function scannerAcceptsDatabase(string $binary, string $directory): bool
+    {
+        if ($directory === '') {
+            return false;
+        }
+
+        $process = new Process([$binary, '--database='.$directory, '--no-summary', '--version']);
+        $process->setTimeout(15);
+
+        try {
+            $process->run();
+        } catch (Throwable) {
+            return false;
+        }
+
+        return $process->isSuccessful();
     }
 }

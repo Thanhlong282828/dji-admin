@@ -94,8 +94,16 @@ final class RuntimeResourceHardeningTest extends TestCase
         $preflight = $this->projectFile('scripts/operations/document-storage-vps-preflight.sh');
         $provider = $this->projectFile('Modules/Document/app/Providers/DocumentServiceProvider.php');
 
-        self::assertStringContainsString('clamav-scanner clamav-db', $dockerfile);
-        self::assertStringContainsString('/var/lib/clamav', $dockerfile);
+        self::assertStringContainsString('clamav-scanner freshclam', $dockerfile);
+        self::assertStringContainsString('CLAMAV_FRESHCLAM_TIMEOUT_SECONDS=300', $dockerfile);
+        self::assertStringContainsString('laraveldji-clamav-update', $dockerfile);
+        $signatureUpdater = $this->projectFile('docker/clamav/update-signatures.sh');
+        self::assertStringContainsString('timeout "$timeout_seconds" freshclam', $signatureUpdater);
+        self::assertStringContainsString("sed '/^[[:space:]]*NotifyClamd", $signatureUpdater);
+        self::assertStringContainsString('timeout 30 clamscan', $signatureUpdater);
+        self::assertStringContainsString('freshclam completed without a non-empty official signature database', $signatureUpdater);
+        self::assertStringNotContainsString('touch ', $signatureUpdater);
+        self::assertStringNotContainsString('clamd', $dockerfile);
         self::assertStringContainsString('documents:storage-readiness --strict-production', $preflight);
         self::assertStringContainsString('APP_ENV must be production', $preflight);
         self::assertStringContainsString('DOCUMENT_RECONCILIATION_SCHEDULE_ENABLED', $this->projectFile('.env.example'));
