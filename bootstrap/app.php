@@ -1,5 +1,6 @@
 <?php
 
+use App\Console\Commands\DataQualityRemediationAuditCommand;
 use App\Console\Commands\ProjectServeCommand;
 use App\Contracts\ErrorTrackerInterface;
 use App\Http\Middleware\ApplySecurityHeaders;
@@ -20,6 +21,7 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withEvents(discover: false)
     ->withCommands([
         ProjectServeCommand::class,
+        DataQualityRemediationAuditCommand::class,
     ])
     ->withRouting(
         web: __DIR__.'/../routes/web.php',

@@ -131,6 +131,14 @@ Trước mọi yêu cầu so sánh, chuẩn bị hoặc chuyển dữ liệu loc
 
 Production data luôn là nguồn authoritative; tuyệt đối không import dump local đè production. Chỉ dùng allowlist, tenant mapping, ID remapping, dry-run mặc định, idempotency, audit/reconciliation và staging cô lập đã restore từ production backup. Không copy password, token, session, credential hoặc test/demo data. Database metadata và private object bytes là hai migration unit riêng; Supabase object transfer cần approval riêng. Mọi production import cần backup restore-verified và explicit approval đúng manifest.
 
+## MANDATORY DATA QUALITY REMEDIATION GOVERNANCE
+
+Trước mọi yêu cầu liên quan Data Quality audit, data repair, remediation manifest, legacy accounting attestation, fiscal-year mapping hoặc sửa identity verification, Codex phải đọc đầy đủ:
+
+- `docs/runbooks/data-quality-remediation.md`
+
+Audit phải read-only, deterministic, tenant-aware và xác minh configured/actual database. Mọi repair mặc định dry-run; mutation cần exact database confirmation, approved manifest SHA-256, batch UUID, authorization/maker-checker và audit trail. Không tự suy đoán fiscal year, phone, policy hoặc account mapping. Không update/delete posted journal, journal line hoặc historical mapping snapshot. Kết quả chạy và số liệu phiên nằm trong `docs/operations/`; runbook chỉ chứa luật tái sử dụng.
+
 ## MANDATORY SUPABASE STORAGE & RLS SECURITY GOVERNANCE
 
 Trước khi sửa Supabase Storage, S3 adapter, private document flow, signed URL, PostgreSQL/Data API, RLS policy, grant hoặc Supabase credential, phải đọc đầy đủ:

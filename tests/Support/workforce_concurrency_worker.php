@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Models\User;
 use App\Services\WorkforceNotificationDeliveryService;
+use App\Support\DataQuality\DataQualityRemediationAuditService;
 use Carbon\CarbonImmutable;
 use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Foundation\Application;
@@ -131,6 +132,10 @@ if (! is_file($barrier)) {
 
 try {
     $result = match ($scenario) {
+        'dq_remediation_audit' => app(DataQualityRemediationAuditService::class)->snapshot(
+            isset($payload['company_id']) ? requiredInt($payload, 'company_id') : null,
+            'schema_admin_testing',
+        ),
         'shift_assignment' => $app->make(WorkforceManagementService::class)->execute(new ManageWorkforceResourceCommand('assignment', 'created', requiredInt($payload, 'company_id'), null, ['employee_id' => requiredInt($payload, 'employee_id'), 'work_shift_id' => requiredInt($payload, 'shift_id'), 'assignment_type' => 'fixed', 'effective_from' => requiredString($payload, 'effective_from'), 'effective_to' => requiredString($payload, 'effective_to')], requiredInt($payload, 'actor_id'))),
         'commerce_checkout' => checkoutPlace($app->make(CheckoutService::class), $payload),
         'attendance_workflow' => attendance($app->make(AttendanceWorkflowService::class), $payload),
