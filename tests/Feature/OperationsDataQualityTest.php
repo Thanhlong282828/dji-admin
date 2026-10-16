@@ -76,6 +76,7 @@ final class OperationsDataQualityTest extends TestCase
         self::assertSame('TESTING', DataQualityDatabaseScope::purposeFor('schema_admin_testing'));
         self::assertSame('BROWSER_TESTING', DataQualityDatabaseScope::purposeFor('schema_admin_browser_testing'));
         self::assertSame('RECOVERY', DataQualityDatabaseScope::purposeFor('schema_admin_recovery_testing'));
+        self::assertSame('STAGING_RESTORE', DataQualityDatabaseScope::purposeFor('laraveldji_staging_restore'));
         self::assertSame('UNKNOWN', DataQualityDatabaseScope::purposeFor('customer_database'));
     }
 

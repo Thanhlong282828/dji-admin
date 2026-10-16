@@ -30,6 +30,14 @@ final class DataQualityRemediationAuditTest extends TestCase
         self::assertSame($first['checksum'], $second['checksum']);
         self::assertSame('DRY_RUN_READ_ONLY', $first['mode']);
         self::assertSame(0, $first['mutation_count']);
+        self::assertArrayNotHasKey('staging_authorization', $first);
+        $testingPayload = $first;
+        unset($testingPayload['checksum']);
+        self::assertSame(
+            $first['checksum'],
+            hash('sha256', json_encode($testingPayload, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES)),
+            'Testing checksum payload must remain unchanged when the record set is unchanged.',
+        );
         self::assertSame($before, $this->counts());
         $json = json_encode($first, JSON_THROW_ON_ERROR);
         self::assertStringNotContainsString('not-e164', $json);

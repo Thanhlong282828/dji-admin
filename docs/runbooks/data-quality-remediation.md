@@ -94,3 +94,19 @@ Không được gọi test tuần tự là concurrency proof.
 ## 10. Stop conditions
 
 Dừng ngay khi database identity sai, manifest/checksum không khớp, thiếu approval, tenant scope không rõ, posted history có nguy cơ bị rewrite, hoặc rollback/compensation chưa được xác định.
+
+## 11. Detailed audit trên production-derived staging clone
+
+Detailed DQ audit trên staging clone phải dùng contract `STAGING_RESTORE` riêng; không được giả `APP_ENV=testing`, đổi tên clone thành database testing hoặc bỏ qua `assertSafeScope()`.
+
+- Database canonical là `laraveldji_staging_restore`; configured database và actual PDO database phải khớp chính xác.
+- `APP_ENV` phải là `staging`, `APP_DEBUG=false`; `schema_admin` và production MySQL server UUID luôn bị từ chối.
+- Mỗi lần chạy cần approval receipt JSON có thời hạn, mode `DRY_RUN_READ_ONLY`, exact release SHA, backup artifact SHA-256, database/server UUID, GCP project, instance ID, toàn bộ network/subnet và xác nhận không có public IP.
+- Không nhận approval path, checksum, release SHA, backup SHA hoặc production UUID từ CLI/environment. Trust evidence phải được provision bằng kênh riêng tại các path cố định: `/etc/laraveldji/dq-staging-approval.json`, `/opt/laraveldji/release-identity.json`, `/etc/laraveldji/dq-staging-restore-receipt.json`.
+- Ba trust-evidence file và toàn bộ parent directory phải do root sở hữu, không group/other-writable và không phải symlink. Application user chỉ được đọc; private signing key tuyệt đối không nằm trong repository, image, host application account hoặc log.
+- Approval receipt chỉ có hiệu lực khi release SHA khớp root-owned immutable release identity (`immutable=true`) và backup SHA/production UUID khớp root-owned verified restore receipt (`restore_verified=true`). Manifest tự tạo hoặc tự khai báo checksum không phải bằng chứng phê duyệt độc lập.
+- Runtime phải tự đọc GCE metadata và actual `@@server_uuid`; không tin các identity do CLI cung cấp. Metadata request phải tắt redirect, có request header `Metadata-Flavor: Google`, xác minh response header cùng giá trị, enumerate tất cả NIC/access config và reject nếu bất kỳ NIC nào có external IP.
+- Database account chỉ được có `USAGE` toàn cục và `SELECT`/`SHOW VIEW` trên đúng staging schema; mọi quyền ghi, `ALL`, cross-schema hoặc `GRANT OPTION` đều bị từ chối.
+- Testing audit giữ payload/checksum lịch sử khi record-set không đổi; staging-only authorization evidence chỉ được thêm vào payload trong `APP_ENV=staging` sau khi toàn bộ authorization gate đạt.
+- Output chỉ chứa identity đã redaction, record keys, relationship, mutation count bằng 0 và deterministic checksum. Không ghi credential, private key, phone value hoặc production-derived sensitive payload vào Git.
+- Authorization này chỉ mở read-only detailed audit; không cho phép restore, migration, repair, seeding, queue, scheduler hoặc external side effects.

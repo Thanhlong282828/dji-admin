@@ -15,13 +15,16 @@ final readonly class DataQualityRemediationAuditService
     /** @var list<string> */
     private const SUPPORTED_RULES = ['identity.invalid_verified_phone', 'journal_without_policy', 'missing_account_mapping', 'posting_without_policy', 'posting_without_mapping', 'legacy_account_mapping_usage', 'journal_without_policy_snapshot', 'receipt_without_policy', 'collection_without_policy', 'cogs_without_inventory_source', 'expense_without_policy', 'period_without_fiscal_year'];
 
-    public function __construct(private DataQualityDatabaseScope $databaseScope) {}
+    public function __construct(
+        private DataQualityDatabaseScope $databaseScope,
+        private StagingRestoreAuditAuthorizer $stagingAuthorizer,
+    ) {}
 
     /** @return array<string,mixed> */
     public function snapshot(?int $companyId = null, ?string $expectedDatabase = null): array
     {
         $scope = $this->databaseScope->metadata();
-        $this->assertSafeScope($scope, $expectedDatabase);
+        $stagingAuthorization = $this->assertSafeScope($scope, $expectedDatabase);
         if ($companyId !== null && $companyId < 1) {
             throw new RuntimeException('Company scope must be a positive integer.');
         }
@@ -72,23 +75,35 @@ final readonly class DataQualityRemediationAuditService
             ], self::SUPPORTED_RULES),
             'relationships' => $relationships,
         ];
+        if ($stagingAuthorization !== null) {
+            $payload['staging_authorization'] = $stagingAuthorization;
+        }
         $payload['checksum'] = hash('sha256', json_encode($payload, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES));
 
         return $payload;
     }
 
     /** @param array<string,mixed> $scope */
-    private function assertSafeScope(array $scope, ?string $expectedDatabase): void
+    /**
+     * @param  array<string,mixed>  $scope
+     * @return array<string,mixed>|null
+     */
+    private function assertSafeScope(array $scope, ?string $expectedDatabase): ?array
     {
         if ($expectedDatabase === null || $expectedDatabase === '') {
             throw new RuntimeException('The exact expected database is required.');
         }
-        if (self::stringValue($scope['environment'] ?? null) !== 'testing' || self::stringValue($scope['database_purpose'] ?? null) !== 'TESTING' || self::boolValue($scope['database_matches'] ?? null) !== true) {
-            throw new RuntimeException('DQ remediation audit is restricted to a matching TESTING database in phase 1.');
+        if (self::stringValue($scope['environment'] ?? null) === 'testing') {
+            if (self::stringValue($scope['database_purpose'] ?? null) !== 'TESTING' || self::boolValue($scope['database_matches'] ?? null) !== true
+                || ! hash_equals($expectedDatabase, self::stringValue($scope['configured_database'] ?? null))
+                || ! hash_equals($expectedDatabase, self::stringValue($scope['actual_database'] ?? null))) {
+                throw new RuntimeException('Expected, configured and actual TESTING database identities must match.');
+            }
+
+            return null;
         }
-        if (! hash_equals($expectedDatabase, self::stringValue($scope['configured_database'] ?? null)) || ! hash_equals($expectedDatabase, self::stringValue($scope['actual_database'] ?? null))) {
-            throw new RuntimeException('Expected, configured and actual database identities must match.');
-        }
+
+        return $this->stagingAuthorizer->authorize($scope, $expectedDatabase);
     }
 
     /** @return list<array<string,mixed>> */

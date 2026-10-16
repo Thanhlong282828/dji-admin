@@ -16,6 +16,8 @@ final class EnvironmentSafetyGuardTest extends TestCase
         yield 'production debug is forbidden' => ['production', true, 'vps_admin_live'];
         yield 'production testing database is forbidden' => ['production', false, 'schema_admin_testing'];
         yield 'testing database requires suffix' => ['testing', false, 'schema_admin_test'];
+        yield 'staging cannot use production database' => ['staging', false, 'schema_admin'];
+        yield 'staging debug is forbidden' => ['staging', true, 'laraveldji_staging_restore'];
     }
 
     #[DataProvider('unsafeConfigurations')]
@@ -32,8 +34,9 @@ final class EnvironmentSafetyGuardTest extends TestCase
         EnvironmentSafetyGuard::assertSafe('local', true, 'schema_admin', []);
         EnvironmentSafetyGuard::assertSafe('testing', true, 'schema_admin_testing', []);
         EnvironmentSafetyGuard::assertSafe('testing', true, 'schema_admin_testing_workflow', []);
+        EnvironmentSafetyGuard::assertSafe('staging', false, 'laraveldji_staging_restore', []);
 
-        $this->addToAssertionCount(5);
+        $this->addToAssertionCount(6);
     }
 
     public function test_production_requires_an_explicit_matching_database_allowlist(): void

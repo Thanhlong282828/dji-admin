@@ -10,6 +10,12 @@ use App\Policies\Workforce\WorkforcePolicyGateRegistrar;
 use App\Services\LaravelWorkforceNotificationChannelSender;
 use App\Services\NullErrorTracker;
 use App\Support\Broadcasting\FailOpenRealtimeBroadcaster;
+use App\Support\DataQuality\GceStagingRuntimeIdentityProvider;
+use App\Support\DataQuality\PdoStagingDatabaseIdentityProvider;
+use App\Support\DataQuality\RootOwnedStagingTrustEvidenceProvider;
+use App\Support\DataQuality\StagingDatabaseIdentityProvider;
+use App\Support\DataQuality\StagingRuntimeIdentityProvider;
+use App\Support\DataQuality\StagingTrustEvidenceProvider;
 use App\Support\EnvironmentSafetyGuard;
 use App\Support\Identity\LocalPhoneVerificationProvider;
 use App\Support\Identity\PhoneVerificationProviderInterface;
@@ -50,6 +56,7 @@ class AppServiceProvider extends ServiceProvider
         $environmentValue = config('app.env');
         $localDatabaseValue = config('environment-safety.local_database');
         $productionDatabaseValue = config('release.production_database');
+        $stagingRestoreDatabaseValue = config('data-quality.staging_restore.database');
         EnvironmentSafetyGuard::assertSafe(
             is_string($environmentValue) ? $environmentValue : 'production',
             (bool) config('app.debug'),
@@ -58,9 +65,13 @@ class AppServiceProvider extends ServiceProvider
             (bool) config('environment-safety.require_testing_suffix', true),
             is_string($localDatabaseValue) ? $localDatabaseValue : 'schema_admin',
             is_string($productionDatabaseValue) ? $productionDatabaseValue : '',
+            is_string($stagingRestoreDatabaseValue) ? $stagingRestoreDatabaseValue : 'laraveldji_staging_restore',
         );
 
         $this->app->bind(WorkforceNotificationChannelSenderInterface::class, LaravelWorkforceNotificationChannelSender::class);
+        $this->app->bind(StagingRuntimeIdentityProvider::class, GceStagingRuntimeIdentityProvider::class);
+        $this->app->bind(StagingDatabaseIdentityProvider::class, PdoStagingDatabaseIdentityProvider::class);
+        $this->app->bind(StagingTrustEvidenceProvider::class, RootOwnedStagingTrustEvidenceProvider::class);
         $this->app->singleton(ErrorTrackerInterface::class, NullErrorTracker::class);
         $this->app->bind(SecretProviderInterface::class, ConfiguredSecretProvider::class);
         $this->app->bind(PhoneVerificationProviderInterface::class, function (): PhoneVerificationProviderInterface {

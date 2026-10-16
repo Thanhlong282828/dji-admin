@@ -35,6 +35,7 @@ final readonly class DataQualityDatabaseScope
             'schema_admin_testing' => 'TESTING',
             'schema_admin_browser_testing' => 'BROWSER_TESTING',
             'schema_admin_recovery_testing' => 'RECOVERY',
+            'laraveldji_staging_restore' => 'STAGING_RESTORE',
             default => 'UNKNOWN',
         };
     }

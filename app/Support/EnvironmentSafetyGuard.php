@@ -15,6 +15,7 @@ final class EnvironmentSafetyGuard
         bool $requireTestingSuffix = true,
         string $localDatabase = 'schema_admin',
         string $productionDatabase = '',
+        string $stagingRestoreDatabase = 'laraveldji_staging_restore',
     ): void {
         if (in_array($database, $protectedDatabases, true) && $environment !== 'production') {
             throw new RuntimeException(sprintf('Unsafe environment: APP_ENV=%s cannot connect to protected database %s.', $environment, $database));
@@ -43,6 +44,10 @@ final class EnvironmentSafetyGuard
             if ($debug) {
                 throw new RuntimeException('Unsafe environment: APP_DEBUG must be false in production.');
             }
+        }
+
+        if ($environment === 'staging' && ($database !== $stagingRestoreDatabase || $debug)) {
+            throw new RuntimeException(sprintf('Unsafe staging environment: database %s must be the canonical restore database and APP_DEBUG must be false.', $database));
         }
 
         if ($environment === 'testing' && $requireTestingSuffix && ! $testingDatabase) {
