@@ -2,7 +2,7 @@
 
 namespace Modules\Integration\Infrastructure\Security;
 
-use Illuminate\Contracts\Encryption\Encrypter;
+use Illuminate\Encryption\Encrypter;
 use Modules\Integration\Domain\Contracts\IntegrationCredentialProviderInterface;
 
 final readonly class EncryptedCredentialProvider implements IntegrationCredentialProviderInterface

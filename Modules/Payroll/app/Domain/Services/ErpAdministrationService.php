@@ -2,8 +2,8 @@
 
 namespace Modules\Payroll\Domain\Services;
 
-use Illuminate\Contracts\Encryption\Encrypter;
 use Illuminate\Database\ConnectionInterface;
+use Illuminate\Encryption\Encrypter;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Modules\Payroll\Application\DTOs\ErpAdministrationData;

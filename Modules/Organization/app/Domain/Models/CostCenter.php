@@ -9,7 +9,13 @@ use Modules\Company\Domain\Models\Company;
 
 final class CostCenter extends Model
 {
-    protected $guarded = ['id', 'created_at', 'updated_at'];
+    protected $fillable = [
+        'annual_budget',
+        'code',
+        'company_id',
+        'currency',
+        'name',
+    ];
 
     protected function casts(): array
     {

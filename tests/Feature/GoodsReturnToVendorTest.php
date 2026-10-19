@@ -24,11 +24,18 @@ use Modules\Procurement\Application\Services\VendorRefundConfigurationReadinessS
 use Modules\Procurement\Application\Services\VendorRefundService;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Spatie\Permission\Models\Permission;
+use Spatie\Permission\PermissionRegistrar;
 use Tests\TestCase;
 
 final class GoodsReturnToVendorTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
+    }
 
     public function test_unbilled_partial_return_is_append_only_balanced_and_idempotent(): void
     {

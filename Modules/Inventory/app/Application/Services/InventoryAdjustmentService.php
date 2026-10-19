@@ -45,6 +45,7 @@ final readonly class InventoryAdjustmentService
                 if (! is_array($line)) {
                     throw ValidationException::withMessages(['lines' => 'INVENTORY_STOCK_COUNT_LINE_INVALID']);
                 }
+                /** @var array<string, mixed> $line */
                 $variantId = $this->positive($line, 'product_variant_id');
                 if (isset($snapshots[$variantId])) {
                     throw ValidationException::withMessages(['lines' => 'INVENTORY_STOCK_COUNT_VARIANT_DUPLICATE']);

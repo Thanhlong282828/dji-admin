@@ -40,14 +40,14 @@ final readonly class SupplierCreditService
                     'reason' => $this->text($data['reason'] ?? null, 'reason'),
                 ];
                 foreach ($expected as $field => $value) {
-                    if ((string) data_get($existing, $field) !== (string) $value) {
+                    if ($this->value($existing, $field) !== $value) {
                         throw ValidationException::withMessages(['idempotency_key' => 'SUPPLIER_CREDIT_IDEMPOTENCY_CONFLICT']);
                     }
                 }
                 if (! is_object($line)
-                    || (int) data_get($line, 'goods_return_line_id') !== $this->positive($data['goods_return_line_id'] ?? null, 'goods_return_line_id')
-                    || (int) data_get($line, 'vendor_bill_receipt_allocation_id') !== $this->positive($data['vendor_bill_receipt_allocation_id'] ?? null, 'vendor_bill_receipt_allocation_id')
-                    || (isset($data['quantity']) && (int) data_get($line, 'quantity') !== $this->positive($data['quantity'], 'quantity'))) {
+                    || $this->int($line, 'goods_return_line_id') !== $this->positive($data['goods_return_line_id'] ?? null, 'goods_return_line_id')
+                    || $this->int($line, 'vendor_bill_receipt_allocation_id') !== $this->positive($data['vendor_bill_receipt_allocation_id'] ?? null, 'vendor_bill_receipt_allocation_id')
+                    || (isset($data['quantity']) && $this->int($line, 'quantity') !== $this->positive($data['quantity'], 'quantity'))) {
                     throw ValidationException::withMessages(['idempotency_key' => 'SUPPLIER_CREDIT_IDEMPOTENCY_CONFLICT']);
                 }
 

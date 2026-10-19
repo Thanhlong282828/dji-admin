@@ -62,7 +62,12 @@
         <label for="admin-navigation-search">{{ $useOriginalCopy ? 'Tìm nhanh trong menu' : __('navigation.search') }}</label>
         <input id="admin-navigation-search" type="search" autocomplete="off" placeholder="{{ $useOriginalCopy ? 'Ví dụ: payroll, bảo mật…' : __('navigation.search_placeholder') }}" data-nav-search>
     </div>
-    <nav class="primary-navigation" aria-label="Điều hướng chính" data-primary-navigation>
+    <nav
+        class="primary-navigation"
+        aria-label="Điều hướng chính"
+        data-primary-navigation
+        data-navigation-destination-count="{{ array_sum(array_map(static fn (array $group): int => count($group['items']), $navigationGroups)) }}"
+    >
         @forelse($navigationGroups as $group)
             <section class="nav-group {{ $group['active'] ? 'is-active is-open' : '' }}" data-nav-group="{{ $group['key'] }}" data-route-active="{{ $group['active'] ? 'true' : 'false' }}">
                 <h2>
@@ -345,7 +350,7 @@
 
         <section>
             <h3>
-                Khi thao tác, dữ liệu thay đổi ở đâu
+                Sau khi lưu thì dữ liệu đi đâu
             </h3>
 
             <ul>

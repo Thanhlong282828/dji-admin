@@ -7,7 +7,16 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 final class DataConsent extends Model
 {
-    protected $guarded = ['id'];
+    protected $fillable = [
+        'actor_id',
+        'decided_at',
+        'employee_id',
+        'expires_at',
+        'granted',
+        'policy_version',
+        'purpose',
+        'reason',
+    ];
 
     protected function casts(): array
     {

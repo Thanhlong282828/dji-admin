@@ -8,7 +8,8 @@ final class EmployeeAssignment extends Model
 {
     protected $table = 'employee_assignments';
 
-    protected $guarded = [];
+    protected $fillable = [
+    ];
 
     protected function casts(): array
     {

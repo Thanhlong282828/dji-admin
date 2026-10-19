@@ -3,7 +3,7 @@
 namespace Modules\Employee\Application\DTOs;
 
 use Carbon\CarbonImmutable;
-use Illuminate\Contracts\Encryption\Encrypter;
+use Illuminate\Encryption\Encrypter;
 use Modules\Employee\Domain\Enums\CredentialType;
 
 final readonly class EmployeeCredentialData

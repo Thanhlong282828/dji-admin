@@ -77,7 +77,9 @@ final readonly class SalesProcessHelpReadService extends ProcessHelpReadService
         }
         $creditExpression = Schema::hasTable('customer_credit_notes') ? 'COALESCE(credit.ar_reduction_minor,0)' : '0';
 
-        return (int) $query->selectRaw("SUM(GREATEST(customer_invoices.total_minor-COALESCE(allocation.allocated_minor,0)-{$creditExpression},0)) outstanding_minor")->value('outstanding_minor');
+        $value = $query->selectRaw("SUM(GREATEST(customer_invoices.total_minor-COALESCE(allocation.allocated_minor,0)-{$creditExpression},0)) outstanding_minor")->value('outstanding_minor');
+
+        return is_int($value) || (is_string($value) && ctype_digit($value)) ? (int) $value : 0;
     }
 
     /** @return array{gross_label:string,gross_value:int,ar_label:string,ar_value:int,suffix:string,meta:string,ar_meta:string} */

@@ -2,7 +2,7 @@
 
 namespace Modules\Employee\Domain\Services;
 
-use Illuminate\Contracts\Encryption\Encrypter;
+use Illuminate\Encryption\Encrypter;
 
 final readonly class EmployeeIdentityService
 {

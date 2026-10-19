@@ -9,7 +9,18 @@ use Modules\Company\Domain\Models\Company;
 
 final class JobPosition extends Model
 {
-    protected $guarded = ['id', 'created_at', 'updated_at'];
+    protected $fillable = [
+        'approved_headcount',
+        'budgeted_cost',
+        'career_level',
+        'code',
+        'company_id',
+        'competency_requirements',
+        'is_critical',
+        'job_grade',
+        'organization_unit_id',
+        'title',
+    ];
 
     protected function casts(): array
     {

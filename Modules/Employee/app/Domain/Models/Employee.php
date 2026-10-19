@@ -27,7 +27,29 @@ final class Employee extends Model
 {
     use HasUuids, SoftDeletes;
 
-    protected $guarded = ['id', 'uuid'];
+    protected $fillable = [
+        'avatar_storage_key',
+        'company_id',
+        'employee_code',
+        'employment_status',
+        'employment_type',
+        'full_name',
+        'identity_number',
+        'identity_number_hash',
+        'join_date',
+        'manager_id',
+        'nationality',
+        'official_date',
+        'personal_email',
+        'phone',
+        'source',
+        'source_application_id',
+        'source_candidate_id',
+        'source_offer_id',
+        'termination_date',
+        'user_id',
+        'work_email',
+    ];
 
     /** @return list<string> */
     public function uniqueIds(): array

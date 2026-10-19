@@ -31,7 +31,8 @@ final class BranchCommerceController extends Controller
     public function warehouse(Request $request): View
     {
         $data = $this->read($request, 'warehouse', ['branch_id' => $request->integer('branch_id')]);
-        $companyId = (int) ($data['companyId'] ?? $request->integer('company_id', 1));
+        $resolvedCompanyId = $data['companyId'] ?? null;
+        $companyId = is_int($resolvedCompanyId) ? $resolvedCompanyId : $request->integer('company_id', 1);
         $data['processHelp'] = $this->queries->ask(new GetInventoryProcessHelpQuery($companyId, $request->integer('branch_id') ?: null, $this->actor($request)));
 
         return view('admin.branch-commerce.warehouse', $data);

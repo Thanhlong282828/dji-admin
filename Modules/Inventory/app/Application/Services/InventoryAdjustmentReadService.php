@@ -34,7 +34,11 @@ final readonly class InventoryAdjustmentReadService
 
         return [
             'schema_status' => 'READY', 'locations' => $locations, 'balances' => $balances, 'stock_counts' => $counts, 'variances' => $variances, 'adjustments' => $adjustments,
-            'metrics' => ['open_counts' => $counts->whereIn('status', ['draft', 'submitted'])->count(), 'variance_units' => (int) $variances->sum(fn (object $row): int => abs((int) $row->variance_qty)), 'pending_adjustments' => $adjustments->whereIn('status', ['draft', 'approved'])->count(), 'posted_adjustments' => $adjustments->where('status', 'posted')->count()],
+            'metrics' => ['open_counts' => $counts->whereIn('status', ['draft', 'submitted'])->count(), 'variance_units' => $variances->sum(function (object $row): int {
+                $value = $row->variance_qty ?? null;
+
+                return abs(is_int($value) || (is_string($value) && preg_match('/^-?\d+$/', $value) === 1) ? (int) $value : 0);
+            }), 'pending_adjustments' => $adjustments->whereIn('status', ['draft', 'approved'])->count(), 'posted_adjustments' => $adjustments->where('status', 'posted')->count()],
         ];
     }
 }

@@ -2,7 +2,7 @@
 
 namespace Modules\Employee\Domain\Services;
 
-use Illuminate\Contracts\Encryption\Encrypter;
+use Illuminate\Encryption\Encrypter;
 use Illuminate\Validation\ValidationException;
 use Modules\Employee\Application\DTOs\EmployeeCredentialData;
 use Modules\Employee\Domain\Models\Employee;

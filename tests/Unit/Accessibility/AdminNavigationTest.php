@@ -12,11 +12,26 @@ use Illuminate\Support\Facades\Route;
 use InvalidArgumentException;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
+use Spatie\Permission\PermissionRegistrar;
 use Tests\TestCase;
 
 final class AdminNavigationTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
+    }
+
+    protected function tearDown(): void
+    {
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
+
+        parent::tearDown();
+    }
 
     public function test_navigation_has_unique_group_item_and_route_keys_with_permission_metadata(): void
     {

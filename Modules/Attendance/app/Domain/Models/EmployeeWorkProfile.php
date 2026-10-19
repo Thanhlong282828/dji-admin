@@ -7,7 +7,16 @@ use Illuminate\Database\Eloquent\Model;
 /** @property int $id @property int $company_id @property int $employee_id @property string $timezone @property int $work_calendar_id @property int|null $default_shift_id */
 final class EmployeeWorkProfile extends Model
 {
-    protected $guarded = ['id'];
+    protected $fillable = [
+        'company_id',
+        'daily_minutes',
+        'effective_from',
+        'employee_id',
+        'fte_basis_points',
+        'timezone',
+        'weekly_minutes',
+        'work_calendar_id',
+    ];
 
     protected function casts(): array
     {

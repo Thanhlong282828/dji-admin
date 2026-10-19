@@ -88,6 +88,26 @@ final class RuntimeResourceHardeningTest extends TestCase
         self::assertStringNotContainsString('MemoryMax=', $reverb);
     }
 
+    public function test_production_origin_is_loopback_only_and_reverse_proxy_headers_are_overwritten(): void
+    {
+        $productionCompose = $this->projectFile('docker-compose.prod.yml');
+        $originNginx = $this->projectFile('docker/nginx/default.conf');
+        $edgeProxy = $this->projectFile('deploy/nginx/laraveldji-reverse-proxy.conf.template');
+        $bootstrap = $this->projectFile('bootstrap/app.php');
+
+        self::assertStringContainsString('127.0.0.1:${APP_ORIGIN_PORT:-8081}:8080', $productionCompose);
+        self::assertStringNotContainsString('- "80:8080"', $productionCompose);
+        self::assertStringContainsString('proxy_pass http://127.0.0.1:${APP_ORIGIN_PORT}', $edgeProxy);
+
+        foreach (['Host $host', 'X-Forwarded-Host $host', 'X-Forwarded-Proto https', 'X-Forwarded-Port 443', 'X-Forwarded-For $remote_addr'] as $header) {
+            self::assertStringContainsString('proxy_set_header '.$header, $edgeProxy);
+        }
+
+        self::assertStringContainsString('HTTP_X_FORWARDED_PROTO $safe_forwarded_proto', $originNginx);
+        self::assertStringContainsString('$middleware->trustProxies(', $bootstrap);
+        self::assertStringContainsString("'proxies' => env('TRUSTED_PROXIES'", $this->projectFile('config/trustedproxy.php'));
+    }
+
     public function test_document_storage_runtime_is_packaged_and_preflighted_for_vps(): void
     {
         $dockerfile = $this->projectFile('Dockerfile');

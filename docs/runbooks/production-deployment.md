@@ -96,6 +96,29 @@ Do not use `migrate:fresh`, `migrate:refresh`, `migrate:reset` or blind producti
 
 ## Deployment topology
 
+### Reverse proxy and origin exposure
+
+- Public traffic must terminate at the approved edge/host reverse proxy. The
+  application container origin must bind to loopback or a private-only network;
+  never publish its HTTP/FastCGI/Reverb ports on every host interface.
+- The edge proxy must overwrite `Host`, `X-Forwarded-For`,
+  `X-Forwarded-Host`, `X-Forwarded-Port` and `X-Forwarded-Proto`; it must not
+  append untrusted client-supplied forwarding metadata.
+- Laravel may trust only the explicit loopback/private proxy ranges supplied by
+  deployment configuration. Adding a public/unbounded trusted proxy is not an
+  acceptable substitute for origin network isolation.
+- Hiding the backend requires an infrastructure control in addition to Nginx:
+  prefer Cloudflare Tunnel/private ingress, or restrict the origin firewall to
+  the approved edge proxy ranges and use authenticated origin TLS. DNS proxying
+  alone does not hide an origin whose public IP remains reachable.
+- Before cutover, prove direct access to the origin address/port is denied,
+  HTTPS URL generation uses the forwarded scheme, the application records the
+  verified client IP, WebSocket upgrades work, and health endpoints remain
+  reachable only through the intended path.
+- Updating proxy configuration, firewall, Cloudflare Tunnel/DNS, certificates
+  or reloading Nginx is a production mutation requiring explicit approval,
+  configuration validation and rollback instructions.
+
 Use versioned immutable release directories with shared persistent paths and an atomic `current` symlink. Do not overwrite a live checkout in place.
 
 The approved sequence is:

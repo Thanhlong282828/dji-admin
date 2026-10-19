@@ -23,6 +23,33 @@ final class FederatedIdentityAndPassportTest extends TestCase
 {
     use RefreshDatabase;
 
+    /** @var array{private:string,public:string}|null */
+    private static ?array $passportKeys = null;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        if (self::$passportKeys === null) {
+            $resource = openssl_pkey_new([
+                'private_key_bits' => 2048,
+                'private_key_type' => OPENSSL_KEYTYPE_RSA,
+            ]);
+            self::assertNotFalse($resource);
+
+            $privateKey = '';
+            self::assertTrue(openssl_pkey_export($resource, $privateKey));
+            $details = openssl_pkey_get_details($resource);
+            self::assertIsArray($details);
+            self::assertIsString($details['key'] ?? null);
+
+            self::$passportKeys = ['private' => $privateKey, 'public' => $details['key']];
+        }
+
+        config()->set('passport.private_key', self::$passportKeys['private']);
+        config()->set('passport.public_key', self::$passportKeys['public']);
+    }
+
     public function test_external_identity_link_is_explicit_and_does_not_auto_merge_by_email(): void
     {
         $owner = User::factory()->create(['email' => 'owner@example.test']);

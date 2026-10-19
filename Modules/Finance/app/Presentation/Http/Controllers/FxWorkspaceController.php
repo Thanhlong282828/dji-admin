@@ -43,14 +43,16 @@ final readonly class FxWorkspaceController
     public function mutate(FxRateRequest $request): RedirectResponse
     {
         [$user, $companyId] = $this->scope($request);
+        /** @var array<string, mixed> $validated */
         $validated = $request->validated();
-        $action = (string) $validated['action'];
+        $action = is_string($validated['action'] ?? null) ? $validated['action'] : abort(422);
         $permission = in_array($action, ['approve', 'activate'], true) ? 'finance.fx-rate.approve' : 'finance.fx-rate.manage';
         abort_unless($user->can($permission), 403);
         if ($action === 'create') {
             $this->commands->dispatch(new CreateFxRateCommand($companyId, $user, $validated));
         } else {
-            $this->commands->dispatch(new TransitionFxRateCommand($companyId, (int) ($validated['rate_id'] ?? 0), $action, $user));
+            $rateId = $validated['rate_id'] ?? null;
+            $this->commands->dispatch(new TransitionFxRateCommand($companyId, is_int($rateId) ? $rateId : 0, $action, $user));
         }
 
         return back()->with('status', 'FX Rate Governance đã cập nhật.');
@@ -81,19 +83,22 @@ final readonly class FxWorkspaceController
     {
         [$user, $companyId] = $this->scope($request);
         abort_unless($user->can('finance.fx-revaluation.manage'), 403);
+        /** @var array{branch_id?:int|null,accounting_period_id:int,as_of_date:string,idempotency_key:string} $data */
         $data = $request->validated();
-        $branchId = isset($data['branch_id']) ? (int) $data['branch_id'] : null;
+        $branchId = $data['branch_id'] ?? null;
         if ($branchId !== null) {
             abort_unless($this->access->branch($user, $companyId, $branchId), 404);
         }
         $runId = $this->commands->dispatch(new CreateFxRevaluationRunCommand(
-            $companyId, $branchId, (int) $data['accounting_period_id'], (string) $data['as_of_date'],
-            (string) $data['idempotency_key'], $user, [],
+            $companyId, $branchId, $data['accounting_period_id'], $data['as_of_date'],
+            $data['idempotency_key'], $user, [],
         ));
+        abort_unless(is_int($runId), 500);
 
         return back()->with('status', 'Đã tạo FX Revaluation run #'.$runId.' từ AR/AP evidence hợp lệ.');
     }
 
+    /** @param view-string $view */
     private function view(Request $request, string $workspace, string $view): View
     {
         [$user, $companyId] = $this->scope($request);

@@ -11,7 +11,17 @@ use Modules\Employee\Domain\Models\Employee;
 /** @property int $id @property int $company_id @property int $employee_id @property CarbonImmutable $occurred_at @property AttendanceEventType $event_type */
 final class AttendanceEvent extends Model
 {
-    protected $guarded = ['id'];
+    protected $fillable = [
+        'branch_id',
+        'company_id',
+        'created_by',
+        'deduplication_key',
+        'employee_id',
+        'event_type',
+        'local_date',
+        'occurred_at',
+        'source',
+    ];
 
     protected function casts(): array
     {

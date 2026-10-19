@@ -13,7 +13,9 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
 COPY resources ./resources
-COPY vite.config.js postcss.config.js tailwind.config.js ./
+COPY Modules ./Modules
+COPY --from=vendor /app/vendor/laravel/framework/src/Illuminate/Pagination/resources/views ./vendor/laravel/framework/src/Illuminate/Pagination/resources/views
+COPY vite.config.js tailwind.config.js ./
 RUN npm run build
 
 FROM php:8.4-fpm-alpine AS runtime

@@ -34,7 +34,9 @@ final readonly class VendorRefundService
                     'amount_minor' => $this->positive($data['amount_minor'] ?? null, 'amount_minor'),
                 ];
                 foreach ($expected as $field => $value) {
-                    if ((string) data_get($existing, $field) !== (string) $value) {
+                    $actual = data_get($existing, $field);
+                    if ((is_int($value) && (! is_numeric($actual) || (int) $actual !== $value))
+                        || (is_string($value) && (! is_string($actual) || $actual !== $value))) {
                         throw ValidationException::withMessages(['idempotency_key' => 'SUPPLIER_REFUND_IDEMPOTENCY_CONFLICT']);
                     }
                 }
@@ -44,7 +46,8 @@ final readonly class VendorRefundService
             $receivableId = $this->positive($data['vendor_refund_receivable_id'] ?? null, 'vendor_refund_receivable_id');
             $receivable = $this->receivable($companyId, $receivableId, true);
             $amount = $this->positive($data['amount_minor'] ?? null, 'amount_minor');
-            $reserved = (int) $this->db->table('supplier_refund_receipts')->where('vendor_refund_receivable_id', $receivableId)->whereNotIn('status', ['cancelled', 'rejected'])->lockForUpdate()->sum('amount_minor');
+            $reservedValue = $this->db->table('supplier_refund_receipts')->where('vendor_refund_receivable_id', $receivableId)->whereNotIn('status', ['cancelled', 'rejected'])->lockForUpdate()->sum('amount_minor');
+            $reserved = is_int($reservedValue) || (is_string($reservedValue) && ctype_digit($reservedValue)) ? (int) $reservedValue : 0;
             if ($amount > $this->int($receivable, 'original_minor') - $reserved) {
                 throw ValidationException::withMessages(['amount_minor' => 'SUPPLIER_REFUND_EXCEEDS_REMAINING_RECEIVABLE']);
             }

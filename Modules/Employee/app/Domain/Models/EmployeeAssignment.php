@@ -10,7 +10,17 @@ use Modules\Organization\Domain\Models\OrganizationUnit;
 
 final class EmployeeAssignment extends Model
 {
-    protected $guarded = ['id'];
+    protected $fillable = [
+        'allocation_percent',
+        'assignment_type',
+        'effective_from',
+        'effective_to',
+        'employee_id',
+        'job_position_id',
+        'manager_id',
+        'organization_unit_id',
+        'work_location',
+    ];
 
     protected function casts(): array
     {

@@ -15,7 +15,16 @@ use Illuminate\Database\Eloquent\Model;
  */
 final class HireTransactionMarker extends Model
 {
-    protected $guarded = ['id'];
+    protected $fillable = [
+        'actor_id',
+        'company_id',
+        'completed_at',
+        'employee_id',
+        'idempotency_key',
+        'onboarding_case_id',
+        'offer_id',
+        'status',
+    ];
 
     protected function casts(): array
     {
