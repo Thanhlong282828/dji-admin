@@ -1,0 +1,123 @@
+name: Publish Immutable Release Image
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_sha:
+        description: Full 40-character commit SHA to publish
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: publish-release-image-${{ inputs.release_sha }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Build and publish immutable GHCR image
+    runs-on: ubuntu-latest
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
+
+    steps:
+      - name: Validate release SHA input
+        env:
+          RELEASE_SHA: ${{ inputs.release_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! "$RELEASE_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo 'release_sha must be a lowercase, full 40-character Git commit SHA.' >&2
+            exit 1
+          fi
+
+      - name: Check out exact release commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.release_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Verify source identity and clean checkout
+        env:
+          RELEASE_SHA: ${{ inputs.release_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          actual_sha="$(git rev-parse HEAD)"
+          test "$actual_sha" = "$RELEASE_SHA"
+          git cat-file -e "${RELEASE_SHA}^{commit}"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Resolve canonical lowercase image name
+        id: image
+        env:
+          REPOSITORY: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          image_name="ghcr.io/${REPOSITORY,,}"
+          echo "name=$image_name" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Authenticate to GHCR with repository GITHUB_TOKEN
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and publish linux/amd64 image
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.image.outputs.name }}:${{ inputs.release_sha }}
+          labels: |
+            org.opencontainers.image.revision=${{ inputs.release_sha }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+          provenance: mode=max
+          sbom: true
+
+      - name: Verify registry digest and pulled image identity
+        env:
+          IMAGE_NAME: ${{ steps.image.outputs.name }}
+          RELEASE_SHA: ${{ inputs.release_sha }}
+          REGISTRY_DIGEST: ${{ steps.build.outputs.digest }}
+          SOURCE_URL: ${{ github.server_url }}/${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$REGISTRY_DIGEST"
+          image_by_digest="${IMAGE_NAME}@${REGISTRY_DIGEST}"
+
+          docker buildx imagetools inspect "$image_by_digest" > /tmp/release-image-manifest.txt
+          awk '$1 == "Digest:" { print $2 }' /tmp/release-image-manifest.txt | grep -Fx "$REGISTRY_DIGEST"
+
+          docker pull --platform linux/amd64 "$image_by_digest"
+          architecture="$(docker image inspect "$image_by_digest" --format '{{.Architecture}}')"
+          revision="$(docker image inspect "$image_by_digest" --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')"
+          source="$(docker image inspect "$image_by_digest" --format '{{index .Config.Labels "org.opencontainers.image.source"}}')"
+
+          test "$architecture" = 'amd64'
+          test "$revision" = "$RELEASE_SHA"
+          test "$source" = "$SOURCE_URL"
+
+          {
+            echo '## Immutable GHCR artifact'
+            echo
+            echo "- Image: ${IMAGE_NAME}:${RELEASE_SHA}"
+            echo "- Digest: ${REGISTRY_DIGEST}"
+            echo '- Platform: linux/amd64'
+            echo "- OCI revision: ${revision}"
+            echo "- OCI source: ${source}"
+            echo '- GHCR authentication: repository GITHUB_TOKEN'
+          } >> "$GITHUB_STEP_SUMMARY"

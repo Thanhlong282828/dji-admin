@@ -10,7 +10,8 @@ on:
         description: Optional deployment target
         required: false
         type: choice
-        options: ['', development, production]
+        default: build-only
+        options: [build-only, development, production]
 
 permissions:
   contents: read
@@ -86,7 +87,7 @@ jobs:
       - run: php artisan operations:migration-risk
       - run: php artisan optimize
       - name: Readiness smoke test
-        run: php artisan serve --host=127.0.0.1 --port=8000 & server=$!; trap 'kill $server' EXIT; for i in {1..12}; do curl --fail http://127.0.0.1:8000/health/ready && exit 0; sleep 2; done; exit 1
+        run: php artisan serve --host=127.0.0.1 --port=8000 & server=$!; trap 'kill $server' EXIT; for _ in {1..12}; do curl --fail http://127.0.0.1:8000/health/ready && exit 0; sleep 2; done; exit 1
 
   docker:
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
