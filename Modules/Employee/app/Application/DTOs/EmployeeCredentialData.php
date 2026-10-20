@@ -3,7 +3,7 @@
 namespace Modules\Employee\Application\DTOs;
 
 use Carbon\CarbonImmutable;
-use Illuminate\Encryption\Encrypter;
+use Illuminate\Contracts\Encryption\StringEncrypter;
 use Modules\Employee\Domain\Enums\CredentialType;
 
 final readonly class EmployeeCredentialData
@@ -31,7 +31,7 @@ final readonly class EmployeeCredentialData
     }
 
     /** @return array{type:string,name:string,issuer:string|null,issued_at:string|null,expires_at:string|null,credential_number:string|null} */
-    public function toPersistence(Encrypter $encrypter): array
+    public function toPersistence(StringEncrypter $encrypter): array
     {
         return [
             'type' => $this->type->value,

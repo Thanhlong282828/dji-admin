@@ -91,10 +91,22 @@ async function walk(viewport, verifyDialogs) {
 
 async function gotoStable(page, url) {
     try {
-        return await page.goto(url, { waitUntil: 'domcontentloaded' });
+        const response = await page.goto(url, { waitUntil: 'domcontentloaded' });
+        await waitForPresentation(page);
+        return response;
     } catch (error) {
         if (!String(error).includes('ERR_ABORTED') && !String(error).includes('ERR_NETWORK_IO_SUSPENDED')) throw error;
         await page.waitForTimeout(100);
-        return page.goto(url, { waitUntil: 'domcontentloaded' });
+        const response = await page.goto(url, { waitUntil: 'domcontentloaded' });
+        await waitForPresentation(page);
+        return response;
     }
+}
+
+async function waitForPresentation(page) {
+    await page.waitForFunction(() => [...document.querySelectorAll('link[rel="stylesheet"]')].every(link => link.sheet !== null));
+    await page.evaluate(async () => {
+        await document.fonts.ready;
+        await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    });
 }

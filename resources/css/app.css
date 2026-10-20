@@ -414,3 +414,5 @@ body>aside.admin-sidebar{border-right-color:#3a321f;background:linear-gradient(1
 html,body,.admin-shell,.auth-body,.public-site,button,input,select,textarea{font-family:var(--erp-font-sans)}
 h1,h2,h3,.admin-page-header h1,.erp-page-hero h2,.page-hero h2,.hero-panel h2,.section-head h3,.auth-brand h1,.auth-card__heading h2{font-family:var(--erp-font-display)}
 .sidebar-locale{position:relative;margin-top:auto;padding:12px 4px 0}.sidebar-locale>button,.sidebar-locale [role="menuitem"]{width:100%;border:1px solid #4e4022;border-radius:8px;background:#111;color:#f1d479;padding:10px;text-align:left;cursor:pointer}.sidebar-locale>button{display:flex;align-items:center;gap:9px}.sidebar-locale [data-locale-menu]{position:absolute;left:4px;right:4px;bottom:calc(100% + 6px);z-index:25;padding:6px;border:1px solid #5d4923;border-radius:10px;background:#0d0e10;box-shadow:0 16px 40px #000a}.sidebar-locale form+form{margin-top:4px}.sidebar-locale [role="menuitem"]:hover,.sidebar-locale [role="menuitem"]:focus-visible{background:#211b10;color:#fff4c9;outline:2px solid #d7b45a}
+
+.erp-break-anywhere{min-width:0;overflow-wrap:anywhere;word-break:break-word}

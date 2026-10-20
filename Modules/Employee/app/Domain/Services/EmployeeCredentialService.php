@@ -2,7 +2,7 @@
 
 namespace Modules\Employee\Domain\Services;
 
-use Illuminate\Encryption\Encrypter;
+use Illuminate\Contracts\Encryption\StringEncrypter;
 use Illuminate\Validation\ValidationException;
 use Modules\Employee\Application\DTOs\EmployeeCredentialData;
 use Modules\Employee\Domain\Models\Employee;
@@ -10,7 +10,7 @@ use Modules\Employee\Domain\Models\EmployeeCredential;
 
 final readonly class EmployeeCredentialService
 {
-    public function __construct(private Encrypter $encrypter) {}
+    public function __construct(private StringEncrypter $encrypter) {}
 
     public function create(int $companyId, int $employeeId, EmployeeCredentialData $data): EmployeeCredential
     {
