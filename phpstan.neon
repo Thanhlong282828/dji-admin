@@ -3,4 +3,3 @@ includes:
 parameters:
     level: 10
     paths: [app]
-    excludePaths: [app/Modules]

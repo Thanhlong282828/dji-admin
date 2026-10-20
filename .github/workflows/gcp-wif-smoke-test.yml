@@ -28,6 +28,7 @@ jobs:
         run: |
           set -euo pipefail
 
+          # shellcheck disable=SC2016 # Preserve expansion for the remote shell.
           gcloud compute ssh 'laravel-server'             --project='project-06b7a0c7-35a4-4282-b81'             --zone='asia-southeast1-a'             --tunnel-through-iap             --quiet             --command='
               set -eu
 
