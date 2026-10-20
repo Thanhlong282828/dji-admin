@@ -22,6 +22,21 @@ File này áp dụng cho toàn bộ repository. Mọi thay đổi mới hoặc c
 - Luôn giữ đúng tenant/company/branch scope, quyền truy cập, ownership và các điều kiện nghiệp vụ hiện có.
 - Không ghép dữ liệu của các bounded context khác nhau chỉ vì chúng trông giống nhau trên giao diện.
 
+## MANDATORY FIX INTEGRATION & REGRESSION GOVERNANCE
+
+Trước mọi bug fix, worktree integration, release candidate hoặc kết luận hoàn thành, phải đọc đầy đủ:
+
+- `docs/enterprise-release-governance.md`
+
+- Mỗi lỗi phải được xác định root cause và phân biệt rõ source defect, configuration defect, tooling failure và environment failure; không dùng workaround để che triệu chứng.
+- Worktree cô lập được phép dùng để phát triển và kiểm thử, nhưng một fix chỉ tồn tại trong `/private/tmp` không được phân loại `DONE`. Báo cáo cuối phải nêu rõ source worktree/commit, test evidence và trạng thái tích hợp vào project chính.
+- Trước khi tích hợp phải xác minh project chính bằng branch, `HEAD`, `git status` và dirty-file inventory. Không `reset`, `restore`, `clean`, `stash`, checkout file cũ hoặc ghi đè thay đổi tích lũy. Khi có overlap/xung đột phải dừng và xin phê duyệt; không tích hợp một phần của release có các file phụ thuộc đang xung đột.
+- Mỗi bug fix phải có regression test hoặc một executable static/contract gate phù hợp chứng minh lỗi không quay lại. Không xóa test, làm yếu assertion, hạ PHPStan, thêm baseline/`ignoreErrors`, bỏ qua security/tenant checks hoặc đổi expected behavior chỉ để đạt PASS.
+- PHPStan bắt buộc level 10 cho toàn bộ `app` và `Modules`. Không được loại một trong hai scope khỏi CI hoặc cấu hình PHPStan.
+- Việc sửa và tích hợp phải giữ nguyên tenant isolation, RBAC, ABAC, Policy/Gate, mass-assignment allowlist, accounting immutability và Finance/Tax calculations trừ khi có bằng chứng nghiệp vụ cùng kiểm thử được phê duyệt. Cấm đưa lại `$guarded = []` hoặc dùng `Model::unguard()` để né bảo vệ.
+- Push GitHub không đồng nghĩa project chính trên máy đã nhận thay đổi; local integration không đồng nghĩa merge hay production deployment. Commit, push, merge, deploy và mọi mutation GCP/database/DNS/firewall/NAT/Supabase vẫn cần đúng phạm vi phê duyệt riêng.
+- Không tự xóa hoặc archive worktree còn chứa thay đổi chưa tích hợp. Chỉ kết luận hoàn thành khi trạng thái tích hợp, regression, static/security gates và các blocker còn lại được báo cáo trung thực.
+
 ## Truy xuất nguồn dữ liệu và liên kết điều hướng
 
 - Mọi KPI, con số tổng hợp, mã tham chiếu hoặc bản ghi hiển thị phải cho người dùng biết dữ liệu lấy từ đâu.
