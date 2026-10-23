@@ -33,10 +33,10 @@ final class ReleaseCheckCommand extends Command
             'scheduler_heartbeat' => $this->schedulerReady(),
             'storage_writable' => is_writable(storage_path()) && is_writable(base_path('bootstrap/cache')),
             'config_cache_compatible' => is_dir(base_path('bootstrap/cache')),
-            'immutable_image' => $this->immutableImage((string) $this->option('image')),
-            'rollback_target' => $this->immutableImage((string) $this->option('rollback-target')),
-            'quality_evidence' => $this->safeFile((string) $this->option('quality-evidence')),
-            'backup_readiness' => trim((string) $this->option('backup-reference')) !== '',
+            'immutable_image' => $this->immutableImage($this->stringOption('image')),
+            'rollback_target' => $this->immutableImage($this->stringOption('rollback-target')),
+            'quality_evidence' => $this->safeFile($this->stringOption('quality-evidence')),
+            'backup_readiness' => $this->stringOption('backup-reference') !== '',
             'required_secrets' => $secrets->readiness()['ready'],
         ];
         $passed = ! in_array(false, $checks, true);
@@ -117,6 +117,13 @@ final class ReleaseCheckCommand extends Command
     private function immutableImage(string $image): bool
     {
         return preg_match('/^[a-zA-Z0-9._\/-]+:[0-9a-f]{40}@sha256:[0-9a-f]{64}$/', $image) === 1;
+    }
+
+    private function stringOption(string $name): string
+    {
+        $value = $this->option($name);
+
+        return is_string($value) ? trim($value) : '';
     }
 
     private function safeFile(string $path): bool
