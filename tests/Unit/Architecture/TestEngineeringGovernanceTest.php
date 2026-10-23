@@ -12,7 +12,7 @@ final class TestEngineeringGovernanceTest extends TestCase
         $readiness = strpos($workflow, 'operations:test-readiness');
         $architecture = strpos($workflow, 'Early architecture and test-governance fitness gate');
         $concurrency = strpos($workflow, 'Serial process-concurrency gate');
-        $full = strpos($workflow, 'php -d memory_limit=1G vendor/bin/phpunit --configuration="$coverage_config" --coverage-php="$coverage_data"');
+        $full = strpos($workflow, 'php -d memory_limit=1G vendor/bin/phpunit --configuration="$coverage_config" --coverage-php="$coverage_data" --coverage-clover="$coverage_clover"');
 
         self::assertIsInt($readiness);
         self::assertIsInt($architecture);
@@ -41,13 +41,20 @@ final class TestEngineeringGovernanceTest extends TestCase
         self::assertStringContainsString('CACHE_STORE: array', $workflow);
         self::assertStringContainsString('coverage_config=.phpunit.coverage-ci.xml', $workflow);
         self::assertStringContainsString('coverage_data=vendor/nunomaduro/collision/.temp/coverage', $workflow);
+        self::assertStringContainsString('coverage_summary="$coverage_dir/summary.json"', $workflow);
         self::assertStringContainsString('value="1G"', $workflow);
-        self::assertStringContainsString('php -d memory_limit=1G vendor/bin/phpunit --configuration="$coverage_config" --coverage-php="$coverage_data"', $workflow);
+        self::assertStringContainsString('php -d memory_limit=1G vendor/bin/phpunit --configuration="$coverage_config" --coverage-php="$coverage_data" --coverage-clover="$coverage_clover" --display-phpunit-notices --display-notices', $workflow);
+        self::assertStringContainsString('php scripts/ci/summarize-coverage.php "$coverage_clover" "$coverage_summary" --min=20', $workflow);
         self::assertStringContainsString('Coverage::report', $workflow);
-        self::assertStringContainsString('$coverage < 20.0 ? 1 : 0', $workflow);
         self::assertStringContainsString('PHP variables must not be expanded by the shell.', $workflow);
         self::assertStringContainsString('shellcheck disable=SC2016', $workflow);
-        self::assertStringContainsString('trap \'rm -f "$coverage_config" "$coverage_data"\' EXIT', $workflow);
+        self::assertStringContainsString('trap \'rm -f "$coverage_config" "$coverage_data" "$coverage_clover"\' EXIT', $workflow);
+        self::assertStringContainsString('test "$test_status" -eq 0', $workflow);
+        self::assertStringContainsString('test "$coverage_status" -eq 0', $workflow);
+        self::assertStringContainsString('Upload safe coverage diagnostics', $workflow);
+        self::assertStringContainsString('if: always()', $workflow);
+        self::assertStringContainsString('path: build/coverage/summary.json', $workflow);
+        self::assertStringNotContainsString('path: build/coverage/clover.xml', $workflow);
         self::assertStringNotContainsString('artisan test --configuration=', $workflow);
         self::assertStringNotContainsString('> phpunit.xml', $workflow);
         self::assertStringContainsString('<ini name="memory_limit" value="512M"/>', $phpunit);

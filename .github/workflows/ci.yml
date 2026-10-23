@@ -84,23 +84,44 @@ jobs:
       - name: Serial process-concurrency gate
         run: php artisan test tests/Concurrency
       - name: Full PHPUnit Coverage
+        id: full-coverage
         env:
           CACHE_STORE: array
           QUEUE_CONNECTION: sync
         run: |
           coverage_config=.phpunit.coverage-ci.xml
           coverage_data=vendor/nunomaduro/collision/.temp/coverage
+          coverage_dir=build/coverage
+          coverage_clover="$coverage_dir/clover.xml"
+          coverage_summary="$coverage_dir/summary.json"
           test ! -e "$coverage_config"
           test ! -e "$coverage_data"
-          trap 'rm -f "$coverage_config" "$coverage_data"' EXIT
+          trap 'rm -f "$coverage_config" "$coverage_data" "$coverage_clover"' EXIT
           grep -Fq '<ini name="memory_limit" value="512M"/>' phpunit.xml
           sed 's#<ini name="memory_limit" value="512M"/>#<ini name="memory_limit" value="1G"/>#' phpunit.xml > "$coverage_config"
           grep -Fq '<ini name="memory_limit" value="1G"/>' "$coverage_config"
-          mkdir -p "$(dirname "$coverage_data")"
-          php -d memory_limit=1G vendor/bin/phpunit --configuration="$coverage_config" --coverage-php="$coverage_data"
+          mkdir -p "$(dirname "$coverage_data")" "$coverage_dir"
+          set +e
+          php -d memory_limit=1G vendor/bin/phpunit --configuration="$coverage_config" --coverage-php="$coverage_data" --coverage-clover="$coverage_clover" --display-phpunit-notices --display-notices
+          test_status=$?
+          php scripts/ci/summarize-coverage.php "$coverage_clover" "$coverage_summary" --min=20
+          coverage_status=$?
           # PHP variables must not be expanded by the shell.
           # shellcheck disable=SC2016
-          php -d memory_limit=1G -r 'require "vendor/autoload.php"; $coverage = NunoMaduro\Collision\Coverage::report(new Symfony\Component\Console\Output\ConsoleOutput(), true); exit($coverage < 20.0 ? 1 : 0);'
+          php -d memory_limit=1G -r 'require "vendor/autoload.php"; NunoMaduro\Collision\Coverage::report(new Symfony\Component\Console\Output\ConsoleOutput(), true);'
+          collision_status=$?
+          set -e
+          test "$test_status" -eq 0
+          test "$coverage_status" -eq 0
+          test "$collision_status" -eq 0
+      - name: Upload safe coverage diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-inventory-${{ github.sha }}
+          path: build/coverage/summary.json
+          if-no-files-found: warn
+          retention-days: 14
       - name: Orphan process postflight
         if: always()
         run: scripts/ci/check-test-processes.sh
