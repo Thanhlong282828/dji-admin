@@ -19,7 +19,7 @@ final class BusinessModuleOwnershipTest extends TestCase
     {
         $files = glob(app_path('Http/Controllers/*.php'));
         self::assertIsArray($files);
-        self::assertSame([app_path('Http/Controllers/Controller.php')], array_values($files));
+        self::assertSame([app_path('Http/Controllers/Controller.php')], $files);
     }
 
     public function test_migrated_modules_do_not_reference_temporary_namespaces(): void
@@ -43,8 +43,10 @@ final class BusinessModuleOwnershipTest extends TestCase
         if (! is_dir($directory)) {
             return [];
         }
+        /** @var list<string> $files */
         $files = [];
         $iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($directory));
+        /** @var \SplFileInfo $file */
         foreach ($iterator as $file) {
             if ($file->isFile() && $file->getExtension() === 'php') {
                 $files[] = $file->getPathname();

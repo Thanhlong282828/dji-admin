@@ -236,7 +236,15 @@ final class StagingRestoreAuditAuthorizerTest extends TestCase
         ];
     }
 
-    /** @return array<string,mixed> */
+    /**
+     * @return array{
+     *     project_id: string,
+     *     instance_id: string,
+     *     networks: list<string>,
+     *     subnets: list<string>,
+     *     public_ips: list<string>
+     * }
+     */
     private function runtime(): array
     {
         return [
@@ -257,12 +265,16 @@ final class StagingRestoreAuditAuthorizerTest extends TestCase
         ];
     }
 
-    /** @param array<string,mixed>|null $runtime @param array{server_uuid:string,grants:list<string>}|null $database @param array<string,mixed>|null $evidence */
+    /**
+     * @param  array{project_id:string,instance_id:string,networks:list<string>,subnets:list<string>,public_ips:list<string>}|null  $runtime
+     * @param  array{server_uuid:string,grants:list<string>}|null  $database
+     * @param  array{approval:array<string,mixed>,approval_sha256:string,release:array<string,mixed>,release_identity_sha256:string,restore:array<string,mixed>,restore_receipt_sha256:string}|null  $evidence
+     */
     private function authorizer(?array $runtime = null, ?array $database = null, ?array $evidence = null): StagingRestoreAuditAuthorizer
     {
         $runtimeIdentity = new class($runtime ?? $this->runtime()) implements StagingRuntimeIdentityProvider
         {
-            /** @param array<string,mixed> $value */
+            /** @param array{project_id:string,instance_id:string,networks:list<string>,subnets:list<string>,public_ips:list<string>} $value */
             public function __construct(private array $value) {}
 
             public function identity(): array
@@ -282,7 +294,7 @@ final class StagingRestoreAuditAuthorizerTest extends TestCase
         };
         $trustEvidence = new class($evidence ?? $this->evidence()) implements StagingTrustEvidenceProvider
         {
-            /** @param array<string,mixed> $value */
+            /** @param array{approval:array<string,mixed>,approval_sha256:string,release:array<string,mixed>,release_identity_sha256:string,restore:array<string,mixed>,restore_receipt_sha256:string} $value */
             public function __construct(private array $value) {}
 
             public function evidence(): array
@@ -294,7 +306,19 @@ final class StagingRestoreAuditAuthorizerTest extends TestCase
         return new StagingRestoreAuditAuthorizer($runtimeIdentity, $databaseIdentity, $trustEvidence);
     }
 
-    /** @param array<string,mixed> $approval @param array<string,mixed> $release @param array<string,mixed> $restore @return array<string,mixed> */
+    /**
+     * @param  array<string,mixed>  $approval
+     * @param  array<string,mixed>  $release
+     * @param  array<string,mixed>  $restore
+     * @return array{
+     *     approval: array<string,mixed>,
+     *     approval_sha256: string,
+     *     release: array<string,mixed>,
+     *     release_identity_sha256: string,
+     *     restore: array<string,mixed>,
+     *     restore_receipt_sha256: string
+     * }
+     */
     private function evidence(array $approval = [], array $release = [], array $restore = []): array
     {
         $approval = array_replace_recursive([
@@ -312,6 +336,7 @@ final class StagingRestoreAuditAuthorizerTest extends TestCase
                 'public_ip_absent' => true,
             ],
         ], $approval);
+        /** @var array<string,mixed> $approval */
 
         return [
             'approval' => $approval,
