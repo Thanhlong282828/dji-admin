@@ -26,6 +26,7 @@ final class TestEngineeringGovernanceTest extends TestCase
     public function test_ci_uses_only_testing_database_and_has_worker_preflight_and_postflight(): void
     {
         $workflow = (string) file_get_contents(base_path('.github/workflows/ci.yml'));
+        $phpunit = (string) file_get_contents(base_path('phpunit.xml'));
         self::assertStringContainsString('coverage: pcov', $workflow);
         self::assertStringNotContainsString('coverage: xdebug', $workflow);
         self::assertStringContainsString('DB_DATABASE: schema_admin_testing', $workflow);
@@ -38,6 +39,12 @@ final class TestEngineeringGovernanceTest extends TestCase
         self::assertStringContainsString('REDIS_CACHE_DB: 14', $workflow);
         self::assertStringContainsString('Full PHPUnit Coverage', $workflow);
         self::assertStringContainsString('CACHE_STORE: array', $workflow);
+        self::assertStringContainsString('coverage_config_backup=.phpunit.coverage-ci.backup.xml', $workflow);
+        self::assertStringContainsString('value="1G"', $workflow);
+        self::assertStringContainsString('php artisan test --coverage --min=20', $workflow);
+        self::assertStringContainsString('trap \'mv "$coverage_config_backup" phpunit.xml\' EXIT', $workflow);
+        self::assertStringContainsString('<ini name="memory_limit" value="512M"/>', $phpunit);
+        self::assertStringNotContainsString('<ini name="memory_limit" value="1G"/>', $phpunit);
         self::assertStringContainsString('PHPStan Level 10 (no result cache)', $workflow);
         self::assertStringContainsString('--memory-limit=2G --debug', $workflow);
         self::assertSame(2, substr_count($workflow, 'scripts/ci/check-test-processes.sh'));

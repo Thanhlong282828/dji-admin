@@ -87,7 +87,14 @@ jobs:
         env:
           CACHE_STORE: array
           QUEUE_CONNECTION: sync
-        run: php artisan test --coverage --min=20
+        run: |
+          coverage_config_backup=.phpunit.coverage-ci.backup.xml
+          test ! -e "$coverage_config_backup"
+          cp phpunit.xml "$coverage_config_backup"
+          trap 'mv "$coverage_config_backup" phpunit.xml' EXIT
+          sed 's#<ini name="memory_limit" value="512M"/>#<ini name="memory_limit" value="1G"/>#' "$coverage_config_backup" > phpunit.xml
+          grep -Fq '<ini name="memory_limit" value="1G"/>' phpunit.xml
+          php artisan test --coverage --min=20
       - name: Orphan process postflight
         if: always()
         run: scripts/ci/check-test-processes.sh
