@@ -12,7 +12,7 @@ final class TestEngineeringGovernanceTest extends TestCase
         $readiness = strpos($workflow, 'operations:test-readiness');
         $architecture = strpos($workflow, 'Early architecture and test-governance fitness gate');
         $concurrency = strpos($workflow, 'Serial process-concurrency gate');
-        $full = strpos($workflow, 'php artisan test --coverage --min=20');
+        $full = strpos($workflow, 'php -d memory_limit=1G vendor/bin/phpunit --configuration="$coverage_config" --coverage-php="$coverage_data"');
 
         self::assertIsInt($readiness);
         self::assertIsInt($architecture);
@@ -39,10 +39,17 @@ final class TestEngineeringGovernanceTest extends TestCase
         self::assertStringContainsString('REDIS_CACHE_DB: 14', $workflow);
         self::assertStringContainsString('Full PHPUnit Coverage', $workflow);
         self::assertStringContainsString('CACHE_STORE: array', $workflow);
-        self::assertStringContainsString('coverage_config_backup=.phpunit.coverage-ci.backup.xml', $workflow);
+        self::assertStringContainsString('coverage_config=.phpunit.coverage-ci.xml', $workflow);
+        self::assertStringContainsString('coverage_data=vendor/nunomaduro/collision/.temp/coverage', $workflow);
         self::assertStringContainsString('value="1G"', $workflow);
-        self::assertStringContainsString('php artisan test --coverage --min=20', $workflow);
-        self::assertStringContainsString('trap \'mv "$coverage_config_backup" phpunit.xml\' EXIT', $workflow);
+        self::assertStringContainsString('php -d memory_limit=1G vendor/bin/phpunit --configuration="$coverage_config" --coverage-php="$coverage_data"', $workflow);
+        self::assertStringContainsString('Coverage::report', $workflow);
+        self::assertStringContainsString('$coverage < 20.0 ? 1 : 0', $workflow);
+        self::assertStringContainsString('PHP variables must not be expanded by the shell.', $workflow);
+        self::assertStringContainsString('shellcheck disable=SC2016', $workflow);
+        self::assertStringContainsString('trap \'rm -f "$coverage_config" "$coverage_data"\' EXIT', $workflow);
+        self::assertStringNotContainsString('artisan test --configuration=', $workflow);
+        self::assertStringNotContainsString('> phpunit.xml', $workflow);
         self::assertStringContainsString('<ini name="memory_limit" value="512M"/>', $phpunit);
         self::assertStringNotContainsString('<ini name="memory_limit" value="1G"/>', $phpunit);
         self::assertStringContainsString('PHPStan Level 10 (no result cache)', $workflow);

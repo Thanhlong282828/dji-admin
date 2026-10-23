@@ -88,13 +88,19 @@ jobs:
           CACHE_STORE: array
           QUEUE_CONNECTION: sync
         run: |
-          coverage_config_backup=.phpunit.coverage-ci.backup.xml
-          test ! -e "$coverage_config_backup"
-          cp phpunit.xml "$coverage_config_backup"
-          trap 'mv "$coverage_config_backup" phpunit.xml' EXIT
-          sed 's#<ini name="memory_limit" value="512M"/>#<ini name="memory_limit" value="1G"/>#' "$coverage_config_backup" > phpunit.xml
-          grep -Fq '<ini name="memory_limit" value="1G"/>' phpunit.xml
-          php artisan test --coverage --min=20
+          coverage_config=.phpunit.coverage-ci.xml
+          coverage_data=vendor/nunomaduro/collision/.temp/coverage
+          test ! -e "$coverage_config"
+          test ! -e "$coverage_data"
+          trap 'rm -f "$coverage_config" "$coverage_data"' EXIT
+          grep -Fq '<ini name="memory_limit" value="512M"/>' phpunit.xml
+          sed 's#<ini name="memory_limit" value="512M"/>#<ini name="memory_limit" value="1G"/>#' phpunit.xml > "$coverage_config"
+          grep -Fq '<ini name="memory_limit" value="1G"/>' "$coverage_config"
+          mkdir -p "$(dirname "$coverage_data")"
+          php -d memory_limit=1G vendor/bin/phpunit --configuration="$coverage_config" --coverage-php="$coverage_data"
+          # PHP variables must not be expanded by the shell.
+          # shellcheck disable=SC2016
+          php -d memory_limit=1G -r 'require "vendor/autoload.php"; $coverage = NunoMaduro\Collision\Coverage::report(new Symfony\Component\Console\Output\ConsoleOutput(), true); exit($coverage < 20.0 ? 1 : 0);'
       - name: Orphan process postflight
         if: always()
         run: scripts/ci/check-test-processes.sh
