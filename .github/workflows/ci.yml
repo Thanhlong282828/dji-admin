@@ -10,7 +10,8 @@ on:
         description: Optional deployment target
         required: false
         type: choice
-        options: ['', development, production]
+        default: build-only
+        options: [build-only, development, production]
 
 permissions:
   contents: read
@@ -48,8 +49,6 @@ jobs:
       DB_DATABASE: schema_admin_testing
       DB_USERNAME: root
       DB_PASSWORD: root
-      CACHE_STORE: redis
-      QUEUE_CONNECTION: redis
     steps:
       - uses: actions/checkout@v4
       - uses: shivammathur/setup-php@v2
@@ -67,15 +66,28 @@ jobs:
       - name: Orphan process preflight
         run: scripts/ci/check-test-processes.sh
       - run: vendor/bin/pint --test
-      - run: vendor/bin/phpstan analyse app Modules --level=10 --no-progress --memory-limit=2G
+      - name: PHPStan Level 10 (no result cache)
+        run: vendor/bin/phpstan analyse app Modules --level=10 --no-progress --memory-limit=2G --debug
       - run: vendor/bin/phpstan analyse tests/Unit/Operations tests/Unit/Architecture tests/Unit/ApiContract tests/Contract tests/Feature/ReleaseGovernanceTest.php tests/Feature/OperationsArchitectureTest.php tests/Feature/OperationsApiContractsTest.php --level=10 --no-progress --memory-limit=1G
       - name: Early architecture and test-governance fitness gate
         run: php artisan test tests/Unit/Architecture tests/Unit/Operations/TestQualityGovernanceTest.php tests/Feature/OperationsArchitectureTest.php tests/Feature/OperationsTestQualityTest.php
       - name: API contract gate
         run: php artisan l5-swagger:generate && php artisan operations:api-contract-audit && php artisan test tests/Unit/ApiContract tests/Contract tests/Feature/OperationsApiContractsTest.php tests/Feature/ApiDocumentationTest.php
+      - name: Redis permission-cache integration gate
+        env:
+          CACHE_STORE: redis
+          QUEUE_CONNECTION: sync
+          REDIS_DB: 13
+          REDIS_CACHE_DB: 14
+          REDIS_PREFIX: laraveldji-ci-permission-${{ github.run_id }}-
+        run: php artisan test tests/Feature/PermissionCacheIsolationTest.php
       - name: Serial process-concurrency gate
         run: php artisan test tests/Concurrency
-      - run: php artisan test --coverage --min=20
+      - name: Full PHPUnit Coverage
+        env:
+          CACHE_STORE: array
+          QUEUE_CONNECTION: sync
+        run: php artisan test --coverage --min=20
       - name: Orphan process postflight
         if: always()
         run: scripts/ci/check-test-processes.sh
@@ -87,7 +99,7 @@ jobs:
       - run: php artisan operations:migration-risk
       - run: php artisan optimize
       - name: Readiness smoke test
-        run: php artisan serve --host=127.0.0.1 --port=8000 & server=$!; trap 'kill $server' EXIT; for i in {1..12}; do curl --fail http://127.0.0.1:8000/health/ready && exit 0; sleep 2; done; exit 1
+        run: php artisan serve --host=127.0.0.1 --port=8000 & server=$!; trap 'kill $server' EXIT; for _ in {1..12}; do curl --fail http://127.0.0.1:8000/health/ready && exit 0; sleep 2; done; exit 1
 
   docker:
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'

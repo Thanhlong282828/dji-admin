@@ -8,7 +8,7 @@ permissions:
   id-token: write
 
 jobs:
-  oidc:
+  deploy-permission-audit:
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
@@ -23,42 +23,104 @@ jobs:
       - name: Setup gcloud
         uses: google-github-actions/setup-gcloud@v3
 
-      - name: Verify WIF identity
+      - name: Audit remote deploy permissions
         shell: bash
         run: |
           set -euo pipefail
 
-          ACTIVE_ACCOUNT="$(gcloud auth list --filter=status:ACTIVE --format='value(account)')"
+          # shellcheck disable=SC2016 # Preserve expansion for the remote shell.
+          gcloud compute ssh 'laravel-server'             --project='project-06b7a0c7-35a4-4282-b81'             --zone='asia-southeast1-a'             --tunnel-through-iap             --quiet             --command='
+              set -eu
 
-          echo "ACTIVE_ACCOUNT=${ACTIVE_ACCOUNT}"
+              echo "REMOTE_CONNECTION=PASS"
 
-          if [ "${ACTIVE_ACCOUNT}" != "github-deployer@project-06b7a0c7-35a4-4282-b81.iam.gserviceaccount.com" ]; then
-            echo "FAILED: unexpected GCP identity"
-            exit 1
-          fi
+              echo
+              echo "identity:"
+              whoami
+              id
 
-          echo "GITHUB_OIDC_TO_GCP=PASS"
+              echo
+              echo "repo_directory:"
+              stat -c "owner=%U group=%G mode=%A path=%n" /var/www/laravel
 
-      - name: Verify project
-        shell: bash
-        run: |
-          set -euo pipefail
+              echo
+              echo "git_directory:"
+              stat -c "owner=%U group=%G mode=%A path=%n" /var/www/laravel/.git
 
-          ACTUAL="$(gcloud projects describe 'project-06b7a0c7-35a4-4282-b81' --format='value(projectId)')"
+              echo
+              echo "git_fetch_head:"
+              if [ -e /var/www/laravel/.git/FETCH_HEAD ]; then
+                  stat -c "owner=%U group=%G mode=%A path=%n" /var/www/laravel/.git/FETCH_HEAD
+              else
+                  echo "FETCH_HEAD=ABSENT"
+              fi
 
-          echo "PROJECT=${ACTUAL}"
+              echo
+              echo "write_permission_checks:"
+              if [ -w /var/www/laravel ]; then
+                  echo "repo_write=YES"
+              else
+                  echo "repo_write=NO"
+              fi
 
-          if [ "${ACTUAL}" != "project-06b7a0c7-35a4-4282-b81" ]; then
-            echo "FAILED: project mismatch"
-            exit 1
-          fi
+              if [ -w /var/www/laravel/.git ]; then
+                  echo "git_dir_write=YES"
+              else
+                  echo "git_dir_write=NO"
+              fi
 
-          echo "PROJECT_ACCESS=PASS"
+              if [ -e /var/www/laravel/.git/FETCH_HEAD ] && [ -w /var/www/laravel/.git/FETCH_HEAD ]; then
+                  echo "fetch_head_write=YES"
+              else
+                  echo "fetch_head_write=NO"
+              fi
+
+              echo
+              echo "laravel_runtime_directories:"
+              for p in                   /var/www/laravel/storage                   /var/www/laravel/storage/logs                   /var/www/laravel/bootstrap/cache
+              do
+                  if [ -e "$p" ]; then
+                      stat -c "owner=%U group=%G mode=%A path=%n" "$p"
+                      if [ -w "$p" ]; then
+                          echo "writable=YES"
+                      else
+                          echo "writable=NO"
+                      fi
+                  fi
+              done
+
+              echo
+              echo "docker:"
+              if command -v docker >/dev/null 2>&1; then
+                  docker --version || true
+              else
+                  echo "docker=NOT_INSTALLED"
+              fi
+
+              echo
+              echo "service_status_read_only:"
+              systemctl is-active nginx || true
+              systemctl is-active php8.4-fpm || true
+              systemctl is-active laravel-queue.service || true
+              systemctl is-active laravel-reverb.service || true
+              systemctl is-active laravel-scheduler.timer || true
+
+              echo
+              echo "repo_read:"
+              git -C /var/www/laravel rev-parse HEAD || true
+              git -C /var/www/laravel branch --show-current || true
+
+              echo
+              echo "AUDIT_COMPLETE=PASS"
+             '
 
       - name: Final result
         shell: bash
         run: |
-          echo "6.2F GITHUB OIDC SMOKE TEST = PASS"
-          echo "No SSH connection performed."
+          echo "6.2H DEPLOY PERMISSION AUDIT = PASS"
+          echo "No sudo command executed."
+          echo "No write test executed."
+          echo "No git fetch/pull executed."
           echo "No deployment performed."
+          echo "No service restarted."
           echo "No database operation performed."

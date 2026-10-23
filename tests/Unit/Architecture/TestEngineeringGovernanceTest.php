@@ -28,6 +28,16 @@ final class TestEngineeringGovernanceTest extends TestCase
         $workflow = (string) file_get_contents(base_path('.github/workflows/ci.yml'));
         self::assertStringContainsString('DB_DATABASE: schema_admin_testing', $workflow);
         self::assertStringNotContainsString('DB_DATABASE: schema_admin\n', $workflow);
+        self::assertDoesNotMatchRegularExpression('/^ {6}(CACHE_STORE|QUEUE_CONNECTION):/m', $workflow);
+        self::assertStringContainsString('Redis permission-cache integration gate', $workflow);
+        self::assertStringContainsString('CACHE_STORE: redis', $workflow);
+        self::assertStringContainsString('QUEUE_CONNECTION: sync', $workflow);
+        self::assertStringContainsString('REDIS_DB: 13', $workflow);
+        self::assertStringContainsString('REDIS_CACHE_DB: 14', $workflow);
+        self::assertStringContainsString('Full PHPUnit Coverage', $workflow);
+        self::assertStringContainsString('CACHE_STORE: array', $workflow);
+        self::assertStringContainsString('PHPStan Level 10 (no result cache)', $workflow);
+        self::assertStringContainsString('--memory-limit=2G --debug', $workflow);
         self::assertSame(2, substr_count($workflow, 'scripts/ci/check-test-processes.sh'));
         self::assertStringContainsString('if: always()', $workflow);
     }

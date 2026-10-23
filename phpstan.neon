@@ -4,4 +4,5 @@ parameters:
     level: 10
     paths:
         - app
+        - Modules
     tmpDir: storage/framework/cache/phpstan
