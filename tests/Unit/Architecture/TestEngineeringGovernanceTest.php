@@ -26,6 +26,8 @@ final class TestEngineeringGovernanceTest extends TestCase
     public function test_ci_uses_only_testing_database_and_has_worker_preflight_and_postflight(): void
     {
         $workflow = (string) file_get_contents(base_path('.github/workflows/ci.yml'));
+        self::assertStringContainsString('coverage: pcov', $workflow);
+        self::assertStringNotContainsString('coverage: xdebug', $workflow);
         self::assertStringContainsString('DB_DATABASE: schema_admin_testing', $workflow);
         self::assertStringNotContainsString('DB_DATABASE: schema_admin\n', $workflow);
         self::assertDoesNotMatchRegularExpression('/^ {6}(CACHE_STORE|QUEUE_CONNECTION):/m', $workflow);
