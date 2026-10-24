@@ -12,9 +12,9 @@
             TAX PROFILE
         </span>
 
-        <h1>
+        <h2>
             Employee Tax Profiles
-        </h1>
+        </h2>
 
         <p>
             Tax ID luôn được mask;

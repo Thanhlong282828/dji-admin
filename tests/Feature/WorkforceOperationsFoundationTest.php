@@ -58,6 +58,20 @@ final class WorkforceOperationsFoundationTest extends TestCase
         self::assertSame(0, DB::table('attendance_events')->count());
     }
 
+    public function test_employee_view_own_scope_never_exposes_another_employee_attendance(): void
+    {
+        [$company, $employee, $user] = $this->context('SELF-VIEW');
+        $other = Employee::query()->create(['company_id' => $company->id, 'employee_code' => 'EMP-OTHER', 'full_name' => 'Không Được Hiển Thị', 'nationality' => 'VN', 'join_date' => '2026-01-01', 'employment_status' => 'active', 'employment_type' => 'full_time']);
+        $ownRecord = DB::table('attendance_records')->insertGetId(['company_id' => $company->id, 'employee_id' => $employee->id, 'work_date' => today(), 'source' => 'web', 'scheduled_minutes' => 480, 'worked_minutes' => 450, 'late_minutes' => 30, 'attendance_status' => 'late', 'presence_status' => 'present', 'approval_status' => 'approved', 'calculation_status' => 'calculated', 'created_at' => now(), 'updated_at' => now()]);
+        $otherRecord = DB::table('attendance_records')->insertGetId(['company_id' => $company->id, 'employee_id' => $other->id, 'work_date' => today(), 'source' => 'web', 'scheduled_minutes' => 480, 'worked_minutes' => 480, 'attendance_status' => 'present', 'presence_status' => 'present', 'approval_status' => 'approved', 'calculation_status' => 'calculated', 'created_at' => now(), 'updated_at' => now()]);
+        $user->givePermissionTo('attendance.view-own');
+
+        $this->actingAs($user)->get('/admin/attendance?company_id='.$company->id)
+            ->assertOk()->assertSeeText($employee->full_name)->assertDontSeeText($other->full_name);
+        $this->actingAs($user)->get('/admin/attendance/'.$ownRecord.'?company_id='.$company->id)->assertOk();
+        $this->actingAs($user)->get('/admin/attendance/'.$otherRecord.'?company_id='.$company->id)->assertForbidden();
+    }
+
     public function test_payroll_snapshot_contains_inputs_only_and_locks_attendance(): void
     {
         [$company, $employee, $user] = $this->context('PAY');

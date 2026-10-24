@@ -13,6 +13,7 @@ use Modules\Organization\Domain\Models\JobPosition;
 use Modules\Organization\Domain\Models\OrganizationUnit;
 use Modules\Recruitment\Domain\Models\Candidate;
 use Modules\Recruitment\Domain\Models\RecruitmentRequisition;
+use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 final class RecruitmentCoreTest extends TestCase
@@ -54,6 +55,50 @@ final class RecruitmentCoreTest extends TestCase
         $employee = $this->employee($c, 'E-A');
         $req = RecruitmentRequisition::query()->create(['job_position_id' => $position->id, 'requested_by' => $employee->id, 'vacancies' => 1, 'budget' => 0, 'status' => 'draft']);
         $this->actingAs($user)->post('/admin/applications', ['company_id' => $c->id, 'recruitment_requisition_id' => $req->id, 'candidate_id' => $candidate->id])->assertSessionHasErrors('requisition');
+    }
+
+    public function test_super_admin_can_render_requisitions_from_another_company_without_tenant_assignment(): void
+    {
+        $company = $this->company('REMOTE');
+        $position = $this->position($company);
+        $requester = $this->employee($company, 'E-REMOTE');
+        RecruitmentRequisition::query()->create([
+            'job_position_id' => $position->id,
+            'requested_by' => $requester->id,
+            'vacancies' => 1,
+            'budget' => 1000000,
+            'status' => 'open',
+        ]);
+        DB::table('employment_contracts')->insert([
+            'employee_id' => $requester->id,
+            'contract_number' => 'REC-REMOTE-CONTRACT',
+            'type' => 'indefinite',
+            'starts_at' => today(),
+            'base_salary' => 25000000,
+            'currency' => 'VND',
+            'terms' => '{}',
+            'status' => 'active',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $user = User::factory()->create();
+        $user->assignRole(Role::findByName('Super Admin'));
+
+        $this->actingAs($user)
+            ->get(route('admin.recruitment-requisitions.index', ['company_id' => $company->id]))
+            ->assertOk()
+            ->assertSee('Developer')
+            ->assertSee('E-REMOTE')
+            ->assertSee(route('admin.job-positions.show', [
+                'job_position' => $position->id,
+                'company_id' => $company->id,
+            ]), false);
+
+        $this->actingAs($user)
+            ->get(route('admin.employees.show', ['employee' => $requester->id, 'company_id' => $company->id]))
+            ->assertOk()
+            ->assertSee('25.000.000 VND');
     }
 
     private function company(string $code): Company

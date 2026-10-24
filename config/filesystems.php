@@ -60,6 +60,22 @@ return [
             'report' => false,
         ],
 
+        // Optional Supabase Storage provider. Supabase exposes an S3-compatible
+        // endpoint, so the ERP keeps Laravel Flysystem as its canonical storage
+        // abstraction and does not introduce a second SDK or authorization path.
+        'supabase' => [
+            'driver' => 'supabase-s3',
+            'key' => env('SUPABASE_STORAGE_ACCESS_KEY_ID'),
+            'secret' => env('SUPABASE_STORAGE_SECRET_ACCESS_KEY'),
+            'region' => env('SUPABASE_STORAGE_REGION', 'us-east-1'),
+            'bucket' => env('SUPABASE_STORAGE_BUCKET'),
+            'endpoint' => env('SUPABASE_STORAGE_ENDPOINT'),
+            'use_path_style_endpoint' => true,
+            'visibility' => 'private',
+            'throw' => true,
+            'report' => true,
+        ],
+
     ],
 
     /*

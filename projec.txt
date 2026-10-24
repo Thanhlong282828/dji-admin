@@ -1,12 +1,41 @@
 FEATURE MAP — ADMIN
-CRUD + MVC: app/Models/Article.php, app/Http/Controllers/ArticleController.php, resources/views/admin/articles/*
+CRUD + MVC: app/Models/Article.php, Modules/Article/app/Presentation/Http/Controllers/ArticleController.php, resources/views/admin/articles/*
 Validation: app/Http/Requests/StoreArticleRequest.php
-Public microservice API: routes/api.php, app/Http/Controllers/Api/ArticleController.php, app/Http/Resources/ArticleResource.php
+Public microservice API: routes/api.php, Modules/Article/app/Presentation/Http/Controllers/ApiArticleController.php, app/Http/Resources/ArticleResource.php
 Dashboard chart-ready metrics: routes/web.php, resources/views/admin/dashboard/index.blade.php
-Cloudflare images: articles.hero_image; production R2 credentials documented in .env.example
+Unified image boundary: app/Support/Media/*; Article cover/gallery, Store logo/banner and Employee avatar use explicit Cloudflare Images or local driver. Live Cloudflare remains unverified after 403/5403; this is not R2.
 Modules/CQRS shell: app/Modules/Content/{Domain,Application,Infrastructure,Presentation}
 HRM enterprise schema: database/migrations/2026_07_23_000200_create_hrm_core_schema.php
 23 domain requirements map into Core HR, Talent Management, Analytics & Platform; see db.txt for physical tables.
 Tests: tests/Feature/ArticleApiTest.php. CI: .github/workflows/ci.yml
 Docker/nginx/php-fpm/redis/mailpit/healthcheck: Dockerfile, compose.yml, docker/nginx/default.conf
 Planned integrations are recorded in README; packages must be version-checked against Laravel 13 before activation.
+Commerce C1+C2 adds Branch access, Buyer/Seller profiles, Store foundation and shared media ownership. Product was delivered in C4; Cart/Wishlist and marketplace UX are delivered in C5; Order/Checkout remain deferred.
+Commerce C2.5 adds explicit Google/Facebook identity linking, verified phone/OTP, Account Security and Passport Authorization Code + PKCE for the active API. Commerce C3 adds canonical Branch leadership, role ceilings, complete compensation aggregates and purpose-specific high-resolution Article media. Web remains Breeze/session; Spatie/IAM and tenant scope remain authoritative. Current local schema matrix is 71 migrations / 243 tables.
+Commerce C4 consolidates Company/Branch/User/Employee access and adds Seller-owned Product/Variant/SKU/Store-inventory catalog. Current local schema matrix is 72 migrations / 248 tables; disabled Product scaffolds remain disabled.
+
+Commerce C5 adds private Buyer Cart/Wishlist, multi-Store cart grouping, current-price/current-stock validation, public catalog search/filter/store pages, and Seller inventory adjustment. Current schema target is 73 migrations / 252 tables.
+Commerce C6 adds Buyer Address, server-authoritative Checkout, Order-per-Store snapshots and locked Inventory Reservation. Retry is idempotent, cancellation releases stock, Seller reads only owned Store Orders, and Payment remains deferred. Current schema target is 74 migrations / 257 tables.
+ERP consolidation adds self-only Employee Portal, effective Branch workforce snapshots for Attendance/Payroll, governed Branch Bonus, read-only Branch management P&L and source-governed VN tax/insurance policies. Current local schema target is 78 migrations / 264 tables; no historical Payroll item is mutated.
+Realistic operating demo Phase 2 keeps one cross-module lineage from Employee and Branch through varied Attendance, Leave, OT, compensation and statutory policy into Payroll/Payslip and multi-month Branch Finance. All values are deterministic and bootstrap-owned.
+Finance reconciliation now compares immutable Payroll result, journal debit/credit and Branch Finance cost. Tax runtime exposes PIT/insurance actuals while VAT/CIT fail closed until their own verified transaction and policy sources exist.
+Commerce Payment/Fulfillment runtime replaces the prior deferred boundary: Finance records settlement evidence without external traffic; paid Orders are Seller-confirmed; Branch fulfillment consumes canonical reservations; only delivered Orders recognize one subtotal revenue row. Seller Profile is Company-scoped by `(company_id,user_id)`, so each Company's Store/Product/Order/revenue remains isolated. Current local schema is 80 migrations / 266 tables and the source-aware Branch P&L distinguishes synthetic service ledger from Commerce Order revenue.
+Sales History is a read-only Company projection over canonical Order Items, Payment, Fulfillment and `branch_management_revenues.order_id`; Company inventory lists linked Seller accounts without a duplicate sales-history table.
+Company form dùng cùng account thương mại hiện hữu: User + Role Seller + Company access + Seller Profile được tạo/cập nhật transactionally; Seller Governance tiếp tục là nơi duy nhất verify/activate và Company Show chỉ đọc canonical Store count.
+Branch Commerce dùng chung Product/Variant/SKU và kho theo `branch_id`; customer visit chứa dịch vụ/sản phẩm đã chọn, checkout trừ tồn atomically rồi ghi một receipt và một recognized Branch Revenue. Tệp khách hàng, dịch vụ công ty và doanh số không lưu số tổng clone. Seller Governance chỉ hiển thị transition hợp lệ. Current local schema: 81 migrations / 272 tables.
+
+CURRENT UNIFIED CQRS HARDENING STATUS
+- Branch Commerce business writes: CommandBus → handler → BranchPosService; substantial reads: QueryBus → handler → BranchCommerceReadService.
+- Seller Governance: dedicated command/handler/service, reason audit, bounded transition and controlled `banned → suspended → active` recovery.
+- POS navigation is separated as `POS / Bán hàng tại quầy` using only existing runtime pages.
+- Inventory sale trace is append-only in `inventory_movements`; Dashboard Commerce/POS cards query canonical Order/Receipt/Customer/Visit/Inventory/Revenue sources.
+- Current database matrix: 82 migrations / 273 tables. Remaining legacy CQRS exceptions are documented honestly in `docs/business-data-lineage-map.md`; no speculative Procurement/Transfer/Refund module is claimed.
+Business modularization: Company/Commerce/Product/Inventory/POS/Finance/Article/IAM now own runtime CQRS and presentation code; global root controllers retain only framework authentication, Operations governance and the shared base controller.
+Master business integration closes the required sales/inventory chain: unified Marketplace+POS Sales History, Inventory Stock Receipt/Branch Transfer, full idempotent Sale Reversal, POS Dashboard/Receipt/Customer detail and net revenue propagation to Branch Finance/Dashboard. Product media carries canonical Company scope and local URLs are origin-independent; Cloudflare uses the existing adapter but remains live-unverified. Recruitment demo completes the real Offer/Hire service into Employee/Assignment/Contract/Onboarding, while the executive Dashboard aggregates canonical DB sources only. Current database matrix: 87 migrations / 276 tables; Data Quality 60/60.
+Finance now exposes a read-only posted General Ledger and Trial Balance over canonical Payroll Accounting Journals. Financial statement sections remain explicitly PARTIAL until Revenue/Asset/Equity/Cash posting sources exist; no synthetic accounting entries are created.
+ERP Procurement runtime: Vendor, PR, PO, Goods Receipt, weighted-average inventory value, Vendor Bill/AP aging/payment allocation and idempotent source accounting now form one canonical data chain. Financial statements consume posted evidence; no totals are seeded directly.
+Finance control runtime uses one connected lineage: Procurement/Expense payment → Accounting Journal → Treasury → reconciliation → period close/reporting. Budget commitment is derived from outstanding approved PO quantities and is removed as receipt value becomes Actual.
+Current operating-data snapshot is generated read-only from canonical DB evidence by `app:current-operating-data-report`; deterministic CRM metrics combine paid POS and Marketplace activity without persisting fake segments.
+CRM list/detail reuse the same metric service with Branch/segment/search filters and paid Marketplace drilldown. The generated snapshot distinguishes source-backed POS `branch_pos` revenue from Marketplace `commerce_order` revenue and reports unsupported generic accounting adjustment honestly.
+ERP Sales/AR runtime: Customer → Quotation → Sales Order → Inventory fulfillment/COGS → Customer Invoice → AR → Collection → Treasury → Accounting. Cash Flow uses actual Treasury evidence and remains PARTIAL without opening cash/equity evidence.
+ERP architecture references: `SO_DO_LUONG_MENU_ERP.txt` and `SO_DO_LIEN_KET_MODULE_ERP.txt`, regenerated from AdminNavigation, named routes, enabled module manifests and validated dependency edges by `app:erp-architecture-map`.

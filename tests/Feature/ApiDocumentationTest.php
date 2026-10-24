@@ -25,6 +25,20 @@ final class ApiDocumentationTest extends TestCase
         $this->actingAs($user)->get('/docs')->assertOk()->assertHeader('content-type', 'application/json');
     }
 
+    public function test_admin_documentation_landing_keeps_contextual_admin_layout_and_permission_boundary(): void
+    {
+        $user = User::factory()->create(['email_verified_at' => now()]);
+        $this->actingAs($user)->get(route('admin.operations.api-documentation'))->assertForbidden();
+
+        $user->givePermissionTo(Permission::findOrCreate('api.documentation.view', 'web'));
+        $this->actingAs($user)->get(route('admin.operations.api-documentation'))
+            ->assertOk()
+            ->assertSee('API Documentation')
+            ->assertSee('Hướng dẫn sử dụng trang này')
+            ->assertSee(route('l5-swagger.default.api'), false)
+            ->assertSee(url('/docs'), false);
+    }
+
     public function test_generated_openapi_document_is_valid_and_contains_no_secret_examples(): void
     {
         $user = User::factory()->create(['email_verified_at' => now()]);
@@ -37,7 +51,7 @@ final class ApiDocumentationTest extends TestCase
         self::assertArrayHasKey('openapi', $document);
         self::assertArrayHasKey('info', $document);
         self::assertIsArray($document['paths'] ?? null);
-        self::assertCount(11, $document['paths']);
+        self::assertCount(13, $document['paths']);
 
         $encoded = json_encode($document, JSON_THROW_ON_ERROR);
         self::assertStringNotContainsString('BEGIN PRIVATE KEY', $encoded);

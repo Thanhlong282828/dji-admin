@@ -104,6 +104,45 @@ final class WorkflowRoutingActorSlaTest extends TestCase
         self::assertSame([(int) $first->id], $resolver->resolve((int) $company->id, 'manager', 'direct', 'employee', (int) $employee->id, []));
     }
 
+    public function test_permission_resolver_matches_effective_role_authorization_without_duplicates_or_tenant_leakage(): void
+    {
+        [$company, $direct, $inherited] = $this->actors();
+        $foreign = $this->company('FOREIGN-RBAC');
+        $foreignUser = $this->user($foreign);
+        $disabled = $this->user($company);
+        $disabled->forceFill(['access_enabled' => false])->save();
+        $permission = Permission::findOrCreate('workflow.effective.permission', 'web');
+        $wrongGuard = Permission::findOrCreate('workflow.effective.permission', 'api');
+        $wrong = Permission::findOrCreate('workflow.other.permission', 'web');
+        $roleA = Role::findOrCreate('Workflow Effective A', 'web');
+        $roleB = Role::findOrCreate('Workflow Effective B', 'web');
+        $roleA->givePermissionTo($permission);
+        $roleB->givePermissionTo($permission);
+        $direct->givePermissionTo([$permission, $wrong]);
+        $direct->assignRole($roleA);
+        $inherited->assignRole([$roleA, $roleB]);
+        $foreignUser->assignRole($roleA);
+        $disabled->assignRole($roleA);
+        DB::table('model_has_roles')->insertOrIgnore(['role_id' => $roleA->id, 'model_type' => 'Other\\Identity', 'model_id' => 999999]);
+        DB::table('model_has_permissions')->insertOrIgnore(['permission_id' => $wrongGuard->id, 'model_type' => User::class, 'model_id' => $disabled->id]);
+
+        $resolver = app(DatabaseWorkflowActorResolver::class);
+        self::assertSame([(int) $direct->id, (int) $inherited->id], $resolver->resolve((int) $company->id, 'permission', $permission->name, 'subject', 1, []));
+        self::assertSame([(int) $foreignUser->id], $resolver->resolve((int) $foreign->id, 'permission', $permission->name, 'subject', 1, []));
+        self::assertSame([], $resolver->resolve((int) $company->id, 'permission', 'workflow.missing.permission', 'subject', 1, []));
+
+        DB::enableQueryLog();
+        DB::flushQueryLog();
+        $resolver->resolve((int) $company->id, 'permission', $permission->name, 'subject', 1, []);
+        $small = count(DB::getQueryLog());
+        User::factory()->count(50)->create();
+        DB::flushQueryLog();
+        $resolver->resolve((int) $company->id, 'permission', $permission->name, 'subject', 1, []);
+        $large = count(DB::getQueryLog());
+        DB::disableQueryLog();
+        self::assertSame($small, $large);
+    }
+
     public function test_sla_scheduler_escalates_once_and_never_mutates_terminal_task(): void
     {
         [$company, $first, $second] = $this->actors();

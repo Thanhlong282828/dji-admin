@@ -4,7 +4,7 @@
     "description": "",
     "keywords": [],
     "priority": 0,
-    "requires": ["Core", "Company", "Employee"],
+    "requires": ["Core", "Company", "Employee", "Finance", "Commerce", "Project", "Maintenance"],
     "providers": [
         "Modules\\Dashboard\\Providers\\DashboardServiceProvider"
     ],

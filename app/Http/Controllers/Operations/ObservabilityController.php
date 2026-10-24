@@ -27,6 +27,9 @@ final class ObservabilityController extends Controller
             'dependencies' => $snapshot['reliability']['readiness']['checks'],
             'slo' => $snapshot['reliability']['slo'],
             'burn_rate' => $snapshot['burn_rate'],
+            'ddos' => $snapshot['ddos'],
+            'document_storage' => $snapshot['document_storage'],
+            'production_verification' => $snapshot['production_verification'],
             'alerts' => $snapshot['alerts'],
             'generated_at' => $snapshot['generated_at'],
         ]);

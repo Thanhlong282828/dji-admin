@@ -2,6 +2,8 @@
 
 namespace Modules\Payroll\Domain\Services;
 
+use App\Support\Employee\EmployeeBranchResolver;
+use Carbon\CarbonImmutable;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -12,7 +14,7 @@ use Modules\Payroll\Domain\Models\PayrollPeriod;
 
 final readonly class PayrollInputGenerationService
 {
-    public function __construct(private PayrollPeriodStateMachine $states, private PayrollOvertimeClassificationService $overtimeClassifier) {}
+    public function __construct(private PayrollPeriodStateMachine $states, private PayrollOvertimeClassificationService $overtimeClassifier, private EmployeeBranchResolver $branches) {}
 
     public function generate(int $companyId, int $periodId, int $expectedVersion, int $actorId): PayrollInputSnapshot
     {
@@ -30,7 +32,20 @@ final readonly class PayrollInputGenerationService
             $maximumVersion = PayrollInputSnapshot::query()->where('payroll_period_id', $period->id)->max('snapshot_version');
             $version = (is_numeric($maximumVersion) ? (int) $maximumVersion : 0) + 1;
             $snapshot = PayrollInputSnapshot::query()->create(['company_id' => $companyId, 'payroll_period_id' => $period->id, 'snapshot_version' => $version, 'status' => 'draft', 'generated_by' => $actorId, 'generated_at' => now()]);
-            $employees = DB::table('employees')->where('company_id', $companyId)->whereIn('employment_status', ['active', 'probation', 'preboarding'])->whereDate('join_date', '<=', $period->period_end)->cursor();
+            $employees = DB::table('employees')->where('company_id', $companyId)->whereIn('employment_status', ['active', 'probation', 'preboarding'])->whereDate('join_date', '<=', $period->period_end)->get();
+            $employeeIds = $employees->pluck('id')->filter(static fn (mixed $id): bool => is_numeric($id))->map(static fn (mixed $id): int => (int) $id)->values()->all();
+            $branchIds = $this->branches->resolveMany($companyId, $employeeIds, CarbonImmutable::parse((string) $period->period_end));
+            $branchNames = DB::table('branches')->where('company_id', $companyId)->whereIn('id', array_values(array_filter($branchIds, static fn (?int $id): bool => $id !== null)))->pluck('name', 'id');
+            $assignments = DB::table('employee_assignments as a')
+                ->join('organization_units as o', 'o.id', '=', 'a.organization_unit_id')
+                ->leftJoin('job_positions as j', 'j.id', '=', 'a.job_position_id')
+                ->leftJoin('cost_centers as c', 'c.id', '=', 'o.cost_center_id')
+                ->where('o.company_id', $companyId)->whereIn('a.employee_id', $employeeIds)
+                ->where('a.assignment_type', 'primary')->whereDate('a.effective_from', '<=', $period->period_end)
+                ->where(fn (Builder $q): Builder => $q->whereNull('a.effective_to')->orWhereDate('a.effective_to', '>=', $period->period_start))
+                ->orderBy('a.employee_id')->orderByDesc('a.effective_from')->orderByDesc('a.id')
+                ->get(['a.id', 'a.employee_id', 'a.organization_unit_id', 'a.job_position_id', 'a.effective_from', 'a.effective_to', 'o.name as organization_name', 'j.title as position_name', 'c.id as cost_center_id', 'c.company_id as cost_center_company_id', 'c.code as cost_center_code', 'c.name as cost_center_name'])
+                ->unique('employee_id')->keyBy('employee_id');
             foreach ($employees as $employee) {
                 if (! is_numeric($employee->id ?? null)) {
                     continue;
@@ -58,14 +73,22 @@ final readonly class PayrollInputGenerationService
                     }
                 }
                 $overtimeCount = $overtimeSources->count();
-                $assignment = DB::table('employee_assignments as a')->leftJoin('organization_units as o', 'o.id', '=', 'a.organization_unit_id')->leftJoin('job_positions as j', 'j.id', '=', 'a.job_position_id')->where('o.company_id', $companyId)->where('a.employee_id', $employeeId)->where('a.assignment_type', 'primary')->whereDate('a.effective_from', '<=', $period->period_end)->where(fn (Builder $q) => $q->whereNull('a.effective_to')->orWhereDate('a.effective_to', '>=', $period->period_start))->select(['a.id', 'a.organization_unit_id', 'a.job_position_id', 'a.effective_from', 'a.effective_to', 'o.name as organization_name', 'j.title as position_name'])->first();
+                $assignment = $assignments->get($employeeId);
+                if (is_object($assignment) && is_numeric($assignment->cost_center_id ?? null) && (! is_numeric($assignment->cost_center_company_id ?? null) || (int) $assignment->cost_center_company_id !== $companyId)) {
+                    throw ValidationException::withMessages(['cost_center' => 'PAYROLL_COST_CENTER_COMPANY_MISMATCH']);
+                }
                 $contract = DB::table('employment_contracts')->where('employee_id', $employeeId)->whereIn('status', ['active', 'draft'])->whereDate('starts_at', '<=', $period->period_end)->latest('starts_at')->value('id');
                 $profile = DB::table('employee_work_profiles')->where('company_id', $companyId)->where('employee_id', $employeeId)->whereDate('effective_from', '<=', $period->period_end)->latest('effective_from')->first();
+                $branchId = $branchIds[$employeeId] ?? null;
+                $branchName = $branchId === null ? null : $branchNames->get($branchId);
                 $scheduled = is_object($attendance) && is_numeric($attendance->scheduled ?? null) ? (int) $attendance->scheduled : 0;
                 $worked = is_object($attendance) && is_numeric($attendance->worked ?? null) ? (int) $attendance->worked : 0;
                 $readiness = array_values(array_unique(array_filter([is_numeric($contract) ? null : 'missing_contract', is_object($assignment) ? null : 'missing_assignment', ...$overtimeIssues])));
-                $source = [$employeeId, $scheduled, $worked, $paidLeave, $unpaidLeave, $overtime, $leaveCount, $overtimeCount];
-                $employeeInputId = (int) DB::table('payroll_employee_inputs')->insertGetId(['company_id' => $companyId, 'payroll_input_snapshot_id' => $snapshot->id, 'employee_id' => $employeeId, 'employee_number_snapshot' => is_string($employee->employee_code ?? null) ? $employee->employee_code : '', 'employee_name_snapshot' => is_string($employee->full_name ?? null) ? $employee->full_name : '', 'contract_id' => is_numeric($contract) ? (int) $contract : null, 'assignment_id' => is_object($assignment) && is_numeric($assignment->id ?? null) ? (int) $assignment->id : null, 'organization_unit_id' => is_object($assignment) && is_numeric($assignment->organization_unit_id ?? null) ? (int) $assignment->organization_unit_id : null, 'organization_unit_snapshot' => is_object($assignment) && is_string($assignment->organization_name ?? null) ? $assignment->organization_name : null, 'job_position_id' => is_object($assignment) && is_numeric($assignment->job_position_id ?? null) ? (int) $assignment->job_position_id : null, 'job_position_snapshot' => is_object($assignment) && is_string($assignment->position_name ?? null) ? $assignment->position_name : null, 'employment_start' => is_object($assignment) && is_string($assignment->effective_from ?? null) ? $assignment->effective_from : null, 'employment_end' => is_object($assignment) && is_string($assignment->effective_to ?? null) ? $assignment->effective_to : null, 'scheduled_minutes' => $scheduled, 'worked_minutes' => $worked, 'paid_leave_minutes' => $paidLeave, 'unpaid_leave_minutes' => $unpaidLeave, 'approved_overtime_minutes' => $overtime, 'weekday_overtime_minutes' => $weekdayOvertime, 'weekend_overtime_minutes' => $weekendOvertime, 'holiday_overtime_minutes' => $holidayOvertime, 'late_minutes' => is_object($attendance) && is_numeric($attendance->late ?? null) ? (int) $attendance->late : 0, 'early_leave_minutes' => is_object($attendance) && is_numeric($attendance->early ?? null) ? (int) $attendance->early : 0, 'absence_minutes' => max(0, $scheduled - $worked - $paidLeave - $unpaidLeave), 'attendance_record_count' => is_object($attendance) && is_numeric($attendance->records ?? null) ? (int) $attendance->records : 0, 'leave_record_count' => $leaveCount, 'overtime_record_count' => $overtimeCount, 'input_status' => $readiness === [] ? 'ready' : 'blocked', 'source_hash' => hash('sha256', json_encode($source, JSON_THROW_ON_ERROR)), 'fte_basis_points' => is_object($profile) && is_numeric($profile->fte_basis_points ?? null) ? (int) $profile->fte_basis_points : 10000, 'readiness_issues' => json_encode($readiness, JSON_THROW_ON_ERROR), 'created_at' => now(), 'updated_at' => now()]);
+                $costCenterId = is_object($assignment) && is_numeric($assignment->cost_center_id ?? null) ? (int) $assignment->cost_center_id : null;
+                $costCenterCode = is_object($assignment) && is_string($assignment->cost_center_code ?? null) ? $assignment->cost_center_code : null;
+                $costCenterName = is_object($assignment) && is_string($assignment->cost_center_name ?? null) ? $assignment->cost_center_name : null;
+                $source = [$employeeId, $scheduled, $worked, $paidLeave, $unpaidLeave, $overtime, $leaveCount, $overtimeCount, $costCenterId, $costCenterCode, $costCenterName];
+                $employeeInputId = (int) DB::table('payroll_employee_inputs')->insertGetId(['company_id' => $companyId, 'payroll_input_snapshot_id' => $snapshot->id, 'employee_id' => $employeeId, 'employee_number_snapshot' => is_string($employee->employee_code ?? null) ? $employee->employee_code : '', 'employee_name_snapshot' => is_string($employee->full_name ?? null) ? $employee->full_name : '', 'contract_id' => is_numeric($contract) ? (int) $contract : null, 'assignment_id' => is_object($assignment) && is_numeric($assignment->id ?? null) ? (int) $assignment->id : null, 'organization_unit_id' => is_object($assignment) && is_numeric($assignment->organization_unit_id ?? null) ? (int) $assignment->organization_unit_id : null, 'organization_unit_snapshot' => is_object($assignment) && is_string($assignment->organization_name ?? null) ? $assignment->organization_name : null, 'cost_center_id' => $costCenterId, 'cost_center_code_snapshot' => $costCenterCode, 'cost_center_name_snapshot' => $costCenterName, 'job_position_id' => is_object($assignment) && is_numeric($assignment->job_position_id ?? null) ? (int) $assignment->job_position_id : null, 'job_position_snapshot' => is_object($assignment) && is_string($assignment->position_name ?? null) ? $assignment->position_name : null, 'employment_start' => is_object($assignment) && is_string($assignment->effective_from ?? null) ? $assignment->effective_from : null, 'employment_end' => is_object($assignment) && is_string($assignment->effective_to ?? null) ? $assignment->effective_to : null, 'scheduled_minutes' => $scheduled, 'worked_minutes' => $worked, 'paid_leave_minutes' => $paidLeave, 'unpaid_leave_minutes' => $unpaidLeave, 'approved_overtime_minutes' => $overtime, 'weekday_overtime_minutes' => $weekdayOvertime, 'weekend_overtime_minutes' => $weekendOvertime, 'holiday_overtime_minutes' => $holidayOvertime, 'late_minutes' => is_object($attendance) && is_numeric($attendance->late ?? null) ? (int) $attendance->late : 0, 'early_leave_minutes' => is_object($attendance) && is_numeric($attendance->early ?? null) ? (int) $attendance->early : 0, 'absence_minutes' => max(0, $scheduled - $worked - $paidLeave - $unpaidLeave), 'attendance_record_count' => is_object($attendance) && is_numeric($attendance->records ?? null) ? (int) $attendance->records : 0, 'leave_record_count' => $leaveCount, 'overtime_record_count' => $overtimeCount, 'input_status' => $readiness === [] ? 'ready' : 'blocked', 'source_hash' => hash('sha256', json_encode($source, JSON_THROW_ON_ERROR)), 'fte_basis_points' => is_object($profile) && is_numeric($profile->fte_basis_points ?? null) ? (int) $profile->fte_basis_points : 10000, 'readiness_issues' => json_encode($readiness, JSON_THROW_ON_ERROR), 'created_at' => now(), 'updated_at' => now()]);
                 foreach (DB::table('attendance_records')->where('company_id', $companyId)->where('employee_id', $employeeId)->whereBetween('work_date', [$period->period_start, $period->period_end])->where('approval_status', 'approved')->orderBy('id')->get() as $origin) {
                     $this->captureSource($companyId, (int) $snapshot->id, $employeeInputId, 'attendance', $origin, $this->string($origin, 'work_date'), 'worked_minutes', $this->integer($origin, 'worked_minutes'), null);
                 }
@@ -79,6 +102,7 @@ final readonly class PayrollInputGenerationService
                     $checksum = hash('sha256', json_encode([$this->integer($origin, 'id'), $this->string($origin, 'status'), $this->integer($origin, 'payable_minutes'), $this->string($origin, 'starts_at'), $this->string($origin, 'ends_at'), $this->string($origin, 'updated_at')], JSON_THROW_ON_ERROR));
                     DB::table('payroll_input_source_records')->insertOrIgnore(['company_id' => $companyId, 'payroll_input_snapshot_id' => $snapshot->id, 'payroll_employee_input_id' => $employeeInputId, 'source_type' => 'overtime', 'source_id' => $this->integer($origin, 'id'), 'source_date' => $segment['date'], 'source_status_at_capture' => $this->string($origin, 'status'), 'quantity_type' => 'payable_minutes', 'quantity_minutes' => $segment['minutes'], 'classification' => $segment['classification'], 'source_updated_at' => $this->string($origin, 'updated_at') ?: null, 'source_checksum' => $checksum, 'captured_at' => now(), 'metadata' => json_encode(['reason' => $segment['reason']], JSON_THROW_ON_ERROR), 'created_at' => now(), 'updated_at' => now()]);
                 }
+                DB::table('payroll_employee_inputs')->where('id', $employeeInputId)->update(['branch_id' => $branchId, 'branch_snapshot' => is_string($branchName) ? $branchName : null]);
             }$period->status = 'review';
             $period->version++;
             $period->save();

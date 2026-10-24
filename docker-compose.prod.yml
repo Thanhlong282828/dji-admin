@@ -2,13 +2,19 @@ x-production-environment: &production-environment
   APP_KEY: ${APP_KEY:?APP_KEY is required for production}
   APP_ENV: production
   APP_DEBUG: "false"
+  APP_URL: ${APP_URL:?APP_URL must be the verified production HTTPS origin}
   DB_DATABASE: ${APP_DB_DATABASE:?APP_DB_DATABASE must name the separate VPS production database}
+  VPS_PRODUCTION_DATABASE: ${APP_DB_DATABASE:?APP_DB_DATABASE must name the separate VPS production database}
   DB_USERNAME: ${DB_USERNAME:?DB_USERNAME is required for production}
   DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required for production}
+  CACHE_STORE: redis
+  QUEUE_CONNECTION: redis
+  SESSION_DRIVER: redis
   LOG_CHANNEL: production
   LOG_LEVEL: warning
   REDIS_CLIENT: predis
   SESSION_ENCRYPT: "true"
+  SESSION_SECURE_COOKIE: "true"
 
 services:
   app:
@@ -19,7 +25,10 @@ services:
         reservations: {cpus: "0.25", memory: 256M}
   nginx:
     ports: !override
-      - "80:8080"
+      # The application origin is reachable only by the host reverse proxy.
+      # Public traffic must terminate at the edge/host proxy; never publish
+      # this container port on every interface.
+      - "127.0.0.1:${APP_ORIGIN_PORT:-8081}:8080"
     deploy:
       resources:
         limits: {cpus: "0.50", memory: 256M}
@@ -50,6 +59,7 @@ services:
         limits: {cpus: "0.50", memory: 384M}
   horizon:
     environment: *production-environment
+    profiles: [horizon-only]
     deploy:
       resources:
         limits: {cpus: "1.0", memory: 768M}

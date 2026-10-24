@@ -19,7 +19,17 @@ final readonly class AttendanceRecordPolicy extends AbstractWorkforcePolicy
 
     public function viewOwn(User $u, int $c, int $employee): bool
     {
-        return $this->employee($u, 'attendance.view', $c, $employee, 'attendance.adjust');
+        return $this->employee($u, 'attendance.view-own', $c, $employee, 'attendance.adjust');
+    }
+
+    public function viewOwnRecord(User $u, int $c, int $id): bool
+    {
+        $employeeId = DB::table('attendance_records')->where('id', $id)->where('company_id', $c)->value('employee_id');
+        if (! is_numeric($employeeId)) {
+            abort(404);
+        }
+
+        return $this->viewOwn($u, $c, (int) $employeeId);
     }
 
     public function checkIn(User $u, int $c, int $employee): bool

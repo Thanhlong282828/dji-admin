@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 use App\Models\User;
 use App\Services\WorkforceNotificationDeliveryService;
+use App\Support\DataQuality\DataQualityRemediationAuditService;
 use Carbon\CarbonImmutable;
 use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Foundation\Application;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Modules\Attendance\Application\Commands\ManageOvertimeCommand;
@@ -23,15 +25,32 @@ use Modules\Audit\Domain\Contracts\AuditRecorderInterface;
 use Modules\Audit\Domain\Services\AuditExportService;
 use Modules\Audit\Domain\Services\AuditRetentionService;
 use Modules\Audit\Infrastructure\Ingestion\WorkflowAuditConsumer;
+use Modules\Commerce\Application\Services\CheckoutService;
+use Modules\Commerce\Application\Services\CustomerCreditNoteService;
+use Modules\Commerce\Application\Services\CustomerRefundService;
+use Modules\Commerce\Application\Services\SalesReceivableService;
+use Modules\Document\Application\Services\EnterpriseDocumentService;
 use Modules\Employee\Application\DTOs\LifecycleTransitionData;
 use Modules\Employee\Domain\Services\EmployeeLifecycleService;
 use Modules\Employee\Domain\Services\HRDataGovernanceService;
+use Modules\Finance\Application\Services\AssetLifecycleService;
+use Modules\Finance\Application\Services\CustomerInvoiceFxRecognitionService;
+use Modules\Finance\Application\Services\FiscalYearGovernanceService;
+use Modules\Finance\Application\Services\FxRateService;
+use Modules\Finance\Application\Services\FxRateSnapshotService;
+use Modules\Finance\Application\Services\FxRevaluationService;
+use Modules\Finance\Application\Services\SourceAccountingPostingService;
+use Modules\Finance\Application\Services\TreasuryInternalTransferService;
+use Modules\Finance\Application\Services\TreasuryOpeningBalanceService;
 use Modules\Iam\Domain\Services\AccessReviewService;
 use Modules\Iam\Domain\Services\IamGovernanceService;
 use Modules\Integration\Domain\Services\IntegrationHubService;
+use Modules\Inventory\Application\Services\InventoryAdjustmentService;
 use Modules\Leave\Domain\Enums\LeaveRequestStatus;
 use Modules\Leave\Domain\Services\AutomatedLeaveLedgerService;
 use Modules\Leave\Domain\Services\LeaveWorkflowService;
+use Modules\Maintenance\Application\Services\MaintenanceService;
+use Modules\Maintenance\Application\Services\MaintenanceWorkOrderCloseoutService;
 use Modules\Notification\Application\DTOs\QueueNotificationData;
 use Modules\Notification\Domain\Services\NotificationDeliveryService;
 use Modules\Notification\Domain\Services\NotificationReadStateService;
@@ -60,6 +79,11 @@ use Modules\Performance\Domain\Services\PerformanceCycleService;
 use Modules\Performance\Domain\Services\PerformanceReviewService;
 use Modules\Performance\Domain\Services\SuccessionPlanningService;
 use Modules\Performance\Domain\Services\WorkforceAnalyticsService;
+use Modules\Procurement\Application\Services\GoodsReturnService;
+use Modules\Procurement\Application\Services\ProcurementService;
+use Modules\Procurement\Application\Services\SupplierCreditService;
+use Modules\Procurement\Application\Services\VendorRefundService;
+use Modules\Tax\Application\Services\TaxEvidenceService;
 use Modules\Workflow\Application\DTOs\StartWorkflowData;
 use Modules\Workflow\Domain\Services\WorkflowExecutionService;
 use Modules\Workflow\Domain\Services\WorkflowTaskService;
@@ -96,8 +120,8 @@ $ready = $directory.'/'.getmypid().'.ready';
 $readyTemporary = $ready.'.tmp';
 file_put_contents($readyTemporary, 'ready', LOCK_EX);
 rename($readyTemporary, $ready);
-$deadline = microtime(true) + 20;
-while (! is_file($barrier) && microtime(true) < $deadline) {
+$deadline = hrtime(true) + 45_000_000_000;
+while (! is_file($barrier) && hrtime(true) < $deadline) {
     usleep(10_000);
 }
 if (! is_file($barrier)) {
@@ -108,7 +132,12 @@ if (! is_file($barrier)) {
 
 try {
     $result = match ($scenario) {
+        'dq_remediation_audit' => app(DataQualityRemediationAuditService::class)->snapshot(
+            isset($payload['company_id']) ? requiredInt($payload, 'company_id') : null,
+            'schema_admin_testing',
+        ),
         'shift_assignment' => $app->make(WorkforceManagementService::class)->execute(new ManageWorkforceResourceCommand('assignment', 'created', requiredInt($payload, 'company_id'), null, ['employee_id' => requiredInt($payload, 'employee_id'), 'work_shift_id' => requiredInt($payload, 'shift_id'), 'assignment_type' => 'fixed', 'effective_from' => requiredString($payload, 'effective_from'), 'effective_to' => requiredString($payload, 'effective_to')], requiredInt($payload, 'actor_id'))),
+        'commerce_checkout' => checkoutPlace($app->make(CheckoutService::class), $payload),
         'attendance_workflow' => attendance($app->make(AttendanceWorkflowService::class), $payload),
         'leave_transition' => leaveTransition($app->make(LeaveWorkflowService::class), $payload),
         'leave_accrual' => $app->make(AutomatedLeaveLedgerService::class)->accrue(CarbonImmutable::parse(requiredString($payload, 'date'))),
@@ -193,6 +222,53 @@ try {
         'iam_consume_workflow' => iamConsumer('iam:consume-workflow'),
         'iam_consume_employee' => iamConsumer('iam:consume-employee-lifecycle'),
         'iam_consume_notification' => iamConsumer('iam:consume-notifications'),
+        'treasury_opening_create' => treasuryOpeningCreate($app->make(TreasuryOpeningBalanceService::class), $payload),
+        'treasury_opening_post' => treasuryOpeningPost($app->make(TreasuryOpeningBalanceService::class), $payload),
+        'treasury_transfer_create' => treasuryTransferCreate($app->make(TreasuryInternalTransferService::class), $payload),
+        'treasury_transfer_reverse' => treasuryTransferReverse($app->make(TreasuryInternalTransferService::class), $payload),
+        'treasury_transfer_post' => treasuryTransferPost($app->make(TreasuryInternalTransferService::class), $payload),
+        'customer_credit_create' => customerCreditCreate($app->make(CustomerCreditNoteService::class), $payload),
+        'customer_credit_post' => customerCreditPost($app->make(CustomerCreditNoteService::class), $payload),
+        'customer_refund_create' => customerRefundCreate($app->make(CustomerRefundService::class), $payload),
+        'customer_refund_post' => customerRefundPost($app->make(CustomerRefundService::class), $payload),
+        'inventory_stock_count_create' => inventoryStockCountCreate($app->make(InventoryAdjustmentService::class), $payload),
+        'inventory_adjustment_post' => inventoryAdjustmentPost($app->make(InventoryAdjustmentService::class), $payload),
+        'maintenance_part_issue' => maintenancePartIssue($app->make(MaintenanceService::class), $payload),
+        'maintenance_part_return' => maintenancePartReturn($app->make(MaintenanceService::class), $payload),
+        'maintenance_work_order_close' => maintenanceWorkOrderClose($app->make(MaintenanceWorkOrderCloseoutService::class), $payload),
+        'enterprise_document_upload' => enterpriseDocumentUpload($app->make(EnterpriseDocumentService::class), $payload),
+        'asset_disposal_create' => assetDisposalCreate($app->make(AssetLifecycleService::class), $payload),
+        'asset_disposal_approve' => assetDisposalApprove($app->make(AssetLifecycleService::class), $payload),
+        'asset_disposal_post' => assetDisposalPost($app->make(AssetLifecycleService::class), $payload),
+        'fiscal_period_close' => fiscalPeriodClose($app->make(FiscalYearGovernanceService::class), $payload),
+        'fiscal_year_close' => fiscalYearClose($app->make(FiscalYearGovernanceService::class), $payload),
+        'fiscal_carry_forward' => fiscalCarryForward($app->make(FiscalYearGovernanceService::class), $payload),
+        'fx_rate_approve' => fxRateTransition($app->make(FxRateService::class), $payload, 'approve'),
+        'fx_rate_activate' => fxRateTransition($app->make(FxRateService::class), $payload, 'activate'),
+        'fx_snapshot_capture' => fxSnapshotCapture($app->make(FxRateSnapshotService::class), $payload),
+        'ar_fx_recognition' => $app->make(CustomerInvoiceFxRecognitionService::class)->recognize(requiredInt($payload, 'company_id'), requiredInt($payload, 'invoice_id'), requiredInt($payload, 'actor_id'))->recognitionId,
+        'ar_fx_invoice_issue' => $app->make(SalesReceivableService::class)->issueCustomerInvoice(requiredInt($payload, 'company_id'), User::query()->findOrFail(requiredInt($payload, 'actor_id')), ['id' => requiredInt($payload, 'invoice_id')]),
+        'ar_fx_collection' => $app->make(SalesReceivableService::class)->allocateCustomerCollection(requiredInt($payload, 'company_id'), User::query()->findOrFail(requiredInt($payload, 'actor_id')), $payload),
+        'ap_fx_bill_approve' => $app->make(ProcurementService::class)->mutate('bill.approve', requiredInt($payload, 'company_id'), User::query()->findOrFail(requiredInt($payload, 'actor_id')), ['id' => requiredInt($payload, 'bill_id')]),
+        'inventory_fx_receipt_receive' => $app->make(ProcurementService::class)->mutate('receipt.receive', requiredInt($payload, 'company_id'), User::query()->findOrFail(requiredInt($payload, 'actor_id')), ['id' => requiredInt($payload, 'receipt_id')]),
+        'inventory_fx_bill_create' => $app->make(ProcurementService::class)->mutate('bill.create', requiredInt($payload, 'company_id'), User::query()->findOrFail(requiredInt($payload, 'actor_id')), [
+            'purchase_order_id' => requiredInt($payload, 'purchase_order_id'),
+            'purchase_order_line_id' => requiredInt($payload, 'purchase_order_line_id'),
+            'goods_receipt_line_id' => requiredInt($payload, 'goods_receipt_line_id'),
+            'quantity' => requiredInt($payload, 'quantity'),
+            'invoice_number' => requiredString($payload, 'invoice_number'),
+            'invoice_date' => requiredString($payload, 'invoice_date'),
+            'due_date' => requiredString($payload, 'due_date'),
+        ]),
+        'inventory_fx_goods_return_post' => $app->make(GoodsReturnService::class)->post(requiredInt($payload, 'company_id'), requiredInt($payload, 'goods_return_id'), User::query()->findOrFail(requiredInt($payload, 'actor_id'))),
+        'inventory_fx_supplier_credit_approve' => $app->make(SupplierCreditService::class)->approve(requiredInt($payload, 'company_id'), requiredInt($payload, 'supplier_credit_id'), User::query()->findOrFail(requiredInt($payload, 'actor_id'))),
+        'inventory_fx_supplier_credit_post' => $app->make(SupplierCreditService::class)->post(requiredInt($payload, 'company_id'), requiredInt($payload, 'supplier_credit_id'), User::query()->findOrFail(requiredInt($payload, 'actor_id'))),
+        'inventory_fx_vendor_refund_post' => $app->make(VendorRefundService::class)->post(requiredInt($payload, 'company_id'), requiredInt($payload, 'supplier_refund_receipt_id'), User::query()->findOrFail(requiredInt($payload, 'actor_id'))),
+        'ap_fx_payment' => $app->make(ProcurementService::class)->mutate('payment.allocate', requiredInt($payload, 'company_id'), User::query()->findOrFail(requiredInt($payload, 'actor_id')), $payload),
+        'fx_revaluation_post' => fxRevaluationPost($app->make(FxRevaluationService::class), $payload),
+        'fx_revaluation_reverse' => fxRevaluationReverse($app->make(FxRevaluationService::class), $payload),
+        'policy_backed_source_post' => policyBackedSourcePost($app->make(SourceAccountingPostingService::class), $payload),
+        'tax_policy_backed_source_post' => taxPolicyBackedSourcePost($app->make(SourceAccountingPostingService::class), $app->make(TaxEvidenceService::class), $payload),
         default => throw new InvalidArgumentException('unsupported-scenario'),
     };
     fwrite(STDOUT, json_encode(['status' => 'committed', 'result' => $result], JSON_THROW_ON_ERROR)."\n");
@@ -202,6 +278,361 @@ try {
     fwrite(STDOUT, json_encode(['status' => 'rejected', 'type' => $throwable::class, 'message' => $throwable->getMessage()], JSON_THROW_ON_ERROR)."\n");
     @unlink($ready);
     exit(2);
+}
+
+/** @param array<string,bool|int|string|null> $payload */
+function enterpriseDocumentUpload(EnterpriseDocumentService $service, array $payload): int
+{
+    config()->set('document.storage_disk', 'local');
+    $source = requiredString($payload, 'source_path');
+    if (! is_file($source)) {
+        throw new RuntimeException('document-race-source-missing');
+    }
+
+    return $service->upload(
+        requiredInt($payload, 'company_id'),
+        requiredInt($payload, 'document_id'),
+        new UploadedFile($source, requiredString($payload, 'original_name'), 'application/pdf', null, true),
+        requiredInt($payload, 'actor_id'),
+    );
+}
+
+/** @param array<string,bool|int|string|null> $payload */
+function fxRateTransition(FxRateService $service, array $payload, string $action): bool
+{
+    $actor = User::query()->findOrFail(requiredInt($payload, 'actor_id'));
+    $service->transition(requiredInt($payload, 'company_id'), requiredInt($payload, 'rate_id'), $action, $actor);
+
+    return true;
+}
+
+/** @param array<string,bool|int|string|null> $payload */
+function fxSnapshotCapture(FxRateSnapshotService $service, array $payload): int
+{
+    $rate = DB::table('finance_fx_rates')->where([
+        'company_id' => requiredInt($payload, 'company_id'),
+        'id' => requiredInt($payload, 'rate_id'),
+    ])->first();
+    if (! is_object($rate)) {
+        throw new RuntimeException('FX rate not found for snapshot race.');
+    }
+
+    return $service->capture(
+        requiredInt($payload, 'company_id'),
+        (array) $rate,
+        requiredString($payload, 'source_type'),
+        requiredInt($payload, 'source_id'),
+    );
+}
+
+/** @param array<string,bool|int|string|null> $payload */
+function fxRevaluationPost(FxRevaluationService $service, array $payload): ?int
+{
+    return $service->post(
+        requiredInt($payload, 'company_id'),
+        requiredInt($payload, 'run_id'),
+        User::query()->findOrFail(requiredInt($payload, 'actor_id')),
+    );
+}
+
+/** @param array<string,bool|int|string|null> $payload */
+function fxRevaluationReverse(FxRevaluationService $service, array $payload): int
+{
+    return $service->reverse(
+        requiredInt($payload, 'company_id'),
+        requiredInt($payload, 'run_id'),
+        User::query()->findOrFail(requiredInt($payload, 'actor_id')),
+    );
+}
+
+/** @param array<string,bool|int|string|null> $payload */
+function policyBackedSourcePost(SourceAccountingPostingService $service, array $payload): int
+{
+    $amount = requiredInt($payload, 'amount_minor');
+
+    return $service->postPolicyBacked(
+        requiredInt($payload, 'company_id'),
+        requiredInt($payload, 'branch_id'),
+        requiredString($payload, 'source_type'),
+        requiredInt($payload, 'source_id'),
+        requiredString($payload, 'posting_type'),
+        requiredString($payload, 'posting_date'),
+        'VND',
+        [
+            ['account_code' => requiredString($payload, 'debit_account'), 'debit' => $amount, 'credit' => 0, 'description' => 'Concurrent policy debit'],
+            ['account_code' => requiredString($payload, 'credit_account'), 'debit' => 0, 'credit' => $amount, 'description' => 'Concurrent policy credit'],
+        ],
+        requiredInt($payload, 'actor_id'),
+        requiredInt($payload, 'policy_id'),
+        requiredInt($payload, 'policy_version'),
+    );
+}
+
+/** @param array<string,bool|int|string|null> $payload */
+function taxPolicyBackedSourcePost(SourceAccountingPostingService $posting, TaxEvidenceService $evidence, array $payload): int
+{
+    return DB::transaction(function () use ($posting, $evidence, $payload): int {
+        $taxable = requiredInt($payload, 'taxable_amount_minor');
+        $tax = requiredInt($payload, 'tax_amount_minor');
+        $journalId = $posting->postPolicyBacked(
+            requiredInt($payload, 'company_id'),
+            requiredInt($payload, 'branch_id'),
+            requiredString($payload, 'source_type'),
+            requiredInt($payload, 'source_id'),
+            requiredString($payload, 'posting_type'),
+            requiredString($payload, 'posting_date'),
+            'VND',
+            [
+                ['account_code' => requiredString($payload, 'receivable_account'), 'debit' => $taxable + $tax, 'credit' => 0, 'description' => 'Concurrent invoice total'],
+                ['account_code' => requiredString($payload, 'revenue_account'), 'debit' => 0, 'credit' => $taxable, 'description' => 'Concurrent taxable revenue'],
+                ['account_code' => requiredString($payload, 'tax_account'), 'debit' => 0, 'credit' => $tax, 'description' => 'Concurrent output VAT'],
+            ],
+            requiredInt($payload, 'actor_id'),
+            requiredInt($payload, 'accounting_policy_id'),
+            requiredInt($payload, 'accounting_policy_version'),
+        );
+        $evidence->record(
+            requiredInt($payload, 'company_id'),
+            requiredInt($payload, 'branch_id'),
+            requiredString($payload, 'source_type'),
+            requiredInt($payload, 'source_id'),
+            requiredString($payload, 'posting_date'),
+            'VND',
+            $taxable,
+            $tax,
+            $journalId,
+            [
+                'category_id' => requiredInt($payload, 'tax_category_id'),
+                'policy_id' => requiredInt($payload, 'tax_policy_id'),
+                'version' => requiredInt($payload, 'tax_policy_version'),
+                'rate_basis_points' => requiredInt($payload, 'rate_basis_points'),
+                'tax_account_id' => requiredInt($payload, 'tax_account_id'),
+                'tax_account_code' => requiredString($payload, 'tax_account'),
+                'accounting_policy_id' => requiredInt($payload, 'accounting_policy_id'),
+                'accounting_policy_version' => requiredInt($payload, 'accounting_policy_version'),
+            ],
+        );
+
+        return $journalId;
+    }, 3);
+}
+
+/** @param array<string,bool|int|string|null> $payload */
+function fiscalPeriodClose(FiscalYearGovernanceService $service, array $payload): int
+{
+    $actor = User::query()->findOrFail(requiredInt($payload, 'actor_id'));
+
+    return $service->closePeriod(requiredInt($payload, 'company_id'), requiredInt($payload, 'period_id'), $actor, 'Concurrent period close');
+}
+
+/** @param array<string,bool|int|string|null> $payload */
+function fiscalYearClose(FiscalYearGovernanceService $service, array $payload): int
+{
+    $actor = User::query()->findOrFail(requiredInt($payload, 'actor_id'));
+
+    return $service->closeFiscalYear(requiredInt($payload, 'company_id'), requiredInt($payload, 'fiscal_year_id'), requiredInt($payload, 'retained_earnings_account_id'), requiredString($payload, 'idempotency_key'), $actor, 'Concurrent year close');
+}
+
+/** @param array<string,bool|int|string|null> $payload */
+function fiscalCarryForward(FiscalYearGovernanceService $service, array $payload): int
+{
+    $actor = User::query()->findOrFail(requiredInt($payload, 'actor_id'));
+
+    return $service->carryForward(requiredInt($payload, 'company_id'), requiredInt($payload, 'close_request_id'), requiredInt($payload, 'target_fiscal_year_id'), $actor);
+}
+
+/** @param array<string,bool|int|string|null> $payload */
+function assetDisposalCreate(AssetLifecycleService $service, array $payload): int
+{
+    $actor = User::query()->findOrFail(requiredInt($payload, 'actor_id'));
+
+    return $service->createDisposal(requiredInt($payload, 'company_id'), $actor, [
+        'asset_id' => requiredInt($payload, 'asset_id'),
+        'reference' => requiredString($payload, 'reference'),
+        'disposal_date' => requiredString($payload, 'disposal_date'),
+        'reason' => requiredString($payload, 'reason'),
+        'proceeds_minor' => requiredInt($payload, 'proceeds_minor'),
+        'idempotency_key' => requiredString($payload, 'idempotency_key'),
+    ]);
+}
+
+/** @param array<string,bool|int|string|null> $payload */
+function assetDisposalApprove(AssetLifecycleService $service, array $payload): int
+{
+    return $service->approveDisposal(requiredInt($payload, 'company_id'), requiredInt($payload, 'disposal_id'), User::query()->findOrFail(requiredInt($payload, 'actor_id')));
+}
+
+/** @param array<string,bool|int|string|null> $payload */
+function assetDisposalPost(AssetLifecycleService $service, array $payload): int
+{
+    return $service->postDisposal(requiredInt($payload, 'company_id'), requiredInt($payload, 'disposal_id'), User::query()->findOrFail(requiredInt($payload, 'actor_id')));
+}
+
+/** @param array<string,bool|int|string|null> $payload */
+function treasuryOpeningCreate(TreasuryOpeningBalanceService $service, array $payload): int
+{
+    $actor = User::query()->findOrFail(requiredInt($payload, 'actor_id'));
+
+    return $service->create(requiredInt($payload, 'company_id'), $actor, [
+        'treasury_financial_account_id' => requiredInt($payload, 'treasury_financial_account_id'),
+        'supersedes_opening_balance_id' => optionalInt($payload, 'supersedes_opening_balance_id'),
+        'currency' => requiredString($payload, 'currency'),
+        'effective_date' => requiredString($payload, 'effective_date'),
+        'opening_amount_minor' => requiredInt($payload, 'opening_amount_minor'),
+        'reference' => requiredString($payload, 'reference'),
+        'source_note' => optionalString($payload, 'source_note'),
+        'idempotency_key' => requiredString($payload, 'idempotency_key'),
+    ]);
+}
+
+/** @param array<string,bool|int|string|null> $payload */
+function treasuryOpeningPost(TreasuryOpeningBalanceService $service, array $payload): int
+{
+    $actor = User::query()->findOrFail(requiredInt($payload, 'actor_id'));
+
+    return $service->post(requiredInt($payload, 'company_id'), requiredInt($payload, 'opening_balance_id'), $actor);
+}
+
+/** @param array<string,bool|int|string|null> $payload */
+function customerCreditCreate(CustomerCreditNoteService $service, array $payload): int
+{
+    $actor = User::query()->findOrFail(requiredInt($payload, 'actor_id'));
+
+    return $service->create(requiredInt($payload, 'company_id'), $actor, [
+        'customer_invoice_id' => requiredInt($payload, 'customer_invoice_id'),
+        'credit_note_number' => requiredString($payload, 'credit_note_number'),
+        'effective_date' => requiredString($payload, 'effective_date'),
+        'reason' => 'Concurrency verification',
+        'idempotency_key' => requiredString($payload, 'idempotency_key'),
+        'lines' => [[
+            'customer_invoice_line_id' => requiredInt($payload, 'customer_invoice_line_id'),
+            'quantity' => requiredInt($payload, 'quantity'),
+            'net_minor' => requiredInt($payload, 'total_minor'),
+            'tax_minor' => 0,
+            'total_minor' => requiredInt($payload, 'total_minor'),
+            'description' => 'Concurrent customer credit',
+        ]],
+    ]);
+}
+
+/** @param array<string,bool|int|string|null> $payload */
+function customerCreditPost(CustomerCreditNoteService $service, array $payload): int
+{
+    $actor = User::query()->findOrFail(requiredInt($payload, 'actor_id'));
+
+    return $service->post(requiredInt($payload, 'company_id'), requiredInt($payload, 'credit_note_id'), $actor);
+}
+
+/** @param array<string,bool|int|string|null> $payload */
+function customerRefundCreate(CustomerRefundService $service, array $payload): int
+{
+    $actor = User::query()->findOrFail(requiredInt($payload, 'actor_id'));
+
+    return $service->create(requiredInt($payload, 'company_id'), $actor, [
+        'financial_account_id' => requiredInt($payload, 'financial_account_id'),
+        'reference' => requiredString($payload, 'reference'),
+        'refund_date' => requiredString($payload, 'refund_date'),
+        'amount_minor' => requiredInt($payload, 'amount_minor'),
+        'idempotency_key' => requiredString($payload, 'idempotency_key'),
+        'allocations' => [['customer_credit_note_id' => requiredInt($payload, 'customer_credit_note_id'), 'allocated_minor' => requiredInt($payload, 'amount_minor')]],
+    ]);
+}
+
+/** @param array<string,bool|int|string|null> $payload */
+function inventoryStockCountCreate(InventoryAdjustmentService $service, array $payload): int
+{
+    $actor = User::query()->findOrFail(requiredInt($payload, 'actor_id'));
+
+    return $service->createStockCount(requiredInt($payload, 'company_id'), $actor, [
+        'inventory_location_id' => requiredInt($payload, 'inventory_location_id'), 'reference' => requiredString($payload, 'reference'),
+        'count_date' => requiredString($payload, 'count_date'), 'idempotency_key' => requiredString($payload, 'idempotency_key'),
+        'lines' => [['product_variant_id' => requiredInt($payload, 'product_variant_id'), 'counted_qty' => requiredInt($payload, 'counted_qty')]],
+    ]);
+}
+
+/** @param array<string,bool|int|string|null> $payload */
+function inventoryAdjustmentPost(InventoryAdjustmentService $service, array $payload): int
+{
+    $actor = User::query()->findOrFail(requiredInt($payload, 'actor_id'));
+
+    return $service->postAdjustment(requiredInt($payload, 'company_id'), requiredInt($payload, 'adjustment_id'), $actor);
+}
+
+/** @param array<string,bool|int|string|null> $payload */
+function maintenancePartIssue(MaintenanceService $service, array $payload): int
+{
+    $part = requiredInt($payload, 'part_id');
+    $service->issuePart(requiredInt($payload, 'company_id'), requiredInt($payload, 'order_id'), $part, requiredInt($payload, 'actor_id'));
+
+    return $part;
+}
+
+/** @param array<string,bool|int|string|null> $payload */
+function maintenancePartReturn(MaintenanceService $service, array $payload): int
+{
+    return $service->returnPart(requiredInt($payload, 'company_id'), requiredInt($payload, 'order_id'), requiredInt($payload, 'part_id'), requiredInt($payload, 'actor_id'), [
+        'quantity' => requiredInt($payload, 'quantity'),
+        'return_reference' => requiredString($payload, 'return_reference'),
+        'idempotency_key' => requiredString($payload, 'idempotency_key'),
+        'return_date' => requiredString($payload, 'return_date'),
+        'reason' => requiredString($payload, 'reason'),
+    ]);
+}
+
+/** @param array<string,bool|int|string|null> $payload */
+function maintenanceWorkOrderClose(MaintenanceWorkOrderCloseoutService $service, array $payload): int
+{
+    return $service->close(requiredInt($payload, 'company_id'), requiredInt($payload, 'order_id'), requiredInt($payload, 'actor_id'), requiredString($payload, 'idempotency_key'));
+}
+
+/** @param array<string,bool|int|string|null> $payload */
+function customerRefundPost(CustomerRefundService $service, array $payload): int
+{
+    $actor = User::query()->findOrFail(requiredInt($payload, 'actor_id'));
+
+    return $service->post(requiredInt($payload, 'company_id'), requiredInt($payload, 'customer_refund_id'), $actor);
+}
+
+/** @param array<string,bool|int|string|null> $payload */
+function treasuryTransferCreate(TreasuryInternalTransferService $service, array $payload): int
+{
+    $actor = User::query()->findOrFail(requiredInt($payload, 'actor_id'));
+
+    return $service->create(requiredInt($payload, 'company_id'), $actor, [
+        'source_treasury_account_id' => requiredInt($payload, 'source_treasury_account_id'),
+        'destination_treasury_account_id' => requiredInt($payload, 'destination_treasury_account_id'),
+        'currency' => requiredString($payload, 'currency'), 'amount_minor' => requiredInt($payload, 'amount_minor'),
+        'occurred_at' => requiredString($payload, 'occurred_at'), 'reference' => requiredString($payload, 'reference'),
+        'reason' => optionalString($payload, 'reason'), 'idempotency_key' => requiredString($payload, 'idempotency_key'),
+    ]);
+}
+
+/** @param array<string,bool|int|string|null> $payload */
+function treasuryTransferReverse(TreasuryInternalTransferService $service, array $payload): int
+{
+    $actor = User::query()->findOrFail(requiredInt($payload, 'actor_id'));
+
+    return $service->reverse(requiredInt($payload, 'company_id'), requiredInt($payload, 'transfer_id'), $actor, [
+        'occurred_at' => requiredString($payload, 'occurred_at'), 'reference' => requiredString($payload, 'reference'),
+        'reason' => requiredString($payload, 'reason'), 'idempotency_key' => requiredString($payload, 'idempotency_key'),
+    ]);
+}
+
+/** @param array<string,bool|int|string|null> $payload */
+function treasuryTransferPost(TreasuryInternalTransferService $service, array $payload): int
+{
+    $actor = User::query()->findOrFail(requiredInt($payload, 'actor_id'));
+
+    return $service->post(requiredInt($payload, 'company_id'), requiredInt($payload, 'transfer_id'), $actor);
+}
+
+/** @param array<string,bool|int|string|null> $payload */
+function checkoutPlace(CheckoutService $service, array $payload): int
+{
+    $user = User::query()->findOrFail(requiredInt($payload, 'user_id'));
+    $ids = $service->place($user, requiredInt($payload, 'address_id'), 'standard', requiredString($payload, 'idempotency_key'));
+
+    return $ids[0];
 }
 
 /** @param array<string,bool|int|string|null> $payload */
@@ -540,6 +971,20 @@ function governmentFiling(GovernmentTaxFilingService $service, array $payload, s
 function requiredInt(array $payload, string $key): int
 {
     $value = $payload[$key] ?? null;
+    if (! is_int($value) || $value <= 0) {
+        throw new InvalidArgumentException("invalid-{$key}");
+    }
+
+    return $value;
+}
+
+/** @param array<string,bool|int|string|null> $payload */
+function optionalInt(array $payload, string $key): ?int
+{
+    $value = $payload[$key] ?? null;
+    if ($value === null) {
+        return null;
+    }
     if (! is_int($value) || $value <= 0) {
         throw new InvalidArgumentException("invalid-{$key}");
     }

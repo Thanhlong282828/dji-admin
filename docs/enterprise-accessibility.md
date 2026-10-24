@@ -4,6 +4,8 @@ Phase 3F-20 adds Test Quality to the exact-viewport navigation regression. It re
 
 Phase 3F-17 replaces the flat admin menu with a permission-aware grouped navigation shell and establishes WCAG 2.2 AA-oriented frontend governance. It adds keyboard/mobile drawer behavior, skip navigation, visible focus, reduced motion, touch targets, table enhancement and exact-viewport automation.
 
+Phase 3F-26 final navigation hardening removes full-page accordion flicker: active state remains server-rendered, a no-animation pre-paint bootstrap restores one permission-valid group and session scroll position, and idempotent TypeScript reconciles BFCache without restoring the mobile drawer. Active items are revealed only when outside the menu viewport, avoiding unconditional centering and scroll jumps.
+
 This is not a formal accessibility certification. Page-specific legacy form help/error associations, modal behavior and table captions remain governed incremental work whenever those pages are changed.
 
 ## Completion evidence
@@ -22,5 +24,7 @@ Runtime DOM inspection found that the group `hidden` attribute was correct but a
 Hardening gate: 15 focused/relevant tests, 14 passed, 1 skipped, 1,415 assertions; PHPStan level 10 zero errors; Pint, Blade and Vite pass. Phase 3F-18 adds Performance as the ninth Operations child; exact 1280×800 and 390×844 regression checks cover 16 pages with zero overflow, console warnings/errors or page errors.
 
 Swagger completion hardening adds API Documentation as the tenth Operations child under its own server-side `api.documentation.view` permission. Exact desktop/mobile automation verifies the 0/10 collapse cycle, Swagger UI and protected specification navigation, zero overflow and zero console/page problems.
+
+The final project audit closes the vendor-layout gap with an admin-layout API Documentation landing. All 78 primary destinations now expose the contextual-help trigger and shared navigation semantics; Swagger UI/OpenAPI JSON remain protected child resources rather than pretending the vendor view is an admin shell.
 
 Phase 3F-19 adds Architecture as the eleventh authorized Operations child. It retains server-side filtering, hidden/non-tabbable collapse, keyboard accordion, active-group auto-open and exact desktop/mobile regression coverage.

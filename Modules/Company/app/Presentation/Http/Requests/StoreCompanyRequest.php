@@ -3,6 +3,7 @@
 namespace Modules\Company\Presentation\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Validator;
 
 final class StoreCompanyRequest extends FormRequest
 {
@@ -17,5 +18,10 @@ final class StoreCompanyRequest extends FormRequest
     public function rules(): array
     {
         return $this->companyRules();
+    }
+
+    public function withValidator(Validator $validator): void
+    {
+        $this->validateBranchRows($validator, null);
     }
 }

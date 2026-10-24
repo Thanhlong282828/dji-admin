@@ -186,7 +186,7 @@ final readonly class ErpExportController
     }
 
     /** @return array<string,int|string|null> */
-    private function administrationAttributes(ErpExportRequest $request): array
+    private function administrationAttributes(ErpExportRequest $request): array // function tổng cho function chính gọi
     {
         $values = $request->validated();
         unset($values['company_id']);

@@ -5,7 +5,7 @@
 @section('header_action')
     @can('payroll.accounting.journal.create')
         <a
-            class="button"
+            class="admin-button admin-button--primary button"
             href="{{ route('admin.payroll.accounting.journals.create', [
                 'company_id' => $c,
             ]) }}"

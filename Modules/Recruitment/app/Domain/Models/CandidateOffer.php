@@ -34,7 +34,28 @@ use Modules\Recruitment\Domain\Enums\CandidateOfferStatus;
  */
 final class CandidateOffer extends Model
 {
-    protected $guarded = ['id'];
+    protected $fillable = [
+        'accepted_at',
+        'application_id',
+        'base_salary',
+        'company_id',
+        'currency',
+        'employment_type',
+        'expires_at',
+        'hired_at',
+        'hired_employee_id',
+        'job_position_id',
+        'offer_number',
+        'organization_unit_id',
+        'probation_end_date',
+        'reservation_status',
+        'reserved_at',
+        'start_date',
+        'status',
+        'submitted_by',
+        'terms',
+        'version',
+    ];
 
     protected $hidden = ['base_salary', 'document_storage_key'];
 

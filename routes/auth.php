@@ -10,6 +10,9 @@ use App\Http\Controllers\Auth\PasswordResetLinkController;
 use App\Http\Controllers\Auth\RegisteredUserController;
 use App\Http\Controllers\Auth\VerifyEmailController;
 use Illuminate\Support\Facades\Route;
+use Modules\Iam\Presentation\Http\Controllers\AccountSecurityController;
+use Modules\Iam\Presentation\Http\Controllers\PhoneVerificationController;
+use Modules\Iam\Presentation\Http\Controllers\SocialIdentityController;
 
 Route::middleware('guest')->group(function () {
     Route::get('register', [RegisteredUserController::class, 'create'])
@@ -21,6 +24,10 @@ Route::middleware('guest')->group(function () {
         ->name('login');
 
     Route::post('login', [AuthenticatedSessionController::class, 'store']);
+
+    Route::get('phone-login', [PhoneVerificationController::class, 'loginForm'])->name('phone.login');
+    Route::post('phone-login/request', [PhoneVerificationController::class, 'requestLogin'])->middleware('throttle:5,1')->name('phone.login.request');
+    Route::post('phone-login/verify', [PhoneVerificationController::class, 'verifyLogin'])->middleware('throttle:10,1')->name('phone.login.verify');
 
     Route::get('forgot-password', [PasswordResetLinkController::class, 'create'])
         ->name('password.request');
@@ -35,7 +42,19 @@ Route::middleware('guest')->group(function () {
         ->name('password.store');
 });
 
+Route::get('auth/{provider}/redirect', [SocialIdentityController::class, 'redirect'])
+    ->whereIn('provider', ['google', 'facebook'])->middleware('throttle:10,1')->name('social.redirect');
+Route::get('auth/{provider}/callback', [SocialIdentityController::class, 'callback'])
+    ->whereIn('provider', ['google', 'facebook'])->middleware('throttle:20,1')->name('social.callback');
+
 Route::middleware('auth')->group(function () {
+    Route::get('account', AccountSecurityController::class)->middleware('verified')->name('account.show');
+    Route::delete('account/identities/{provider}', [SocialIdentityController::class, 'unlink'])
+        ->whereIn('provider', ['google', 'facebook'])->middleware(['verified', 'password.confirm'])->name('social.unlink');
+    Route::post('account/phone/request', [PhoneVerificationController::class, 'requestForAccount'])
+        ->middleware(['verified', 'throttle:5,1'])->name('account.phone.request');
+    Route::post('account/phone/verify', [PhoneVerificationController::class, 'verifyAccount'])
+        ->middleware(['verified', 'throttle:10,1'])->name('account.phone.verify');
     Route::get('verify-email', EmailVerificationPromptController::class)
         ->name('verification.notice');
 

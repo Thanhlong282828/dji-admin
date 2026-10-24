@@ -16,6 +16,7 @@ use Modules\Payroll\Application\Commands\RegeneratePayslip\RegeneratePayslipComm
 use Modules\Payroll\Application\Commands\RevokePayslip\RevokePayslipCommand;
 use Modules\Payroll\Application\DTOs\PayslipViewModel;
 use Modules\Payroll\Application\Queries\DownloadPayslip\DownloadPayslipQuery;
+use Modules\Payroll\Application\Queries\GetPayrollProcessHelpQuery;
 use Modules\Payroll\Application\Queries\GetPayslipDetail\GetPayslipDetailQuery;
 use Modules\Payroll\Application\Queries\GetPayslipList\GetPayslipListQuery;
 use Modules\Payroll\Presentation\Http\Requests\PayslipActionRequest;
@@ -32,7 +33,9 @@ final readonly class PayslipController
         $vm = $this->queries->ask(new GetPayslipListQuery($c, $f));
         abort_unless($vm instanceof PayslipViewModel, 500);
 
-        return view('payroll::payslips.index', compact('c', 'f', 'vm'));
+        $processHelp = $this->queries->ask(new GetPayrollProcessHelpQuery($c, $r->integer('branch_id') ?: null, $this->user($r)));
+
+        return view('payroll::payslips.index', compact('c', 'f', 'vm', 'processHelp'));
     }
 
     public function show(Request $r, int $payslip): View

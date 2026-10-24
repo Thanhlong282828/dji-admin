@@ -522,7 +522,7 @@ assignments (base, KPI target and fixed allowance) behind
 for actual Unit/Position/Level records. Promotion/demotion shows current versus
 projected Target Gross but never rewrites finalized Payroll or silently creates
 a salary assignment. The admin header adds a protected `$` Compensation
-Reference dialog and route-aware `?` help backed by `AdminHelpRegistry`. The registry covers all 73 primary navigation destinations across 10 collapsed domain groups with menu-specific Vietnamese purpose, sources, upstream/downstream menus, actions, workflow, business/status/immutability/approval rules, side effects, permissions, warnings and concise technical flow. A permission-filtered visual menu flow highlights the current node with semantic `aria-current`; unauthorized upstream/downstream nodes are absent from HTML. The complete audit retained 39 declared/16 enabled/23 disabled modules and added 21 proven work-center links without enabling a skeleton.
+Reference dialog and route-aware `?` help backed by `AdminHelpRegistry`. The registry covers all 74 primary navigation destinations across 10 collapsed domain groups, including Workforce Forecasting, with menu-specific Vietnamese purpose, sources, upstream/downstream menus, actions, workflow, business/status/immutability/approval rules, side effects, permissions, warnings and concise technical flow. A permission-filtered visual menu flow highlights the current node with semantic `aria-current`; unauthorized upstream/downstream nodes are absent from HTML. The complete audit retained 39 declared/16 enabled/23 disabled modules and added only proven work-center links without enabling a skeleton.
 Exact desktop/mobile navigation execution found and fixed legacy serialized-object caches in Leave Management, Overtime Management and Payroll Delivery. These read models now cache validated JSON and replace legacy/corrupt values before returning typed DTOs.
 Job Position create/edit requires the existing `career_level` in the canonical
 1..6 range. Employee forms label positions with Unit and Level; Employee 360
@@ -586,3 +586,187 @@ idempotency, immutable payroll/audit evidence) remain owned by their modules.
 Detailed class/file flows are in `luong.txt`; table ownership, relationships,
 indexes and lifecycle relevance are in `db.txt`. Historical sections below are
 retained as phase evidence; this header is the current canonical contract.
+PHASE 3F-26 — ENTERPRISE FORECASTING
+- Workforce Forecasting is a protected Analytics sub-destination (`admin.analytics.forecasting`).
+- Deterministic headcount, vacancy, recruitment-demand and target-payroll planning uses actual company-scoped data.
+- Request-only scenarios support add/remove headcount and promotion mix with effective month, maximum 50 lines.
+- Compensation values require `payroll.assignment.view`; aggregate CSV requires `analytics.export`.
+- Forecasts disclose assumptions and data-quality warnings, do not call AI/external services, and never mutate Employee/Payroll history.
+- Design/audit: `docs/enterprise-forecasting-audit.md`, `docs/enterprise-forecasting-design.md`.
+
+PERSISTENT SERVER-RENDERED SIDEBAR NAVIGATION
+- Laravel remains full-page/server-rendered: `AdminNavigation` supplies permission-filtered links and the current route/group before client JavaScript.
+- A minimal pre-paint bootstrap restores only one valid group key and session scroll offset, so accordion groups do not flash closed/open and the long menu does not reset to the top.
+- `admin-navigation.ts` persists state on navigation/pagehide, reconciles BFCache idempotently, reveals an off-screen active item minimally, and never restores an open mobile drawer.
+- Storage contains no menu HTML, permission list, identity or business data; no SPA framework, fetch, migration or database table was added.
+
+PHASE 3F-27 — EXECUTIVE PLANNING
+- `/admin/planning` is a protected, computed management cockpit beside Enterprise Analytics and Workforce Forecasting; navigation now has 75 primary destinations.
+- `PlanningFilter` enforces company → Cost Center → Unit → Position → Level/month scope; `ExecutivePlanningService` groups approved/current/forecast headcount, vacancy, position budget, latest eligible Payroll Actual and Recruitment coverage.
+- Eight KPI cards, five DB-backed visual summaries, variance/position tables, deterministic warnings, drill-down context and formula-safe aggregate CSV use the existing black-gold responsive UI.
+- Budget, Actual, Forecast and request-scoped Scenario remain distinct. Financial values require `payroll.assignment.view`; no approved Plan/version/approval persistence is claimed without an authority contract.
+- No migration, historical Payroll mutation, external BI/AI traffic or VPS action.
+
+PHASE 3F-28 — PLANNING EXECUTION
+- `/admin/planning/execution` adds a protected operating-control dashboard beside Executive Planning; navigation now has 76 primary destinations.
+- Monthly Headcount, Hiring and Payroll Target are compared with governed Actual records using typed integer variance/status math and bounded grouped queries.
+- Explicit Reforecast v2 is request-scoped and never overwrites Forecast v1; deterministic Management Attention never auto-executes.
+- Financial HTML/export requires `payroll.assignment.view`; aggregate CSV uses `analytics.export`; tenant filters reuse `PlanningFilter`.
+- No persistence, approval workflow, migration, Payroll history mutation, external BI/AI traffic or VPS action.
+
+PHASE 3F-29 — ENTERPRISE REPORTING
+- `/admin/reports` provides a tenant-scoped Enterprise Reporting hub and live Executive Board Pack preview from existing Analytics and Planning Execution read models.
+- Typed report catalog covers Executive, Workforce, Attendance/Leave, Recruitment, Planning, Risk/Governance and permission-gated Payroll/Compensation.
+- Monthly, quarterly and YTD preview supports formula-safe CSV, multi-sheet XLSX and local Dompdf PDF; generated bytes carry real SHA-256 response evidence.
+- Reports are live/read-only, not persisted/certified, do not mutate historical data and add no migration or external BI traffic.
+
+PHASE 3F-30 — PRODUCTION GO-LIVE CERTIFICATION
+- `operations:production-readiness --json` and `/admin/operations/go-live` share a redacted, read-only release assessment; neither deploys, migrates, seeds, restarts nor contacts a VPS.
+- Production DB isolation, demo-seed blocking, non-root Docker, health, queue/scheduler/Reverb, migration review, smoke and rollback contracts are documented and tested.
+- Classification is `PRODUCTION_BLOCKED_EXTERNAL` until target infrastructure/credentials are verified; Cloudflare Images remains blocked by prior 403/5403 evidence.
+
+FINAL PROJECT AUDIT
+- 39 declared modules remain 16 enabled and 23 disabled/legacy; disabled providers/routes are not loaded.
+- The final-project-audit baseline had 78 primary destinations. Commerce C1/C2 adds four proven Branch/Seller/Store/Article destinations, bringing the current permission-filtered navigation and contextual-help coverage to 82/82.
+- Workforce object-cache recovery evicts `__PHP_Incomplete_Class` artifacts and rebuilds canonical read models; array/JSON cache boundaries remain preferred.
+- The final-project-audit baseline was 63 migrations / 230 tables. Commerce C1/C2 then brought the local contract to 64 / 236; C2.5 now brings it to 70 migrations / 243 tables across all three active databases. schema_admin_development remains absent and no production/VPS target was accessed.
+
+COMMERCE C1+C2 — MULTI-BRANCH, SELLER/STORE AND UNIFIED MEDIA
+- Adds company-owned Branch plus explicit branch access without confusing Branch with Organization Unit or changing Employee assignment semantics.
+- User remains login identity; Buyer/Seller are composable profiles and Seller IAM access remains separate from governed business status.
+- Seller Center and Seller Governance use real Store/Seller records; Product, Cart and Order remain intentionally absent.
+- One MediaService/MediaStorageInterface serves Employee avatar, Article cover/gallery and Store logo/banner through explicit Cloudflare Images or local drivers.
+- Article supports validated cover plus multi-image gallery, safe preview/replacement/cleanup and white/blue public Article/Store views.
+
+COMMERCE C2.5 — FEDERATED IDENTITY AND API AUTHENTICATION
+- Breeze/session remains canonical browser authentication; the account security page unifies verified email/phone, explicitly linked Google/Facebook identities, IAM/company/branch scope and safe OAuth summaries.
+- Passport Authorization Code + PKCE replaces Sanctum on the active 24-operation API contract. Short-lived access tokens, refresh expiry, endpoint scopes, `access_enabled`, Spatie policies and tenant scope are layered controls.
+- Social identities never auto-merge by provider email and never persist provider access/refresh tokens. Phone OTP is E.164-normalized, hashed, throttled, expiring and single-use.
+- Canonical local schema is 71 migrations / 243 tables across the three active databases after the additive Branch Leader relation; no VPS was accessed.
+COMMERCE C3 GOVERNANCE: Branch Leader dùng quan hệ Employee canonical; Branch mutation giới hạn Super Admin/System Admin; role ceiling tách biệt career level; compensation analytics dùng salary assignment hiệu lực; Article cover/gallery hỗ trợ ảnh 15 MB, 8192px qua Unified Media; Seller state governance giữ state machine thực tế.
+Commerce C3 completes permission-safe multi-branch account assignment on the existing Employee 360 account form. Selection reuses `branch_user_access`, validates Branch company scope, and preserves access belonging to other companies.
+
+COMMERCE C4 — COMPANY/BRANCH CONSOLIDATION + PRODUCT CATALOG/INVENTORY
+- Company create/edit manages Branch rows transactionally without blind-delete; Branch Show reads leader role, workforce position and canonical membership.
+- Branch mutation authority comes from IAM account role; Job Position/career level remains display-only.
+- Employee create/edit synchronizes company-scoped multi-Branch access through canonical `branch_user_access`.
+- Seller Product Catalog supports Category, generic Variant/SKU, integer VND pricing, locked Store inventory and unified media.
+
+COMMERCE C5 — MARKETPLACE, CART AND WISHLIST
+- Public marketplace now has database-backed search/filter/sort, Store profiles, responsive Product cards/detail/gallery, current Variant price and live available stock.
+- Buyer-owned Cart merges each Variant/SKU idempotently, groups items by Store, validates current status/price/stock and does not reserve inventory before checkout.
+- Private Wishlist is user-scoped and can move a single-variant Product into Cart; Checkout/Order/Payment remains explicitly outside C5.
+- Seller Inventory is a separate permission/ownership-scoped page with atomic locked increase/decrease/set operations and Audit reason.
+- Public Product pages show active records only and fabricate no rating, review, promotion or Order claim.
+- One additive migration/four tables brings the target local matrix to 73 migrations / 252 tables; Data Quality has 30 read-only rules.
+
+COMMERCE C6 — CHECKOUT, ORDER AND INVENTORY RESERVATION
+- Buyer-owned Vietnamese addresses support transactional default selection and immutable Order address snapshots.
+- Selected Cart items are revalidated server-side, split into one Order per Store and committed atomically with item/price/SKU snapshots and locked inventory reservations.
+- Checkout idempotency, typed Order transitions, Buyer cancellation/release, Seller-owned Order views, bounded filters and safe Audit metadata are enforced without payment/shipping provider traffic.
+- One additive migration/five tables brings the target local matrix to 74 migrations / 257 tables; Data Quality has 38 read-only rules.
+
+ERP CONSOLIDATION HARDENING — HRM / PAYROLL / BRANCH FINANCE
+- Sidebar is regrouped by ERP domain while preserving every existing named route and permission-filtered destination; Employee Portal, Branch Bonus and Branch Financial Performance are real primary pages with dedicated contextual help.
+- Attendance and Payroll Input capture the effective operational Branch snapshot. Branch access remains authorization; `employee_branch_assignments` is the effective-dated workforce allocation and does not rewrite historical Payroll.
+- Branch Bonus uses maker-checker and creates one effective-month Payroll component assignment only after approval. Branch management P&L uses recognized revenue, eligible Payroll cost, approved OPEX/bonus, effective rent and straight-line management depreciation; it is not a statutory/tax ledger.
+- Tax and insurance policy versions persist jurisdiction, official-source reference and verification date. Unknown statutory inputs remain `CONFIGURATION_REQUIRED`; no legal rate is invented.
+- Four additive migrations bring the local contract to 78 migrations / 264 tables; Data Quality now has 41 deterministic rules.
+- Local demo enrichment is relational rather than view-local: all 33 bootstrap-owned active/probation/leave Employees have effective Branch allocation and Position-derived compensation; approved OT, unpaid leave and maker-checker Branch Bonus feed the canonical Payroll/Finance sources. Manual Employee codes outside `E0001`–`E0035` are excluded.
+- ERP realistic operating data Phase 2 spans multiple deterministic months. Attendance/Leave/OT quantities enter immutable Payroll Inputs; configured Salary Assignments plus effective tax/insurance policies produce Payroll Items, Payslips and Branch P&L without seeding final Payroll amounts.
+- ERP Finance/Tax runtime adds permission-scoped Payroll Reconciliation and Tax/Statutory dashboards. Finalized employer cost reconciles Payroll Items, balanced Accounting Journal and Branch Finance; VAT/CIT remain explicit CONFIGURATION_REQUIRED where transaction/policy evidence is absent.
+
+COMMERCE PAYMENT / FULFILLMENT / REVENUE LINEAGE
+- Finance records idempotent manual settlement evidence from immutable Order totals; Seller cannot record payment and can confirm only paid Orders.
+- Seller fulfillment is Branch-bound through inventory locations. Packed → shipped consumes reservation/on_hand once; delivered recognizes one Branch revenue from Order subtotal, excluding shipping.
+- Unpaid/undelivered Orders remain zero revenue. Local demo keeps synthetic management-service ledger lines visibly separate from `commerce_order` revenue and makes no external bank/provider claim.
+- Migration 79 adds Payment/Fulfillment lineage; migration 80 scopes Seller Profile by `(company_id, user_id)`. The local trio is 80 migrations / 266 tables. Data Quality is 53/53, including Seller Company access and Order→Branch→Payment→Fulfillment→Revenue Company reconciliation.
+- Seller Governance is Company-owned: Company → Seller account → Store → Product/Inventory → Order → Payment → Fulfillment → recognized Branch revenue. Dashboard totals query these canonical records and never clone a separate Seller sales ledger.
+- Company list shows linked Seller accounts in one batched query. The Company-scoped Sales History joins sold products, settlement evidence, fulfillment Branch and recognized revenue by `order_id`; primary navigation/help coverage is 93/93.
+- Company Create/Edit now creates or updates the canonical User + Seller Role + Company access + Seller Profile in the same Company transaction. New profiles remain `pending` for Seller Governance; Company Show displays the linked accounts and Store count without duplicating seller data.
+- Company list/show exposes explicit protected delete actions: empty Seller Profile can be unlinked while User IAM is retained; empty Branch is soft-deleted. Seller with Store/Order/media and Branch with operational history are blocked from deletion and must use governance/archive status.
+
+BRANCH COMMERCE RUNTIME — CUSTOMER / SERVICE / POS
+- Seller Governance dropdown now renders only state-machine transitions valid for the current Seller status; backend and UI share one matrix.
+- A separate permission-filtered “Vận hành chi nhánh” group provides branch Product warehouse, Company customer file, Company service catalog, customer check-in/checkout and branch sales.
+- POS checkout is transactional and idempotent: Company/Branch customer visit + service/product snapshots → canonical branch inventory decrement → paid receipt → one recognized `branch_management_revenues` row. Branch Finance and reporting consume that same revenue row, never a cloned sales total.
+- Product inventory is explicitly assigned to `inventory_locations.branch_id`; Product cover/gallery continues through unified MediaService (Cloudflare Images only when credentials are configured and verified).
+- Migration 81 adds six operational tables. Canonical local matrix is 81 migrations / 272 tables; `schema_admin_development` remains absent.
+
+UNIFIED OPERATING SYSTEM — CQRS / POS / DASHBOARD HARDENING
+- POS is a top-level navigation subsystem over canonical Company, Branch, Customer, Company Service, Product/SKU, Inventory, Receipt and Revenue sources; it does not own cloned product/customer/revenue tables.
+- All Branch Commerce mutations now dispatch `MutateBranchCommerceCommand`; reads dispatch `GetBranchCommercePageQuery`. Seller Governance transition dispatches a dedicated command and uses one audited state machine with controlled banned recovery.
+- Inventory on-hand changes now append `inventory_movements` with before/after/delta/source/actor/idempotency evidence. POS checkout writes one movement per product line, one paid Receipt and one recognized Revenue in the transaction.
+- Executive Dashboard reads Order, POS Receipt, Customer, Visit, Inventory and recognized Commerce/POS revenue from DB-backed read services. No view-specific metric arrays or independent dashboard totals were added.
+- Dashboard Employee/Leave/Recruitment/Article/activity metrics share the selected Company scope and are read fresh because a five-minute overview cache did not have complete cross-module invalidation.
+- Migration 82 adds the append-only inventory movement ledger. Current local contract is 82 migrations / 273 tables across all three active databases; `schema_admin_development` remains absent.
+CQRS BUSINESS MODULE OWNERSHIP: shared buses remain in Modules/Core; Company, Commerce, Product, Inventory, POS, Finance and Dashboard own their Commands/Queries/Handlers/Controllers/Services. Temporary global business CQRS/Support paths are prohibited by architecture test.
+Article writes and IAM profile writes/account-security reads now use their owner-module Command/Query handlers. Current architecture graph covers 43 declared modules with zero cycle, undeclared edge, layer, CQRS or external-boundary violation.
+
+MASTER BUSINESS INTEGRATION — SALES / INVENTORY / REVERSAL
+- Enterprise Sales History hợp nhất Marketplace paid/delivered Orders và POS paid Receipts bằng một QueryBus read model; source/Branch/reference/date filters và line snapshots đều truy ngược canonical transaction/revenue.
+- Inventory Operations có Stock Receipt draft→received và Branch Transfer draft→in_transit→received; tất cả thay đổi on-hand đi qua locked InventoryService movement, retry idempotent và transfer bảo toàn tổng tồn.
+- Full sale reversal giữ nguyên Order/Receipt/revenue gốc, tạo một chứng từ bù, hoàn kho một lần và giảm recognized revenue thuần trên Sales History, Branch Finance và Dashboard. Partial return/refund chưa được giả lập.
+- POS Dashboard, Receipt History/detail, Customer History và Inventory Movement/Operations là các primary page có permission/contextual help riêng. Browser 1280×800 và 390×844 đã xác nhận media thật qua local canonical adapter, 0 console/page error/overflow.
+- Migrations 83–85: opening movement evidence, stock receipt/transfer documents và append-only sale reversal. Canonical local matrix: 85 migrations / 276 tables; `schema_admin_development` absent, VPS untouched.
+
+MASTER OPERATING DATA INTEGRATION — MEDIA / RECRUITMENT / POS / DASHBOARD
+- Product cover của dữ liệu bootstrap đi qua cùng `MediaService` như runtime: `media_assets.company_id` khớp Store/Seller Company, URL local là `/storage/...` độc lập host/port; Cloudflare chỉ được dùng khi provider thật đã cấu hình và vẫn chưa được tuyên bố VERIFIED.
+- Recruitment demo dùng state machine Offer draft → pending approval → approved → sent → accepted rồi `HireCandidateService`; một Candidate hired nối đúng một Employee, primary Assignment, Contract và Onboarding Case, không seed trạng thái hired rời.
+- POS bootstrap tạo Customer, Service, Visit, Receipt, Inventory Movement và recognized Revenue bằng `BranchPosService`. Chạy lại không ghi đè Inventory Balance khỏi movement ledger và không tạo doanh thu trùng.
+- Executive Dashboard là read-only aggregate theo Company từ Organization, Recruitment, Attendance, finalized Payroll, Marketplace, POS, Inventory và Data Quality; Blade không chứa tổng/charts giả.
+- Migrations 86–87 backfill company scope cho Product media và chuẩn hóa local delivery URL. Canonical local matrix: 87 migrations / 276 tables; Data Quality 60/60.
+- Media UI hardening chuẩn hóa một pattern theo context: Product/Service/Inventory/Warehouse table 64×48px desktop và 56×42px mobile; POS selector 88×66px và 72×54px; public card/detail giữ responsive container. Browser geometry gate chặn ảnh tự phình theo cột/viewport và chặn `BROKEN_MEDIA`.
+- Cross-project integration audit xác nhận Recruitment→Employee, Workforce→Payroll, Payroll→Statutory/Finance, Marketplace/POS→Inventory/Revenue, Reversal→Finance/Dashboard cùng đọc canonical source. Cloudflare Hosted Images vẫn `CONFIGURATION_REQUIRED` vì runtime local và thiếu delivery hash; không có live upload giả.
+
+ERP ACCOUNTING CAPABILITY HARDENING
+- Finance có primary page `Sổ cái & Báo cáo tài chính` đọc duy nhất Accounting Journal trạng thái internally_posted/exported qua QueryBus và grouped SQL. Trang cung cấp General Ledger, Trial Balance, nguồn Income Statement/Balance Sheet và drill-down về Journal gốc; không ghi hoặc sửa Payroll/Journal.
+- Coverage được gắn nhãn PARTIAL vì Chart of Accounts hiện mới có Payroll expense/liability. Income Statement/Balance Sheet không được gọi là hoàn chỉnh và Cash Flow chưa được tuyên bố khi chưa có canonical Revenue/Asset/Equity/Cash/AR/AP posting.
+ERP PROCUREMENT / AP / INVENTORY VALUATION (2026-09-01)
+- Canonical Vendor → Purchase Request → Purchase Order → Goods Receipt → Inventory → Vendor Bill → AP Payment chain is implemented through CQRS/Application services.
+- Inventory uses weighted-average valuation and sale-time immutable COGS snapshots; Marketplace/POS revenue, COGS and reversal post into the existing double-entry journal platform.
+- General accounting periods block normal posting when closed. GL/Trial Balance include generic source journals. Income Statement and Balance Sheet remain honestly PARTIAL; Cash Flow is not implemented.
+FINANCE OPERATIONS RUNTIME (2026-09-01)
+- Expense maker-checker, Asset lifecycle/straight-line depreciation và governed Budget vs Actual đã nối vào posted Accounting Journal; Actual ghép Company + Branch + Account + Month, không nhập số clone.
+- Product media nhận source 4K 3840×2160 trong giới hạn 10 MiB/6000px, giữ checksum/MIME/size provenance; automated tests không gọi Cloudflare.
+ERP Finance Control Phase 2: Treasury financial accounts/transactions/manual statement reconciliation; Accounting Period close checklist + maker-checker; shared read-only Approval Inbox; Budget/Committed/Actual/Available from PO and posted journal sources. AR was audited and intentionally not fabricated because current sales are immediate-paid.
+Media ingress hardening: valid RGB/RGBA/palette PNG, JPEG, WebP and bounded 4K sources are content-decoded without re-encoding; local PHP upload ingress now exceeds the Product 10 MB application limit while automated tests remain local-media only.
+CURRENT OPERATING DATA SNAPSHOT: `app:current-operating-data-report` generates `DU_LIEU_THUC_HIEN_TAI.txt` from the active canonical database, masks account contacts and excludes secrets. It covers Company/Branch/Employee/Payroll/Commerce/POS/Inventory/Procurement/AP/Treasury/Finance/Accounting/Data Quality and states unsupported evidence honestly.
+CRM deterministic metrics now combine paid POS receipts with paid Marketplace Orders within the same Company/customer identity. NEW/ACTIVE/REPEAT/AT_RISK/DORMANT are configured recency-frequency classifications, not AI scores, and never mutate Customer records.
+CRM user flow now exposes those canonical metrics in the Customer list/detail with Company-safe search, Branch and segment filters; paid Marketplace evidence and POS history share one read service rather than cloned CRM totals. The operating snapshot also includes source-reconciled Company summary, lifecycle/notification, Vendor/AP and Asset evidence; generic closed-journal adjustment remains explicitly unsupported.
+HR SEPARATION + ACCOUNTING ADJUSTMENT RUNTIME
+- Contract renewal creates a new effective-dated contract and preserves the prior contract.
+- Voluntary resignation is distinct from termination; submission does not disable the Employee.
+- Mandatory offboarding checklist gates assignment closure and canonical IAM access disablement.
+- Posted accounting journals are corrected by maker-checker, open-period, idempotent reversal; originals remain immutable.
+- Executive KPIs and DU_LIEU_THUC_HIEN_TAI.txt read these canonical records directly.
+ERP SALES / AR / CASH FLOW (2026-09-07)
+- Canonical sell-side chain: Customer → Quotation → Sales Order → Inventory fulfillment/COGS → Customer Invoice → AR → Collection → Treasury → Accounting.
+- Invoice/collection balances are derived, tenant-scoped and integer VND; maker-checker protects quotation acceptance and invoice issue.
+- Financial Statements now classify actual Treasury movements; Cash Flow remains PARTIAL until opening cash/equity evidence exists.
+- Finance Overview composes posted GL, derived AR/AP, Treasury, approved Budget and PO commitments with Company/Branch/period scope; no dashboard-total table is cloned. AR exposes due-date aging while 7/30/60/90 cash outlook is forecast-only.
+- VAT is CONFIGURATION_REQUIRED when no verified effective transaction policy exists; no fabricated tax rate.
+- Architecture maps are generated by `app:erp-architecture-map`: `SO_DO_LUONG_MENU_ERP.txt` validates every AdminNavigation route/permission, while `SO_DO_LIEN_KET_MODULE_ERP.txt` distinguishes manifest `[DEPENDS]` edges from `[BUSINESS FLOW]` connections.
+ERP SCM ORCHESTRATION (2026-09-08)
+- `Tổng quan chuỗi cung ứng` is a Company-scoped, read-only Dashboard-module orchestration of Procurement supply, canonical Inventory availability/value/transfers, ERP Sales demand and Marketplace fulfillment.
+- Executive Dashboard and `DU_LIEU_THUC_HIEN_TAI.txt` reuse the same SCM read model; no SCM totals table or duplicate stock/logistics engine exists.
+- External carrier is NOT_CONNECTED, delivery performance is NOT_ENOUGH_EVIDENCE without a promised date, and logistics cost is not fabricated.
+ERP BI / MANAGEMENT ANALYTICS (2026-09-08)
+- Dashboard-owned `Phân tích điều hành` provides a validated KPI catalog and bounded monthly trends from canonical ERP Sales, Marketplace, POS, Payroll, Expense, Treasury, Finance, SCM and CRM sources.
+- Revenue variance is zero-safe; forecast is AR/AP due-date only. Inventory turnover, historical CRM segmentation and future revenue remain NOT_ENOUGH_EVIDENCE instead of receiving synthetic series.
+- BI stores no numeric totals and executes grouped source queries rather than query-per-month/employee/product.
+ERP ADMIN DESIGN SYSTEM (2026-09-08)
+- Central `--erp-*` tokens and shared page-header/KPI/status primitives modernize the existing dark enterprise shell with a restrained white-to-metallic-gold accent.
+- Semantic danger/success/warning/info colors remain distinct; sidebar ARIA, pre-paint restore, scroll persistence and mobile focus behavior are preserved.
+- Every completed operator-facing capability must be reachable from canonical Sidebar unless intentionally embedded as an action/sub-workspace of another reachable capability.
+ERP DOCUMENT EVIDENCE (2026-09-08)
+- `Modules/Document` owns Company-scoped enterprise document metadata and immutable numbered versions with SHA-256 on private local storage.
+- Existing Workflow, Approval Inbox, Notification Center and Activity Log remain canonical; DMS never mutates owner-domain business tables.
+- External private object storage is CONFIGURATION_REQUIRED; Cloudflare Images remains image-only.
+PROJECT MANAGEMENT (2026-09-08)
+- Modules/Project owns Project, Team, Milestone, Task, dependency and Project Timesheet runtime.
+- Progress is DONE/non-cancelled tasks; deterministic health uses target date and overdue task/milestone evidence.
+- DMS links PROJECT/PROJECT_MILESTONE/PROJECT_TASK. Finance linkage remains honest PARTIAL/NOT_IMPLEMENTED where owner tables have no project reference.
+- Sidebar has Project Overview and Project List; all actions stay in Project Detail.
+
+MAINTENANCE / CMMS: Finance Asset → Maintenance Request → maker-checker → Work Order → Employee technician → Inventory spare-part movement → DMS/Audit. Preventive occurrence idempotent; Procurement/Expense/Accounting/Workflow Notification giữ PARTIAL khi chưa có canonical Work Order reference.

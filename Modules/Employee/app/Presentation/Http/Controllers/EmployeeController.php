@@ -3,11 +3,14 @@
 namespace Modules\Employee\Presentation\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Models\User;
+use App\Support\Iam\RoleHierarchyService;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
@@ -38,7 +41,6 @@ use Modules\Employee\Policies\EmployeePolicy;
 use Modules\Employee\Presentation\Http\Requests\StoreEmployeeRequest;
 use Modules\Organization\Domain\Models\JobPosition;
 use Modules\Organization\Domain\Models\OrganizationUnit;
-use Spatie\Permission\Models\Role;
 use Throwable;
 
 final class EmployeeController extends Controller
@@ -58,7 +60,7 @@ final class EmployeeController extends Controller
         $c = $this->company($r);
         $this->allow($r, 'create', $c);
 
-        return view('employee::employees.create', [...$this->formOptions($c), 'companyId' => $c, 'managerOptions' => $this->managerOptions($c), 'roleOptions' => Role::query()->where('guard_name', 'web')->orderBy('name')->pluck('name')]);
+        return view('employee::employees.create', [...$this->formOptions($c), 'companyId' => $c, 'managerOptions' => $this->managerOptions($c), 'roleOptions' => $this->roleOptions($r)]);
     }
 
     public function store(StoreEmployeeRequest $r): RedirectResponse
@@ -92,7 +94,7 @@ final class EmployeeController extends Controller
                     $password = $r->validated('account_password');
                     $role = $r->validated('account_role');
                     abort_unless(is_string($email) && is_string($password) && is_string($role), 422);
-                    $this->accounts->save($c, $employeeId, ['email' => $email, 'password' => $password, 'role' => $role, 'access_enabled' => $r->boolean('account_access_enabled', true), 'verified' => true]);
+                    $this->accounts->save($c, $employeeId, ['email' => $email, 'password' => $password, 'role' => $role, 'access_enabled' => $r->boolean('account_access_enabled', true), 'verified' => true, 'branch_ids' => $this->integerList($r->validated('branch_ids', []))], $this->actor($r));
                 }
                 if ($stagedAvatar !== null) {
                     $this->avatars->persist($c, $employeeId, $stagedAvatar);
@@ -115,7 +117,21 @@ final class EmployeeController extends Controller
         $c = $this->company($r);
         $this->allow($r, 'view', $c);
 
-        return view('employee::employees.show', ['item' => $this->queries->ask(new GetEmployeeDetailQuery($c, $employee, (bool) $r->user()?->can('employee.view-sensitive'))), 'companyId' => $c]);
+        $item = $this->queries->ask(new GetEmployeeDetailQuery($c, $employee, (bool) $r->user()?->can('employee.view-sensitive')));
+        $userId = data_get($item, 'user_id');
+        $branchOptions = DB::table('branches')->where('company_id', $c)->where('status', '!=', 'archived')->orderBy('name')->get(['id', 'name', 'address_line', 'city']);
+        $accountBranchIds = [];
+        if (is_int($userId) || (is_string($userId) && ctype_digit($userId))) {
+            foreach (DB::table('branch_user_access')->where('user_id', (int) $userId)->whereIn('branch_id', $branchOptions->pluck('id'))->pluck('branch_id') as $branchId) {
+                if (is_int($branchId)) {
+                    $accountBranchIds[] = $branchId;
+                } elseif (is_string($branchId) && ctype_digit($branchId)) {
+                    $accountBranchIds[] = (int) $branchId;
+                }
+            }
+        }
+
+        return view('employee::employees.show', ['item' => $item, 'companyId' => $c, 'branchOptions' => $branchOptions, 'accountBranchIds' => $accountBranchIds]);
     }
 
     public function edit(Request $r, int $employee): View
@@ -127,8 +143,9 @@ final class EmployeeController extends Controller
         $current = EmployeeAssignment::query()->where('employee_id', $employee)->where('assignment_type', 'primary')->whereDate('effective_from', '<=', today())->where(fn (Builder $query): Builder => $query->whereNull('effective_to')->orWhereDate('effective_to', '>=', today()))->latest('effective_from')->first();
         $item['organization_unit_id'] = $current?->organization_unit_id;
         $item['job_position_id'] = $current?->job_position_id;
+        $item['branch_ids'] = is_numeric($item['user_id'] ?? null) ? $this->branchIds((int) $item['user_id'], $c) : [];
 
-        return view('employee::employees.edit', [...$this->formOptions($c), 'item' => $item, 'companyId' => $c, 'managerOptions' => $this->managerOptions($c, $employee), 'roleOptions' => Role::query()->where('guard_name', 'web')->orderBy('name')->pluck('name')]);
+        return view('employee::employees.edit', [...$this->formOptions($c), 'item' => $item, 'companyId' => $c, 'managerOptions' => $this->managerOptions($c, $employee), 'roleOptions' => $this->roleOptions($r)]);
     }
 
     public function update(StoreEmployeeRequest $r, int $employee): RedirectResponse
@@ -172,7 +189,8 @@ final class EmployeeController extends Controller
                     if (is_string($password) && $password !== '') {
                         $account['password'] = $password;
                     }
-                    $this->accounts->save($c, $employee, $account);
+                    $account['branch_ids'] = $this->integerList($r->validated('branch_ids', []));
+                    $this->accounts->save($c, $employee, $account, $this->actor($r));
                 }
                 if ($stagedAvatar !== null) {
                     $this->avatars->persist($c, $employee, $stagedAvatar);
@@ -288,7 +306,17 @@ final class EmployeeController extends Controller
         return [
             'organizationOptions' => OrganizationUnit::query()->where('company_id', $companyId)->orderBy('name')->get(['id', 'name']),
             'positionOptions' => JobPosition::query()->where('company_id', $companyId)->whereBetween('career_level', [1, 6])->with('organizationUnit:id,name')->orderBy('title')->get(['id', 'title', 'organization_unit_id', 'career_level']),
+            'branchOptions' => DB::table('branches')->where('company_id', $companyId)->where('status', '!=', 'archived')->whereNull('deleted_at')->orderBy('name')->get(['id', 'name', 'address_line', 'city']),
         ];
+    }
+
+    /** @return Collection<int, string> */
+    private function roleOptions(Request $request): Collection
+    {
+        $user = $request->user();
+        abort_unless($user instanceof User, 401);
+
+        return collect(app(RoleHierarchyService::class)->assignableRoles($user))->sort()->values();
     }
 
     /** @return array<string, mixed> */
@@ -305,5 +333,29 @@ final class EmployeeController extends Controller
         }
 
         return $normalized;
+    }
+
+    /** @return list<int> */
+    private function integerList(mixed $value): array
+    {
+        if (! is_array($value)) {
+            return [];
+        }
+        $ids = [];
+        foreach ($value as $id) {
+            if (is_int($id)) {
+                $ids[] = $id;
+            } elseif (is_string($id) && ctype_digit($id)) {
+                $ids[] = (int) $id;
+            }
+        }
+
+        return $ids;
+    }
+
+    /** @return list<int> */
+    private function branchIds(int $userId, int $companyId): array
+    {
+        return $this->integerList(DB::table('branch_user_access as bua')->join('branches as b', 'b.id', '=', 'bua.branch_id')->where('bua.user_id', $userId)->where('b.company_id', $companyId)->pluck('b.id')->all());
     }
 }

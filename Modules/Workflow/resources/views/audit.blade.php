@@ -8,7 +8,7 @@
         <div class="wf-heading">
             <div>
                 <p class="wf-kicker">Governance / immutable history</p>
-                <h1>Workflow audit trail</h1>
+                <h2>Workflow audit trail</h2>
                 <p>Instance #{{ $vm->instances[0]['id'] }} · {{ $vm->instances[0]['workflow_type'] }}</p>
             </div>
             <a class="wf-button wf-button--ghost" href="{{ route('admin.workflows.instances.show', ['instance' => $vm->instances[0]['id'], 'company_id' => $companyId]) }}">Back to instance</a>

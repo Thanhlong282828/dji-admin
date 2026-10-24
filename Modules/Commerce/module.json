@@ -1,0 +1,12 @@
+{
+    "name": "Commerce",
+    "alias": "commerce",
+    "description": "Seller, store, buyer, cart, checkout, order, payment and fulfillment bounded context.",
+    "keywords": ["commerce", "seller", "order"],
+    "priority": 0,
+    "requires": ["Core", "Company", "Inventory", "Finance", "Tax"],
+    "providers": [
+        "Modules\\Commerce\\Providers\\CommerceServiceProvider"
+    ],
+    "files": []
+}

@@ -1,0 +1,15 @@
+[Unit]
+Description=Laravel Production Scheduler
+After=network.target redis-server.service cloud-sql-proxy.service
+Wants=redis-server.service cloud-sql-proxy.service
+
+[Service]
+Type=oneshot
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/laravel
+ExecStart=/usr/bin/php /var/www/laravel/artisan schedule:run
+TimeoutStartSec=300
+OOMPolicy=stop
+StandardOutput=journal
+StandardError=journal

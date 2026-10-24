@@ -10,7 +10,14 @@ final class EmployeePositionHistory extends Model
 
     protected $table = 'employee_positions_history';
 
-    protected $guarded = ['id'];
+    protected $fillable = [
+        'checksum',
+        'company_id',
+        'effective_from',
+        'employee_id',
+        'organization_unit_id',
+        'position_id',
+    ];
 
     protected function casts(): array
     {

@@ -1,0 +1,1 @@
+{"name":"nwidart/maintenance","description":"Maintenance and CMMS bounded context","autoload":{"psr-4":{"Modules\\Maintenance\\":"app/"}},"autoload-dev":{"psr-4":{"Modules\\Maintenance\\Tests\\":"tests/"}}}

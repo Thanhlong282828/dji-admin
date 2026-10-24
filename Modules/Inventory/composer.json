@@ -1,0 +1,9 @@
+{
+    "name": "nwidart/inventory",
+    "description": "Inventory bounded context",
+    "autoload": {
+        "psr-4": {
+            "Modules\\Inventory\\": "app/"
+        }
+    }
+}

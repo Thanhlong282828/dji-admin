@@ -47,6 +47,8 @@ final class StoreEmployeeRequest extends FormRequest
             'account_password' => [$employee?->user_id === null ? 'required_if:create_account,1' : 'nullable', 'string', 'min:12', 'confirmed'],
             'account_role' => ['nullable', 'required_if:create_account,1', Rule::exists('roles', 'name')->where('guard_name', 'web')],
             'account_access_enabled' => ['nullable', 'boolean'],
+            'branch_ids' => ['sometimes', 'array'],
+            'branch_ids.*' => ['integer', 'distinct', Rule::exists('branches', 'id')->where('company_id', $company)],
         ];
     }
 

@@ -25,7 +25,8 @@ use Modules\Payroll\Domain\Enums\PayrollAnnualTaxResultType;
  */
 final class PayrollAnnualTaxReconciliation extends Model
 {
-    protected $guarded = ['id'];
+    protected $fillable = [
+    ];
 
     protected function casts(): array
     {

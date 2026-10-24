@@ -2,6 +2,7 @@
 
 namespace Modules\Attendance\Domain\Services;
 
+use App\Support\Employee\EmployeeBranchResolver;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -15,7 +16,7 @@ use Modules\Employee\Domain\Models\Employee;
 
 final readonly class AttendanceCaptureService
 {
-    public function __construct(private AttendanceWriteRepositoryInterface $events) {}
+    public function __construct(private AttendanceWriteRepositoryInterface $events, private EmployeeBranchResolver $branches) {}
 
     public function capture(int $companyId, int $employeeId, AttendanceEventType $type, string $source, string $key, int $actorId, ?string $manualReason = null): AttendanceEvent
     {
@@ -51,8 +52,10 @@ final readonly class AttendanceCaptureService
             if ($type->isOut() && ! $open) {
                 throw ValidationException::withMessages(['attendance' => 'Không thể check-out khi chưa có check-in đang mở.']);
             }
-            $event = $this->events->createEvent($companyId, $employeeId, $type, $source, $key, CarbonImmutable::now('UTC'), $profile->timezone, $actorId);
-            activity('attendance')->performedOn($event)->causedBy($actorId)->event($type->value)->withProperties(['company_id' => $companyId, 'employee_id' => $employeeId, 'source' => $source])->log('Attendance event captured');
+            $occurredAt = CarbonImmutable::now('UTC');
+            $branchId = $this->branches->resolve($companyId, $employeeId, $occurredAt->setTimezone($profile->timezone), false);
+            $event = $this->events->createEvent($companyId, $employeeId, $branchId, $type, $source, $key, $occurredAt, $profile->timezone, $actorId);
+            activity('attendance')->performedOn($event)->causedBy($actorId)->event($type->value)->withProperties(['company_id' => $companyId, 'employee_id' => $employeeId, 'branch_id' => $branchId, 'source' => $source])->log('Attendance event captured');
             event(new WorkforceAttendanceChanged($companyId, (int) $event->id, $employeeId, $type->value));
 
             return $event;

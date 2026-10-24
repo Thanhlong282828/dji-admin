@@ -13,6 +13,7 @@ use Modules\Payroll\Application\DTOs\PayrollRunDetailViewModel;
 use Modules\Payroll\Application\DTOs\PayrollRunListViewModel;
 use Modules\Payroll\Application\Queries\GetPayrollDelivery\GetPayrollDeliveryQuery;
 use Modules\Payroll\Application\Queries\GetPayrollItemDetail\GetPayrollItemDetailQuery;
+use Modules\Payroll\Application\Queries\GetPayrollProcessHelpQuery;
 use Modules\Payroll\Application\Queries\GetPayrollRunDetail\GetPayrollRunDetailQuery;
 use Modules\Payroll\Application\Queries\GetPayrollRunList\GetPayrollRunListQuery;
 
@@ -27,7 +28,7 @@ final readonly class PayrollDeliveryController
         $vm = $this->queries->ask(new GetPayrollDeliveryQuery($c));
         abort_unless($vm instanceof PayrollDeliveryViewModel, 500);
 
-        return view('payroll::delivery', ['viewModel' => $vm, 'companyId' => $c]);
+        return view('payroll::delivery', ['viewModel' => $vm, 'companyId' => $c, 'processHelp' => $this->queries->ask(new GetPayrollProcessHelpQuery($c, $r->integer('branch_id') ?: null, $this->user($r)))]);
     }
 
     public function show(Request $r, int $run): View
@@ -37,7 +38,7 @@ final readonly class PayrollDeliveryController
         $vm = $this->queries->ask(new GetPayrollRunDetailQuery($c, $run));
         abort_unless($vm instanceof PayrollRunDetailViewModel, 500);
 
-        return view('payroll::run-detail', ['viewModel' => $vm, 'companyId' => $c]);
+        return view('payroll::run-detail', ['viewModel' => $vm, 'companyId' => $c, 'processHelp' => $this->queries->ask(new GetPayrollProcessHelpQuery($c, $r->integer('branch_id') ?: null, $this->user($r)))]);
     }
 
     public function runs(Request $request): View
@@ -48,7 +49,9 @@ final readonly class PayrollDeliveryController
         $viewModel = $this->queries->ask(new GetPayrollRunListQuery($companyId, $filters));
         abort_unless($viewModel instanceof PayrollRunListViewModel, 500);
 
-        return view('payroll::runs.index', compact('companyId', 'viewModel', 'filters'));
+        $processHelp = $this->queries->ask(new GetPayrollProcessHelpQuery($companyId, $request->integer('branch_id') ?: null, $this->user($request)));
+
+        return view('payroll::runs.index', compact('companyId', 'viewModel', 'filters', 'processHelp'));
     }
 
     public function item(Request $request, int $run, int $item): View
@@ -69,5 +72,13 @@ final readonly class PayrollDeliveryController
         Gate::forUser($u)->authorize('workforce.company', [$p, $c]);
 
         return $c;
+    }
+
+    private function user(Request $request): User
+    {
+        $user = $request->user();
+        abort_unless($user instanceof User, 401);
+
+        return $user;
     }
 }

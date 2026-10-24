@@ -12,9 +12,9 @@
             EMPLOYEE INSURANCE
         </span>
 
-        <h1>
+        <h2>
             Employee Insurance Profiles
-        </h1>
+        </h2>
     </section>
 
 

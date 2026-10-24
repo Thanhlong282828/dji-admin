@@ -9,5 +9,6 @@ final class WorkflowDefinitionVersion extends Model
 {
     protected $table = 'workflow_definition_versions';
 
-    protected $guarded = [];
+    protected $fillable = [
+    ];
 }

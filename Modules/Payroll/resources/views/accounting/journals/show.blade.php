@@ -36,9 +36,11 @@
     ================================================================ --}}
     <section class="panel page-hero">
         <span class="eyebrow">
-            {{ $j['run_number'] }}
-            ·
-            calculation v{{ $j['calculation_version'] }}
+            @if($j['is_generic_source'])
+                {{ $j['source_type'] }} #{{ $j['source_id'] }} · {{ $j['posting_type'] }}
+            @else
+                {{ $j['run_number'] }} · calculation v{{ $j['calculation_version'] }}
+            @endif
         </span>
 
         <h2>
@@ -46,12 +48,13 @@
         </h2>
 
         <p>
-            Policy {{ $j['policy_code'] }}
-            ·
-            v{{ $j['policy_version'] ?? '' }}
-            ·
-            resolution {{ $j['resolution_date'] }}.
-            Bút toán dùng integer minor units và exact persisted Payroll source.
+            @if($j['is_generic_source'])
+                Nguồn nghiệp vụ {{ $j['source_type'] }} #{{ $j['source_id'] }} · kỳ {{ $j['period_code'] }}.
+                Bút toán cân bằng dùng integer minor units và evidence của nguồn đã lưu.
+            @else
+                Policy {{ $j['policy_code'] }} · v{{ $j['policy_version'] ?? '' }} · resolution {{ $j['resolution_date'] }}.
+                Bút toán dùng integer minor units và exact persisted Payroll source.
+            @endif
         </p>
 
 
@@ -177,7 +180,7 @@
 
 
             {{-- Internally Posted → Export --}}
-            @if($j['status'] === 'internally_posted')
+            @if(! $j['is_generic_source'] && $j['status'] === 'internally_posted')
                 @can('payroll.accounting.journal.export')
                     <form
                         method="POST"
@@ -220,6 +223,15 @@
                 @endcan
             @endif
 
+        </div>
+    </section>
+
+    <section class="panel">
+        <span class="eyebrow">Source traceability</span>
+        <div class="metric-grid">
+            <article class="metric-card"><span>Source document</span><strong>{{ $j['source_type'] ?: 'payroll_run' }} #{{ $j['source_id'] ?: $j['run_number'] }}</strong>@if($j['source_trace']) @can($j['source_trace']['permission'])<a class="erp-source-link" href="{{ route($j['source_trace']['route'], $j['source_trace']['parameters']) }}">Mở chứng từ nguồn →</a>@endcan @endif</article>
+            <article class="metric-card"><span>Posting policy</span><strong>{{ $j['policy_code'] ?: data_get($j, 'policy_snapshot.policy_id', 'Legacy mapping') }}</strong><small>Version {{ $j['policy_version'] ?: data_get($j, 'policy_snapshot.policy_version', '—') }}</small>@can('payroll.accounting.view')@if($j['policy_code'])<a class="erp-source-link" href="{{ route('admin.payroll.accounting.policies.index',['company_id'=>$c]) }}">Mở Payroll policy registry →</a>@elseif(data_get($j, 'policy_snapshot.policy_id'))<a class="erp-source-link" href="{{ route('admin.finance.accounting-policies',['company_id'=>$c,'policy_id'=>data_get($j, 'policy_snapshot.policy_id')]) }}">Mở Accounting Policy Workspace →</a>@endif@endcan</article>
+            <article class="metric-card"><span>Accounting period</span><strong>{{ $j['period_code'] }}</strong>@can($j['period_trace']['permission'])<a class="erp-source-link" href="{{ route($j['period_trace']['route'],$j['period_trace']['parameters']) }}">Mở kỳ kế toán →</a>@endcan</article>
         </div>
     </section>
 
@@ -417,13 +429,7 @@
 
                                 {{-- Account --}}
                                 <td class="primary-cell">
-                                    <strong>
-                                        {{ $l['account_code'] }}
-                                    </strong>
-
-                                    <span>
-                                        {{ $l['account_name'] }}
-                                    </span>
+                                    @can('payroll.accounting.view')<a class="erp-source-link" href="{{ $l['account_url'] }}"><strong>{{ $l['account_code'] }}</strong><span>{{ $l['account_name'] }} →</span></a>@else<strong>{{ $l['account_code'] }}</strong><span>{{ $l['account_name'] }}</span>@endcan
                                 </td>
 
 
@@ -642,10 +648,15 @@
             </div>
 
         @empty
-            <p class="empty-state">
-                Chưa có history.
-            </p>
+            <div class="journal-evidence-grid">
+                <article><span>Created</span><strong>{{ $j['created_at'] }}</strong><small>Canonical journal record</small></article>
+                <article><span>Status</span><strong>{{ $j['status'] }}</strong><small>{{ $j['posted_at'] ?? $j['approved_at'] ?? 'Chưa có transition timestamp' }}</small></article>
+                <article><span>Source</span><strong>{{ $j['source_type'] ?? 'payroll' }}</strong><small>#{{ $j['source_id'] ?? '—' }}</small></article>
+            </div>
+            <div class="erp-empty-state"><span>◇</span><div><strong>Chưa có Activity Log bổ sung</strong><p>Các mốc phía trên lấy từ chính journal; hệ thống không sinh activity giả.</p></div></div>
         @endforelse
     </section>
+
+    <style>.journal-evidence-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.7rem;margin:1rem 0}.journal-evidence-grid article{display:flex;flex-direction:column;gap:.3rem;padding:.85rem;border:1px solid rgba(255,228,119,.18);border-radius:12px;background:linear-gradient(145deg,rgba(255,228,119,.06),rgba(13,16,21,.82))}.journal-evidence-grid span{color:#aeb5c2;font-size:.7rem;text-transform:uppercase;letter-spacing:.1em}.journal-evidence-grid strong{color:#fff4c2}.journal-evidence-grid small{color:#8f98a8}@media(max-width:650px){.journal-evidence-grid{grid-template-columns:1fr}}</style>
 
 @endsection

@@ -31,6 +31,7 @@
             ·
             {{ $p['rounding_rule'] }}
         </p>
+        <p><strong>Jurisdiction:</strong> {{ $p['jurisdiction'] ?? 'VN' }} · <strong>Nguồn:</strong> @if(!empty($p['source_reference']))<a href="{{ $p['source_reference'] }}" rel="noreferrer noopener" target="_blank">Official source</a>@else CONFIGURATION_REQUIRED @endif · <strong>Verified:</strong> {{ $p['source_verified_at'] ?? 'NOT VERIFIED' }}</p>
     </section>
 
 

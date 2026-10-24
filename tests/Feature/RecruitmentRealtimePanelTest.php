@@ -134,8 +134,12 @@ final class RecruitmentRealtimePanelTest extends TestCase
             'broadcasting.connections.reverb.key' => 'testing-key',
             'broadcasting.connections.reverb.secret' => 'testing-secret',
             'broadcasting.connections.reverb.app_id' => 'testing-app',
+            'broadcasting.connections.reverb_transport.key' => 'testing-key',
+            'broadcasting.connections.reverb_transport.secret' => 'testing-secret',
+            'broadcasting.connections.reverb_transport.app_id' => 'testing-app',
         ]);
         Broadcast::purge('reverb');
+        Broadcast::purge('reverb_transport');
         require base_path('routes/channels.php');
         [$company] = $this->application('CHANNEL');
         $member = $this->user($company, ['interview.view']);

@@ -2310,3 +2310,7 @@ Không được báo hoàn thành nếu:
 * Test chưa chạy.
 
 Bắt đầu audit và triển khai ngay.
+
+COMMERCE C4: Employee create/edit synchronizes multiple same-company Branch IDs through EmployeeAccountService. Other-company access and Branches currently led by the User are preserved; Employee List and Account Security read the shared pivot without duplicate columns.
+
+ERP consolidation: Employee Portal resolves only the Employee linked to the authenticated User. Effective `employee_branch_assignments` supplies operational Branch history; `branch_user_access` remains authorization and may contain multiple Branches.

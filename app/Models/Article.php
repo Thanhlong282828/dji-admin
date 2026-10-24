@@ -14,6 +14,7 @@ use Illuminate\Support\Str;
 /**
  * @property int $id
  * @property int $author_id
+ * @property int|null $company_id
  * @property string $title
  * @property string $slug
  * @property string $excerpt
@@ -29,7 +30,7 @@ final class Article extends Model
     /** @use HasFactory<Factory<Article>> */
     use HasFactory,SoftDeletes;
 
-    protected $fillable = ['author_id', 'title', 'slug', 'excerpt', 'body', 'category', 'hero_image', 'status', 'featured', 'published_at', 'seo_title', 'seo_description'];
+    protected $fillable = ['author_id', 'company_id', 'title', 'slug', 'excerpt', 'body', 'category', 'hero_image', 'status', 'featured', 'published_at', 'seo_title', 'seo_description'];
 
     /** @return array<string, string> */
     protected function casts(): array

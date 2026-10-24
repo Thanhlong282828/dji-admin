@@ -16,8 +16,11 @@ use Modules\Employee\Presentation\Http\Controllers\EmployeeLifecycleController;
 use Modules\Employee\Presentation\Http\Controllers\EmployeeUserLinkController;
 use Modules\Employee\Presentation\Http\Controllers\EmploymentContractController;
 use Modules\Employee\Presentation\Http\Controllers\HRGovernanceController;
+use Modules\Employee\Presentation\Http\Controllers\HrOperationsController;
 
 Route::middleware(['auth', 'verified'])->prefix('admin')->name('admin.')->group(function () {
+    Route::get('hr/operations', [HrOperationsController::class, 'index'])->middleware('permission:employment-contract.view')->name('hr.operations.index');
+    Route::post('hr/operations', [HrOperationsController::class, 'mutate'])->middleware('permission:employment-contract.create|employment-contract.approve')->name('hr.operations.mutate');
     Route::get('hr/governance', [HRGovernanceController::class, 'dashboard'])->middleware('permission:hr.governance.view')->name('hr.governance.dashboard');
     Route::get('hr/governance/issues', [HRGovernanceController::class, 'issues'])->middleware('permission:hr.governance.view')->name('hr.governance.issues');
     Route::get('hr/governance/audit', [HRGovernanceController::class, 'audit'])->middleware('permission:hr.audit.view')->name('hr.governance.audit');

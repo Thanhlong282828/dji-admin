@@ -1,0 +1,1 @@
+{"name":"CRM","alias":"crm","description":"Lead and opportunity bounded context.","priority":0,"requires":["Core","Company","Commerce"],"providers":["Modules\\CRM\\Providers\\CRMServiceProvider"],"files":[]}

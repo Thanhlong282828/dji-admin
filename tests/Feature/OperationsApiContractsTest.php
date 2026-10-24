@@ -22,7 +22,7 @@ final class OperationsApiContractsTest extends TestCase
         $this->actingAs($user)->get('/admin/operations/api-contracts')
             ->assertOk()
             ->assertSee('Enterprise API Contracts')
-            ->assertSee('sanctum-bearer')
+            ->assertSee('passport-authorization-code-pkce')
             ->assertSee('API Contracts')
             ->assertDontSee('DB_PASSWORD')
             ->assertDontSee('LocalAdmin123!');
@@ -34,7 +34,7 @@ final class OperationsApiContractsTest extends TestCase
         $output = Artisan::output();
         self::assertJson($output);
         self::assertStringContainsString('"status": "pass"', $output);
-        self::assertStringContainsString('"actual_operations": 24', $output);
+        self::assertStringContainsString('"actual_operations": 30', $output);
         self::assertStringNotContainsString('DB_PASSWORD', $output);
     }
 }

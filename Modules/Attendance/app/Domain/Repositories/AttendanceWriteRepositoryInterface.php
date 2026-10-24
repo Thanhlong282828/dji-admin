@@ -12,5 +12,5 @@ interface AttendanceWriteRepositoryInterface
 
     public function hasOpenSession(int $companyId, int $employeeId): bool;
 
-    public function createEvent(int $companyId, int $employeeId, AttendanceEventType $type, string $source, string $key, CarbonImmutable $occurredAt, string $timezone, int $actorId): AttendanceEvent;
+    public function createEvent(int $companyId, int $employeeId, ?int $branchId, AttendanceEventType $type, string $source, string $key, CarbonImmutable $occurredAt, string $timezone, int $actorId): AttendanceEvent;
 }

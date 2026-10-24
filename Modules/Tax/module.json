@@ -7,5 +7,6 @@
     "providers": [
         "Modules\\Tax\\Providers\\TaxServiceProvider"
     ],
+    "requires": ["Core", "Company"],
     "files": []
 }

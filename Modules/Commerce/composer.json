@@ -1,0 +1,5 @@
+{
+    "name": "nwidart/commerce",
+    "description": "Commerce bounded context",
+    "autoload": {"psr-4": {"Modules\\Commerce\\": "app/"}}
+}

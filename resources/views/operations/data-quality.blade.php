@@ -5,6 +5,7 @@
     <span class="eyebrow">DATA RECONCILIATION · READ ONLY</span>
     <h1>Enterprise Data Quality</h1>
     <p>Đối soát tổng hợp, không hiển thị PII và không tự động sửa dữ liệu.</p>
+    <p><strong>Environment:</strong> {{ $snapshot['environment'] }} · <strong>Configured database:</strong> {{ $snapshot['configured_database'] }} · <strong>Actual PDO database:</strong> {{ $snapshot['actual_database'] }} · <strong>Purpose:</strong> {{ $snapshot['database_purpose'] }}</p>
     <div class="metric-grid">
         <article><small>Quality score</small><strong>{{ $snapshot['score'] }}%</strong></article>
         <article><small>Rules</small><strong>{{ $snapshot['rules'] }}</strong></article>

@@ -7,7 +7,7 @@
 - `schema_admin_testing`: destructive automated PHPUnit/concurrency tests only.
 - `schema_admin_browser_testing`: disposable browser fixtures; verified empty after cleanup.
 
-The three active local databases contain the same 61 migrations and 230 tables. VPS production is a separate environment-defined database and was not accessed during local consolidation.
+The three active local databases contain the same 70 migrations and 243 tables after Commerce C1/C2.5. VPS production is a separate environment-defined database and was not accessed during local consolidation, final audit or Commerce foundation work.
 
 ## Local bootstrap
 
@@ -24,7 +24,7 @@ Local login:
 - Role: `Super Admin`
 - Primary company: `Schema Local Development` (`SCHEMA-LOCAL`)
 
-The synthetic baseline currently covers Company, Organization, Employee, Recruitment and Onboarding through existing seeders: four companies, five cost centers, twelve organization units, nine positions, nine employees with assignments/contracts/credentials/consents, five requisitions, eight candidates/applications and four onboarding cases. No production personal, payroll, banking, tax, credential or private artifact data is copied.
+The synthetic baseline currently covers Company, Organization, Employee, Recruitment, Onboarding and the governed local Payroll/reporting paths through existing seeders: four companies, five cost centers, twelve organization units, nine positions and 39 employees with assignment/lifecycle data. No production personal, payroll, banking, tax, credential or private artifact data is copied.
 
 Other bounded contexts remain intentionally empty where no safe idempotent development mutation boundary exists. Their fixture commands stay restricted to disposable testing/browser databases.
 
@@ -38,6 +38,6 @@ Other bounded contexts remain intentionally empty where no safe idempotent devel
 - Browser fixture database: zero users, companies, employees, workflow, IAM, integration and audit rows after cleanup.
 - Production baseline remained users 1, employees 9, roles 14, company access 1, payroll runs 0; IAM/workflow/notification/integration/audit business tables remained 0.
 
-The canonical index repair migration was applied historically without changing business rows. The current local trio contains 61 migrations / 230 tables each; the removed database is not part of the active matrix.
+The canonical index repair migration was applied historically without changing business rows. The current local trio contains 70 migrations / 243 tables each; the removed database is not part of the active matrix.
 
-The final full suite passes with 397 tests, 4,291 assertions, one skipped and exit code 0. The complete concurrency directory passes with 60 tests and 486 assertions. Phase 3F-8 is complete.
+The 397-test/4,291-assertion result below is retained as Phase 3F-8 historical evidence; current final-audit evidence is recorded in `docs/final-project-audit.md`.

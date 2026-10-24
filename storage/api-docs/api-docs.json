@@ -113,7 +113,7 @@
                 },
                 "security": [
                     {
-                        "sanctum": []
+                        "passport": []
                     }
                 ]
             },
@@ -155,7 +155,7 @@
                 },
                 "security": [
                     {
-                        "sanctum": []
+                        "passport": []
                     }
                 ]
             }
@@ -203,7 +203,323 @@
                 },
                 "security": [
                     {
-                        "sanctum": []
+                        "passport": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/taxes": {
+            "get": {
+                "tags": [
+                    "Tax"
+                ],
+                "operationId": "taxIndex",
+                "parameters": [
+                    {
+                        "name": "company_id",
+                        "in": "query",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Tenant-scoped tax resources"
+                    },
+                    "401": {
+                        "description": "Unauthenticated"
+                    },
+                    "403": {
+                        "description": "Forbidden"
+                    },
+                    "422": {
+                        "description": "Validation failed",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ValidationError"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "passport": []
+                    }
+                ]
+            },
+            "post": {
+                "tags": [
+                    "Tax"
+                ],
+                "operationId": "taxStore",
+                "parameters": [
+                    {
+                        "name": "company_id",
+                        "in": "query",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Tax resource created"
+                    },
+                    "401": {
+                        "description": "Unauthenticated"
+                    },
+                    "403": {
+                        "description": "Forbidden"
+                    },
+                    "422": {
+                        "description": "Validation failed",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ValidationError"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "passport": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/taxes/{tax}": {
+            "get": {
+                "tags": [
+                    "Tax"
+                ],
+                "operationId": "taxShow",
+                "parameters": [
+                    {
+                        "name": "tax",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "name": "company_id",
+                        "in": "query",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Tenant-scoped tax resource"
+                    },
+                    "401": {
+                        "description": "Unauthenticated"
+                    },
+                    "403": {
+                        "description": "Forbidden"
+                    },
+                    "404": {
+                        "description": "Tax resource not found"
+                    }
+                },
+                "security": [
+                    {
+                        "passport": []
+                    }
+                ]
+            },
+            "put": {
+                "tags": [
+                    "Tax"
+                ],
+                "operationId": "taxUpdatePut",
+                "parameters": [
+                    {
+                        "name": "tax",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "name": "company_id",
+                        "in": "query",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Tax resource updated"
+                    },
+                    "401": {
+                        "description": "Unauthenticated"
+                    },
+                    "403": {
+                        "description": "Forbidden"
+                    },
+                    "404": {
+                        "description": "Tax resource not found"
+                    },
+                    "422": {
+                        "description": "Validation failed",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ValidationError"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "passport": []
+                    }
+                ]
+            },
+            "delete": {
+                "tags": [
+                    "Tax"
+                ],
+                "operationId": "taxDestroy",
+                "parameters": [
+                    {
+                        "name": "tax",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "name": "company_id",
+                        "in": "query",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "Tax resource deleted"
+                    },
+                    "401": {
+                        "description": "Unauthenticated"
+                    },
+                    "403": {
+                        "description": "Forbidden"
+                    },
+                    "404": {
+                        "description": "Tax resource not found"
+                    }
+                },
+                "security": [
+                    {
+                        "passport": []
+                    }
+                ]
+            },
+            "patch": {
+                "tags": [
+                    "Tax"
+                ],
+                "operationId": "taxUpdatePatch",
+                "parameters": [
+                    {
+                        "name": "tax",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "name": "company_id",
+                        "in": "query",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Tax resource updated"
+                    },
+                    "401": {
+                        "description": "Unauthenticated"
+                    },
+                    "403": {
+                        "description": "Forbidden"
+                    },
+                    "404": {
+                        "description": "Tax resource not found"
+                    },
+                    "422": {
+                        "description": "Validation failed",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ValidationError"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "passport": []
                     }
                 ]
             }
@@ -301,7 +617,7 @@
                 },
                 "security": [
                     {
-                        "sanctum": []
+                        "passport": []
                     }
                 ]
             },
@@ -317,7 +633,7 @@
                 },
                 "security": [
                     {
-                        "sanctum": []
+                        "passport": []
                     }
                 ]
             }
@@ -345,7 +661,7 @@
                 },
                 "security": [
                     {
-                        "sanctum": []
+                        "passport": []
                     }
                 ]
             },
@@ -371,7 +687,7 @@
                 },
                 "security": [
                     {
-                        "sanctum": []
+                        "passport": []
                     }
                 ]
             },
@@ -397,7 +713,7 @@
                 },
                 "security": [
                     {
-                        "sanctum": []
+                        "passport": []
                     }
                 ]
             },
@@ -423,7 +739,7 @@
                 },
                 "security": [
                     {
-                        "sanctum": []
+                        "passport": []
                     }
                 ]
             }
@@ -441,7 +757,7 @@
                 },
                 "security": [
                     {
-                        "sanctum": []
+                        "passport": []
                     }
                 ]
             },
@@ -457,7 +773,7 @@
                 },
                 "security": [
                     {
-                        "sanctum": []
+                        "passport": []
                     }
                 ]
             }
@@ -485,7 +801,7 @@
                 },
                 "security": [
                     {
-                        "sanctum": []
+                        "passport": []
                     }
                 ]
             },
@@ -511,7 +827,7 @@
                 },
                 "security": [
                     {
-                        "sanctum": []
+                        "passport": []
                     }
                 ]
             },
@@ -537,7 +853,7 @@
                 },
                 "security": [
                     {
-                        "sanctum": []
+                        "passport": []
                     }
                 ]
             },
@@ -563,7 +879,7 @@
                 },
                 "security": [
                     {
-                        "sanctum": []
+                        "passport": []
                     }
                 ]
             }
@@ -581,7 +897,7 @@
                 },
                 "security": [
                     {
-                        "sanctum": []
+                        "passport": []
                     }
                 ]
             },
@@ -597,7 +913,7 @@
                 },
                 "security": [
                     {
-                        "sanctum": []
+                        "passport": []
                     }
                 ]
             }
@@ -625,7 +941,7 @@
                 },
                 "security": [
                     {
-                        "sanctum": []
+                        "passport": []
                     }
                 ]
             },
@@ -651,7 +967,7 @@
                 },
                 "security": [
                     {
-                        "sanctum": []
+                        "passport": []
                     }
                 ]
             },
@@ -677,7 +993,7 @@
                 },
                 "security": [
                     {
-                        "sanctum": []
+                        "passport": []
                     }
                 ]
             },
@@ -703,7 +1019,7 @@
                 },
                 "security": [
                     {
-                        "sanctum": []
+                        "passport": []
                     }
                 ]
             }
@@ -781,11 +1097,27 @@
             }
         },
         "securitySchemes": {
-            "sanctum": {
-                "type": "http",
-                "description": "Laravel Sanctum bearer token. Supply only a non-production token issued through the existing authenticated boundary.",
-                "scheme": "bearer",
-                "bearerFormat": "Sanctum"
+            "passport": {
+                "type": "oauth2",
+                "description": "OAuth 2.0 Authorization Code flow with PKCE. IAM and company scope remain enforced after OAuth scope validation.",
+                "flows": {
+                    "authorizationCode": {
+                        "authorizationUrl": "/oauth/authorize",
+                        "tokenUrl": "/oauth/token",
+                        "refreshUrl": "/oauth/token",
+                        "scopes": {
+                            "company:read": "Đọc dữ liệu công ty",
+                            "company:write": "Thay đổi dữ liệu công ty",
+                            "organization:read": "Đọc cấu trúc tổ chức",
+                            "onboarding:read": "Đọc onboarding",
+                            "onboarding:write": "Thay đổi onboarding",
+                            "performance:read": "Đọc hiệu suất",
+                            "performance:write": "Thay đổi hiệu suất",
+                            "recruitment:read": "Đọc tuyển dụng",
+                            "recruitment:write": "Thay đổi tuyển dụng"
+                        }
+                    }
+                }
             }
         }
     },
@@ -817,6 +1149,10 @@
         {
             "name": "Recruitment",
             "description": "Deprecated API bridge; use the CQRS web boundary"
+        },
+        {
+            "name": "Tax",
+            "description": "Authenticated, tenant-scoped Tax module API"
         }
     ]
 }

@@ -2,10 +2,10 @@
 
 namespace Tests\Unit\Architecture;
 
-use PHPUnit\Framework\TestCase;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use SplFileInfo;
+use Tests\TestCase;
 
 final class ModuleDependencyGovernanceTest extends TestCase
 {

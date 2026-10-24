@@ -1,0 +1,45 @@
+# This manifest is intentionally non-executable until every placeholder is replaced,
+# the canonical file SHA-256 is approved, and the relevant maker/checker approvals exist.
+manifest_version: 1
+mode: dry-run
+approval_status: pending
+repair_batch_uuid: REPLACE_WITH_UUID
+expected_database: REPLACE_WITH_EXACT_NON_OPERATING_DATABASE
+source_audit_checksum: REPLACE_WITH_DQ_AUDIT_CHECKSUM
+
+finance_approval:
+  maker_user_id: null
+  checker_user_id: null
+  approved_at: null
+
+identity_approval:
+  administrator_user_id: null
+  approved_at: null
+
+fiscal_year_mappings:
+  - accounting_period_id: REPLACE_PERIOD_1_ID
+    company_id: REPLACE_COMPANY_ID
+    fiscal_year_name: null
+    fiscal_year_start_date: null
+    fiscal_year_end_date: null
+  - accounting_period_id: REPLACE_PERIOD_2_ID
+    company_id: REPLACE_COMPANY_ID
+    fiscal_year_name: null
+    fiscal_year_start_date: null
+    fiscal_year_end_date: null
+  - accounting_period_id: REPLACE_PERIOD_3_ID
+    company_id: REPLACE_COMPANY_ID
+    fiscal_year_name: null
+    fiscal_year_start_date: null
+    fiscal_year_end_date: null
+  - accounting_period_id: REPLACE_PERIOD_4_ID
+    company_id: REPLACE_COMPANY_ID
+    fiscal_year_name: null
+    fiscal_year_start_date: null
+    fiscal_year_end_date: null
+
+legacy_accounting_attestations: []
+
+identity_phone_decisions: []
+# Each future decision must contain user_id, one of REVERIFY/REVOKE_VERIFICATION,
+# optimistic version/evidence, Identity Admin approval and must never contain the phone value.

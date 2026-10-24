@@ -55,13 +55,15 @@ final readonly class InterviewEvaluationService
                 'concerns' => $data->concerns,
                 'notes' => $data->privateNotes,
                 'submitted_at' => $submit ? now() : null,
-                'version' => $nextVersion,
             ];
             if ($evaluation === null) {
                 $evaluation = InterviewEvaluation::query()->create($payload);
             } else {
-                $evaluation->update($payload);
+                $evaluation->fill($payload);
             }
+            // Concurrency metadata is system-owned and intentionally excluded from mass assignment.
+            $evaluation->setAttribute('version', $nextVersion);
+            $evaluation->save();
             activity('interview-evaluation')->performedOn($evaluation)->causedBy($interviewerId)
                 ->event($submit ? 'submitted' : 'draft_saved')
                 ->withProperties(['company_id' => $companyId, 'interview_id' => $interviewId, 'overall_score' => $data->overallScore()])
@@ -77,7 +79,12 @@ final readonly class InterviewEvaluationService
         return DB::transaction(function () use ($companyId, $evaluationId, $actorId, $reason): InterviewEvaluation {
             $evaluation = InterviewEvaluation::query()->where('company_id', $companyId)->lockForUpdate()->findOrFail($evaluationId);
             $this->states->assertReopenable($evaluation, $reason);
-            $evaluation->update(['submitted_at' => null, 'reopened_by' => $actorId, 'reopened_at' => now(), 'reopen_reason' => $reason, 'version' => $evaluation->version + 1]);
+            $evaluation->setAttribute('submitted_at', null);
+            $evaluation->setAttribute('reopened_by', $actorId);
+            $evaluation->setAttribute('reopened_at', now());
+            $evaluation->setAttribute('reopen_reason', $reason);
+            $evaluation->setAttribute('version', $evaluation->version + 1);
+            $evaluation->save();
             event(new RecruitmentWorkflowChanged($companyId, 'interview_evaluation', $evaluation->id, 'reopened', $evaluation->version, $actorId));
 
             return $evaluation->refresh();

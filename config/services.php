@@ -45,4 +45,22 @@ return [
         'driver' => env('EMPLOYEE_AVATAR_DRIVER', 'local'),
     ],
 
+    'google' => [
+        'client_id' => env('GOOGLE_CLIENT_ID'),
+        'client_secret' => env('GOOGLE_CLIENT_SECRET'),
+        'redirect' => env('GOOGLE_REDIRECT_URI'),
+        'enabled' => filter_var(env('GOOGLE_LOGIN_ENABLED', false), FILTER_VALIDATE_BOOL),
+    ],
+
+    'facebook' => [
+        'client_id' => env('FACEBOOK_CLIENT_ID'),
+        'client_secret' => env('FACEBOOK_CLIENT_SECRET'),
+        'redirect' => env('FACEBOOK_REDIRECT_URI'),
+        'enabled' => filter_var(env('FACEBOOK_LOGIN_ENABLED', false), FILTER_VALIDATE_BOOL),
+    ],
+
+    'phone_verification' => [
+        'driver' => env('PHONE_VERIFICATION_DRIVER', 'local'),
+    ],
+
 ];

@@ -16,6 +16,11 @@ final class ExpireLeaveBalancesJob implements ShouldQueue
 
     public int $tries = 3;
 
+    public int $timeout = 300;
+
+    /** @var list<int> */
+    public array $backoff = [60, 300, 900];
+
     public function handle(AutomatedLeaveLedgerService $service): void
     {
         $service->expire(CarbonImmutable::today());

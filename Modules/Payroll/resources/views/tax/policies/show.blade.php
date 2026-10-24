@@ -34,6 +34,7 @@
             →
             {{ $d['effective_to'] ?? '∞' }}
         </p>
+        <p><strong>Jurisdiction:</strong> {{ $d['jurisdiction'] ?? 'VN' }} · <strong>Nguồn:</strong> @if(!empty($d['source_reference']))<a href="{{ $d['source_reference'] }}" rel="noreferrer noopener" target="_blank">Official source</a>@else CONFIGURATION_REQUIRED @endif · <strong>Verified:</strong> {{ $d['source_verified_at'] ?? 'NOT VERIFIED' }}</p>
 
         @can('payroll.tax.policy.update')
             <a

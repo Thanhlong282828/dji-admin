@@ -22,8 +22,11 @@ final readonly class AttendanceWorkflowController
 
     public function show(Request $request, int $record): View
     {
-        $companyId = $this->company($request, 'attendance.view');
-        Gate::authorize('attendance.view-record', [$companyId, $record]);
+        $user = $request->user();
+        abort_unless($user instanceof User, 401);
+        $canViewAll = $user->can('attendance.view');
+        $companyId = $this->company($request, $canViewAll ? 'attendance.view' : 'attendance.view-own');
+        Gate::authorize($canViewAll ? 'attendance.view-record' : 'attendance.view-own-record', [$companyId, $record]);
         $detail = $this->queries->ask(new GetAttendanceRecordDetailQuery($companyId, $record));
         abort_unless($detail instanceof AttendanceRecordDetail, 500);
 

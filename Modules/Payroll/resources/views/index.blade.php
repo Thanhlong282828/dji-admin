@@ -12,9 +12,9 @@
             WORKFORCE OPERATIONS
         </span>
 
-        <h1>
+        <h2>
             Payroll Input Foundation
-        </h1>
+        </h2>
 
         <p>
             Snapshot bất biến của attendance, leave và overtime đã duyệt.

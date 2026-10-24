@@ -19,7 +19,43 @@ use Modules\Payroll\Domain\Enums\PayrollRunStatus;
  */
 final class PayrollRun extends Model
 {
-    protected $guarded = ['id'];
+    protected $fillable = [
+        'code',
+        'calculated_at',
+        'calculation_version',
+        'company_id',
+        'created_by',
+        'currency_code',
+        'deduction_total',
+        'deduction_total_minor',
+        'employee_count',
+        'employer_contribution_total_minor',
+        'formula_version',
+        'finalized_at',
+        'finalized_by',
+        'gross_total',
+        'gross_total_minor',
+        'idempotency_key',
+        'insurance_employee_total_minor',
+        'insurance_employer_total_minor',
+        'net_after_personal_income_tax_total_minor',
+        'net_total',
+        'net_total_minor',
+        'payroll_input_snapshot_id',
+        'payroll_period_id',
+        'personal_income_tax_total_minor',
+        'period_end',
+        'period_start',
+        'approved_at',
+        'approved_by',
+        'rejected_at',
+        'rejected_by',
+        'run_number',
+        'status',
+        'submitted_at',
+        'submitted_by',
+        'version',
+    ];
 
     protected function casts(): array
     {

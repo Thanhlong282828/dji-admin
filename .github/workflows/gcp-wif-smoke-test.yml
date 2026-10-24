@@ -112,7 +112,7 @@ jobs:
 
               echo
               echo "AUDIT_COMPLETE=PASS"
-            '
+             '
 
       - name: Final result
         shell: bash

@@ -60,7 +60,9 @@ return [
 
         'production' => [
             'driver' => 'stack',
-            'channels' => ['stderr', 'daily'],
+            // Containers already retain/forward stderr. Avoid a second unbounded
+            // on-container copy unless an operator opts into another channel.
+            'channels' => explode(',', (string) env('LOG_PRODUCTION_STACK', 'stderr')),
             'ignore_exceptions' => false,
         ],
 

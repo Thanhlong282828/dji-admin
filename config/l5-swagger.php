@@ -189,11 +189,27 @@ return [
         */
         'securityDefinitions' => [
             'securitySchemes' => [
-                'sanctum' => [
-                    'type' => 'http',
-                    'description' => 'Laravel Sanctum bearer token. Supply only a non-production token issued through the existing authenticated boundary.',
-                    'scheme' => 'bearer',
-                    'bearerFormat' => 'Sanctum',
+                'passport' => [
+                    'type' => 'oauth2',
+                    'description' => 'OAuth 2.0 Authorization Code flow with PKCE. IAM and company scope remain enforced after OAuth scope validation.',
+                    'flows' => [
+                        'authorizationCode' => [
+                            'authorizationUrl' => '/oauth/authorize',
+                            'tokenUrl' => '/oauth/token',
+                            'refreshUrl' => '/oauth/token',
+                            'scopes' => [
+                                'company:read' => 'Đọc dữ liệu công ty',
+                                'company:write' => 'Thay đổi dữ liệu công ty',
+                                'organization:read' => 'Đọc cấu trúc tổ chức',
+                                'onboarding:read' => 'Đọc onboarding',
+                                'onboarding:write' => 'Thay đổi onboarding',
+                                'performance:read' => 'Đọc hiệu suất',
+                                'performance:write' => 'Thay đổi hiệu suất',
+                                'recruitment:read' => 'Đọc tuyển dụng',
+                                'recruitment:write' => 'Thay đổi tuyển dụng',
+                            ],
+                        ],
+                    ],
                 ],
                 /*
                  * Examples of Security schemes

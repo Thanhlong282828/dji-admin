@@ -12,6 +12,13 @@ final class ExpireCandidateOffersJob implements ShouldQueue
 {
     use Queueable;
 
+    public int $tries = 3;
+
+    public int $timeout = 120;
+
+    /** @var list<int> */
+    public array $backoff = [60, 300, 900];
+
     public function handle(CandidateOfferService $service): void
     {
         CandidateOffer::query()

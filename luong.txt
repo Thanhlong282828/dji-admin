@@ -2109,4 +2109,906 @@ HEADER COMPENSATION REFERENCE FLOW
 Header `$` -> GET `admin.compensation-reference` -> auth + verified + `payroll.assignment.view` + company access -> CompensationReferenceController -> CompensationReadService::positionReferences -> actual Organization Unit/Job Position rows -> accessible dialog. Synthetic reference is distinct from Payroll Item/Gross/Net Pay.
 
 CONTEXT HELP FLOW
-Header `?` -> AdminHelpRegistry::resolve(current named route, company id) -> guide cụ thể của primary menu -> purpose/dataSources/upstreamMenus/downstreamMenus/mainActions/workflowSteps/businessRules/statusGuide/immutabilityRules/approvalRules/sideEffects/permissions/warnings/menuFlow/technicalFlow -> AdminNavigation named route/permission metadata -> server-side `User::can` filter -> admin layout render accessible dialog và chuỗi upstream → current (`aria-current`) → downstream. 73/73 primary destinations có guide/menu flow riêng; Escape đóng và focus trả về trigger.
+Header `?` -> AdminHelpRegistry::resolve(current named route, company id) -> guide cụ thể của primary menu -> purpose/dataSources/upstreamMenus/downstreamMenus/mainActions/workflowSteps/businessRules/statusGuide/immutabilityRules/approvalRules/sideEffects/permissions/warnings/menuFlow/technicalFlow -> AdminNavigation named route/permission metadata -> server-side `User::can` filter -> admin layout render accessible dialog và chuỗi upstream → current (`aria-current`) → downstream. 74/74 primary destinations có guide/menu flow riêng, gồm Workforce Forecasting; Escape đóng và focus trả về trigger.
+==================================================
+PERFORMANCE / ANALYTICS — WORKFORCE FORECASTING (PHASE 3F-26)
+==================================================
+
+GET /admin/analytics/forecasting
+→ Modules/Performance/routes/web.php | admin.analytics.forecasting
+→ WorkforceForecastController::index()
+→ company access + analytics.view + payroll.assignment.view cost boundary
+→ WorkforceScenarioLine (request-scoped, max 50, effective month)
+→ WorkforceForecastService::build()
+→ grouped job_positions / employee_assignments / recruitment_requisitions / applications
+→ CompensationReadService + PositionCompensationReference
+→ WorkforceForecastViewModel
+→ performance::forecasting.dashboard
+→ NO Employee/Salary/Payroll mutation.
+
+POST /admin/analytics/forecasting/export
+→ Modules/Performance/routes/web.php | admin.analytics.forecasting.export
+→ WorkforceForecastController::export()
+→ analytics.export + tenant boundary
+→ same deterministic WorkforceForecastService projection
+→ streamed aggregate CSV + assumptions
+→ formula-injection-safe labels; no Employee detail.
+
+Scenario flow
+Organization / Headcount / Employee Assignment / Compensation / Recruitment
+→ Actual + Budget inputs
+→ add/remove/promote request lines
+→ effective-month evaluation
+→ HeadcountProjection + PayrollCostProjection + RecruitmentDemandProjection
+→ Baseline / Scenario / Delta
+→ reset or export; no Save and no historical Payroll rewrite.
+
+==================================================
+CORE / NAVIGATION — FULL-PAGE STATE RESTORE
+==================================================
+
+Request admin page mới
+→ Laravel named route + controller
+→ resources/views/layouts/admin.blade.php
+→ AdminNavigation::for(authenticated user, current Request, company)
+→ server render permission-filtered groups + active item/group + aria-current
+→ minimal pre-paint bootstrap validates rendered group key and restores session scrollTop
+→ resources/ts/admin-navigation.ts
+→ active route precedence + max one open group + minimal active-item reveal
+→ pagehide saves group/scroll; BFCache pageshow reconciles idempotently
+→ data-admin-nav-ready; initial accordion animation NONE
+→ mobile drawer remains closed on the new document.
+
+==================================================
+PERFORMANCE / ANALYTICS / PLANNING — EXECUTIVE PLANNING (PHASE 3F-27)
+==================================================
+
+GET /admin/planning
+→ Modules/Performance/routes/web.php | admin.planning.executive
+→ auth + verified + analytics.view + TenantAccessService
+→ ExecutivePlanningController::index()
+→ PlanningFilter::fromRequest() | company → Cost Center → Unit → Position → Level/month validation
+→ ExecutivePlanningService::build()
+→ grouped job_positions/current employee_assignments
+→ separate Recruitment demand + pipeline aggregates
+→ latest eligible payroll_runs Actual when payroll.assignment.view allows financial data
+→ CompensationReadService + DataQualityAuditService
+→ ExecutivePlanningViewModel
+→ performance::planning.executive Blade
+→ computed read-only KPI/charts/variance; NO Plan/Employee/Payroll mutation.
+
+GET /admin/planning/export
+→ Modules/Performance/routes/web.php | admin.planning.export
+→ analytics.export + tenant boundary
+→ same PlanningFilter + ExecutivePlanningService read model
+→ StreamedResponse aggregate CSV
+→ formula-injection-safe labels; salary columns MASKED without payroll.assignment.view; no Employee detail.
+
+Planning menu flow
+Organization / Approved Headcount / Position Budget
+→ Employee current primary Assignment + Recruitment + Payroll Actual
+→ Enterprise Analytics
+→ Workforce Forecasting
+→ Executive Planning Budget / Actual / Forecast / Variance
+→ warning and permission-filtered drill-down to owning module.
+
+==================================================
+PERFORMANCE / ANALYTICS / PLANNING — PLANNING EXECUTION (PHASE 3F-28)
+==================================================
+
+GET /admin/planning/execution
+→ Modules/Performance/routes/web.php | admin.planning.execution
+→ auth + verified + analytics.view + TenantAccessService
+→ PlanningExecutionController::index()
+→ PlanningExecutionFilter::fromRequest()
+→ PlanningFilter::fromRequest() + bounded Reforecast deltas
+→ PlanningExecutionService::build()
+→ ExecutivePlanningService::build() + grouped candidate_offers completed-hire query
+→ ExecutionVarianceMath + VarianceStatus + ManagementAction
+→ PlanningExecutionViewModel
+→ performance::planning.execution Blade
+→ Target / Actual / Variance / request-scoped Reforecast; NO source mutation.
+
+GET /admin/planning/execution/export
+→ Modules/Performance/routes/web.php | admin.planning.execution.export
+→ analytics.export + tenant boundary
+→ same PlanningExecutionFilter + PlanningExecutionService read model
+→ StreamedResponse aggregate CSV
+→ formula-safe labels; financial fields MASKED without payroll.assignment.view.
+
+Execution control flow
+Executive Planning baseline
+→ monthly operating Target
+→ effective Assignment / completed Hire / eligible Payroll Actual
+→ integer Variance + typed status
+→ explicit Reforecast v2 comparison
+→ deterministic Management Attention
+→ owning Employee/Recruitment/Payroll workflow; NO automatic action.
+
+==================================================
+PERFORMANCE / ANALYTICS / REPORTING — ENTERPRISE BOARD PACK (PHASE 3F-29)
+==================================================
+
+GET /admin/reports
+→ Modules/Performance/routes/web.php | admin.reports.index
+→ auth + verified + analytics.view + TenantAccessService
+→ EnterpriseReportController::index()
+→ ReportingFilter::fromRequest() | monthly/quarterly/YTD + tenant hierarchy
+→ EnterpriseReportingService::build()
+→ EnterpriseAnalyticsService + PlanningExecutionService
+→ EnterpriseReportCatalog + EnterpriseReportViewModel
+→ performance::reports.index live preview
+→ NO business mutation or report persistence.
+
+GET /admin/reports/export/{csv|xlsx|pdf}
+→ analytics.export + same ReportingFilter/read model
+→ EnterpriseReportExportService::generate()
+→ UTF-8 formula-safe CSV / multi-sheet XLSX / local Dompdf PDF
+→ actual artifact-byte SHA-256 response header
+→ private no-store download; no external upload/certification.
+
+==================================================
+OPERATIONS — PRODUCTION GO-LIVE READINESS (PHASE 3F-30)
+==================================================
+
+GET /admin/operations/go-live
+→ routes/web.php | admin.operations.go-live | auth + verified + operations.view
+→ GoLiveReadinessController::__invoke()
+→ ProductionReadinessService::snapshot()
+→ safe config/secret-readiness metadata + migration/release/runtime inventory
+→ resources/views/operations/go-live.blade.php
+→ read-only checklist/dependency/blocker cockpit; NO VPS, deploy, migration or seed.
+
+CLI operations:production-readiness --json
+→ ProductionReadinessCommand::handle()
+→ ProductionReadinessService::snapshot()
+→ redacted JSON certification input; classification carries external blocker state.
+
+Production delivery
+→ scripts/operations/predeploy-check.sh
+→ authorized immutable release + reviewed migration
+→ live/ready + scripts/operations/postdeploy-smoke.sh
+→ monitor queue/scheduler/Reverb
+→ rollback only with schema/config compatibility evidence.
+
+GET /admin/operations/api-documentation
+→ routes/web.php | admin.operations.api-documentation | auth + verified + api.documentation.view
+→ ApiDocumentationController::__invoke()
+→ resources/views/operations/api-documentation.blade.php
+→ shared admin layout + contextual help
+→ protected l5-swagger.default.api (/api/documentation) hoặc protected OpenAPI JSON (/docs)
+→ read-only contract inspection; không business mutation.
+
+Workforce cached read-model recovery
+→ controller/query asks WorkforceCacheRegistry::remember()
+→ stable versioned cache key
+→ cached array/DTO is returned when class metadata remains valid
+→ __PHP_Incomplete_Class is treated as an invalid deploy/runtime artifact
+→ key is evicted and resolver/repository rebuilds the canonical read model
+→ no unsafe incomplete object reaches Blade/controller.
+
+==================================================
+CORE / AUTH / CONTENT — ROUTED ACTION COMPLETENESS
+==================================================
+
+Browser authentication
+→ routes/auth.php
+→ AuthenticatedSessionController::{create,store,destroy}
+→ PasswordResetLinkController::{create,store}
+→ NewPasswordController::{create,store}
+→ ConfirmablePasswordController::{show,store}
+→ EmailVerificationPromptController / VerifyEmailController / EmailVerificationNotificationController
+→ RegisteredUserController::{create,store} + PasswordController::update
+→ Breeze/session authentication remains the web boundary; Passport Authorization Code + PKCE is the active API authentication boundary.
+
+IDENTITY / ACCOUNT — SOCIAL LOGIN, PHONE OTP, PASSPORT
+
+GET /auth/{provider}/redirect → SocialIdentityController::redirect → Socialite provider state redirect
+GET /auth/{provider}/callback → SocialIdentityController::callback → ExternalIdentityService → user_external_identities → session regeneration
+DELETE /account/identities/{provider} → password confirmation → ExternalIdentityService::unlink → last-method guard → audit event
+POST /account/phone/request → PhoneVerificationController → PhoneVerificationService::issue → hashed phone_verification_challenges → provider boundary
+POST /account/phone/verify → PhoneVerificationService::verify → lock/attempt/expiry/single-use → users.phone_e164 + phone_verified_at
+GET /account → AccountSecurityController → User identity/IAM/scope/OAuth aggregate reads → account.show
+GET|POST /oauth/authorize → Passport Authorization Code consent + PKCE → access/refresh token
+API /api/v1/* → auth:api → endpoint scope → account.enabled → existing policy/Spatie/company scope → controller/CQRS
+
+Profile
+→ routes/web.php | profile.{edit,update,destroy}
+→ ProfileController::{edit,update,destroy}
+→ validated account profile mutation / guarded account deletion semantics.
+
+Article administration
+→ routes/web.php | articles.{index,create,store,edit,update}
+→ ArticleController::{index,create,store,edit,update}
+→ Article model + validated Blade CRUD; authorization remains article capability based.
+
+Public Article read API
+→ routes/api.php | api.articles.{index,show}
+→ Api\\ArticleController::{index,show}
+→ ArticleResource JSON; read-only public content contract.
+
+==================================================
+EMPLOYEE / WORKFORCE — EXPORT BOUNDARIES
+==================================================
+
+GET /admin/employees-export
+→ Modules/Employee/routes/web.php | admin.employees.export | employee.export
+→ EmployeeExportController::__invoke()
+→ GetEmployeeExportQuery / QueryBus / governed read repository
+→ bounded spreadsheet-safe employee export response.
+
+GET /admin/{attendance,leave,leave-balances,overtime,payroll-input}-export.csv
+→ Modules/Attendance/routes/web.php | named export routes + workforce.export
+→ WorkforceExportController::__invoke()
+→ validated tenant/type scope → WorkforceExportService/read repositories
+→ formula-safe CSV; no cross-company row.
+
+==================================================
+OPERATIONS — GOVERNANCE LANDING SURFACES
+==================================================
+
+GET /admin/operations/{architecture,api-contracts,test-quality,configuration,secrets,data-protection,data-lifecycle,continuity,security-assurance}
+→ routes/web.php | matching admin.operations.* named route + operations.view
+→ ArchitectureController / ApiContractsController / TestQualityController
+→ RuntimeConfigurationController / SecretsController / DataProtectionController
+→ DataLifecycleController / ContinuityController / SecurityAssuranceController
+→ owned read-only audit/snapshot service
+→ matching resources/views/operations/*.blade.php
+→ governance evidence only; no business mutation.
+
+==================================================
+COMPANY / BRANCH — COMMERCE C1
+==================================================
+
+GET /admin/branches
+→ routes/web.php | admin.branches.index | branch.view
+→ BranchController::index()
+→ BranchAccessService company/branch scope
+→ branches + branch_user_access
+→ resources/views/admin/branches/index.blade.php.
+
+POST/PUT /admin/branches[/{branch}]
+→ BranchRequest
+→ BranchController::store()/update()
+→ transaction creates Branch + creator access, or updates scoped Branch
+→ redirect Branch list.
+
+==================================================
+SELLER / STORE — COMMERCE C1
+==================================================
+
+GET /admin/seller[/store]
+→ SellerCenterController
+→ CompanyContextService validates selected Company access
+→ authenticated User resolves seller_profiles by (company_id, user_id), never by user alone
+→ Company → Seller Profile → Store/Product → Order → Payment → Fulfillment → recognized Branch revenue
+
+GET /admin/commerce/sales-history?company_id={company}
+→ CommerceSalesHistoryController::__invoke()
+→ BranchAccessService::company() tenant authorization
+→ OrderListFilter bounded search/status/date range
+→ grouped order_items + seller_profiles/stores + succeeded payment + fulfillment/Branch + recognized branch_management_revenues(order_id)
+→ resources/views/admin/commerce/sales-history.blade.php
+
+GET /admin/companies
+→ CompanyController::index() / GetCompanyListQuery
+→ one batched seller_profiles + users + Store count query for current paginator Company IDs
+→ Company list Seller accounts column; no per-Company query and no duplicate ownership field
+→ owned stores/media_assets
+→ Seller Dashboard / Store Profile Blade.
+
+PUT /admin/seller/store
+→ StoreProfileRequest
+→ verified/active Seller gate
+→ MediaService stage logo/banner
+→ stores + media_assets transaction
+→ after-commit old cleanup / DB-failure compensation.
+
+PATCH /admin/commerce/sellers/{seller}/status
+→ Modules/Commerce/app/Presentation/Http/Controllers/SellerGovernanceController::transition()
+→ Modules/Commerce/app/Application/Commands/ChangeSellerGovernanceStatusCommand
+→ Core CommandBus → ChangeSellerGovernanceStatusHandler → SellerGovernanceService
+→ seller_profiles + Audit event.
+
+==================================================
+MEDIA / ARTICLE — COMMERCE C2
+==================================================
+
+Media upload/replace/delete
+→ MediaService validation
+→ MediaStorageInterface
+→ CloudflareImagesStorage OR explicit LocalMediaStorage
+→ media_assets safe reference
+→ upload-new / DB commit / delete-old
+→ DB failure compensation + shared-reference protection.
+
+POST/PUT /articles[/{article}]
+→ StoreArticleRequest
+→ ArticleController::store()/update()
+→ cover/gallery staged through MediaService
+→ Article + media_assets transaction
+→ after-commit replacement/removal cleanup
+→ public /stories/{slug} published Article + ordered gallery.
+COMMERCE / BRANCH GOVERNANCE
+GET/POST/PUT Branch → routes/web.php → BranchController → BranchRequest → BranchAccessService + RoleHierarchyService → branches.leader_employee_id → Employee/current primary assignment → branch_user_access → Audit event → Branch Blade.
+ACCOUNT SECURITY → AccountSecurityController → company_user_access + branch_user_access → Branch leader Employee/current Position → account/show.blade.php.
+EMPLOYEE ACCOUNT BRANCH ACCESS → Employee 360 account form → ManageEmployeeAccountRequest (same-company Branch validation) → EmployeeAccountController → EmployeeAccountService transaction → company-scoped branch_user_access sync; access thuộc company khác được giữ nguyên.
+ANALYTICS COMPENSATION → WorkforceAnalyticsController → EnterpriseAnalyticsService → effective employee_salary_component_assignments + salary_components → current primary assignment/Position Level → permission-filtered ViewModel → analytics dashboard.
+ARTICLE MEDIA → StoreArticleRequest purpose limit → ArticleController → MediaService → MediaStorageInterface → media_assets → local preview/delivery variant.
+SELLER GOVERNANCE → SellerGovernanceController → bounded seller_profiles transition → self-governance guard → Audit.
+
+==================================================
+COMPANY / BRANCH / EMPLOYEE ACCESS — COMMERCE C4
+==================================================
+
+POST/PUT Company
+→ CompanyController + Store/UpdateCompanyRequest
+→ Create/UpdateCompanyCommand → Handler
+→ Company repository + CompanyBranchService + CompanySellerAccountService in one transaction
+→ seller_accounts row mới: User → Role Seller → company_user_access → seller_profiles(status=pending)
+→ seller_accounts row hiện hữu: validate Profile thuộc Company → cập nhật User/Profile; không đổi governance status và không blind-delete
+→ Company Show/Index batch read seller_profiles + users + Store count → link Seller Governance theo company_id
+DELETE /admin/companies/{company}/seller-accounts/{seller}
+→ CompanyController::destroySellerAccount → CompanySellerAccountService::remove
+→ lock Profile + validate Company → block Store/Order/media → delete Profile → remove Role Seller only when User has no remaining Seller Profile; retain User IAM/company history
+DELETE /admin/branches/{branch}?company_id=...
+→ BranchController::destroy → BranchAccess + BranchAuthority + branch.archive
+→ block Assignment/Attendance/Payroll/Bonus/Finance/Inventory/Fulfillment dependencies → status archived + soft delete; never cascade operational history
+→ companies + validated Branch upsert + creator branch_user_access
+→ omitted Branch remains unchanged.
+
+GET /admin/branches/{branch}
+→ BranchController::show
+→ TenantAccessService + BranchAccessService
+→ branches.leader_employee_id + branch_user_access
+→ User/Role + Employee/current assignment/Position/Unit
+→ resources/views/admin/branches/show.blade.php.
+
+Branch create/update/leader
+→ BranchRequest → BranchController
+→ BranchAuthorityService (account Role authority)
+→ RoleHierarchyService + same-company active Employee/current Position
+→ transaction + leader access sync + Audit.
+
+Employee create/update Branch access
+→ StoreEmployeeRequest same-company branch_ids
+→ EmployeeController → EmployeeAccountService transaction
+→ company-scoped branch_user_access sync
+→ preserve other-company and current-leader access
+→ batched Employee List / Branch Detail / Account Security reads.
+
+==================================================
+PRODUCT CATALOG / INVENTORY — COMMERCE C4
+==================================================
+
+GET /admin/products
+→ Modules/Product/app/Presentation/Http/Controllers/ProductCatalogController::index
+→ permission + Seller-owned Store scope
+→ grouped products/categories/variants/inventory
+→ resources/views/admin/products/index.blade.php.
+
+POST/PUT /admin/products[/{product}]
+→ ProductRequest
+→ Modules/Product/app/Presentation/Http/Controllers/ProductCatalogController::store/update
+→ Modules/Product/app/Application/Commands/SaveProductCatalogCommand → Core CommandBus → Handler
+→ Product + Variant/SKU + Store inventory transaction
+→ Modules/Inventory/app/Domain/Services/InventoryService locked balance update
+→ MediaService attach/after-commit cleanup or failure compensation
+→ Audit → Product list.
+
+GET/POST /admin/product-categories
+→ Modules/Product/app/Presentation/Http/Controllers/ProductCategoryController::index/store
+→ Modules/Product/app/Application/Commands/SaveProductCategoryCommand → Core CommandBus → Handler
+→ validated parent + unique slug
+→ product_categories hierarchy → Blade.
+
+GET /products and /products/{slug}
+→ PublicContentController::products/product
+→ active Seller + Store + Product scope
+→ grouped availability + ordered media_assets
+→ resources/views/public/products/index/show.blade.php.
+
+==================================================
+MARKETPLACE / CART / WISHLIST — COMMERCE C5
+==================================================
+
+GET /products, GET /products/{slug}, GET /stores/{slug}
+→ routes/web.php
+→ PublicContentController::products/product/store
+→ grouped Product/Variant/Inventory/Media queries
+→ resources/views/public/products|stores
+
+POST /cart/items, PATCH /cart/items/{item}/quantity, DELETE /cart/items/{item}
+→ CartController
+→ CartService
+→ authenticated Buyer scope + DB transaction/row lock
+→ carts/cart_items + current Product/Variant/Inventory validation
+→ public Cart ViewModel grouped by Store
+
+POST|DELETE /wishlist/{product}, POST /wishlist/{product}/cart
+→ WishlistController
+→ WishlistService / CartService
+→ wishlists/wishlist_items unique ownership
+→ public Wishlist / Cart
+
+PATCH /admin/seller/inventory/{variant}
+→ SellerInventoryController::adjust
+→ Seller-owned Variant query + inventory.update permission
+→ InventoryService::adjust
+→ DB transaction + inventory row lock + invariant validation
+→ inventory_balances + append-only Activity Log
+
+==================================================
+CHECKOUT / ORDER / RESERVATION — COMMERCE C6
+==================================================
+
+GET/POST/PATCH/DELETE /addresses
+→ routes/web.php
+→ Modules/Commerce/app/Presentation/Http/Controllers/BuyerAddressController
+→ Modules/Commerce/Application Command → Core CommandBus → BuyerAddressService transaction + authenticated Buyer ownership
+→ buyer_addresses default-address invariant
+→ resources/views/public/addresses/index.blade.php
+
+GET /checkout
+→ CheckoutController::show
+→ CheckoutService::preview
+→ CartService current Product/Variant/Store/Seller/Inventory read model
+→ config/checkout.php local shipping methods
+→ resources/views/public/checkout/show.blade.php
+
+POST /checkout
+→ CheckoutController::place validated address/method/idempotency key
+→ CheckoutService::place whole-checkout transaction
+→ checkout_sessions unique Buyer/key
+→ selected Cart Item + Product/Variant/Store/Seller revalidation
+→ inventory_balances lockForUpdate + availability check
+→ orders split by Store + order_items snapshots
+→ inventory_reservations + inventory reserved increment
+→ purchased selected cart_items removal + safe Audit event
+→ orders.success
+
+GET /orders, GET /orders/{order}
+→ BuyerOrderController
+→ OrderListFilter bounded search/status/date
+→ Buyer-owned orders + grouped item/media reads
+→ public Order cards/detail with address/item/price snapshots
+
+POST /orders/{order}/cancel
+→ BuyerOrderController::cancel
+→ CheckoutService::cancel transaction
+→ OrderStatus buyer cancellation policy
+→ reservation lock/released + inventory reserved decrement
+→ Order cancelled + safe Audit event
+
+GET /admin/seller/orders, GET /admin/seller/orders/{order}
+→ SellerOrderController
+→ Seller Profile/Store ownership query + OrderListFilter
+→ list-safe Buyer identity / detail-only shipping snapshot
+→ resources/views/admin/seller/orders
+
+POST /admin/seller/orders/{order}/transition
+→ SellerOrderController
+→ OrderTransitionService
+→ pending_payment → confirmed → processing typed transition
+→ seller-owned Order lock + Audit event
+
+================================================================================
+ERP CONSOLIDATION — HRM / PAYROLL / BRANCH FINANCE
+================================================================================
+
+GET /employee-portal
+→ routes/web.php | employee.portal
+→ EmployeePortalController@index
+→ EmployeePortalReadService@forUser
+→ authenticated User → linked Employee only
+→ Assignment / Branch Access / Attendance / Leave / Overtime / eligible Payroll Item / published Payslip grouped reads
+→ resources/views/employee-portal/index.blade.php
+
+ATTENDANCE CAPTURE → HISTORICAL BRANCH
+→ AttendanceCaptureService
+→ EmployeeBranchResolver@resolve
+→ effective employee_branch_assignments
+→ fallback only when exactly one branch_user_access exists
+→ AttendanceWriteRepositoryInterface@createEvent
+→ EloquentAttendanceWriteRepository
+→ attendance_events.branch_id
+→ GenerateAttendanceDailyRecordsJob batch resolveMany
+→ attendance_records.branch_id
+
+PAYROLL INPUT → HISTORICAL BRANCH
+→ PayrollInputGenerationService@generate
+→ EmployeeBranchResolver@resolveMany
+→ bounded effective Branch lookup for all eligible Employees
+→ payroll_employee_inputs.branch_id + branch_snapshot
+→ Payroll Run / Item reads immutable snapshot; finalized Payroll history is not rewritten
+
+GET /admin/branch-bonuses
+→ BranchBonusController@index
+→ BranchAccessService company scope + leader scope
+→ branch_bonus_proposals + Employee/Branch/Maker read
+→ resources/views/admin/branch-bonuses/index.blade.php
+
+POST /admin/branch-bonuses
+→ BranchBonusRequest
+→ BranchBonusController@store
+→ BranchBonusService@create
+→ Branch leader or bounded approver authority
+→ branch membership validation
+→ transaction: draft proposal + append-only history
+
+POST /admin/branch-bonuses/{bonus}/{action}
+→ BranchBonusController@transition
+→ BranchBonusService@transition
+→ draft → submitted/cancelled; submitted → approved/rejected
+→ maker-checker + optimistic version
+→ approve: BRANCH_BONUS component + one-month employee salary component assignment
+→ history append; no Payroll Item mutation
+
+GET /admin/finance/branch-performance
+→ BranchFinancialPerformanceController@index
+→ BranchFinancialPerformanceService@snapshot
+→ recognized management revenue
+→ eligible Payroll Item + Payroll Input Branch snapshot
+→ approved OPEX / effective rent / approved Branch Bonus / straight-line management depreciation
+→ integer VND management P&L ViewModel
+→ resources/views/admin/finance/branch-performance.blade.php
+
+TAX / INSURANCE POLICY SOURCE GOVERNANCE
+→ TaxAdministrationRequest / InsuranceAdministrationRequest
+→ TaxManagementService / InsuranceManagementService
+→ versioned jurisdiction + source_reference + source_verified_at
+→ official-source status in policy detail
+→ CONFIGURATION_REQUIRED when statutory source/rate is unknown; no invented tax formula
+
+LOCAL REALISTIC OPERATING DATA → PAYROLL / FINANCE
+→ LocalDemoOperationalSeeder (bootstrap-owned references only)
+→ Company / Branch / Employee / current Assignment
+→ varied Attendance + approved Leave + approved Overtime
+→ effective Salary Component Assignment + approved Branch Bonus
+→ PayrollInputGenerationService captures immutable quantities and Branch snapshot
+→ PayrollRunService resolves configured rates + TaxManagementService + InsuranceManagementService
+→ Payroll Item / PayslipGenerationService
+→ BranchFinancialPerformanceService derives Payroll cost with revenue/OPEX/rent/assets
+→ Dashboard and Employee Portal read the same canonical records
+
+GET /admin/finance/payroll-reconciliation
+→ PayrollFinanceReconciliationController
+→ PayrollFinanceReconciliationService
+→ Payroll Runs/Items + immutable Payroll Input Branch snapshot
+→ active original Accounting Journal debit/credit
+→ Branch Finance employer payroll cost
+→ Difference read model → resources/views/admin/finance/payroll-reconciliation.blade.php
+
+GET /admin/finance/tax-dashboard
+→ FinanceTaxDashboardController
+→ FinanceTaxRuntimeService
+→ Payroll PIT + BHXH/BHYT/BHTN components
+→ effective source-governed PIT/Insurance policies
+→ BranchFinancialPerformanceService accounting profit
+→ VAT/CIT readiness boundary (CONFIGURATION_REQUIRED when source is absent)
+→ resources/views/admin/finance/tax-dashboard.blade.php
+
+
+Mục tiêu lần này là sau khi Codex chạy xong, bạn vào từng menu sẽ thấy cùng một công ty đang vận hành, chứ không phải:
+Attendance có người A
+Payroll lại có người B
+Finance lại lấy số C
+Dashboard lại hard-code số D
+Nguyễn Văn A
+Chi nhánh HCM
+        ↓
+Tháng 08 đi làm 22 ngày
+        ↓
+Trễ 37 phút
+OT 6 giờ
+Nghỉ không lương 1 ngày
+        ↓
+Payroll Input
+        ↓
+Base       18.000.000
+Allowance   2.000.000
+OT            +xxx
+Bonus         +xxx
+Late          -xxx
+Unpaid Leave  -xxx
+BHXH          -xxx
+BHYT          -xxx
+BHTN          -xxx
+PIT           -xxx
+        ↓
+Net Pay
+        ↓
+Payslip của chính A
+        ↓
+Payroll Cost của HCM
+        ↓
+Branch P&L HCM
+        ↓
+Dashboard tháng 08
+Một điểm rất đáng làm ngay ở phase đó là thêm reconciliation screen kiểu:
+Payroll Run August
+        ↓
+Gross Payroll             1,045,754,537
+Employer Insurance          xxx
+Bonus                        xxx
+        ↓
+Expected Payroll Cost        xxx
+        ↓
+Accounting Journal           xxx
+        ↓
+Branch Finance               xxx
+        ↓
+Difference                     0
+Nếu khác 0, ERP phải hiện Data Quality issue thay vì im lặng.
+
+COMMERCE — PAYMENT / FULFILLMENT / REVENUE
+
+GET /admin/commerce/payments
+→ CommercePaymentController::index()
+→ BranchAccessService::company()
+→ orders + commerce_payment_records grouped by Company
+→ resources/views/admin/commerce/payments/index.blade.php
+
+POST /admin/commerce/payments
+→ CommercePaymentController::store()
+→ validated Order/method/settlement/idempotency input
+→ CommercePaymentService::recordSucceeded()
+→ lock Order + verify Seller Company scope
+→ commerce_payment_records + orders.payment_status/paid_at
+→ CommerceRevenueRecognitionService::recognizeIfEligible() (no revenue until delivered)
+
+POST /admin/seller/orders/{order}/fulfillment
+→ Modules/Commerce/app/Presentation/Http/Controllers/CommerceFulfillmentController::store()
+→ Modules/Commerce/app/Application/Services/CommerceFulfillmentService::create()
+→ Seller Order ownership + paid/confirmed invariant
+→ inventory reservation Branch validation
+→ commerce_fulfillments
+
+POST /admin/seller/orders/{order}/fulfillment/transition
+→ Modules/Commerce/app/Presentation/Http/Controllers/CommerceFulfillmentController::transition()
+→ pending → packed → shipped → delivered
+→ ship: lock/consume inventory_reservations and decrement inventory_balances on_hand/reserved once
+→ deliver: Order fulfilled → CommerceRevenueRecognitionService
+→ branch_management_revenues (unique order_id, source_type=commerce_order, subtotal only)
+
+BRANCH COMMERCE / WALK-IN POS
+
+GET /admin/branch-commerce/warehouse
+→ Modules/POS/app/Presentation/Http/Controllers/BranchCommerceController::warehouse()
+→ Modules/Company Domain BranchAccessService Company/Branch scope
+→ Store/Product/Variant + inventory_location(branch_id) + inventory_balance + media_assets
+→ resources/views/admin/branch-commerce/warehouse.blade.php
+
+POST /admin/branch-commerce/checkins
+→ Modules/POS/app/Presentation/Http/Controllers/BranchCommerceController::storeCheckin()
+→ Modules/POS/app/Domain/Services/BranchPosService::checkIn()
+→ commerce_customers + customer_visits(checked_in)
+
+POST /admin/branch-commerce/checkout/{visit}/services|products
+→ BranchCommerceController validated action
+→ BranchPosService::addService()/addProduct()
+→ Company service or Branch inventory ownership/availability
+→ immutable visit line snapshot
+
+POST /admin/branch-commerce/checkout/{visit}/finalize
+→ Modules/POS/app/Presentation/Http/Controllers/BranchCommerceController::finalize()
+→ Modules/POS Application Command → Core CommandBus → Handler
+→ Modules/POS Domain BranchPosService::checkout() transaction + visit lock/idempotency
+→ Modules/Inventory Domain InventoryService::adjust(decrease) for each Product line
+→ branch_pos_receipts (paid)
+→ branch_management_revenues (recognized, source_type=branch_pos)
+→ customer_visits(checked_out)
+→ Branch Financial Performance / Dashboard / Reporting read the same revenue source
+
+GET /admin/branch-commerce/sales
+→ Modules/POS Presentation BranchCommerceController::sales()
+→ Modules/POS Application GetBranchCommercePageQuery
+→ QueryBusInterface::ask()
+→ Modules/POS Application GetBranchCommercePageHandler::handle()
+→ Modules/POS Application BranchCommerceReadService::page('sales')
+→ Company/Branch permission scope
+→ receipt + customer + branch + canonical revenue grouped read
+→ resources/views/admin/branch-commerce/sales.blade.php
+
+CQRS POS WRITE STANDARDIZATION
+
+POST Customer/Service/Check-in/Visit line/Checkout
+→ Modules/POS Presentation BranchCommerceController (authorization + validated explicit payload)
+→ Modules/POS Application MutateBranchCommerceCommand
+→ CommandBusInterface::dispatch()
+→ Modules/POS Application MutateBranchCommerceHandler::handle()
+→ Modules/POS Domain BranchPosService
+→ canonical customer/service/visit tables
+→ Checkout transaction: InventoryService locked adjustment
+→ inventory_movements (before/after/delta/source/idempotency)
+→ branch_pos_receipts + branch_management_revenues + checked_out Visit
+→ POS Sales / Branch Finance / Executive Dashboard read the same records.
+
+PATCH /admin/commerce/sellers/{seller}/transition
+→ Modules/Commerce Presentation SellerGovernanceController (validated status + reason)
+→ Modules/Commerce Application ChangeSellerGovernanceStatusCommand
+→ CommandBusInterface::dispatch()
+→ Modules/Commerce Application ChangeSellerGovernanceStatusHandler
+→ Modules/Commerce Application SellerGovernanceService state machine + row lock
+→ seller_profiles + activity audit
+→ Company/Seller/Store scopes reflect the canonical status. Recovery is controlled: banned → suspended → active; no direct DB status edit and no IAM role elevation.
+
+==================================================
+COMMERCE / POS / INVENTORY — MASTER INTEGRATION
+==================================================
+
+GET /admin/commerce/sales-history
+→ Modules/Commerce Presentation CommerceSalesHistoryController
+→ GetUnifiedSalesHistoryQuery
+→ QueryBusInterface::ask()
+→ GetUnifiedSalesHistoryHandler
+→ Company-scoped Marketplace paid Order + POS paid Receipt UNION
+→ line snapshots + fulfillment/receipt + revenue + reversal lineage
+→ resources/views/admin/commerce/sales-history.blade.php
+
+POST /admin/commerce/sales-history/{source}/{sale}/reverse
+→ CommerceSaleReversalController validated source/reason + commerce.payment.record
+→ ReverseCompletedSaleCommand
+→ CommandBusInterface::dispatch()
+→ ReverseCompletedSaleHandler
+→ SaleReversalService transaction + source row lock
+→ commerce_sale_reversals append-only unique source
+→ InventoryService restock movement idempotent
+→ Branch Finance / Dashboard read net recognized revenue; original sale remains immutable
+
+GET /admin/seller/inventory/movements
+→ SellerInventoryController
+→ GetInventoryMovementListQuery
+→ GetInventoryMovementListHandler
+→ inventory_stock_receipts + inventory_stock_transfers + inventory_movements
+→ resources/views/admin/seller/inventory-movements.blade.php
+
+POST Stock Receipt / Receive
+→ SellerInventoryController
+→ MutateInventoryOperationCommand(receipt/create|receive)
+→ MutateInventoryOperationHandler
+→ InventoryOperationsService
+→ draft receipt → received → InventoryService inbound movement → balance
+
+POST Stock Transfer / dispatch|receive
+→ SellerInventoryController
+→ MutateInventoryOperationCommand(transfer/create|transition)
+→ MutateInventoryOperationHandler
+→ InventoryOperationsService
+→ draft → in_transit + source outbound movement
+→ received + destination inbound movement
+→ unique reference/idempotency + total stock conservation
+
+GET /admin/branch-commerce
+GET /admin/branch-commerce/customers/{customer}
+GET /admin/branch-commerce/receipts
+GET /admin/branch-commerce/receipts/{receipt}
+→ BranchCommerceController
+→ GetBranchCommercePageQuery
+→ GetBranchCommercePageHandler
+→ BranchCommerceReadService dashboard/customer/receipts/receipt projections
+→ paid Receipt + immutable lines + Customer/Branch + canonical revenue
+→ POS Dashboard / Customer History / Receipt History/detail Blade
+
+ERP / FINANCE — POSTED GENERAL LEDGER & FINANCIAL STATEMENT SOURCE
+
+GET /admin/finance/financial-statements
+→ FinancialStatementController validates Company/date/account/page and BranchAccessService tenant boundary
+→ GetFinancialStatementsQuery
+→ QueryBusInterface::ask()
+→ GetFinancialStatementsHandler
+→ FinancialStatementReadService
+→ internally_posted/exported payroll_accounting_journals
+→ payroll_accounting_journal_lines + accounting_accounts grouped SQL
+→ Trial Balance + General Ledger + Income/Balance source coverage
+→ resources/views/admin/finance/financial-statements.blade.php
+
+Không có Command/write flow: posted Journal là immutable; correction đi qua reversal workflow hiện hữu. Income Statement/Balance Sheet giữ `PARTIAL`, Cash Flow unsupported cho đến khi Revenue/Asset/Equity/Cash có canonical posting source.
+PROCUREMENT / ACCOUNTS PAYABLE / INVENTORY COST
+GET Procurement page → ProcurementController → GetProcurementPageQuery → GetProcurementPageHandler → DB-backed read model → admin.procurement.index.
+POST Procurement action → ProcurementRequest → MutateProcurementCommand → MutateProcurementHandler → ProcurementService.
+Vendor → Purchase Request → submit → independent approve → Purchase Order → approve/send → Goods Receipt → InventoryService valued increase → SourceAccountingPostingService inventory accrual.
+Goods Receipt → Vendor Bill → independent approve → AP allocation → derived outstanding/AP aging → SourceAccountingPostingService payable/payment postings.
+Marketplace/POS recognized product sale → valued outbound InventoryService movement → revenue journal + COGS journal → FinancialStatementReadService. Sale reversal → original cost restoration → separate revenue/COGS reversal journals.
+FINANCE / EXPENSE · ASSET · BUDGET
+GET Finance Operations → FinanceOperationsController → FinanceOperationsService::read → grouped canonical Finance/Accounting tables → admin.finance.operations Blade.
+Expense Create → Draft → Submit → maker-checker Approve/Reject → SourceAccountingPostingService → balanced Expense/AP Journal → Paid internal-clearing Journal.
+Asset Create → Activate/acquisition Journal → effective-dated Assignment/Transfer → unique monthly Straight-line Depreciation → accumulated depreciation Journal → Dispose/history retained.
+Budget Create → monthly Branch/Account lines → maker-checker Approve → posted Journal Actual grouped by Company + Branch + Account + Month → Variance/variance basis points.
+Product 4K source → ProductRequest → Product Command/Handler → ProductCatalogWriteService → MediaService decoded validation → configured MediaStorage → media_assets → canonical media resolver.
+FINANCE / TREASURY
+AP Payment hoặc Expense Payment → owner service → SourceAccountingPostingService → balanced Journal → TreasuryService::recordSource (idempotent Company/source) → treasury_transactions → statement match → reconciliation complete → Period Close / General Ledger.
+
+FINANCE / ACCOUNTING PERIOD CLOSE
+GET /admin/finance/period-close → FinanceControlController → AccountingPeriodCloseService::read → Blade. Request → checklist snapshot (journal/expense/vendor bill/treasury/source uniqueness) → reviewer khác maker → accounting_periods status → SourceAccountingPostingService enforce.
+
+CORE / APPROVAL INBOX
+GET /admin/approvals → FinanceControlController → ApprovalInboxService bounded owner-table projection → owner deep-link. Inbox không chạy approve command và không thay owner authorization/state machine.
+
+FINANCE / BUDGET COMMITMENT
+Approved/sent/partially received PO line remaining quantity × unit cost → FinanceOperationsService grouped commitment → Budget - Commitment - posted Actual = Available. Goods Receipt giảm remaining commitment và journal Inventory Actual tăng, không double-count.
+
+CORE / CURRENT OPERATING DATA REPORT
+php artisan app:current-operating-data-report [--company] [--output]
+→ CurrentOperatingDataReportCommand validates scope/output
+→ CurrentOperatingDataReportService
+→ owner canonical tables + grouped read queries + DataQualityAuditService + CustomerMetricsService
+→ secret-safe Vietnamese formatter
+→ DU_LIEU_THUC_HIEN_TAI.txt.
+Command chỉ đọc, không bootstrap/seed/update business record và không dùng số tổng từ documentation.
+
+COMMERCE / CRM DETERMINISTIC METRICS
+Company → commerce_customers → paid Branch POS Receipts
++ matching Buyer email → paid Marketplace Orders of Seller Company
+→ first/last purchase + frequency + recognized spend + average basket + visit/preferred Branch
+→ configured NEW/ACTIVE/REPEAT/AT_RISK/DORMANT segment.
+Đây là read model; không ghi segment/score vào Customer và không dùng AI.
+
+GET /admin/branch-commerce/customers
+→ BranchCommerceController::customers
+→ GetBranchCommercePageQuery / GetBranchCommercePageHandler
+→ BranchCommerceReadService::page(customers)
+→ CustomerMetricsService::metrics + canonical Customer/POS/Marketplace reads
+→ Company/Branch/segment/search filter + paginator
+→ admin.branch-commerce.customers Blade.
+
+GET /admin/branch-commerce/customers/{customer}
+→ BranchCommerceController::customer
+→ GetBranchCommercePageQuery / GetBranchCommercePageHandler
+→ BranchCommerceReadService::page(customer)
+→ CustomerMetricsService + POS visits/receipts + paid Marketplace Orders scoped to Seller Company
+→ admin.branch-commerce.customer-show Blade.
+HR CONTRACT / SEPARATION FLOW
+GET/POST /admin/hr/operations
+→ HrOperationsController
+→ GetHrOperationsQuery | MutateHrOperationsCommand
+→ GetHrOperationsHandler | MutateHrOperationsHandler
+→ HrOperationsService
+→ EmploymentContractService | EmployeeAccountService
+→ employment_contract_renewals | employee_resignations | employee_offboarding_cases/items
+→ HrOperationsChanged
+→ SendHrOperationsNotification
+→ existing Notification Center.
+
+ACCOUNTING ADJUSTMENT FLOW
+GET/POST /admin/finance/accounting-adjustments
+→ AccountingAdjustmentController
+→ GetAccountingAdjustmentsQuery | MutateAccountingAdjustmentCommand
+→ handlers
+→ AccountingAdjustmentService
+→ immutable original posted journal + open target period
+→ balanced reversal journal with unique source evidence
+→ existing notification delivery + dashboard/report/Data Quality.
+ERP SALES / ACCOUNTS RECEIVABLE
+GET /admin/sales → SalesReceivableController → GetSalesReceivableQuery → QueryBus → GetSalesReceivableHandler → SalesReceivableService::read → Blade.
+POST /admin/sales → validation + company/permission guard → MutateSalesReceivableCommand → CommandBus → MutateSalesReceivableHandler → SalesReceivableService.
+Customer → Quotation draft → maker-checker accept → Sales Order → confirm (no stock mutation) → fulfill → InventoryService → Inventory Movement + COGS snapshot → SourceAccountingPostingService.
+Fulfilled Sales Order → Customer Invoice draft → maker-checker issue → Dr AR / Cr Revenue → partial Collection Allocation → TreasuryService inflow → Dr Cash / Cr AR.
+FinancialStatementReadService → posted GL + recorded Treasury movements → Trial Balance / P&L / partial Balance Sheet / partial Cash Flow.
+GET /admin/finance/overview → FinanceOverviewController → GetFinanceOverviewQuery/Handler → FinanceOverviewReadService → FinancialStatementReadService + Customer Invoice/Vendor Bill allocations + Treasury + Budget + open Purchase Order commitments → Blade. Company/Branch/period scope is preserved; 7/30/60/90 values are due-date forecast, not actual cash.
+
+DASHBOARD / SUPPLY CHAIN ORCHESTRATION
+GET /admin/supply-chain?company_id={company}
+→ SupplyChainOverviewController
+→ GetSupplyChainOverviewQuery
+→ QueryBus → GetSupplyChainOverviewHandler
+→ SupplyChainOverviewReadService
+→ grouped Procurement PO/GR/AP + Inventory balance/transfer + ERP Sales + Marketplace Fulfillment reads
+→ admin.supply-chain.index Blade.
+Trang chỉ đọc và deep-link về owner workflow; không ghi PO, Inventory Movement, Sales Order, Treasury hoặc Accounting.
+
+DASHBOARD / ENTERPRISE BI ANALYTICS
+GET /admin/analytics/enterprise?company_id={company}&branch_id={branch?}&date_from={date}&date_to={date}
+→ EnterpriseAnalyticsController
+→ GetEnterpriseAnalyticsQuery
+→ QueryBus → GetEnterpriseAnalyticsHandler
+→ EnterpriseAnalyticsReadService
+→ grouped Customer Invoice + recognized Marketplace/POS Revenue + finalized Payroll + Expense + Treasury + Finance Overview + SCM + CustomerMetrics reads
+→ admin.analytics.enterprise Blade.
+BI chỉ đọc; KPI catalog là metadata, không lưu numeric totals. Forecast chỉ từ AR/AP due date canonical.
+ENTERPRISE DOCUMENT
+POST /admin/documents → DocumentRequest → CreateDocumentCommand → CommandBus → EnterpriseDocumentService → metadata + immutable v1/SHA-256 → private storage → Activity Log.
+POST /admin/documents/{id}/versions → UploadDocumentVersionCommand → lock document → immutable vN → current_version pointer; phiên bản cũ không bị ghi đè.
+GET download → permission + Company scope → authorized private stream; raw storage path không xuất hiện ở UI.
+
+MAINTENANCE: MaintenanceController → MaintenanceRequest → explicit Maintenance Command/Query → Core Bus → Handler → MaintenanceService/MaintenanceReadService → finance_assets/employees; spare part → InventoryService → inventory_movements; evidence → Enterprise DMS.

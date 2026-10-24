@@ -27,8 +27,15 @@ final readonly class WorkforceCacheRegistry
     {
         $version = $this->cache->get($this->key($companyId, $scope, 'version'), 0);
         $normalizedVersion = is_int($version) ? $version : 0;
+        $key = $this->key($companyId, $scope, "v{$normalizedVersion}:{$readModel}");
+        $cached = $this->cache->remember($key, $ttlSeconds, $resolver);
+        if (get_debug_type($cached) === '__PHP_Incomplete_Class') {
+            $this->cache->forget($key);
 
-        return $this->cache->remember($this->key($companyId, $scope, "v{$normalizedVersion}:{$readModel}"), $ttlSeconds, $resolver);
+            return $resolver();
+        }
+
+        return $cached;
     }
 
     /**

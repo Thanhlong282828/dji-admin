@@ -12,14 +12,17 @@ final class AttendanceOperationsReadService
     /** @param array<string,mixed> $filters
      * @return array{rows:LengthAwarePaginator<int,object>,metrics:array{late_occurrences:int,late_employees:int,late_minutes:int,on_time:int},chart:list<array{label:string,occurrences:int,minutes:int}>,range:string}
      */
-    public function snapshot(int $companyId, array $filters): array
+    public function snapshot(int $companyId, array $filters, ?int $employeeId = null): array
     {
         $range = ($filters['range'] ?? null) === 'week' ? 'week' : 'day';
         $start = $range === 'week' ? today()->subDays(6) : today();
-        $query = $this->base($companyId, $filters);
+        $query = $this->base($companyId, $filters, $employeeId);
         /** @var LengthAwarePaginator<int,object> $rows */
         $rows = (clone $query)->orderByDesc('r.work_date')->orderByDesc('r.id')->paginate(25);
         $metricsQuery = DB::table('attendance_records')->where('company_id', $companyId)->whereDate('work_date', '>=', $start);
+        if ($employeeId !== null) {
+            $metricsQuery->where('employee_id', $employeeId);
+        }
         $lateOccurrences = (clone $metricsQuery)->where('late_minutes', '>', 0)->count();
         $lateEmployees = (clone $metricsQuery)->where('late_minutes', '>', 0)->distinct()->count('employee_id');
         $lateMinutes = (int) (clone $metricsQuery)->sum('late_minutes');
@@ -28,6 +31,9 @@ final class AttendanceOperationsReadService
         for ($offset = 0; $offset < ($range === 'week' ? 7 : 1); $offset++) {
             $date = $start->copy()->addDays($offset);
             $daily = DB::table('attendance_records')->where('company_id', $companyId)->whereDate('work_date', $date);
+            if ($employeeId !== null) {
+                $daily->where('employee_id', $employeeId);
+            }
             $chart[] = ['label' => $date->format('d/m'), 'occurrences' => (clone $daily)->where('late_minutes', '>', 0)->count(), 'minutes' => (int) $daily->sum('late_minutes')];
         }
 
@@ -35,11 +41,20 @@ final class AttendanceOperationsReadService
     }
 
     /** @param array<string,mixed> $filters */
-    private function base(int $companyId, array $filters): Builder
+    private function base(int $companyId, array $filters, ?int $employeeId): Builder
     {
-        $query = DB::table('attendance_records as r')->join('employees as e', 'e.id', '=', 'r.employee_id')->leftJoin('employee_assignments as a', function (JoinClause $join): void {
+        $query = DB::table('attendance_records as r')->join('companies as c', 'c.id', '=', 'r.company_id')->join('employees as e', 'e.id', '=', 'r.employee_id')->leftJoin('branches as b', 'b.id', '=', 'r.branch_id')->leftJoin('employee_assignments as a', function (JoinClause $join): void {
             $join->on('a.employee_id', '=', 'e.id')->where('a.assignment_type', 'primary')->whereDate('a.effective_from', '<=', today())->whereNull('a.effective_to');
-        })->leftJoin('organization_units as o', 'o.id', '=', 'a.organization_unit_id')->leftJoin('job_positions as p', 'p.id', '=', 'a.job_position_id')->where('r.company_id', $companyId)->select(['r.*', 'e.employee_code', 'e.full_name', 'o.name as organization_name', 'p.title as position_title']);
+        })->leftJoin('organization_units as o', 'o.id', '=', 'a.organization_unit_id')->leftJoin('job_positions as p', 'p.id', '=', 'a.job_position_id')->where('r.company_id', $companyId)->select(['r.*', 'c.name as company_name', 'b.name as branch_name', 'e.employee_code', 'e.full_name', 'o.name as organization_name', 'p.title as position_title']);
+        if ($employeeId !== null) {
+            $query->where('r.employee_id', $employeeId);
+        }
+        foreach (['branch_id' => 'r.branch_id', 'organization_unit_id' => 'a.organization_unit_id'] as $key => $column) {
+            $value = $filters[$key] ?? null;
+            if (is_numeric($value) && (int) $value > 0) {
+                $query->where($column, (int) $value);
+            }
+        }
         foreach (['approval_status', 'attendance_status'] as $key) {
             $value = $filters[$key] ?? null;
             if (is_string($value) && $value !== '') {

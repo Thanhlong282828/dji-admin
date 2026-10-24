@@ -11,5 +11,9 @@ return [
         'secret://integration/encrypted-connection' => ['component' => 'integration', 'classification' => 'critical', 'source' => 'encrypted_store', 'config_path' => null, 'required' => false, 'rotation_days' => 90],
         'secret://storage/object-store' => ['component' => 'storage', 'classification' => 'critical', 'source' => 'environment', 'config_path' => 'filesystems.disks.s3.secret', 'required' => false, 'rotation_days' => 90],
         'secret://media/cloudflare-images' => ['component' => 'media', 'classification' => 'critical', 'source' => 'environment', 'config_path' => 'services.cloudflare_images.api_token', 'required' => false, 'rotation_days' => 90],
+        'secret://operations/cloudflare-ddos' => ['component' => 'operations', 'classification' => 'critical', 'source' => 'environment', 'config_path' => 'operations.cloudflare_ddos.api_token', 'required' => false, 'rotation_days' => 90],
+        'secret://identity/google-client' => ['component' => 'identity', 'classification' => 'critical', 'source' => 'environment', 'config_path' => 'services.google.client_secret', 'required' => false, 'rotation_days' => 90],
+        'secret://identity/facebook-client' => ['component' => 'identity', 'classification' => 'critical', 'source' => 'environment', 'config_path' => 'services.facebook.client_secret', 'required' => false, 'rotation_days' => 90],
+        'secret://identity/passport-private-key' => ['component' => 'identity', 'classification' => 'critical', 'source' => 'environment', 'config_path' => 'passport.private_key', 'required' => false, 'rotation_days' => 365],
     ],
 ];

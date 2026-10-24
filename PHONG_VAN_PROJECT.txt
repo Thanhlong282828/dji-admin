@@ -164,7 +164,7 @@ Evidence hiện tại:
 - 21 Laravel route records.
 - 24 actual/documented HTTP operations.
 - 0 undocumented, 0 orphan, 0 duplicate operationId.
-- Sanctum Bearer scheme khớp auth thật.
+- Historical Phase 3F API used Sanctum Bearer; Commerce C2.5 intentionally replaces the active API boundary with Passport Authorization Code + PKCE.
 - Swagger UI và `/docs` đều được bảo vệ.
 
 4C. LUỒNG RELEASE / PRODUCTION-LIKE CERTIFICATION
@@ -535,3 +535,242 @@ Vì sao `analytics.view` chưa đủ để xem lương? Analytics tổng hợp w
 Vì sao dùng grouped SQL thay vì vòng lặp Employee? Một số query cố định theo company/filter giữ query count bounded khi headcount tăng, tránh N+1 và không đưa PII vào chart labels.
 
 Dashboard có sửa dữ liệu không? Không. Finding phải được sửa qua menu/module sở hữu; Payroll history, Workforce snapshot và Data Quality evidence không bị analytics mutate.
+
+PHASE 3F-26 — ENTERPRISE FORECASTING
+
+Vì sao gọi là deterministic planning chứ không phải AI forecast? Kết quả chỉ áp dụng công thức công khai lên approved headcount, current primary assignment, salary assignment/reference và open requisition. Không có model học máy, external API hoặc claim dự đoán xác suất.
+
+Vì sao Scenario không lưu DB? Đây là what-if request-scoped để so Baseline/Scenario A/Scenario B. Không lưu giúp tách planning estimate khỏi Employee, salary assignment và historical Payroll; thay đổi thật vẫn phải đi qua workflow của module sở hữu.
+
+Vì sao không forecast thuế/bảo hiểm? Nếu thiếu policy/rate có authority thì việc tự suy diễn tạo claim pháp lý sai. Phase này chỉ forecast Base/KPI/Allowance/Target Gross; Net Pay và employer cost được loại trừ rõ ràng.
+
+Forecast bảo vệ lương thế nào? `analytics.view` cho phép xem headcount; controller chỉ dựng/render/export cost khi actor có thêm `payroll.assignment.view`. Không có salary number ẩn bằng CSS trong HTML unauthorized.
+
+SIDEBAR LARAVEL VÌ SAO BỊ FLICKER VÀ SỬA THẾ NÀO?
+
+Full-page navigation tạo document mới. Nếu Blade render trạng thái mặc định rồi module JavaScript mới đọc localStorage để mở accordion, browser có thể paint trạng thái sai trước và tạo FOUC; scroll container cũng trở về đầu. Project xử lý bằng active route/group server-side, bootstrap pre-paint không animation, rồi TypeScript xác thực state và restore session scroll. Chỉ UI preference không nhạy cảm (một group key và scroll offset) được lưu; permission/link vẫn do server lọc nên storage không thể làm lộ menu bị cấm. Mobile drawer không được persist để trang mới luôn bắt đầu ở trạng thái đóng an toàn.
+
+PHASE 3F-27 — EXECUTIVE PLANNING
+
+Budget, Actual, Forecast và Scenario khác nhau thế nào? Budget là năng lực/chi phí mục tiêu do Organization sở hữu; Actual là assignment và Payroll result đã phát sinh; Forecast là ước tính deterministic từ trạng thái hiện tại; Scenario là what-if request-scoped. Không được lấy Scenario làm Approved Plan hoặc ghi đè Actual.
+
+Variance được tính thế nào? `Forecast − Budget`, còn tỷ lệ dùng integer basis points để tránh float và xử lý budget bằng 0 một cách deterministic. Giá trị âm là under budget, dương là over budget; UI luôn có text/icon chứ không chỉ màu.
+
+Vì sao chưa tạo Plan Version và maker-checker? Repository chưa có owner, authority, permission và state-machine contract cho approved budget plan. Tạo bảng/status lúc này sẽ là approval giả. Cockpit vì thế computed/read-only; khi authority thật xuất hiện, approved version phải immutable, effective-dated, audited và maker không được tự approve.
+
+Vì sao Forecast không sửa Payroll? Payroll Run/Item là historical calculation evidence. Planning chỉ đọc Actual và tạo comparison; mọi sửa salary, attendance hoặc headcount phải đi qua module sở hữu và effective-dated workflow.
+
+Vì sao budget lương cần quyền riêng? Headcount analytics là dữ liệu quản trị, còn compensation/payroll cost là Restricted. Controller quyết định `payroll.assignment.view` trước khi tạo HTML/export financial values; CSS không phải authorization boundary.
+
+PHASE 3F-28 — PLANNING EXECUTION
+
+Plan, Target, Actual, Forecast và Reforecast khác nhau thế nào? Plan mô tả ý định từ nguồn có thẩm quyền; Target là mức vận hành cho kỳ; Actual là record đã xảy ra; Forecast là baseline estimate; Reforecast là estimate mới có chủ ý và không được âm thầm ghi đè Forecast cũ.
+
+Variance được tính thế nào? Hệ thống dùng `Actual − Target` và basis points trên Target bằng integer math. Target bằng 0 có phần trăm xác định là 0 để tránh chia cho 0, trong khi chênh lệch tuyệt đối vẫn hiển thị.
+
+Vì sao không sửa historical Payroll? Payroll Run/Item là evidence của kỳ tính lương. Planning Execution chỉ đọc run hợp lệ; chênh lệch phải được xử lý qua Payroll/Adjustment hoặc nguồn nghiệp vụ, không rewrite lịch sử.
+
+Vì sao approval/maker-checker là N/A? Target và Reforecast chưa được lưu vì chưa có authority/version contract cho approved operating plan. Nếu persistence được phê duyệt sau này, versioning, audit, maker-checker và concurrency sẽ là hard gates.
+
+Management Attention có phải AI không? Không. Đây là enum category từ quy tắc công khai như hiring gap hoặc payroll variance; hệ thống không gọi AI và không tự thực thi.
+
+PHASE 3F-29 — ENTERPRISE REPORTING
+
+Dashboard và Report khác nhau thế nào? Dashboard tối ưu cho theo dõi tương tác hiện tại; report đóng gói một scope/kỳ rõ ràng để preview, export và management review. Cả hai vẫn phải dùng cùng read model/công thức nguồn.
+
+Vì sao report không query lại công thức trong Blade? Reuse Analytics/Planning services ngăn variance, Payroll và headcount có hai định nghĩa khác nhau; Blade chỉ trình bày typed ViewModel.
+
+Salary privacy được bảo vệ thế nào? Controller quyết định `payroll.assignment.view` trước khi build section. Unauthorized HTML/XLSX/PDF không chứa raw financial values; CSS không phải security boundary.
+
+Vì sao Board Pack chưa gọi immutable/certified? SHA-256 của live bytes chỉ chứng minh payload tải xuống, không tạo historical artifact. Certification cần persistence, version, owner, retention và approval contract thật.
+
+Khi nào export nên chạy Queue? Bounded aggregate board pack hiện chạy sync. Dataset lớn hoặc per-row export cần queue, idempotency, private artifact storage và cleanup policy; không queue mọi report một cách máy móc.
+
+Vì sao tenant scope là hard gate? Report tổng hợp nhiều module nên một filter sai có thể leak chéo công ty. TenantAccessService và hierarchy validation được áp dụng trước mọi preview/export.
+
+Deploy Laravel an toàn thế nào? Build artifact bất biến, chạy quality/readiness và migration-risk review, deploy đúng environment, cache config/route/view sau khi inject config, restart worker gracefully, rồi health/smoke/monitor. Readiness command không tự deploy hay migrate.
+
+Vì sao không rollback migration mù? Code cũ có thể không tương thích schema mới và `down()` có thể drop dữ liệu. Ưu tiên expand/contract và forward-fix; rollback image chỉ khi schema/config compatibility đã chứng minh.
+
+Queue/Reverb sau deploy xử lý ra sao? Worker/Horizon được graceful restart để nạp code mới. Reverb restart riêng và là non-critical: realtime hỏng không rollback core CRUD.
+
+Live khác Ready thế nào? Live chỉ chứng minh process sống; Ready kiểm tra dependency quan trọng để nhận traffic. Secret được environment/provider inject và output chỉ có readiness metadata, không có value.
+
+Vì sao production DB tách riêng và demo seed bị chặn? EnvironmentSafetyGuard chặn mọi local/test schema trong production; bootstrap còn yêu cầu đồng thời local + schema_admin nên không thể tạo admin/demo employee trên production.
+
+Release certification và rollback hoạt động thế nào? Manifest/certificate gắn commit, image digest, migration checksum, gates và rollback target. Rollback dùng image bất biến trước đó khi compatibility hợp lệ; nếu không thì forward-fix/DR theo runbook.
+
+Vì sao cache object PHP có thể sinh `__PHP_Incomplete_Class`? Cache có thể sống lâu hơn release chứa class/version dùng để serialize nó. Khi worker mới không còn đúng metadata class, PHP không thể hydrate object an toàn. Registry phải xem đó là cache miss, xóa key và dựng lại read model; permission và dữ liệu chuẩn vẫn đến từ server/repository, không cố cast object lỗi.
+
+Vì sao Swagger cần một admin landing thay vì đặt thẳng trong sidebar? Swagger UI là vendor view riêng nên không mang sidebar, contextual help và active-group contract. Landing dùng admin layout giữ UX/permission governance, còn Swagger UI và OpenAPI JSON vẫn là các child resource được `api.documentation.view` bảo vệ; không bọc hay làm yếu API security.
+
+COMMERCE C1+C2 — CÁC QUYẾT ĐỊNH KIẾN TRÚC
+
+Vì sao Branch khác Organization Unit? Branch biểu diễn địa điểm và access scope trong Company; Organization Unit biểu diễn cây quản trị HR. Trộn hai khái niệm làm sai báo cáo, authorization và Employee lifecycle.
+
+Vì sao User role khác Seller status? Role/permission trả lời actor được mở chức năng nào; Seller status trả lời business entity có được kinh doanh không. User có role Seller vẫn không thể lưu Store khi profile pending/suspended.
+
+Vì sao chỉ có một media provider boundary? Avatar, Article và Store đều cần cùng upload/delete/secret/compensation contract. Một MediaStorageInterface ngăn mỗi module tự viết Cloudflare client và drift security.
+
+Replace ảnh tránh mất dữ liệu thế nào? Upload ảnh mới trước, commit reference mới, rồi cleanup ảnh cũ. Nếu DB fail thì xóa ảnh mới; cleanup cũ fail không rollback business record và log chỉ giữ reference hash.
+
+Vì sao token không lưu DB và Article không lưu Base64? Token chỉ reveal tại infrastructure boundary qua SecretProvider. Base64 làm phình DB/body, bỏ qua lifecycle/validation/CDN và khó cleanup; Article chỉ lưu ownership/reference an toàn.
+
+COMMERCE C2.5 — CÂU HỎI IDENTITY
+Vì sao không tự merge Social Login theo email? Email provider có thể thay đổi, chưa được xác minh đồng nhất hoặc thuộc local account khác; explicit linking sau local authentication ngăn account takeover.
+
+Vì sao API dùng Passport nhưng web vẫn dùng session? Session/Breeze phù hợp trình duyệt first-party; Passport cung cấp OAuth2 consent, PKCE, access/refresh lifecycle cho API client. Spatie/IAM vẫn quyết định quyền nghiệp vụ.
+
+Vì sao PKCE và không dùng password/implicit grant? PKCE ràng buộc authorization code với client khởi tạo, giảm nguy cơ đánh cắp code. Password grant chia sẻ mật khẩu cho client và implicit đưa token qua browser URL nên không được chọn.
+
+Vì sao OTP phải hash và single-use? OTP là credential ngắn hạn; hash-at-rest, expiry, attempt counter, throttling và consumed timestamp giảm replay/brute-force và thiệt hại khi DB lộ.
+Commerce C3: Platform Role và career_level là hai trục khác nhau nên không suy diễn quyền IAM từ chức vụ. Branch Leader trỏ Employee để đọc account và current position canonical; khi đổi leader chỉ cấp access cho leader mới, không xóa access hợp lệ của người cũ. Compensation average dùng assignment effective-dated và integer minor units. Article ảnh 8K có policy riêng vì cover/gallery khác avatar/logo. Store Role là phạm vi Store, không phải Platform IAM Role.
+
+Vì sao Branch Leader không đồng nghĩa Admin? Leadership là designation tổ chức trỏ Employee; quyền vẫn do account Role/IAM quyết định. Gán leader không tự nâng Role nên không tạo privilege escalation.
+
+Vì sao User có thể thuộc nhiều Branch? Branch là access scope many-to-many. Pivot `branch_user_access` tránh lặp dữ liệu; sync đúng Company và không xóa quyền Company khác hay Branch đang lãnh đạo.
+
+Vì sao Inventory không lưu available? `available = on_hand - reserved` là giá trị dẫn xuất. Transaction khóa balance, chặn reserved vượt on_hand và tăng version để tránh drift.
+
+Vì sao Product chưa nối Branch? Store thuộc Seller Profile nhưng chưa có invariant Store→Company/Branch. C4 dùng Store inventory location, không suy diễn ownership giả.
+
+COMMERCE C5 — CART / WISHLIST / INVENTORY
+
+Vì sao Cart lưu price snapshot nhưng tính theo giá hiện tại? Snapshot giúp phát hiện giá đã đổi; trước checkout hệ thống luôn hiển thị và tính lại từ Variant hiện tại để không dùng giá cũ sai lệch.
+
+Vì sao thêm Cart chưa reserve tồn? C5 chưa có Checkout/Order lifecycle. Reserve sớm sẽ khóa hàng cho ý định mua chưa cam kết và tạo tồn ảo; reservation thuộc transaction checkout ở phase sau.
+
+Vì sao Wishlist và Cart thuộc User/Buyer, không thuộc Seller? Đây là dữ liệu riêng của người mua. Mọi query mutation đều scope qua authenticated user; Seller không có API duyệt danh sách riêng này.
+
+Vì sao điều chỉnh tồn kho cần transaction và row lock? Hai yêu cầu đồng thời có thể đọc cùng on_hand. Khóa hàng rồi tính/set trong một transaction ngăn lost update và bảo đảm reserved không vượt on_hand.
+
+COMMERCE C6 — CHECKOUT / ORDER
+
+Vì sao Cart không reserve nhưng Checkout phải reserve? Cart chỉ là ý định mua có thể tồn tại lâu. Checkout là ranh giới cam kết: server khóa Inventory Balance, kiểm tra available và tăng reserved trong cùng transaction tạo Order.
+
+Vì sao Order snapshot Product, SKU, giá và địa chỉ? Product/địa chỉ có thể đổi sau đó; snapshot giữ lịch sử Order giải thích được mà không phụ thuộc dữ liệu mutable.
+
+Multi-Store được cô lập cho Seller thế nào? Một checkout reference dùng chung nhưng tạo một Order cho mỗi Store. Seller query luôn đi qua Seller Profile/Store ownership nên không đọc Order Store khác.
+
+Idempotency ngăn double-order ra sao? `checkout_sessions` có unique Buyer + idempotency key. Retry đọc session completed và trả lại cùng Order IDs thay vì tạo/reserve lần nữa.
+
+Hủy Order hoàn tồn thế nào? Transition chỉ cho pending_payment/confirmed; transaction khóa Order và reservation, giảm Inventory reserved đúng quantity rồi chuyển reservation released và Order cancelled.
+
+Vì sao tiền dùng integer minor units? Nhân quantity và cộng subtotal/shipping/discount bằng integer tránh sai số float; formatted VND chỉ thuộc view.
+
+ERP CONSOLIDATION — CÂU HỎI PHỎNG VẤN
+
+Vì sao Branch Access và Branch Assignment là hai khái niệm? Access là quyền User được xem/thao tác Branch; assignment là Employee đang vận hành tại Branch nào trong một khoảng hiệu lực. Tách hai khái niệm giúp một User có nhiều quyền truy cập nhưng Payroll/Attendance vẫn có đúng snapshot Branch lịch sử.
+
+Vì sao Branch Bonus không ghi thẳng vào Payroll Item? Payroll Item của run finalized là bằng chứng bất biến. Bonus đi qua maker-checker rồi tạo salary component assignment đúng tháng; Payroll Input/Run kế tiếp mới thu nhận nó.
+
+Branch P&L khác báo cáo thuế thế nào? P&L này là management view từ doanh thu đã ghi nhận, Payroll cost, OPEX, rent, bonus và khấu hao quản trị. Nó không tự tính VAT/CIT, không thay thế sổ kế toán và không tạo nghĩa vụ pháp lý.
+
+Vì sao policy thuế cần source reference và effective date? Pháp luật thay đổi theo thời gian. Version policy phải chỉ ra jurisdiction, nguồn chính thức và ngày kiểm chứng để tái lập kết quả cũ; thiếu nguồn/rate thì fail-safe `CONFIGURATION_REQUIRED`, không đoán.
+
+Vì sao seeder chỉ tạo source mà không ghi thẳng số Payroll? Attendance, Leave, OT, bonus và Salary Assignment là input có lineage; Payroll engine phải tự resolve policy, quantity, rate, PIT và insurance. Ghi số cuối trong seeder sẽ tạo dữ liệu đẹp nhưng không kiểm chứng được nghiệp vụ.
+
+Idempotency của demo data bảo vệ dữ liệu thật thế nào? Mọi row synthetic có reference deterministic và ownership hẹp; bootstrap chỉ reconcile Employee `E0001`–`E0035` đang thuộc dataset, không sửa Employee/Attendance/Payroll finalized thủ công. Chạy lại cho cùng count và cùng business identity.
+
+Vì sao Branch Bonus không được trừ riêng lần nữa trong P&L? Sau approve, bonus trở thành earning component và đã nằm trong Payroll gross. Cột Bonus chỉ là disclosure; trừ cả gross và bonus sẽ double-count chi phí.
+
+Vì sao VAT/CIT hiển thị CONFIGURATION_REQUIRED thay vì 0? Không có transaction tax-category snapshot hoặc CIT adjustment/policy verified thì zero là một khẳng định sai. Fail-safe giúp người dùng phân biệt “không phát sinh” với “chưa đủ nguồn để tính”.
+
+Payroll reconciliation xử lý run chưa finalized thế nào? Branch attribution vẫn phải khớp ngay khi run đủ điều kiện đọc, nhưng Accounting Journal chỉ đến hạn sau finalized/locked/paid. Trạng thái trước đó là `NOT_DUE`, không phải missing journal.
+
+Vì sao Payment không tạo doanh thu ngay? Payment chỉ chứng minh tiền của Order đã được ghi nhận; doanh thu Commerce trong runtime này chỉ được recognize khi Fulfillment delivered. Nhờ vậy Order unpaid/undelivered không làm phồng Branch P&L.
+
+Fulfillment chống trừ kho hai lần thế nào? `ship` khóa fulfillment, reservation và balance; chỉ reservation trạng thái `reserved` mới được chuyển sang `consumed`, đồng thời giảm `on_hand` và `reserved`. State machine và transaction làm retry sai trạng thái trả 409 thay vì trừ tiếp.
+
+Vì sao doanh thu Order dùng subtotal thay vì total? Shipping là khoản riêng, chưa có contract doanh thu vận chuyển. Lưu `order_id` unique và source type giúp truy ngược, tránh double count, đồng thời không trộn với service revenue synthetic trong management ledger.
+Seller data không thể chỉ scope theo `user_id`, vì một login có thể được cấp nhiều Company. Khóa `(company_id,user_id)` và Company context xuyên Store → Product → Order → Payment → Fulfillment → Revenue ngăn trộn doanh số; dashboard aggregate canonical recognized revenue thay vì chép số sang bảng riêng.
+Vì sao Sales History không cần bảng riêng? Order Items, Payment, Fulfillment và revenue đã là source of truth. Trang lịch sử chỉ join theo `order_id`: paid Order cho biết đã bán, delivered Order có recognized revenue; như vậy dashboard, Branch Finance và lịch sử luôn đối soát cùng một dữ liệu.
+Company tạo Seller account thế nào mà không sinh hệ account thứ hai? Form Company chỉ orchestration một transaction tạo User, gán Role Seller, cấp company_user_access rồi tạo seller_profiles. Seller mới luôn pending; verify/activate vẫn thuộc Seller Governance. Khi sửa, hệ thống cập nhật cùng User/Profile theo ID và Company scope, không xóa mù Seller bị bỏ khỏi form.
+
+Vì sao nút xóa Seller/Branch không cascade? Seller có Store/Order/Revenue và Branch có Payroll/Attendance/Finance là nguồn lịch sử. Hệ thống chỉ cho gỡ Seller rỗng hoặc soft-delete Branch rỗng; dữ liệu đã vận hành phải chuyển trạng thái suspend/archive. Đây là dependency guard chống mất audit và sai reconciliation.
+
+Vì sao Branch POS không có bảng “tổng doanh số” riêng? Receipt tham chiếu trực tiếp một recognized Branch Revenue. Dashboard/Finance aggregate ledger đó nên một checkout chỉ có một nguồn số tiền, tránh copy lệch giữa menu.
+
+Checkout tại chi nhánh chống trừ tồn hai lần thế nào? Service khóa visit, trả lại receipt cũ khi retry, rồi trong một transaction trừ đúng inventory balance của location gắn Branch, tạo receipt/revenue và đóng visit. Unique visit/revenue constraints là lớp bảo vệ bổ sung.
+
+Vì sao Customer không bắt buộc là User? Khách walk-in cần CRM/contact và lịch sử mua nhưng không nhất thiết có login. `commerce_customers` thuộc Company; User/Buyer vẫn dành cho tài khoản đăng nhập và online checkout.
+
+Ảnh Product lên Cloudflare thế nào? Controller chỉ gọi MediaService theo purpose cover/gallery. Production có credentials hợp lệ dùng Cloudflare Images; local/testing dùng driver cô lập và không gọi provider. Database chỉ lưu provider asset reference/delivery metadata, không lưu token.
+
+CQRS làm các menu đồng bộ bằng cách nào? Command không chép dữ liệu sang từng menu; nó thay đổi canonical aggregate trong transaction. Query/read model của Warehouse, Sales, Finance và Dashboard cùng đọc canonical source hoặc snapshot đúng lifecycle, nên mutation mới tự xuất hiện downstream mà không cần bảng tổng clone.
+
+Vì sao Inventory vừa có balance vừa có movement mà không phải duplicate source? `inventory_balances` là trạng thái hiện tại để khóa và kiểm tra available nhanh. `inventory_movements` là evidence append-only giải thích opening + in - out ± correction = closing; movement cuối phải khớp balance. Hai bảng có semantics khác nhau và Data Quality kiểm tra reconciliation.
+
+Vì sao Seller banned không sửa thẳng về active? Banned là quyết định governance rủi ro. Recovery đi qua `banned → suspended → active`, có actor/reason/audit và cùng state machine backend/UI; quan hệ Seller/Leader không cấp thêm IAM permission.
+
+Dashboard tránh fake data thế nào? Dashboard QueryBus/read service aggregate trực tiếp Employee, Order, paid POS Receipt, Customer, Visit, Inventory Balance và recognized Revenue. Blade chỉ format DTO/array primitive từ read service; không hard-code business total hay chart series.
+
+Vì sao ảnh Product không dùng một kích thước cho mọi màn hình? Media asset là canonical nhưng presentation có context: bảng/kho dùng thumbnail cố định, POS dùng selector thumbnail, catalog dùng card aspect ratio và detail dùng container lớn có giới hạn. CSS khóa width/height/max-size/object-fit nên ảnh provider độ phân giải cao không làm phình bảng; Blade không biết Cloudflare URL format.
+
+Khi nào được nói Cloudflare Images đã sẵn sàng? Chỉ khi driver Cloudflare được chọn, Account ID/token/delivery hash đầy đủ, upload qua `MediaService` thành công và URL canonical tải được. Việc tài khoản đã bật Hosted Images hoặc token có mặt chưa đủ để tuyên bố VERIFIED.
+Vì sao Trial Balance có thể PASS nhưng Financial Statements vẫn PARTIAL? Trial Balance chỉ cần mọi posted Journal cân Nợ/Có theo account. Income Statement, Balance Sheet và Cash Flow còn cần đầy đủ Revenue/Expense, Asset/Liability/Equity và Cash posting từ các source canonical. Project hiện chỉ có Payroll expense/liability nên hiển thị đúng phần có bằng chứng, không tạo bút toán giả để làm báo cáo trông đầy đủ.
+CQRS không phải một folder kỹ thuật dùng chung: Core chỉ sở hữu bus, còn Command/Query/Handler phải nằm trong bounded context sở hữu dữ liệu. Cách này tránh Commerce god-module, giảm coupling và làm rõ ai chịu trách nhiệm transaction, invariant và downstream synchronization.
+
+Vì sao full reversal không update/xóa sale cũ? Order/Receipt và revenue gốc là bằng chứng lịch sử. Reversal là chứng từ bù append-only, có unique source, hoàn kho qua cùng InventoryService và được report trừ khỏi recognized revenue; retry vì vậy không hoàn kho hay giảm doanh thu hai lần.
+
+Vì sao Stock Receipt/Transfer cần document riêng thay vì nút tăng/giảm tồn? Adjustment chỉ giải thích correction cục bộ. Receipt cần nguồn nhập và trạng thái nhận; Transfer cần hai location, xuất nguồn rồi nhận đích và invariant bảo toàn tổng tồn. Document lifecycle làm authorization, audit, concurrency và idempotency kiểm chứng được.
+
+Vì sao chưa làm partial refund? Partial return phải phân bổ quantity từng line, payment/refund evidence và finance/tax correction. Khi upstream contract chưa đủ, full reversal là boundary an toàn hơn việc sửa Order/Receipt hoặc tự chế tiền hoàn.
+Hỏi: Vì sao Goods Receipt và Vendor Bill tạo hai bút toán khác nhau?
+Đáp: Receipt xác nhận doanh nghiệp đã nhận và kiểm soát hàng nên Dr Inventory/Cr GRNI. Bill được duyệt mới chuyển nghĩa vụ tạm ghi sang Accounts Payable bằng Dr GRNI/Cr AP. Payment sau đó Dr AP/Cr Payment Clearing; clearing không được gọi là tiền ngân hàng đã tất toán khi chưa có bank settlement evidence.
+
+Hỏi: Vì sao COGS phải snapshot lúc bán?
+Đáp: Weighted-average cost có thể đổi sau lần nhập hàng tiếp theo. Sale movement lưu unit cost/value tại thời điểm xuất; reversal dùng đúng snapshot đó, không dùng giá vốn hiện tại và không sửa journal gốc.
+HỎI: Vì sao Budget Actual không được nhập lại ở một bảng báo cáo?
+ĐÁP: Actual là bằng chứng từ posted Accounting Journal. Read model ghép Company, Branch, Account và Month để tránh lặp tổng năm vào từng tháng; Budget chỉ là target, variance = Actual - Budget.
+
+HỎI: Asset lifecycle bảo toàn lịch sử thế nào?
+ĐÁP: Nguyên giá được post khi activate, nơi sử dụng là assignment effective-dated, depreciation unique theo asset/month và disposal dùng bút toán loại nguyên giá/khấu hao lũy kế. Không sửa trực tiếp lịch sử đã post.
+
+HỎI: Hỗ trợ ảnh 4K có nghĩa là gì?
+ĐÁP: MediaService xác minh MIME bằng nội dung decode, byte limit, kích thước và pixel ceiling; 3840×2160 được giữ nguyên, không upscale. Provider ngoài chỉ chạy khi cấu hình đầy đủ; PHPUnit dùng fake storage nên không gọi Cloudflare.
+Hỏi: Vì sao PNG RGBA 2,9 MB lỗi dù policy Product cho 10 MB? Đáp: PHP local chặn ở upload_max_filesize/post_max_size 2 MB trước Laravel. Fix đúng là nâng ingress cao hơn application limit, rồi vẫn kiểm MIME/dimension/full decode và truyền nguyên byte để giữ alpha.
+Hỏi: Treasury có phải một sổ số dư riêng không? Đáp: Không. Treasury giữ financial-account và settlement/reconciliation evidence; balance chuẩn vẫn lấy từ General Ledger, tránh hai nguồn sự thật.
+Hỏi: Approval Inbox có được duyệt trực tiếp mọi chứng từ không? Đáp: Không. Đây là read orchestration và deep-link; owner module vẫn kiểm permission, tenant, maker-checker và state machine.
+Hỏi: Budget commitment tránh double-count thế nào? Đáp: Commitment chỉ là phần PO còn chưa nhận. Khi Goods Receipt phát sinh, remaining giảm và posted journal trở thành Actual.
+Hỏi: Vì sao snapshot vận hành phải sinh bằng command thay vì cập nhật TXT thủ công? Đáp: Command đọc canonical DB/read models tại thời điểm chạy nên không stale totals; formatter che thông tin nhạy cảm và ghi `KHÔNG ĐỦ BẰNG CHỨNG` thay vì đoán số.
+Hỏi: CRM segmentation hiện tại có phải AI không? Đáp: Không. Đây là phân loại deterministic từ recency, frequency và recognized spend của POS/Marketplace paid records, dùng ngưỡng cấu hình, tenant scope và không thay đổi Customer source record.
+Hỏi: Vì sao CRM UI không lưu sẵn tổng chi tiêu/segment? Đáp: Customer list và detail gọi chung `CustomerMetricsService`, tổng hợp paid POS Receipt và paid Marketplace Order theo Company. Nhờ vậy filter và drilldown luôn theo transaction canonical, tránh stale hoặc lệch giữa CRM, Finance và Dashboard.
+Hỏi: Vì sao chưa tạo nút sửa Journal đã đóng? Đáp: Posted/closed Journal là bằng chứng lịch sử. Khi chưa có contract reversal/adjustment chung cho mọi source, hệ thống báo `NOT_IMPLEMENTED`; không tái sử dụng Payroll Adjustment sai bounded context và không sửa trực tiếp journal cũ.
+HỎI: Vì sao gia hạn hợp đồng không update hợp đồng cũ?
+ĐÁP: Hợp đồng cũ là bằng chứng lịch sử cho quan hệ lao động và Payroll kỳ trước. Gia hạn tạo hợp đồng mới, giữ liên kết old/new và effective date để truy vết.
+
+HỎI: Resignation khác termination thế nào?
+ĐÁP: Resignation là yêu cầu tự nguyện và không vô hiệu hóa nhân viên khi submit. Chỉ completion sau ngày hiệu lực và checklist bắt buộc mới kết thúc assignment/IAM qua service chuẩn.
+
+HỎI: Vì sao không sửa Journal đã post?
+ĐÁP: Journal đã post là immutable audit evidence. Sai sót được sửa bằng reversal cân debit-credit ở kỳ mở, maker-checker và idempotency key để retry không ghi trùng.
+ERP SALES / AR / CASH FLOW
+- Sales Order confirmation is commercial commitment, not stock issue. Only fulfillment calls the canonical Inventory ledger and snapshots COGS, so historical margin is not recalculated using today's cost.
+- AR is an invoice subledger: issued invoice creates Dr AR/Cr Revenue; each collection allocation reduces outstanding and creates Dr Cash/Cr AR through Treasury and GL.
+- Invoice paid/outstanding is reconciled to allocations, and AR subledger is reconciled to the GL AR account; differences surface as Data Quality failures, never auto-fixed.
+- Cash Flow is built only from actual Treasury movements with deterministic source classification. Without opening cash evidence it is labelled PARTIAL, not force-balanced with invented equity.
+- Finance Overview khác Executive Dashboard ở chỗ nó là read model đối soát: GL cho báo cáo, Invoice/Allocation cho AR, Vendor Bill/Allocation cho AP, Treasury cho cash, Budget/PO cho budget–commitment. Nó không lưu tổng clone; filter Branch đi xuyên tới journal và Treasury.
+- VAT stays CONFIGURATION_REQUIRED until a verified effective policy is resolvable; product names are never used to guess tax rates.
+ERP SCM / LOGISTICS ORCHESTRATION
+- SCM không sở hữu một bản sao Purchase Order, tồn kho hay Sales Order. Nó là read model điều phối, đọc dữ liệu từ các owner module và deep-link về đúng workflow ghi.
+- Shipment/delivery evidence không được trừ kho lần hai: fulfillment gọi Inventory một lần, còn logistics chỉ ghi nhận tiến trình giao nhận.
+- `available = on_hand - reserved` chỉ dùng reservation canonical; delivery on-time không được tính khi thiếu promised date, và phí vận chuyển không được đoán khi chưa có chứng từ chi phí.
+ERP DMS / WORKFLOW
+- DMS sở hữu bằng chứng và phiên bản file, còn owner module sở hữu business transition. Vì vậy approval không được `UPDATE` trực tiếp bảng nghiệp vụ từ Workflow.
+- Mỗi upload tạo version mới và SHA-256; archive không xóa lịch sử. Cloudflare Images không phù hợp cho PDF/DOCX riêng tư.
+- Approval Inbox và Notification Center là surface dùng chung hiện hữu, tránh hai nguồn trạng thái phê duyệt.
+ERP UI DESIGN SYSTEM
+- Gold là brand accent, không phải semantic status: lỗi/xóa vẫn đỏ, thành công vẫn xanh và trạng thái cấu hình vẫn xanh dương/vàng cảnh báo.
+- Token và component dùng chung giảm drift giữa hơn một trăm workspace; CSS page cũ chỉ được xóa sau khi references bằng 0.
+- Operator-facing capability phải có Sidebar path; action nhỏ như approve/reject vẫn nằm trong owner workspace để tránh menu phẳng và trùng.
+PROJECT MANAGEMENT — CÂU HỎI KIẾN TRÚC
+- Vì sao Project Timesheet không phải Attendance? Attendance chứng minh hiện diện/chấm công; Project Timesheet phân bổ thời gian vào project/task và cần maker-checker riêng.
+- Progress được tính thế nào? Số task DONE chia tổng task không CANCELLED; chưa có task thì 0%, không đoán phần trăm.
+- Vì sao Project không tự tính labor cost từ lương? Salary/Payroll là dữ liệu nhạy cảm và chưa có canonical allocation từ payroll item sang project.
+- Vì sao không ghi trực tiếp Expense/Procurement/Asset? Các module sở hữu giữ invariant và lịch sử; Project chỉ đọc evidence qua boundary khi có project reference thật.
+- Vì sao task dependency cần cycle guard? Chu trình khiến không task nào có thể hoàn tất hợp lệ; hệ thống chặn self-link, cross-project và đường dẫn quay lại.
+
+Hỏi: Vì sao Maintenance không tự giữ kho phụ tùng? Trả lời: Maintenance sở hữu nhu cầu và Work Order; Inventory sở hữu balance, movement và valuation. Idempotency/source reference ngăn retry trừ kho hai lần.
+
+Hỏi: Khi nào tính MTTR/MTBF? Trả lời: Chỉ khi actual start/end, failure events và operating intervals đủ tin cậy; nếu không phải hiển thị NOT_ENOUGH_EVIDENCE thay vì KPI giả.

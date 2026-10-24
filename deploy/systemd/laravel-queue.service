@@ -1,0 +1,22 @@
+[Unit]
+Description=Laravel Redis Queue Worker
+After=network.target redis-server.service cloud-sql-proxy.service
+Wants=redis-server.service cloud-sql-proxy.service
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/laravel
+ExecStart=/usr/bin/php /var/www/laravel/artisan queue:work redis --queue=default --sleep=3 --tries=3 --timeout=330 --memory=192 --max-jobs=250 --max-time=3600
+ExecReload=/usr/bin/php /var/www/laravel/artisan queue:restart
+Restart=always
+RestartSec=5
+KillSignal=SIGTERM
+TimeoutStopSec=390
+OOMPolicy=stop
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

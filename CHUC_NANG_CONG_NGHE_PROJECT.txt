@@ -263,7 +263,7 @@ File chính:
 -----------------------------
 Chức năng:
 - API token/Bearer authentication cho enterprise APIs.
-- OpenAPI security scheme khớp Sanctum Bearer thật.
+- OpenAPI security scheme hiện khớp Passport OAuth2 Authorization Code + PKCE; Sanctum chỉ là lịch sử trước C2.5.
 
 Package:
 - laravel/sanctum ^4.3
@@ -665,7 +665,7 @@ DATA QUALITY (Phase 3F-24)
 - Avatar dùng `EmployeeAvatarStorageInterface`: local/testing mặc định private local storage; production có thể chọn Cloudflare Images qua config và token từ `SecretProvider`. Upload/replace có compensation và cleanup an toàn; không lưu token.
 - Job Position create/edit bắt buộc chọn Level 1..6 trên chính `job_positions.career_level`; Employee form và career actions chỉ dùng position đúng Unit, hiển thị `Position — Unit — Level N`, promotion/demotion lấy toàn bộ level cao hơn/thấp hơn thực có.
 - Employee Lifecycle hiển thị Base/KPI/Phụ cấp/Target Gross từ effective `employee_salary_component_assignments` bằng một batch query; quyền `payroll.assignment.view` được kiểm tra server-side. Projection vị trí dùng policy typed theo level/phòng ban, không coi Target Gross là Net Pay và không sửa payroll history.
-- Header `$` mở Compensation Reference của position thật; header `?` mở hướng dẫn riêng cho 73/73 primary menu routes trong 10 accordion domain. `AdminHelpRegistry` mô tả mục đích, nguồn dữ liệu, upstream/downstream, action, thứ tự thao tác, state/immutable/approval, side effect, permission, warning, menu flow và technical flow. Luồng liên kết dùng named route thật, đánh dấu menu hiện tại bằng `aria-current`, và lọc toàn bộ node/link không được phép ở server. Dialog native modal hỗ trợ keyboard/Escape/focus return/mobile.
+- Header `$` mở Compensation Reference của position thật; header `?` mở hướng dẫn riêng cho 74/74 primary menu routes trong 10 accordion domain, gồm Workforce Forecasting. `AdminHelpRegistry` mô tả mục đích, nguồn dữ liệu, upstream/downstream, action, thứ tự thao tác, state/immutable/approval, side effect, permission, warning, menu flow và technical flow. Luồng liên kết dùng named route thật, đánh dấu menu hiện tại bằng `aria-current`, và lọc toàn bộ node/link không được phép ở server. Dialog native modal hỗ trợ keyboard/Escape/focus return/mobile.
 - File avatar được preview tròn bằng object URL trước upload; Employee List đọc cùng avatar Employee-owned qua route private có permission, fallback initials nếu chưa có ảnh. Archive/disable/unlink không xóa ảnh; remove-avatar thật mới cleanup provider sau commit và có shared-reference guard.
 - Attendance XLSX dùng maatwebsite/excel (`composer require maatwebsite/excel` nếu dựng project mới; project hiện đã khóa 3.1.69), code tại `Modules/Attendance/app/Application/Exports/AttendanceXlsxExport.php`.
 - Local Payroll synthetic đi qua services thật để tạo 6 snapshots/180 inputs, 5 runs/150 items cùng adjustment/payment/accounting/ERP-local/annual-tax/Government filing; không phát traffic external.
@@ -881,3 +881,133 @@ ENTERPRISE ANALYTICS (Phase 3F-25)
 - Payroll and Compensation aggregates are server-side protected by payroll.assignment.view.
 - Formula-safe aggregate CSV export; no PII row export and no external BI traffic.
 - Existing immutable Workforce snapshot/version/checksum flow remains intact.
+
+ENTERPRISE FORECASTING (Phase 3F-26)
+- Route `admin.analytics.forecasting` dùng `analytics.view`; cost chỉ render với `payroll.assignment.view`, export dùng `analytics.export`.
+- `WorkforceForecastController` → `WorkforceScenarioLine` → `WorkforceForecastService` → grouped SQL + `CompensationReadService` → `WorkforceForecastViewModel`.
+- Phân biệt Actual (assignment hiện tại), Budget (approved headcount), Forecast (kỳ chọn) và Scenario A/B (what-if request scope).
+- Scenario tối đa 50 dòng, hỗ trợ effective month, add/remove headcount và promotion level mix; reset/export, không Save.
+- Không migration, không AI/API ngoài, không sửa Employee/Salary Assignment/Payroll Run/Payroll Item lịch sử.
+
+FRONTEND / NAVIGATION — NO-RESET SIDEBAR
+- Blade + `AdminNavigation` render active item/group and permission filtering on the server.
+- Pre-paint bootstrap restores a stable open-group key from localStorage and menu scroll offset from sessionStorage before transitions are enabled.
+- `resources/ts/admin-navigation.ts` keeps at most one accordion group open, saves on child navigation/pagehide, handles BFCache pageshow idempotently, and scrolls only when the active link is outside the visible menu region.
+- Mobile drawer state is intentionally not persisted; reduced-motion and hidden/non-tabbable submenu behavior remain intact.
+
+EXECUTIVE PLANNING (Phase 3F-27)
+- `ExecutivePlanningController` → typed `PlanningFilter` → `ExecutivePlanningService` → grouped Organization/Assignment/Recruitment/Payroll reads + Compensation/Data Quality services → `ExecutivePlanningViewModel` → responsive cockpit.
+- So sánh Budget / Actual / Latest Forecast / Variance cho headcount, position cost và hiring coverage; 8 KPI cards, 5 visual summaries, aggregate CSV chống formula injection.
+- Tenant filter fail-closed; headcount dùng `analytics.view`, còn financial HTML cần `payroll.assignment.view`; export cần `analytics.export`.
+- Computed/read-only, không Plan table, không approval giả, không sửa Payroll lịch sử, không external BI/AI và không migration.
+
+PLANNING EXECUTION (Phase 3F-28)
+- `PlanningExecutionController` → `PlanningExecutionFilter` → `PlanningExecutionService` → Executive Planning baseline + grouped actual-hire query → typed variance/status → responsive dashboard.
+- So sánh monthly Headcount/Hiring/Payroll Target với Actual; unit matrix, root-cause aggregate và deterministic Management Attention không tự thực thi.
+- Reforecast v2 là explicit request-scoped comparison, không Save và không ghi đè Forecast v1.
+- Salary data bị loại server-side khi thiếu `payroll.assignment.view`; CSV aggregate chống formula injection; không migration hoặc Payroll mutation.
+
+ENTERPRISE REPORTING (Phase 3F-29)
+- Typed Report Catalog + monthly/quarterly/YTD filter + live Executive Board Pack preview.
+- Reuse Enterprise Analytics và Planning Execution read models; không duplicate business formulas trong Blade.
+- CSV UTF-8 formula-safe, XLSX nhiều sheet và PDF local Dompdf đều dùng real generated bytes/checksum.
+- Payroll/Compensation bị loại server-side khi thiếu permission; report không persist/certify, không migration, external BI hay historical mutation.
+
+PRODUCTION GO-LIVE (Phase 3F-30)
+- Redacted `operations:production-readiness --json` và Go-Live Readiness cockpit dùng chung typed snapshot read-only.
+- Kiểm tra production DB separation, config/cache/queue/session/log/assets/health/migration inventory và external dependency states mà không deploy/migrate/seed.
+- Production/rollback/smoke/migration compatibility runbooks; non-root Docker và demo bootstrap production guard được giữ fail-closed.
+- Classification trung thực `PRODUCTION_BLOCKED_EXTERNAL`; không tuyên bố provider/VPS đã verified.
+
+FINAL PROJECT AUDIT — RUNTIME SAFETY / NAVIGATION
+- Workforce cache tự loại bỏ object `__PHP_Incomplete_Class` sau deploy/autoload mismatch và dựng lại read model chuẩn thay vì đưa object lỗi vào controller/Blade.
+- API Documentation có landing admin permission-protected, contextual help và link riêng tới Swagger UI/OpenAPI JSON vẫn được bảo vệ.
+- Browser walk desktop/mobile xác nhận 78/78 primary destinations dùng đúng help/navigation contract; không 403/404/500, console error hoặc document overflow.
+
+COMMERCE C1+C2 FOUNDATION
+- Multi-Branch company scope với creator access, permission filtering và cross-company isolation.
+- Buyer/Seller profile tách khỏi User authentication; Seller business status tách khỏi IAM role.
+- Seller Center, Store Profile và Seller Governance; chưa claim Product/Cart/Order.
+- Unified Cloudflare/local MediaService cho Employee avatar, Store logo/banner và Article cover/gallery.
+- Article multi-image preview, transactional compensation, safe replace/delete và public white/blue Article/Store pages.
+
+COMMERCE C2.5 — IDENTITY / OAUTH2
+- Đăng nhập web tiếp tục dùng Breeze/session; Google/Facebook là liên kết tường minh, không tự merge theo email.
+- Xác minh/đăng nhập điện thoại dùng E.164, OTP hash, expiry, attempt limit, throttle và single-use.
+- Trang Tài khoản & bảo mật hiển thị verification, provider link, role, company/branch access và OAuth summary an toàn.
+- API dùng Passport Authorization Code + PKCE; scope được kiểm tra trước IAM/policy/tenant. Không hỗ trợ password/implicit grant.
+Commerce C3: quản trị lãnh đạo chi nhánh theo Employee/Position thực; tự cấp branch access idempotent; chống nâng Role vượt cấp; compensation analytics theo Level/Position; Article media 8K có giới hạn; Seller transition có chống tự duyệt.
+Commerce C4: Company create/edit có Branch rows transaction-safe; Branch Show, Employee List và Account Security dùng access/leadership canonical; IAM Role quyết định mutation. Seller Product Catalog có Category phân cấp, Product, generic Variant/SKU, Store inventory on_hand/reserved/available, ownership guard, unified cover/gallery media và public Product list/detail.
+
+Commerce C5: Marketplace public có search/filter/sort, Store page và Product gallery/Variant selector; Buyer có private Wishlist và multi-Store Cart kiểm tra lại giá/tồn/status; Seller có trang Tồn kho với ownership guard, row lock, atomic adjustment và Audit reason.
+
+COMMERCE C6 — CHECKOUT / ORDER
+- Buyer Address CRUD/default, Checkout responsive, local deterministic shipping and double-submit UI guard.
+- Multi-Store Order split with current-price/product/Seller/Store validation, integer VND totals and immutable snapshots.
+- Inventory Reservation uses transaction + `lockForUpdate`; insufficient stock rolls back the whole checkout and keeps Cart unchanged.
+- Buyer Order history/detail/cancel and Seller-owned Order list/detail/typed transitions; no live payment, bank, COD or shipping provider.
+
+ERP CONSOLIDATION — HRM / PAYROLL / BRANCH FINANCE
+- Employee Portal tự phục vụ chỉ đọc dữ liệu của Employee liên kết với session User; hỗ trợ check-in/out canonical, Attendance/Leave/OT và Payroll/Payslip của chính mình.
+- Effective Branch assignment tách operational allocation khỏi `branch_user_access`; Attendance và Payroll Input lưu Branch snapshot lịch sử bằng batch resolver, không query theo từng Employee.
+- Branch Bonus maker-checker, one-month salary component assignment sau approve; maker không tự duyệt và không sửa Payroll finalized.
+- Branch Financial Performance là management P&L read-only theo Branch, dùng grouped SQL và money integer; không được gọi là sổ thuế/kế toán pháp định.
+- Tax/Insurance policy lưu nguồn văn bản chính thức, jurisdiction và ngày kiểm chứng theo version; thiếu cấu hình hiển thị rõ thay vì tự suy đoán rate.
+- Bootstrap local phân bổ 33 Employee-owned demo theo Unit/Branch, tạo compensation theo Position, OT đã duyệt, nghỉ không lương và Branch Bonus maker-checker trên đúng quan hệ canonical; dữ liệu Employee thủ công ngoài dải `E0001`–`E0035` không bị seeder cập nhật.
+- Dữ liệu vận hành Phase 2 có nhiều tháng, giờ làm/trễ/OT/nghỉ biến thiên, PIT và BHXH/BHYT/BHTN do policy engine tính, Payslip khớp Payroll Item, và biểu đồ Dashboard/Branch P&L đọc cùng nguồn DB canonical.
+- Đối soát Payroll → Accounting → Branch Finance hiển thị difference theo kỳ; Tax Dashboard tổng hợp PIT/BHXH/BHYT/BHTN và hiển thị VAT/CIT `CONFIGURATION_REQUIRED` thay vì số liệu pháp lý giả.
+- Commerce Payment evidence theo Company, idempotency/unique settlement; Seller không được tự ghi payment.
+- Seller Governance theo Company: cùng một User có thể có Seller Profile riêng cho từng Company; Store/Product/Inventory/Order/Payment/Fulfillment/Revenue dùng chung tenant lineage, dashboard không clone doanh số.
+- Lịch sử đơn hàng đã bán theo Company nối Order Items, Payment evidence, Fulfillment Branch và recognized revenue; danh sách Công ty hiển thị Seller account bằng truy vấn batch.
+- Form Thêm/Sửa Công ty quản lý Seller account chuẩn (`users` + Role Seller + `company_user_access` + `seller_profiles`) theo transaction; trang Xem Công ty hiển thị account/Store và dẫn sang Seller Governance, không tự bypass trạng thái duyệt.
+- Menu Công ty có cột Tài khoản Seller và nút xóa có dependency guard; Branch chỉ soft-delete khi chưa phát sinh dữ liệu, còn Seller/Branch đã vận hành phải suspend/archive để giữ lịch sử.
+- Fulfillment theo Branch với trạng thái packed/shipped/delivered, carrier/tracking và tiêu thụ Inventory Reservation nguyên tử.
+- Chỉ Order paid + delivered tạo một `commerce_order` revenue theo subtotal; unpaid/undelivered bằng 0 và dashboard công khai source type.
+- Vận hành chi nhánh có kho Product/SKU kèm ảnh, tệp khách hàng, dịch vụ công ty, check-in/checkout và doanh số theo Branch. Checkout trừ tồn kho atomic và ghi receipt → recognized Branch Revenue; Finance/Dashboard đọc cùng nguồn.
+- Seller Governance dropdown chỉ hiển thị transition hợp lệ; Product archive giữ Order/media history. Media Product dùng Cloudflare Images qua unified driver khi cấu hình thật sẵn sàng.
+- POS/Bán hàng tại quầy là group riêng dùng chung Customer, Service, Product/SKU, Branch Inventory, Receipt và recognized Revenue; không clone dữ liệu từ Commerce/Finance.
+- Customer/Service/Visit/Checkout writes dùng CommandBus; Warehouse/Customer/Checkout/Sales reads dùng QueryBus và read service tenant-scoped.
+- Inventory Movement lưu before/after/delta/source/idempotency cho catalog/POS. Dashboard tổng hợp Commerce/POS từ canonical DB sources và drilldown, không dùng số/mảng JavaScript giả.
+- Seller bị banned có recovery governance kiểm soát qua suspended rồi active; reason/activity audit bắt buộc theo transition rủi ro và không tự nâng IAM role.
+Kiến trúc module nghiệp vụ: Core chỉ dispatch bus; Branch, Seller/Commerce, Product, Inventory, POS và Finance có owner module, handler và service riêng; architecture gate chặn tái tạo global business path.
+- Enterprise Sales History hợp nhất Marketplace + POS, hiển thị line snapshot/revenue lineage và full reversal theo quyền; reversal giữ chứng từ gốc, hoàn kho idempotent và cập nhật doanh thu thuần cho Finance/Dashboard.
+- Inventory Operations hỗ trợ phiếu nhập kho và chuyển kho chi nhánh theo lifecycle; movement ledger giải thích mọi thay đổi on-hand và transfer không làm thay đổi tổng tồn hệ thống.
+- POS có Dashboard, Customer History, Receipt History/detail; Product media có NO_MEDIA/BROKEN_MEDIA state và vẫn đi qua MediaService/adapter dùng chung.
+- Ảnh Product dùng presentation context thay vì kích thước intrinsic: thumbnail bảng/kho được giới hạn 64×48px desktop, 56×42px mobile; POS selector 88×66px/72×54px; catalog/detail responsive theo container. Browser gate đo geometry, asset load, overflow và BROKEN_MEDIA.
+- Cloudflare Images Hosted Images tái sử dụng `CloudflareImagesStorage`; local/testing không gọi ngoài. Chỉ chuyển sang provider thật khi driver, Account ID, token và delivery hash đầy đủ; không dùng R2 hoặc URL hard-code trong Blade.
+- Finance có General Ledger và Trial Balance permission-scoped từ bút toán Payroll đã post; lọc Company/ngày/tài khoản, đối chiếu Nợ/Có và truy Journal nguồn. Income Statement/Balance Sheet được đánh dấu PARTIAL, Cash Flow chưa hỗ trợ thay vì điền số giả khi Chart of Accounts chưa đủ Revenue/Asset/Equity/Cash.
+ERP Procurement & AP: quản lý Vendor, Purchase Request maker-checker, Purchase Order, Goods Receipt gắn movement kho, weighted-average inventory valuation, Vendor Bill, AP aging/payment allocation, period lock và source-idempotent double-entry posting. Marketplace/POS ghi nhận Revenue + COGS và reversal theo snapshot giá vốn gốc.
+TÀI CHÍNH VẬN HÀNH
+- Expense workflow maker-checker và bút toán cân; Asset register, effective-dated transfer, khấu hao đường thẳng, disposal; Budget vs Actual theo đúng tháng/chi nhánh/tài khoản.
+- Product media native 4K có decoded-image validation và provenance; provider được chọn qua MediaStorage binding, test không phát sinh external Cloudflare traffic.
+Finance Control Phase 2: Treasury/Cash control, manual bank-statement reconciliation, accounting period close checklist/maker-checker, Approval Inbox orchestration, và Budget/Committed/Actual/Available nối trực tiếp Procurement/AP/Expense/Accounting.
+Media Security: decode-only validation cho RGB/RGBA/palette PNG, JPEG, WebP và 4K; giữ nguyên byte/alpha, chặn fake/corrupt/oversized trước storage; PHPUnit không gọi Cloudflare.
+- Snapshot dữ liệu vận hành hiện tại: command read-only sinh TXT từ DB canonical, che contact account và không xuất credential/token/hash.
+- CRM metrics hợp nhất POS + Marketplace paid evidence theo Company, với segment deterministic có ngưỡng cấu hình và không ghi đè Customer.
+- Tệp khách hàng hiển thị cùng metric canonical, hỗ trợ lọc Branch/segment/tìm kiếm và detail nối POS history với paid Marketplace Orders; không có bảng CRM tổng hợp song song.
+- Snapshot vận hành phân biệt doanh thu `branch_pos`/`commerce_order`, bổ sung lifecycle, notification, Vendor/AP và Asset evidence; generic closed-journal adjustment vẫn được ghi rõ `NOT_IMPLEMENTED`.
+HR / FINANCE GOVERNED RUNTIME
+- Effective-dated contract renewal with historical lineage.
+- Voluntary resignation and mandatory HR/Payroll/IAM/Asset offboarding.
+- Idempotent maker-checker accounting reversal into an open period.
+- Existing Notification Center, executive dashboard, contextual help, reporting and Data Quality integration.
+ERP SELL-SIDE FINANCE
+- Quotation, Sales Order, inventory fulfillment and immutable COGS snapshot.
+- Customer Invoice, AR aging, partial Collection, Treasury inflow and balanced accounting posting.
+- Actual Treasury-based Cash Flow classification with explicit PARTIAL completeness and UNCLASSIFIED safety bucket.
+- Finance Overview is a read-only composition of posted GL, derived AR/AP, Treasury, Budget and Purchase Order commitments; Branch/date filters propagate to financial evidence and no copied KPI ledger is introduced.
+- Tenant isolation, maker-checker, idempotency and five canonical Sales/AR Data Quality invariants.
+- `app:erp-architecture-map` generates validated menu and module flow maps; route/permission metadata comes from AdminNavigation and `[DEPENDS]` edges come from enabled `module.json` manifests.
+ERP SUPPLY CHAIN ORCHESTRATION
+- Company-scoped Supply Chain overview composes Procurement, Inventory, ERP Sales and Marketplace fulfillment through one read-only Dashboard query boundary.
+- Canonical on-hand/reserved/available, inventory value, inbound supply, open demand and delivery evidence feed both operator and Executive Dashboard views without persisted summary totals.
+- Logistics provider/cost/on-time metrics remain explicitly NOT_CONNECTED, NOT_IMPLEMENTED or NOT_ENOUGH_EVIDENCE when their canonical source is absent.
+ERP DOCUMENT MANAGEMENT
+- Kho tài liệu doanh nghiệp: Company scope, phân loại, owner-domain link, private download, archive metadata và lịch sử phiên bản SHA-256 bất biến.
+- Tái sử dụng Workflow/Approval Inbox/Notification/Audit hiện hữu; không tạo BPM engine hoặc approval inbox thứ hai.
+PROJECT MANAGEMENT
+- Company-scoped Project overview/list/detail, Team, Milestone, Task dependency and Timesheet maker-checker.
+- Deterministic progress/health, completion blockers, cycle protection, DMS evidence and activity audit.
+- Explicit CQRS inside Modules/Project; no direct Finance/Procurement/Asset mutation.
+
+Maintenance/CMMS: corrective request, maker-checker, Work Order state machine, technician Employee, preventive scheduling idempotent, spare-part issue qua canonical Inventory, DMS evidence, Activity Log và tenant isolation.

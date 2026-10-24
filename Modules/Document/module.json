@@ -1,9 +1,10 @@
 {
     "name": "Document",
     "alias": "document",
-    "description": "",
+    "description": "Enterprise private document metadata, immutable file versions and multi-domain evidence links.",
     "keywords": [],
     "priority": 0,
+    "requires": ["Core", "Company"],
     "providers": [
         "Modules\\Document\\Providers\\DocumentServiceProvider"
     ],

@@ -22,11 +22,12 @@ final readonly class EmployeeAccountController
         $email = $request->validated('account_email');
         $role = $request->validated('role');
         abort_unless(is_string($email) && is_string($role), 422);
-        $data = ['email' => $email, 'role' => $role, 'access_enabled' => $request->boolean('access_enabled'), 'verified' => $request->boolean('verified')];
+        $branchIds = $this->integerList($request->validated('branch_ids', []));
+        $data = ['email' => $email, 'role' => $role, 'access_enabled' => $request->boolean('access_enabled'), 'verified' => $request->boolean('verified'), 'branch_ids' => $branchIds];
         if (is_string($password) && $password !== '') {
             $data['password'] = $password;
         }
-        $this->accounts->save($companyId, $employee, $data);
+        $this->accounts->save($companyId, $employee, $data, $user->id);
 
         return back()->with('success', 'Đã lưu tài khoản đăng nhập và phạm vi công ty.');
     }
@@ -40,5 +41,23 @@ final readonly class EmployeeAccountController
         $this->accounts->setAccess($companyId, $employee, $state === 'enable', $user->id);
 
         return back()->with('success', $state === 'enable' ? 'Đã mở lại đăng nhập.' : 'Đã vô hiệu hóa đăng nhập; hồ sơ nhân viên được giữ nguyên.');
+    }
+
+    /** @return list<int> */
+    private function integerList(mixed $value): array
+    {
+        if (! is_array($value)) {
+            return [];
+        }
+        $ids = [];
+        foreach ($value as $id) {
+            if (is_int($id)) {
+                $ids[] = $id;
+            } elseif (is_string($id) && ctype_digit($id)) {
+                $ids[] = (int) $id;
+            }
+        }
+
+        return $ids;
     }
 }

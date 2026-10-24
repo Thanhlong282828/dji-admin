@@ -2,33 +2,25 @@
 
 namespace Modules\Employee\Infrastructure\Media;
 
+use App\Support\Media\LocalMediaStorage;
+use App\Support\Media\MediaPurpose;
 use Illuminate\Http\UploadedFile;
-use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Str;
 use Modules\Employee\Domain\Services\EmployeeAvatarStorageInterface;
 use Modules\Employee\Domain\Services\StoredEmployeeAvatar;
-use RuntimeException;
 
-final class LocalEmployeeAvatarStorage implements EmployeeAvatarStorageInterface
+final readonly class LocalEmployeeAvatarStorage implements EmployeeAvatarStorageInterface
 {
+    public function __construct(private LocalMediaStorage $storage) {}
+
     public function upload(UploadedFile $file): StoredEmployeeAvatar
     {
-        $extension = match ($file->getMimeType()) {
-            'image/jpeg' => 'jpg',
-            'image/png' => 'png',
-            default => 'webp',
-        };
-        $reference = 'employees/avatars/'.Str::uuid().'.'.$extension;
-        $stored = Storage::disk('local')->putFileAs(dirname($reference), $file, basename($reference));
-        if (! is_string($stored)) {
-            throw new RuntimeException('Không thể lưu ảnh đại diện local.');
-        }
+        $media = $this->storage->upload($file, MediaPurpose::EmployeeAvatar);
 
-        return new StoredEmployeeAvatar($stored, null);
+        return new StoredEmployeeAvatar($media->assetId, $media->deliveryUrl);
     }
 
     public function delete(string $reference): void
     {
-        Storage::disk('local')->delete($reference);
+        $this->storage->delete($reference);
     }
 }
