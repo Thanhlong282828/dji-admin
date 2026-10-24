@@ -94,15 +94,19 @@ jobs:
           coverage_dir=build/coverage
           coverage_clover="$coverage_dir/clover.xml"
           coverage_summary="$coverage_dir/summary.json"
+          pcov_directory="$GITHUB_WORKSPACE"
           test ! -e "$coverage_config"
           test ! -e "$coverage_data"
+          test -d "$pcov_directory/app"
+          test -d "$pcov_directory/Modules"
           trap 'rm -f "$coverage_config" "$coverage_data" "$coverage_clover"' EXIT
           grep -Fq '<ini name="memory_limit" value="512M"/>' phpunit.xml
           sed 's#<ini name="memory_limit" value="512M"/>#<ini name="memory_limit" value="1G"/>#' phpunit.xml > "$coverage_config"
           grep -Fq '<ini name="memory_limit" value="1G"/>' "$coverage_config"
+          test "$(php -d pcov.directory="$pcov_directory" -r 'echo ini_get("pcov.directory");')" = "$pcov_directory"
           mkdir -p "$(dirname "$coverage_data")" "$coverage_dir"
           set +e
-          php -d memory_limit=1G vendor/bin/phpunit --configuration="$coverage_config" --coverage-php="$coverage_data" --coverage-clover="$coverage_clover" --display-phpunit-notices --display-notices
+          php -d memory_limit=1G -d pcov.directory="$pcov_directory" vendor/bin/phpunit --configuration="$coverage_config" --coverage-php="$coverage_data" --coverage-clover="$coverage_clover" --display-phpunit-notices --display-notices
           test_status=$?
           php scripts/ci/summarize-coverage.php "$coverage_clover" "$coverage_summary" --min=20
           coverage_status=$?

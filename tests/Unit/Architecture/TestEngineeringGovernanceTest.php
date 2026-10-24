@@ -12,7 +12,7 @@ final class TestEngineeringGovernanceTest extends TestCase
         $readiness = strpos($workflow, 'operations:test-readiness');
         $architecture = strpos($workflow, 'Early architecture and test-governance fitness gate');
         $concurrency = strpos($workflow, 'Serial process-concurrency gate');
-        $full = strpos($workflow, 'php -d memory_limit=1G vendor/bin/phpunit --configuration="$coverage_config" --coverage-php="$coverage_data" --coverage-clover="$coverage_clover"');
+        $full = strpos($workflow, 'php -d memory_limit=1G -d pcov.directory="$pcov_directory" vendor/bin/phpunit --configuration="$coverage_config" --coverage-php="$coverage_data" --coverage-clover="$coverage_clover"');
 
         self::assertIsInt($readiness);
         self::assertIsInt($architecture);
@@ -42,8 +42,12 @@ final class TestEngineeringGovernanceTest extends TestCase
         self::assertStringContainsString('coverage_config=.phpunit.coverage-ci.xml', $workflow);
         self::assertStringContainsString('coverage_data=vendor/nunomaduro/collision/.temp/coverage', $workflow);
         self::assertStringContainsString('coverage_summary="$coverage_dir/summary.json"', $workflow);
+        self::assertStringContainsString('pcov_directory="$GITHUB_WORKSPACE"', $workflow);
+        self::assertStringContainsString('test -d "$pcov_directory/app"', $workflow);
+        self::assertStringContainsString('test -d "$pcov_directory/Modules"', $workflow);
+        self::assertStringContainsString('test "$(php -d pcov.directory="$pcov_directory" -r \'echo ini_get("pcov.directory");\')" = "$pcov_directory"', $workflow);
         self::assertStringContainsString('value="1G"', $workflow);
-        self::assertStringContainsString('php -d memory_limit=1G vendor/bin/phpunit --configuration="$coverage_config" --coverage-php="$coverage_data" --coverage-clover="$coverage_clover" --display-phpunit-notices --display-notices', $workflow);
+        self::assertStringContainsString('php -d memory_limit=1G -d pcov.directory="$pcov_directory" vendor/bin/phpunit --configuration="$coverage_config" --coverage-php="$coverage_data" --coverage-clover="$coverage_clover" --display-phpunit-notices --display-notices', $workflow);
         self::assertStringContainsString('php scripts/ci/summarize-coverage.php "$coverage_clover" "$coverage_summary" --min=20', $workflow);
         self::assertStringContainsString('Coverage::report', $workflow);
         self::assertStringContainsString('PHP variables must not be expanded by the shell.', $workflow);
