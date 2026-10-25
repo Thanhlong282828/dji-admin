@@ -27,6 +27,18 @@ final class ErpDesignSystemTest extends TestCase
         self::assertStringContainsString('aria-expanded=', $layout);
         self::assertStringContainsString('data-sidebar-open', $layout);
         self::assertStringContainsString('erp-context-chip', $layout);
+        self::assertStringContainsString('class="sidebar-footer"', $layout);
+        self::assertStringContainsString('class="sidebar-logout"', $layout);
+        self::assertStringContainsString('method="POST"', $layout);
+        self::assertStringContainsString("action=\"{{ route('logout') }}\"", $layout);
+        self::assertStringContainsString('@csrf', $layout);
+        self::assertStringContainsString('@auth', $layout);
+        self::assertStringContainsString('x-bind:disabled="submitting"', $layout);
+
+        self::assertStringContainsString('.sidebar-footer{flex:0 0 auto;margin-top:auto}', $css);
+        self::assertStringContainsString('background:#EAB308', $css);
+        self::assertStringContainsString('.sidebar-logout button:focus-visible', $css);
+        self::assertStringContainsString('.sidebar-logout button:disabled', $css);
     }
 
     public function test_dms_uses_the_shared_page_header_and_status_component(): void
