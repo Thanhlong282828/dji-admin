@@ -80,4 +80,35 @@ final class TestEngineeringGovernanceTest extends TestCase
         self::assertNotEmpty($migrations);
         self::assertSame([], array_values(array_filter($migrations, static fn (string $file): bool => str_contains($file, 'test_quality'))));
     }
+
+    public function test_ci_runs_on_the_actual_default_branch_and_manual_quality_only_has_no_side_effect_jobs(): void
+    {
+        $workflow = (string) file_get_contents(base_path('.github/workflows/ci.yml'));
+
+        self::assertStringContainsString('branches: [main, develop, codex/phase-3f-26-enterprise-forecasting]', $workflow);
+        self::assertStringContainsString('default: quality-only', $workflow);
+        self::assertStringContainsString('options: [quality-only, build-only, development, production]', $workflow);
+        self::assertStringContainsString("(github.event_name == 'workflow_dispatch' && (inputs.deploy_environment == 'build-only' || inputs.deploy_environment == 'development' || inputs.deploy_environment == 'production'))", $workflow);
+        self::assertStringNotContainsString("if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'", $workflow);
+        self::assertSame(2, substr_count($workflow, "inputs.deploy_environment == 'development'"));
+        self::assertSame(2, substr_count($workflow, "inputs.deploy_environment == 'production'"));
+        self::assertSame(1, substr_count($workflow, 'packages: write'));
+        self::assertGreaterThan(strpos($workflow, '  docker:'), strpos($workflow, 'packages: write'));
+    }
+
+    public function test_deployments_receive_a_verified_checksum_from_the_committed_docker_source(): void
+    {
+        $workflow = (string) file_get_contents(base_path('.github/workflows/ci.yml'));
+        $release = (string) file_get_contents(base_path('scripts/deploy/release.sh'));
+
+        self::assertStringContainsString('source_checksum: ${{ steps.source.outputs.checksum }}', $workflow);
+        self::assertStringContainsString('test "$(git rev-parse HEAD)" = "$GITHUB_SHA"', $workflow);
+        self::assertStringContainsString('test -z "$(git status --porcelain=v1 --untracked-files=all)"', $workflow);
+        self::assertStringContainsString('git archive --format=tar "$GITHUB_SHA" | sha256sum', $workflow);
+        self::assertStringContainsString('[[ "$source_checksum" =~ ^[0-9a-f]{64}$ ]]', $workflow);
+        self::assertSame(2, substr_count($workflow, 'SOURCE_CHECKSUM: ${{ needs.docker.outputs.source_checksum }}'));
+        self::assertSame(2, substr_count($workflow, 'BACKUP_REFERENCE,SOURCE_CHECKSUM,RELEASE_TAG'));
+        self::assertStringContainsString(': "${SOURCE_CHECKSUM:?SOURCE_CHECKSUM is required}"', $release);
+        self::assertStringContainsString('[[ "$SOURCE_CHECKSUM" =~ ^[0-9a-f]{64}$ ]]', $release);
+    }
 }
