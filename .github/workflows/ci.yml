@@ -2,7 +2,7 @@ name: Admin CI/CD
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main, develop, codex/phase-3f-26-enterprise-forecasting]
   pull_request:
   workflow_dispatch:
     inputs:
@@ -10,12 +10,11 @@ on:
         description: Optional deployment target
         required: false
         type: choice
-        default: build-only
-        options: [build-only, development, production]
+        default: quality-only
+        options: [quality-only, build-only, development, production]
 
 permissions:
   contents: read
-  packages: write
 
 concurrency:
   group: admin-${{ github.workflow }}-${{ github.ref }}
@@ -140,16 +139,32 @@ jobs:
         run: php artisan serve --host=127.0.0.1 --port=8000 & server=$!; trap 'kill $server' EXIT; for _ in {1..12}; do curl --fail http://127.0.0.1:8000/health/ready && exit 0; sleep 2; done; exit 1
 
   docker:
-    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    if: >-
+      (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')) ||
+      (github.event_name == 'workflow_dispatch' && (inputs.deploy_environment == 'build-only' || inputs.deploy_environment == 'development' || inputs.deploy_environment == 'production'))
     needs: quality
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
     outputs:
       digest: ${{ steps.build.outputs.digest }}
+      source_checksum: ${{ steps.source.outputs.checksum }}
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
         with: {registry: ghcr.io, username: '${{ github.actor }}', password: '${{ secrets.GITHUB_TOKEN }}'}
+      - name: Verify committed source and calculate deterministic checksum
+        id: source
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          source_checksum="$(git archive --format=tar "$GITHUB_SHA" | sha256sum | awk '{print $1}')"
+          [[ "$source_checksum" =~ ^[0-9a-f]{64}$ ]]
+          echo "checksum=$source_checksum" >> "$GITHUB_OUTPUT"
       - uses: docker/build-push-action@v6
         id: build
         with:
@@ -175,13 +190,14 @@ jobs:
           PREVIOUS_APP_IMAGE: ${{ vars.PREVIOUS_APP_IMAGE }}
           QUALITY_EVIDENCE_REFERENCE: ci://github-actions/${{ github.run_id }}
           BACKUP_REFERENCE: ${{ vars.BACKUP_READINESS_REFERENCE }}
+          SOURCE_CHECKSUM: ${{ needs.docker.outputs.source_checksum }}
           RELEASE_TAG: ${{ github.ref_name }}
           APPROVAL_REFERENCE: github-environment/development/${{ github.run_id }}
         with:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
-          envs: DEPLOY_PATH,CONTAINER_IMAGE,DEPLOY_HEALTH_URL,IMAGE_DIGEST,PREVIOUS_APP_IMAGE,QUALITY_EVIDENCE_REFERENCE,BACKUP_REFERENCE,RELEASE_TAG,APPROVAL_REFERENCE
+          envs: DEPLOY_PATH,CONTAINER_IMAGE,DEPLOY_HEALTH_URL,IMAGE_DIGEST,PREVIOUS_APP_IMAGE,QUALITY_EVIDENCE_REFERENCE,BACKUP_REFERENCE,SOURCE_CHECKSUM,RELEASE_TAG,APPROVAL_REFERENCE
           script: cd "$DEPLOY_PATH" && scripts/deploy/release.sh development ${{ github.sha }}
 
   deploy-production:
@@ -201,11 +217,12 @@ jobs:
           PREVIOUS_APP_IMAGE: ${{ vars.PREVIOUS_APP_IMAGE }}
           QUALITY_EVIDENCE_REFERENCE: ci://github-actions/${{ github.run_id }}
           BACKUP_REFERENCE: ${{ vars.BACKUP_READINESS_REFERENCE }}
+          SOURCE_CHECKSUM: ${{ needs.docker.outputs.source_checksum }}
           RELEASE_TAG: ${{ github.ref_name }}
           APPROVAL_REFERENCE: github-environment/production/${{ github.run_id }}
         with:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
-          envs: DEPLOY_PATH,CONTAINER_IMAGE,DEPLOY_HEALTH_URL,IMAGE_DIGEST,PREVIOUS_APP_IMAGE,QUALITY_EVIDENCE_REFERENCE,BACKUP_REFERENCE,RELEASE_TAG,APPROVAL_REFERENCE
+          envs: DEPLOY_PATH,CONTAINER_IMAGE,DEPLOY_HEALTH_URL,IMAGE_DIGEST,PREVIOUS_APP_IMAGE,QUALITY_EVIDENCE_REFERENCE,BACKUP_REFERENCE,SOURCE_CHECKSUM,RELEASE_TAG,APPROVAL_REFERENCE
           script: cd "$DEPLOY_PATH" && scripts/deploy/release.sh production ${{ github.sha }}
