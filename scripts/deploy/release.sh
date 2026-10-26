@@ -3,8 +3,9 @@ set -euo pipefail
 
 environment="${1:-}"
 release_sha="${2:-}"
+canonical_repository='ghcr.io/thanhlong282828/dji-admin'
 
-case "$environment" in development|production) ;; *) echo 'Environment must be development or production.' >&2; exit 64 ;; esac
+case "$environment" in development|staging|production) ;; *) echo 'Environment must be development, staging or production.' >&2; exit 64 ;; esac
 [[ "$release_sha" =~ ^[0-9a-f]{40}$ ]] || { echo 'A full Git SHA is required.' >&2; exit 64; }
 : "${DEPLOY_PATH:?DEPLOY_PATH is required}"
 : "${CONTAINER_IMAGE:?CONTAINER_IMAGE is required}"
@@ -15,24 +16,56 @@ case "$environment" in development|production) ;; *) echo 'Environment must be d
 : "${RELEASE_TAG:?RELEASE_TAG is required}"
 : "${APPROVAL_REFERENCE:?APPROVAL_REFERENCE is required}"
 : "${SOURCE_CHECKSUM:?SOURCE_CHECKSUM is required}"
+[[ "$CONTAINER_IMAGE" == "$canonical_repository" ]] || { echo 'CONTAINER_IMAGE must be the canonical GHCR repository.' >&2; exit 64; }
 [[ "$IMAGE_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]] || { echo 'IMAGE_DIGEST must be sha256:<64 lowercase hex>.' >&2; exit 64; }
 [[ "$SOURCE_CHECKSUM" =~ ^[0-9a-f]{64}$ ]] || { echo 'SOURCE_CHECKSUM must be 64 lowercase hex.' >&2; exit 64; }
-[[ "$PREVIOUS_APP_IMAGE" =~ ^[A-Za-z0-9._/-]+:[0-9a-f]{40}@sha256:[0-9a-f]{64}$ ]] || { echo 'PREVIOUS_APP_IMAGE must be immutable tag@digest.' >&2; exit 64; }
+[[ "$PREVIOUS_APP_IMAGE" =~ ^ghcr\.io/thanhlong282828/dji-admin:[0-9a-f]{40}@sha256:[0-9a-f]{64}$ ]] || { echo 'PREVIOUS_APP_IMAGE must use the canonical repository and immutable tag@digest.' >&2; exit 64; }
 
 cd "$DEPLOY_PATH"
 export APP_IMAGE="${CONTAINER_IMAGE}:${release_sha}@${IMAGE_DIGEST}"
-docker compose -f compose.yml -f docker-compose.prod.yml config --quiet
-docker compose -f compose.yml -f docker-compose.prod.yml pull
-docker compose -f compose.yml -f docker-compose.prod.yml run --rm app php artisan operations:migration-risk
-docker compose -f compose.yml -f docker-compose.prod.yml run --rm app php artisan operations:release-check \
-  --image="$APP_IMAGE" \
-  --rollback-target="$PREVIOUS_APP_IMAGE" \
-  --quality-evidence="$QUALITY_EVIDENCE_REFERENCE" \
-  --backup-reference="$BACKUP_REFERENCE" \
-  --allow-reviewed-pending
-docker compose -f compose.yml -f docker-compose.prod.yml run --rm app php artisan migrate --force
-docker compose -f compose.yml -f docker-compose.prod.yml up -d --remove-orphans
-docker compose -f compose.yml -f docker-compose.prod.yml exec -T app php artisan optimize
+compose_files=(-f compose.yml)
+if [[ "$environment" == "staging" ]]; then
+  compose_files+=(-f docker-compose.staging.yml)
+else
+  compose_files+=(-f docker-compose.prod.yml)
+fi
+compose=(docker compose "${compose_files[@]}")
+if [[ "$environment" == "staging" ]]; then
+  [[ -x ./scripts/operations/staging-preflight.sh ]] || { echo 'Executable staging preflight is required.' >&2; exit 65; }
+  ./scripts/operations/staging-preflight.sh
+fi
+"${compose[@]}" config --quiet
+"${compose[@]}" pull
+"${compose[@]}" run --rm app php artisan operations:migration-risk
+release_check=(php artisan operations:release-check
+  --image="$APP_IMAGE"
+  --rollback-target="$PREVIOUS_APP_IMAGE"
+  --quality-evidence="$QUALITY_EVIDENCE_REFERENCE"
+  --backup-reference="$BACKUP_REFERENCE")
+if [[ "$environment" != "staging" ]]; then
+  release_check+=(--allow-reviewed-pending)
+fi
+predeploy_release_check=("${release_check[@]}")
+if [[ "$environment" == "staging" ]]; then
+  predeploy_release_check+=(--allow-stale-scheduler)
+fi
+"${compose[@]}" run --rm app "${predeploy_release_check[@]}"
+if [[ "$environment" != "staging" ]]; then
+  "${compose[@]}" run --rm app php artisan migrate --force
+fi
+"${compose[@]}" up -d --remove-orphans
+"${compose[@]}" exec -T app php artisan optimize
+if [[ "$environment" == "staging" ]]; then
+  scheduler_ready=false
+  for _ in {1..12}; do
+    if "${compose[@]}" exec -T app "${release_check[@]}"; then
+      scheduler_ready=true
+      break
+    fi
+    sleep 5
+  done
+  [[ "$scheduler_ready" == "true" ]] || { echo 'Staging scheduler heartbeat did not become ready.' >&2; exit 65; }
+fi
 curl --fail --retry 12 --retry-delay 5 "${DEPLOY_HEALTH_URL:?DEPLOY_HEALTH_URL is required}/health/ready"
 curl --fail --retry 3 --retry-delay 2 "$DEPLOY_HEALTH_URL/health/live"
 curl --fail --retry 3 --retry-delay 2 "$DEPLOY_HEALTH_URL/health/metrics-readiness"
@@ -46,7 +79,7 @@ trap 'rm -f "$quality_file" "$manifest_tmp"' EXIT
 printf '%s\n' '{"phpstan":"pass","phpunit":"pass","pint":"pass","blade":"pass","vite":"pass","composer_audit":"pass","npm_audit":"pass","secret_scan":"pass","docker":"pass"}' > "$quality_file"
 mkdir -p "$manifest_directory"
 chmod 0750 "$manifest_directory"
-docker compose -f compose.yml -f docker-compose.prod.yml exec -T app php artisan operations:release-manifest \
+"${compose[@]}" exec -T app php artisan operations:release-manifest \
   --release-id="release-${release_sha}" \
   --commit="$release_sha" \
   --tag="$RELEASE_TAG" \
@@ -59,7 +92,7 @@ docker compose -f compose.yml -f docker-compose.prod.yml exec -T app php artisan
   --approval-reference="$APPROVAL_REFERENCE" \
   --quality-evidence=- \
   --created-at="$release_created_at" < "$quality_file"
-docker compose -f compose.yml -f docker-compose.prod.yml exec -T app php artisan operations:release-manifest \
+"${compose[@]}" exec -T app php artisan operations:release-manifest \
   --release-id="release-${release_sha}" \
   --commit="$release_sha" \
   --tag="$RELEASE_TAG" \
