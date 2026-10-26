@@ -87,6 +87,23 @@ Trước mọi bug fix, worktree integration, release candidate hoặc kết lu�
 
 > Hàng view số nằm ngoài phải thành card và gắn link tới nơi lấy dữ liệu. Thông tin trong table phải có link tới nguồn của nó. Phát triển theo Module + CQRS, giữ UI/UX đúng tone project. Bảng chưa có dữ liệu phải được nối vào luồng nghiệp vụ thực tế, không tạo dữ liệu cho có. Mọi thứ làm ra phải chỉ rõ và điều hướng được về nguồn.
 
+## MANDATORY PERMANENT ERP DEVELOPMENT GOVERNANCE
+
+Trước mỗi batch phát triển hoặc chỉnh sửa ERP, phải đọc đầy đủ:
+
+- `docs/governance/ERP-DEVELOPMENT-STANDARDS.md`
+
+Trước khi triển khai, phải thực hiện **Future Feature Completeness Audit** và ghi rõ trong phạm vi batch:
+
+1. Capability có phải workspace quản trị user-facing và cần canonical sidebar entry hay không.
+2. Named route, server-side permission, Process Help và tenant/company/branch scope đã tồn tại và đúng ownership hay chưa.
+3. Dữ liệu hiển thị có nguồn nghiệp vụ thật, persistence canonical và lineage truy xuất được hay chưa.
+4. Workflow đã có validation, state transition, downstream effect và tích hợp đúng module liên quan hay chưa.
+5. UI/UX có tái sử dụng đúng Dark/Gold ERP Admin design system, component, token và motion hiện hành hay chưa.
+6. Test có chứng minh data flow, authorization, isolation và state transition hay chưa.
+
+Nếu thiếu bất kỳ mục nào, phải báo gap và đề xuất bổ sung trong phạm vi được duyệt; không tự mở rộng batch. Không được tuyên bố hoàn thành khi chỉ có CRUD hoặc giao diện nhưng chưa có workflow nghiệp vụ thật. Backend-only service, API, job hoặc infrastructure capability không cần sidebar riêng nếu không cung cấp một workspace user-facing thực sự.
+
 ## MANDATORY ERP NAVIGATION GOVERNANCE
 
 Trước khi sửa bất kỳ module user-facing hoặc navigation nào, phải đọc đầy đủ:
