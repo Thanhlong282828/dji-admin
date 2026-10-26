@@ -36,6 +36,13 @@ final class ReleaseGovernanceTest extends TestCase
         $generator->writeImmutable($first + ['unexpected' => true], $path);
     }
 
+    public function test_staging_is_an_explicit_manifest_environment(): void
+    {
+        $data = new ReleaseManifestData('staging-release', str_repeat('a', 40), 'staging', 'committed', str_repeat('f', 64), 'ghcr.io/thanhlong282828/dji-admin:'.str_repeat('a', 40), 'sha256:'.str_repeat('b', 64), '2026-10-24T00:00:00+00:00', 'staging', 127, str_repeat('d', 64), '1.0.0', '8.4.26', '13.21.1', ['phpunit' => 'pass'], 'approval-123', 'ghcr.io/thanhlong282828/dji-admin:'.str_repeat('c', 40).'@sha256:'.str_repeat('e', 64), 1, str_repeat('1', 64), 'clean', 1, str_repeat('2', 64), 'ready', 1, str_repeat('3', 64), 'pass');
+
+        self::assertSame('staging', (new ReleaseManifestGenerator)->generate($data)['environment']);
+    }
+
     public function test_migration_scanner_only_classifies_up_method(): void
     {
         $scanner = new MigrationRiskScanner;

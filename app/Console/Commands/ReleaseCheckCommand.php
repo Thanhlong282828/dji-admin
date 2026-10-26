@@ -51,6 +51,7 @@ final class ReleaseCheckCommand extends Command
 
         return match (app()->environment()) {
             'production' => is_string(config('release.production_database')) && config('release.production_database') !== '' && $database === config('release.production_database'),
+            'staging' => is_string(config('data-quality.staging_restore.database')) && $database === config('data-quality.staging_restore.database'),
             'local' => $database === 'schema_admin',
             'testing' => str_contains($database, '_testing'),
             default => false,

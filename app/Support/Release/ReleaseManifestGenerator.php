@@ -67,7 +67,7 @@ final class ReleaseManifestGenerator
         if (! in_array($data->sourceState, ['committed', 'working_tree'], true) || preg_match('/^[0-9a-f]{64}$/', $data->sourceChecksum) !== 1) {
             throw new RuntimeException('A valid source state and SHA-256 checksum are required.');
         }
-        if (! in_array($data->environment, ['development', 'testing', 'production'], true)) {
+        if (! in_array($data->environment, ['development', 'testing', 'staging', 'production'], true)) {
             throw new RuntimeException('Invalid release environment.');
         }
         if (preg_match('/^sha256:[0-9a-f]{64}$/', $data->imageDigest) !== 1 || ! str_contains($data->imageReference, ':')) {
