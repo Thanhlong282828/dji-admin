@@ -25,7 +25,9 @@ final readonly class CloudflareImagesStorage implements MediaStorageInterface
                 ->post('https://api.cloudflare.com/client/v4/accounts/'.rawurlencode($accountId).'/images/v1', ['metadata' => json_encode(['purpose' => $purpose->value], JSON_THROW_ON_ERROR)])
                 ->throw()->json('result');
         } finally {
-            fclose($stream);
+            if (is_resource($stream)) {
+                fclose($stream);
+            }
         }
         if (! is_array($result) || ! is_string($result['id'] ?? null) || $result['id'] === '') {
             throw new RuntimeException('Cloudflare Images không trả về image ID hợp lệ.');
