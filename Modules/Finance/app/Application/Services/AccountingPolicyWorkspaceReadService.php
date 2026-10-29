@@ -19,7 +19,9 @@ final readonly class AccountingPolicyWorkspaceReadService
             ->when($policyId !== null, fn ($query) => $query->where('policy.id', $policyId))
             ->orderByDesc('policy.effective_from')->orderBy('policy.policy_key')->orderByDesc('policy.version')
             ->get(['policy.id', 'policy.policy_key', 'policy.version', 'policy.source_type', 'policy.business_event', 'policy.classification', 'policy.currency', 'policy.status', 'policy.effective_from', 'policy.effective_to']);
-        $ids = $policies->pluck('id')->map(fn (mixed $id): int => $this->integer($id))->all();
+        /** @var list<int> $ids */
+        $ids = array_values($policies->pluck('id')->map(fn (mixed $id): int => $this->integer($id))->all());
+        /** @var Collection<int, object> $lines */
         $lines = $ids === [] ? collect() : $this->db->table('accounting_posting_policy_lines as line')
             ->join('accounting_accounts as account', 'account.id', '=', 'line.account_id')
             ->whereIn('line.accounting_posting_policy_id', $ids)->where('account.company_id', $companyId)
@@ -27,6 +29,7 @@ final readonly class AccountingPolicyWorkspaceReadService
         $usage = $this->journalUsage($companyId, $ids);
         $items = $policies->map(function (object $policy) use ($lines, $usage, $canViewJournals, $companyId, $actor): array {
             $id = $this->integer($policy->id ?? null);
+            /** @var Collection<int,array{id:int,number:string,source_type:string,source_id:int,posting_type:string,date:string,branch_id?:int|null}> $policyUsage */
             $policyUsage = $usage->get($id, collect());
 
             return [
@@ -50,11 +53,17 @@ final readonly class AccountingPolicyWorkspaceReadService
         return ['policies' => array_values($items), 'selected_policy_id' => $policyId, 'totals' => ['policies' => $policies->count(), 'approved' => $policies->where('status', 'approved')->count(), 'used_by_journals' => $usage->flatten(1)->count()]];
     }
 
-    /** @param list<int> $policyIds @return Collection<int,Collection<int,array{id:int,number:string,source_type:string,source_id:int,posting_type:string,date:string}>> */
+    /**
+     * @param  list<int>  $policyIds
+     * @return Collection<int,Collection<int,array{id:int,number:string,source_type:string,source_id:int,posting_type:string,date:string,branch_id?:int|null}>>
+     */
     private function journalUsage(int $companyId, array $policyIds): Collection
     {
         if ($policyIds === []) {
-            return collect();
+            /** @var Collection<int,Collection<int,array{id:int,number:string,source_type:string,source_id:int,posting_type:string,date:string,branch_id?:int|null}>> $empty */
+            $empty = collect();
+
+            return $empty;
         }
         $rows = $this->db->table('payroll_accounting_journal_lines as line')->join('payroll_accounting_journals as journal', 'journal.id', '=', 'line.journal_id')
             ->where('journal.company_id', $companyId)->whereNotNull('line.mapping_snapshot')
@@ -70,10 +79,16 @@ final readonly class AccountingPolicyWorkspaceReadService
             $found[$resolvedId][$journalId] ??= ['id' => $journalId, 'branch_id' => is_numeric($row->branch_id ?? null) ? (int) $row->branch_id : null, 'number' => $this->text($row->journal_number ?? null), 'source_type' => $this->text($row->source_type ?? null), 'source_id' => $this->integer($row->source_id ?? null), 'posting_type' => $this->text($row->posting_type ?? null), 'date' => $this->text($row->posting_date ?? null)];
         }
 
-        return collect($found)->map(fn (array $journals): Collection => collect(array_values($journals)));
+        /** @var Collection<int,Collection<int,array{id:int,number:string,source_type:string,source_id:int,posting_type:string,date:string,branch_id?:int|null}>> $grouped */
+        $grouped = collect($found)->map(fn (array $journals): Collection => collect(array_values($journals)));
+
+        return $grouped;
     }
 
-    /** @param array<string,mixed> $journal @return array{source_label:string,source_url:?string} */
+    /**
+     * @param  array<string,mixed>  $journal
+     * @return array{source_label:string,source_url:?string}
+     */
     private function sourceLink(array $journal, int $companyId, ?User $actor): array
     {
         $sourceType = is_string($journal['source_type'] ?? null) ? $journal['source_type'] : '';

@@ -78,6 +78,8 @@ An approved importer must provide:
 
 Do not embed credentials, environment URLs or production IDs in the tool. Do not put business rules into an ad-hoc SQL script when the canonical module must enforce them.
 
+Use `docs/templates/local-to-production-import-allowlist.yaml` as the mandatory review template. It is a selection and approval artifact, not executable configuration. Every entity block must be completed explicitly; placeholder values, wildcard tables or missing owner approval keep the import classified as blocked.
+
 ## Staging-first proof
 
 Production import is blocked until an isolated staging environment exists with separate database, Redis, queue, mail sandbox, object storage and credentials. Restore the approved production backup there, apply the candidate migrations, then run import dry-run against that restored state.

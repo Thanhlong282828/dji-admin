@@ -2,11 +2,11 @@
 
 namespace Modules\Employee\Domain\Services;
 
-use Illuminate\Contracts\Encryption\Encrypter;
+use Illuminate\Contracts\Encryption\StringEncrypter;
 
 final readonly class EmployeeIdentityService
 {
-    public function __construct(private Encrypter $encrypter) {}
+    public function __construct(private StringEncrypter $encrypter) {}
 
     public function normalize(string $identity): string
     {

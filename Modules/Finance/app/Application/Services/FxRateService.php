@@ -5,6 +5,7 @@ namespace Modules\Finance\Application\Services;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\ConnectionInterface;
+use Illuminate\Database\Query\Builder;
 use Illuminate\Validation\ValidationException;
 use Modules\Company\Domain\Enums\SupportedCurrency;
 use Modules\Finance\Domain\Enums\FxRateType;
@@ -23,8 +24,11 @@ final readonly class FxRateService
             throw ValidationException::withMessages(['quote_currency' => 'FX_RATE_INVALID_PAIR']);
         }
         $rate = $this->rate($data['rate_decimal'] ?? null);
-        $type = FxRateType::tryFrom($this->text($data['rate_type'] ?? null))?->value
-            ?? throw ValidationException::withMessages(['rate_type' => 'FX_RATE_TYPE_UNSUPPORTED']);
+        $typeEnum = FxRateType::tryFrom($this->text($data['rate_type'] ?? null));
+        if ($typeEnum === null) {
+            throw ValidationException::withMessages(['rate_type' => 'FX_RATE_TYPE_UNSUPPORTED']);
+        }
+        $type = $typeEnum->value;
         $from = CarbonImmutable::parse($this->text($data['effective_from'] ?? null))->toDateString();
         $to = isset($data['effective_to']) && $data['effective_to'] !== '' ? CarbonImmutable::parse($this->text($data['effective_to']))->toDateString() : null;
         $rateDate = CarbonImmutable::parse($this->text($data['rate_date'] ?? null))->toDateString();
@@ -41,6 +45,7 @@ final readonly class FxRateService
             }
             $duplicate = $this->db->table('finance_fx_rates')->where(['company_id' => $companyId, 'idempotency_key' => $idempotencyKey])->lockForUpdate()->first();
             if ($duplicate instanceof stdClass) {
+                /** @var stdClass&object{id:int,base_currency:string,quote_currency:string,rate_decimal:string,rate_date:string,rate_type:string,source_reference:string,effective_from:string,effective_to:string|null} $duplicate */
                 $expected = [$base, $quote, $rate, $rateDate, $type, $sourceReference, $from, $to];
                 $actual = [(string) $duplicate->base_currency, (string) $duplicate->quote_currency, (string) $duplicate->rate_decimal, (string) $duplicate->rate_date, (string) $duplicate->rate_type, (string) $duplicate->source_reference, (string) $duplicate->effective_from, $duplicate->effective_to === null ? null : (string) $duplicate->effective_to];
                 if ($expected !== $actual) {
@@ -49,7 +54,8 @@ final readonly class FxRateService
 
                 return (int) $duplicate->id;
             }
-            $version = (int) $this->db->table('finance_fx_rates')->where(['company_id' => $companyId, 'base_currency' => $base, 'quote_currency' => $quote, 'rate_type' => $type])->max('version') + 1;
+            $maximumVersion = $this->db->table('finance_fx_rates')->where(['company_id' => $companyId, 'base_currency' => $base, 'quote_currency' => $quote, 'rate_type' => $type])->max('version');
+            $version = (is_int($maximumVersion) || (is_string($maximumVersion) && ctype_digit($maximumVersion)) ? (int) $maximumVersion : 0) + 1;
 
             return (int) $this->db->table('finance_fx_rates')->insertGetId([
                 'company_id' => $companyId, 'base_currency' => $base, 'quote_currency' => $quote,
@@ -78,6 +84,7 @@ final readonly class FxRateService
             if (! $row instanceof stdClass) {
                 throw ValidationException::withMessages(['rate' => 'FX_RATE_NOT_FOUND']);
             }
+            /** @var stdClass&object{status:string,created_by:int,base_currency:string,quote_currency:string,rate_type:string,effective_from:string,effective_to:string|null} $row */
             $status = $this->text($row->status ?? null);
             [$required, $next] = match ($action) {
                 'submit' => ['draft', 'submitted'], 'approve' => ['submitted', 'approved'],
@@ -94,7 +101,7 @@ final readonly class FxRateService
                 $overlap = $this->db->table('finance_fx_rates')->where('company_id', $companyId)->where('id', '<>', $rateId)
                     ->where(['base_currency' => $row->base_currency, 'quote_currency' => $row->quote_currency, 'rate_type' => $row->rate_type, 'status' => 'active'])
                     ->where('effective_from', '<=', $row->effective_to ?? '9999-12-31')
-                    ->where(fn ($query) => $query->whereNull('effective_to')->orWhere('effective_to', '>=', $row->effective_from))->exists();
+                    ->where(fn (Builder $query): Builder => $query->whereNull('effective_to')->orWhere('effective_to', '>=', $row->effective_from))->exists();
                 if ($overlap) {
                     throw ValidationException::withMessages(['effective_from' => 'FX_RATE_ACTIVE_WINDOW_OVERLAP']);
                 }
@@ -125,7 +132,10 @@ final readonly class FxRateService
     private function rate(mixed $value): string
     {
         $rate = $this->text($value);
-        if (! preg_match('/^\d+(?:\.\d{1,12})?$/', $rate) || bccomp($rate, '0', 12) !== 1) {
+        if (! is_numeric($rate) || ! preg_match('/^\d+(?:\.\d{1,12})?$/', $rate)) {
+            throw ValidationException::withMessages(['rate_decimal' => 'FX_RATE_INVALID_RATE']);
+        }
+        if (bccomp($rate, '0', 12) !== 1) {
             throw ValidationException::withMessages(['rate_decimal' => 'FX_RATE_INVALID_RATE']);
         }
 

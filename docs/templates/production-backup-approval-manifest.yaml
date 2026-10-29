@@ -1,0 +1,95 @@
+version: 1
+status: DRAFT_NOT_APPROVED
+change_reference: "REQUIRED"
+release_sha: "REQUIRED_FULL_SHA"
+requested_by: "REQUIRED"
+approved_by: "REQUIRED"
+approval_expires_at_utc: "REQUIRED"
+
+source:
+  cloud_project: project-06b7a0c7-35a4-4282-b81
+  instance: laravel-server
+  zone: asia-southeast1-a
+  instance_id: "549764252224027593"
+  application_path: /var/www/laravel
+  environment: production
+  database: schema_admin
+  mysql_server_uuid: "REQUIRED_READ_ONLY_PREFLIGHT"
+  mysql_version: "REQUIRED_READ_ONLY_PREFLIGHT"
+  expected_migration_head: "REQUIRED_READ_ONLY_PREFLIGHT"
+
+runner:
+  type: "REQUIRED: dedicated-workstation | ephemeral-gce"
+  identity: "REQUIRED"
+  mysql_client_image_or_version: "REQUIRED_MYSQL_8_4_COMPATIBLE"
+  mysql_client_digest: "REQUIRED_WHEN_CONTAINERIZED"
+  age_version: "REQUIRED"
+  temporary_directory: "REQUIRED_PROTECTED_ABSOLUTE_PATH"
+  plaintext_persistence_allowed: false
+
+transport:
+  type: google-iap-ssh-local-forward
+  local_bind: 127.0.0.1
+  local_port: 13306
+  remote_bind: 127.0.0.1
+  remote_port: 3306
+  database_credentials_source: "REQUIRED_APPROVED_SECRET_CUSTODIAN"
+  credentials_file_mode: "0600"
+
+encryption:
+  mechanism: age-x25519
+  recipient_fingerprint: "REQUIRED"
+  private_identity_location: "REQUIRED_SEPARATE_CUSTODY"
+  private_identity_on_vps: false
+  private_identity_in_git_or_report: false
+
+capture:
+  write_policy: "REQUIRED: approved-live-innodb | approved-write-freeze"
+  include_schema: true
+  include_data: true
+  include_triggers: true
+  include_routines: true
+  include_events: true
+  output_prefix: "REQUIRED_UNIQUE_UTC_PREFIX"
+  expected_max_duration_minutes: 30
+
+off_host:
+  bucket: "REQUIRED_NEW_DEDICATED_BUCKET"
+  location: asia-southeast1
+  object_prefix: "REQUIRED_IMMUTABLE_PREFIX"
+  writer_principal: "REQUIRED"
+  verifier_principal: "REQUIRED_SEPARATE_PRINCIPAL"
+  retention_days: 90
+  retention_locked: false
+  lifecycle_delete_days: 365
+  public_access_prevention: enforced
+  uniform_bucket_level_access: true
+
+authorized_mutations:
+  # Each item remains false until separately and explicitly approved.
+  create_bucket_and_controls: false
+  grant_bucket_scoped_writer_and_verifier_iam: false
+  open_iap_ssh_port_forward: false
+  create_local_encrypted_backup_artifacts: false
+  upload_new_ciphertext_and_sidecars: false
+  verifier_download_for_sha256: false
+
+explicitly_forbidden:
+  - install_packages_on_production_vps
+  - create_plaintext_dump_file
+  - change_mysql_data_or_configuration
+  - restart_services
+  - run_migrations
+  - overwrite_existing_gcs_object
+  - store_age_private_identity_with_ciphertext
+  - delete_backup_or_existing_object
+
+acceptance:
+  source_identity_verified: false
+  all_base_tables_innodb: false
+  encrypted_artifact_created: false
+  local_sha256_verified: false
+  off_host_upload_verified: false
+  verifier_redownload_sha256_verified: false
+  exact_restore_rehearsal_verified: false
+  evidence_report: "REQUIRED"

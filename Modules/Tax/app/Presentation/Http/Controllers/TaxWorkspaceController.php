@@ -28,13 +28,14 @@ final readonly class TaxWorkspaceController
         abort_unless($user instanceof User, 401);
         $companyId = $request->integer('company_id', 1);
         abort_unless($this->access->company($user, $companyId), 404);
+        /** @var array{branch_id?:int|null,from?:string|null,to?:string|null,currency?:string|null} $validated */
         $validated = $request->validate([
             'branch_id' => ['nullable', 'integer', 'min:1'],
             'from' => ['nullable', 'date_format:Y-m-d'],
             'to' => ['nullable', 'date_format:Y-m-d'],
             'currency' => ['nullable', 'regex:/^[A-Z]{3}$/'],
         ]);
-        $branchId = isset($validated['branch_id']) ? (int) $validated['branch_id'] : null;
+        $branchId = $validated['branch_id'] ?? null;
         if ($branchId !== null) {
             abort_unless($this->access->branch($user, $companyId, $branchId), 404);
         }

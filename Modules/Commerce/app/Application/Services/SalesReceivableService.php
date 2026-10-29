@@ -156,13 +156,13 @@ final readonly class SalesReceivableService
             $taxCategoryCode = $this->nullableText($d, 'tax_category_code');
             if ($taxCategoryCode !== null) {
                 $taxPolicy = $this->taxPolicies->resolve($company, 'customer_invoice', $invoiceDate, $taxCategoryCode, $currency);
-                $tax = $this->taxPolicies->calculate($taxable, $taxPolicy['rate_basis_points']);
+                $tax = $this->taxPolicies->calculate($taxable, $this->policyInt($taxPolicy, 'rate_basis_points'));
             }
             $id = (int) DB::table('customer_invoices')->insertGetId(['company_id' => $company, 'branch_id' => $this->id($o, 'branch_id'), 'customer_id' => $this->id($o, 'customer_id'), 'sales_order_id' => $orderId, 'invoice_number' => $this->text($d, 'invoice_number'), 'invoice_date' => $invoiceDate, 'due_date' => $this->text($d, 'due_date'), 'currency' => $currency, 'subtotal_minor' => $this->id($o, 'subtotal_minor'), 'discount_minor' => $this->id($o, 'discount_minor'), 'tax_minor' => $tax, 'total_minor' => $taxable + $tax, 'paid_minor' => 0, 'tax_status' => $taxPolicy === null ? 'configuration_required' : 'configured', 'tax_category_id' => $taxPolicy['category_id'] ?? null, 'tax_policy_id' => $taxPolicy['policy_id'] ?? null, 'tax_policy_version' => $taxPolicy['version'] ?? null, 'tax_rate_basis_points' => $taxPolicy['rate_basis_points'] ?? null, 'status' => 'draft', 'created_by' => $actor->id, 'created_at' => now(), 'updated_at' => now()]);
             $orderLines = DB::table('sales_order_lines')->where('sales_order_id', $orderId)->get();
             $remainingTax = $tax;
             foreach ($orderLines as $index => $l) {
-                $lineTax = $taxPolicy === null ? 0 : ($index === $orderLines->count() - 1 ? $remainingTax : $this->taxPolicies->calculate($this->id($l, 'net_minor'), $taxPolicy['rate_basis_points']));
+                $lineTax = $taxPolicy === null ? 0 : ($index === $orderLines->count() - 1 ? $remainingTax : $this->taxPolicies->calculate($this->id($l, 'net_minor'), $this->policyInt($taxPolicy, 'rate_basis_points')));
                 $remainingTax -= $lineTax;
                 DB::table('customer_invoice_lines')->insert(['customer_invoice_id' => $id, 'sales_order_line_id' => $this->id($l, 'id'), 'product_variant_id' => $this->id($l, 'product_variant_id'), 'description' => $this->str($l, 'description'), 'quantity' => $this->id($l, 'quantity'), 'unit_price_minor' => $this->id($l, 'unit_price_minor'), 'discount_minor' => $this->id($l, 'discount_minor'), 'tax_minor' => $lineTax, 'line_total_minor' => $this->id($l, 'net_minor') + $lineTax, 'cogs_minor' => $this->id($l, 'cogs_minor'), 'created_at' => now(), 'updated_at' => now()]);
             }
@@ -200,7 +200,7 @@ final readonly class SalesReceivableService
                 $policy = $this->postingPolicies->resolve($company, 'CUSTOMER_INVOICE_ISSUED', null, $this->str($i, 'invoice_date'), $recognition->functionalCurrency);
                 $lines = array_map(fn (array $line): array => ['account_code' => $line['account_code'], 'debit' => $line['entry_side'] === 'debit' ? $amount : 0, 'credit' => $line['entry_side'] === 'credit' ? $amount : 0, 'description' => 'Customer invoice '.$line['line_role']], $policy['lines']);
             }
-            $journal = $this->accounting->postPolicyBacked($company, $this->id($i, 'branch_id'), 'customer_invoice', $id, 'erp_sales_invoice', $this->str($i, 'invoice_date'), $recognition->functionalCurrency, $lines, $actor->id, $policy['policy_id'], $policy['version']);
+            $journal = $this->accounting->postPolicyBacked($company, $this->id($i, 'branch_id'), 'customer_invoice', $id, 'erp_sales_invoice', $this->str($i, 'invoice_date'), $recognition->functionalCurrency, $lines, $actor->id, $this->policyInt($policy, 'policy_id'), $this->policyInt($policy, 'version'));
             if ($taxPolicyId !== null) {
                 $this->taxEvidence->record($company, $this->id($i, 'branch_id'), 'customer_invoice', $id, $this->str($i, 'invoice_date'), $this->str($i, 'currency'), $amount - $this->id($i, 'tax_minor'), $this->id($i, 'tax_minor'), $journal, $taxPolicy);
             }
@@ -268,10 +268,10 @@ final readonly class SalesReceivableService
                 $journalCurrency = $this->str($settlement, 'functional_currency');
             } else {
                 $policy = $this->postingPolicies->resolve($company, 'CUSTOMER_COLLECTION', null, $date, $currency);
-                $lines = array_values(array_map(fn (array $policyLine): array => ['account_code' => $policyLine['account_code'], 'debit' => $policyLine['entry_side'] === 'debit' ? $amount : 0, 'credit' => $policyLine['entry_side'] === 'credit' ? $amount : 0, 'description' => 'Customer collection '.$policyLine['line_role']], $policy['lines']));
+                $lines = array_map(fn (array $policyLine): array => ['account_code' => $policyLine['account_code'], 'debit' => $policyLine['entry_side'] === 'debit' ? $amount : 0, 'credit' => $policyLine['entry_side'] === 'credit' ? $amount : 0, 'description' => 'Customer collection '.$policyLine['line_role']], $policy['lines']);
                 $journalCurrency = $currency;
             }
-            $journal = $this->accounting->postPolicyBacked($company, $this->id($i, 'branch_id'), 'customer_collection', $id, 'customer_collection', $date, $journalCurrency, $lines, $actor->id, $policy['policy_id'], $policy['version']);
+            $journal = $this->accounting->postPolicyBacked($company, $this->id($i, 'branch_id'), 'customer_collection', $id, 'customer_collection', $date, $journalCurrency, $lines, $actor->id, $this->policyInt($policy, 'policy_id'), $this->policyInt($policy, 'version'));
             $treasury = $financialAccountId === null
                 ? $this->treasury->recordSource($company, $this->id($i, 'branch_id'), 'customer_collection', $id, $journal, $ref, $amount, $date.' 12:00:00', $actor->id, 'inflow')
                 : $this->treasury->recordSourceToAccount($company, $this->id($i, 'branch_id'), $financialAccountId, 'customer_collection', $id, $journal, $ref, $amount, $date.' 12:00:00', $actor->id, 'inflow');
@@ -375,5 +375,13 @@ final readonly class SalesReceivableService
         $v = data_get($o, $k);
 
         return is_string($v) ? $v : throw new \RuntimeException('Invalid persisted string.');
+    }
+
+    /** @param array<string, mixed> $policy */
+    private function policyInt(array $policy, string $key): int
+    {
+        $value = $policy[$key] ?? null;
+
+        return is_int($value) ? $value : throw new \RuntimeException('Invalid accounting policy integer.');
     }
 }

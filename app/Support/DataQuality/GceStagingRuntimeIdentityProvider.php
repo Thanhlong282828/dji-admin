@@ -49,14 +49,18 @@ final readonly class GceStagingRuntimeIdentityProvider implements StagingRuntime
             throw new RuntimeException('GCE network-interface metadata is unavailable.');
         }
         $decoded = $response->json();
-        if (! is_array($decoded) || $decoded === []) {
+        if (! is_array($decoded) || $decoded === [] || ! array_is_list($decoded)) {
             throw new RuntimeException('GCE network-interface metadata is malformed.');
         }
         $networks = [];
         $subnets = [];
         $publicIps = [];
         foreach ($decoded as $interface) {
-            if (! is_array($interface) || ! is_string($interface['network'] ?? null) || ! is_string($interface['subnetwork'] ?? null)) {
+            if (! is_array($interface)
+                || ! is_string($interface['network'] ?? null)
+                || trim($interface['network']) === ''
+                || ! is_string($interface['subnetwork'] ?? null)
+                || trim($interface['subnetwork']) === '') {
                 throw new RuntimeException('GCE network-interface metadata is malformed.');
             }
             $networks[] = trim($interface['network']);
@@ -66,16 +70,22 @@ final readonly class GceStagingRuntimeIdentityProvider implements StagingRuntime
                 throw new RuntimeException('GCE access-config metadata is malformed.');
             }
             foreach ($accessConfigs as $accessConfig) {
-                if (! is_array($accessConfig)) {
+                if (! is_array($accessConfig) || ! array_key_exists('externalIp', $accessConfig)) {
                     throw new RuntimeException('GCE access-config metadata is malformed.');
                 }
-                $externalIp = $accessConfig['externalIp'] ?? null;
-                if ($externalIp !== null && (! is_string($externalIp) || trim($externalIp) === '')) {
+                $externalIp = $accessConfig['externalIp'];
+                if (! is_string($externalIp)) {
                     throw new RuntimeException('GCE external-IP metadata is malformed.');
                 }
-                if (is_string($externalIp)) {
-                    $publicIps[] = trim($externalIp);
+                $externalIp = trim($externalIp);
+                if ($externalIp === '') {
+                    continue;
                 }
+                if (filter_var($externalIp, FILTER_VALIDATE_IP) === false) {
+                    throw new RuntimeException('GCE external-IP metadata is malformed.');
+                }
+
+                throw new RuntimeException('GCE metadata reports a public IP; staging isolation failed.');
             }
         }
         $networks = array_values(array_unique($networks));

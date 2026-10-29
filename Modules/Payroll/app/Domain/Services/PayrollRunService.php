@@ -42,7 +42,9 @@ final readonly class PayrollRunService
             if (PayrollRun::query()->where('company_id', $company)->where('payroll_period_id', $periodId)->exists()) {
                 throw ValidationException::withMessages(['period' => 'Period đã có Payroll Run.']);
             }
-            $run = PayrollRun::query()->create(['uuid' => (string) Str::uuid(), 'company_id' => $company, 'payroll_period_id' => $periodId, 'payroll_input_snapshot_id' => $snapshotId, 'run_number' => $runNumber, 'code' => $runNumber, 'period_start' => $periodStart, 'period_end' => $periodEnd, 'status' => 'draft', 'currency_code' => $currency, 'formula_version' => ['engine' => 'foundation-v1', 'money' => 'integer-minor'], 'created_by' => $actor, 'idempotency_key' => $key]);
+            $run = new PayrollRun(['company_id' => $company, 'payroll_period_id' => $periodId, 'payroll_input_snapshot_id' => $snapshotId, 'run_number' => $runNumber, 'code' => $runNumber, 'period_start' => $periodStart, 'period_end' => $periodEnd, 'status' => 'draft', 'currency_code' => $currency, 'formula_version' => ['engine' => 'foundation-v1', 'money' => 'integer-minor'], 'created_by' => $actor, 'idempotency_key' => $key]);
+            $run->setAttribute('uuid', (string) Str::uuid());
+            $run->save();
             $this->history($run, null, 'draft', 'created', $actor, 0, 1, $key, null);
             activity('payroll-run')->performedOn($run)->causedBy($actor)->event('created')->withProperties(['company_id' => $company, 'run_id' => $run->id])->log('Payroll Run created');
             event(new PayrollRunChanged($company, $run->id, $periodId, 'created', 'draft', 1, 0));

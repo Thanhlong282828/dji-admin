@@ -23,14 +23,14 @@ final class StorageRuntimeReadinessCommand extends Command
         $databaseDirectory = config('document.malware_scanner_database_directory', '/var/lib/clamav');
         $databasePath = is_string($databaseDirectory) ? $databaseDirectory : '';
         $signatureAge = $this->newestSignatureAgeHours($databasePath);
-        $maxSignatureAge = max(1, (int) config('document.malware_scanner_max_signature_age_hours', 48));
+        $maxSignatureAge = max(1, $this->configuredInt('document.malware_scanner_max_signature_age_hours', 48));
         $scannerReady = is_string($binaryPath)
             && is_executable($binaryPath)
             && $signatureAge !== null
             && $this->scannerAcceptsDatabase($binaryPath, $databasePath);
         $scheduleEnabled = (bool) config('document.reconciliation.schedule_enabled', false);
-        $companiesPerRun = (int) config('document.reconciliation.companies_per_run', 25);
-        $batchMaxSeconds = (int) config('document.reconciliation.batch_max_seconds', 240);
+        $companiesPerRun = $this->configuredInt('document.reconciliation.companies_per_run', 25);
+        $batchMaxSeconds = $this->configuredInt('document.reconciliation.batch_max_seconds', 240);
 
         $checks = [
             'production_environment' => ! $strict || app()->environment('production'),
@@ -53,6 +53,13 @@ final class StorageRuntimeReadinessCommand extends Command
         $this->line(json_encode($result, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES));
 
         return $result['ready'] ? self::SUCCESS : self::FAILURE;
+    }
+
+    private function configuredInt(string $key, int $default): int
+    {
+        $value = config($key, $default);
+
+        return is_int($value) ? $value : $default;
     }
 
     private function newestSignatureAgeHours(string $directory): ?int

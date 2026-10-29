@@ -7,7 +7,8 @@ use Illuminate\Database\Eloquent\Model;
 /** @property int $id @property int $company_id @property int $leave_type_id @property int $annual_entitlement_minutes @property bool $negative_balance_allowed @property bool $requires_attachment */
 final class LeavePolicy extends Model
 {
-    protected $guarded = ['id'];
+    protected $fillable = [
+    ];
 
     protected function casts(): array
     {

@@ -9,7 +9,18 @@ use Modules\Company\Domain\Models\Company;
 
 final class OrganizationUnit extends Model
 {
-    protected $guarded = ['id', 'created_at', 'updated_at'];
+    protected $fillable = [
+        'code',
+        'company_id',
+        'cost_center_id',
+        'effective_from',
+        'effective_to',
+        'headcount_limit',
+        'metadata',
+        'name',
+        'parent_id',
+        'type',
+    ];
 
     protected function casts(): array
     {

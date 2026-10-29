@@ -9,7 +9,12 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 /** @property int $user_id */
 final class ApplicationInterviewer extends Model
 {
-    protected $guarded = ['id'];
+    protected $fillable = [
+        'application_interview_id',
+        'company_id',
+        'role',
+        'user_id',
+    ];
 
     /** @return BelongsTo<ApplicationInterview,$this> */
     public function interview(): BelongsTo

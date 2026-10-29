@@ -62,7 +62,12 @@
         <label for="admin-navigation-search">{{ $useOriginalCopy ? 'Tìm nhanh trong menu' : __('navigation.search') }}</label>
         <input id="admin-navigation-search" type="search" autocomplete="off" placeholder="{{ $useOriginalCopy ? 'Ví dụ: payroll, bảo mật…' : __('navigation.search_placeholder') }}" data-nav-search>
     </div>
-    <nav class="primary-navigation" aria-label="Điều hướng chính" data-primary-navigation>
+    <nav
+        class="primary-navigation"
+        aria-label="Điều hướng chính"
+        data-primary-navigation
+        data-navigation-destination-count="{{ array_sum(array_map(static fn (array $group): int => count($group['items']), $navigationGroups)) }}"
+    >
         @forelse($navigationGroups as $group)
             <section class="nav-group {{ $group['active'] ? 'is-active is-open' : '' }}" data-nav-group="{{ $group['key'] }}" data-route-active="{{ $group['active'] ? 'true' : 'false' }}">
                 <h2>
@@ -117,8 +122,20 @@
             delete root.dataset.adminNavInitializing;
         })();
     </script>
-    <div class="sidebar-locale" data-locale-switcher><button type="button" aria-label="{{ $useOriginalCopy ? 'Ngôn ngữ hiển thị' : __('navigation.language') }}" aria-haspopup="true" aria-expanded="false" aria-controls="sidebar-locale-menu" data-locale-toggle><span aria-hidden="true">◎</span><span>{{ $useOriginalCopy ? 'Mặc định' : __('navigation.locales.'.$presentationLocale) }}</span></button><div id="sidebar-locale-menu" role="menu" hidden data-locale-menu>@foreach(['default'=>'◉','vi'=>'🇻🇳','en'=>'🇬🇧','zh_CN'=>'🇨🇳'] as $locale=>$flag)<form method="POST" action="{{ route('locale.update') }}" role="none">@csrf<input type="hidden" name="locale" value="{{ $locale }}"><button role="menuitem" type="submit">{{ $flag }} {{ $locale === 'default' ? 'Mặc định' : __('navigation.locales.'.$locale) }} @if($presentationLocale===$locale)<span aria-hidden="true">✓</span>@endif</button></form>@endforeach</div></div>
-    <div class="user">{{ auth()->user()?->name ?? 'SYSTEM ADMIN' }}<br><small>Enterprise HRM</small></div>
+    <footer class="sidebar-footer">
+        <div class="sidebar-locale" data-locale-switcher><button type="button" aria-label="{{ $useOriginalCopy ? 'Ngôn ngữ hiển thị' : __('navigation.language') }}" aria-haspopup="true" aria-expanded="false" aria-controls="sidebar-locale-menu" data-locale-toggle><span aria-hidden="true">◎</span><span>{{ $useOriginalCopy ? 'Mặc định' : __('navigation.locales.'.$presentationLocale) }}</span></button><div id="sidebar-locale-menu" role="menu" hidden data-locale-menu>@foreach(['default'=>'◉','vi'=>'🇻🇳','en'=>'🇬🇧','zh_CN'=>'🇨🇳'] as $locale=>$flag)<form method="POST" action="{{ route('locale.update') }}" role="none">@csrf<input type="hidden" name="locale" value="{{ $locale }}"><button role="menuitem" type="submit">{{ $flag }} {{ $locale === 'default' ? 'Mặc định' : __('navigation.locales.'.$locale) }} @if($presentationLocale===$locale)<span aria-hidden="true">✓</span>@endif</button></form>@endforeach</div></div>
+        @auth
+            <form class="sidebar-logout" method="POST" action="{{ route('logout') }}" x-data="{ submitting: false }" x-on:submit="submitting = true">
+                @csrf
+                <button type="submit" x-bind:disabled="submitting" aria-label="Đăng xuất khỏi hệ thống">
+                    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M10 17l5-5-5-5M15 12H3m9-9h6a3 3 0 013 3v12a3 3 0 01-3 3h-6" /></svg>
+                    <span x-show="! submitting">Đăng xuất</span>
+                    <span x-cloak x-show="submitting" role="status">Đang đăng xuất…</span>
+                </button>
+            </form>
+        @endauth
+        <div class="user">{{ auth()->user()?->name ?? 'SYSTEM ADMIN' }}<br><small>Enterprise HRM</small></div>
+    </footer>
 </aside>
 <main id="main-content" tabindex="-1">
     <header class="admin-page-header">
@@ -345,7 +362,7 @@
 
         <section>
             <h3>
-                Khi thao tác, dữ liệu thay đổi ở đâu
+                Sau khi lưu thì dữ liệu đi đâu
             </h3>
 
             <ul>

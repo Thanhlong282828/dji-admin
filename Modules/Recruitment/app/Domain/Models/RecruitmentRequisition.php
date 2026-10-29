@@ -20,7 +20,17 @@ use Modules\Recruitment\Domain\Enums\RecruitmentRequisitionStatus;
  */
 final class RecruitmentRequisition extends Model
 {
-    protected $guarded = ['id'];
+    protected $fillable = [
+        'approval_context',
+        'budget',
+        'filled_hires',
+        'job_position_id',
+        'requested_by',
+        'status',
+        'target_date',
+        'vacancies',
+        'version',
+    ];
 
     protected function casts(): array
     {

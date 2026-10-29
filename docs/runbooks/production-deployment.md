@@ -96,6 +96,29 @@ Do not use `migrate:fresh`, `migrate:refresh`, `migrate:reset` or blind producti
 
 ## Deployment topology
 
+### Reverse proxy and origin exposure
+
+- Public traffic must terminate at the approved edge/host reverse proxy. The
+  application container origin must bind to loopback or a private-only network;
+  never publish its HTTP/FastCGI/Reverb ports on every host interface.
+- The edge proxy must overwrite `Host`, `X-Forwarded-For`,
+  `X-Forwarded-Host`, `X-Forwarded-Port` and `X-Forwarded-Proto`; it must not
+  append untrusted client-supplied forwarding metadata.
+- Laravel may trust only the explicit loopback/private proxy ranges supplied by
+  deployment configuration. Adding a public/unbounded trusted proxy is not an
+  acceptable substitute for origin network isolation.
+- Hiding the backend requires an infrastructure control in addition to Nginx:
+  prefer Cloudflare Tunnel/private ingress, or restrict the origin firewall to
+  the approved edge proxy ranges and use authenticated origin TLS. DNS proxying
+  alone does not hide an origin whose public IP remains reachable.
+- Before cutover, prove direct access to the origin address/port is denied,
+  HTTPS URL generation uses the forwarded scheme, the application records the
+  verified client IP, WebSocket upgrades work, and health endpoints remain
+  reachable only through the intended path.
+- Updating proxy configuration, firewall, Cloudflare Tunnel/DNS, certificates
+  or reloading Nginx is a production mutation requiring explicit approval,
+  configuration validation and rollback instructions.
+
 Use versioned immutable release directories with shared persistent paths and an atomic `current` symlink. Do not overwrite a live checkout in place.
 
 The approved sequence is:
@@ -116,6 +139,74 @@ The approved sequence is:
 14. start the one approved worker/scheduler topology;
 15. perform post-deployment verification through the rollback observation window.
 
+Canonical filesystem topology:
+
+- `/var/www/laraveldji/releases/<release-id>`: immutable and never edited in place;
+- `/var/www/laraveldji/shared/.env`: protected production configuration;
+- `/var/www/laraveldji/shared/storage`: persistent Laravel storage;
+- `/var/www/laraveldji/current`: atomic symlink to exactly one release;
+- Nginx root: `/var/www/laraveldji/current/public`.
+
+Build and verify the release off-host. Transfer it into a new release directory, verify checksum, link only approved shared paths, warm caches, then switch `current` with one atomic rename. A separately approved Nginx config validation and reload is required when leaving a legacy document root. Keep the previous release immutable throughout the observation window.
+
+Before converting a dirty legacy checkout, preserve a secret-free `git diff`, file metadata and SHA-256 for source modifications. Treat `.env` and `.env.backup*` as secrets: record metadata/hash only, move them only into the approved protected shared configuration location, and never copy them into an artifact or report. Do not silently discard or adopt production-only source edits.
+
+## Production environment and secret delivery
+
+Codex may prepare and execute secret delivery so the operator does not have to
+SSH and type every credential, but only after an explicit manifest approval for
+the exact variable names, source, destination environment and mutation scope.
+Approval to deploy source, rehearse migrations or audit `.env` does not authorize
+creating, rotating, copying or replacing production secrets.
+
+- Inventory environment requirements from real `config/*` and module config
+  consumers. Report only variable names and `PRESENT`, `MISSING`, `VERIFIED` or
+  `NOT VERIFIED`; never emit values.
+- Split non-secret configuration from secret material. Non-secret values may be
+  release/deployment configuration; secret values belong in Google Secret
+  Manager or another explicitly approved secret store.
+- Never copy an entire local `.env` to staging or production. Local credentials
+  are not presumed to be production credentials, and test/demo provider values
+  must never cross environments.
+- Preserve the active production `APP_KEY`, database password and canonical
+  provider credentials unless a separately approved rotation plan names that
+  exact secret and includes rollback. An absent local value is not permission to
+  blank an active production value.
+- Staging uses generated staging-only database/application credentials and
+  no-op/log/null transports for mail, webhooks, payment, alerts, broadcasting,
+  queue workers and external side effects. Never give staging production
+  Supabase/object-storage write credentials.
+- Prefer one Secret Manager secret per independently rotated credential (or a
+  reviewed, versioned environment bundle when atomic consistency is required).
+  Grant the deployment identity access only to approved secret versions; do not
+  grant the application or staging service account project-wide secret access.
+- Materialize production configuration only during an approved change window.
+  Fetch secrets without placing values in command arguments, shell history,
+  process listings, CI logs or reports; write a mode-0600/0640 temporary file in
+  a protected directory, validate required names and Laravel config parsing,
+  then atomically rename it to `/var/www/laraveldji/shared/.env` with the
+  approved owner/group. Remove temporary files and revoke temporary access.
+- When Secret Manager is unavailable or not approved, use an IAP/SSH protected
+  stdin/file transfer with strict permissions and checksum/fingerprint evidence.
+  Never paste secrets into a Codex prompt, Git, deployment report or terminal
+  command line.
+- Run a redacted pre/post inventory and `php artisan optimize:clear` before
+  building production config cache. Runtime verification must test provider
+  connectivity only through separately approved, minimum-impact read-only
+  checks; `CONFIGURED` is not equivalent to `VERIFIED`.
+- Keep a recoverable protected copy or Secret Manager version of the previous
+  production configuration until the rollback window closes. Rollback restores
+  the previous complete configuration atomically; it must not reconstruct an
+  `.env` by guessing individual values.
+- Every evidence report records secret names, source class, target environment,
+  version/resource identity, permission result and redacted verification only.
+  It must not contain secret values, signed URLs, private keys or database
+  credentials.
+
+## Isolated staging rule
+
+Migration rehearsal must use an ephemeral staging environment that cannot reach production MySQL, Redis, queue, mail, webhook, payment or object-storage write endpoints after the approved backup is transferred. Prefer private networking plus IAP, no public database listener, deny outbound side effects by configuration, and use separate credentials. Match production MySQL major version and PHP/runtime versions; allocate enough memory to measure migration/runtime peak RSS. Record the resource identity and destroy it only under a separately approved cleanup after evidence retention.
+
 ## Small-VPS capacity rules
 
 Measure CPU, RAM, swap, disk, inodes and process RSS before deployment. One point-in-time healthy sample is not capacity proof.
@@ -135,6 +226,8 @@ For a VPS near 1 GiB RAM:
 Document malware scanning remains fail-closed. Never disable scanning to make uploads pass.
 
 Do not install ClamD or run concurrent `clamscan` processes on a 1 GiB application VPS without measured staging evidence and explicit approval. Prefer a private, authenticated remote scanner service on separate capacity when the application has a tested adapter. Otherwise resize the VPS first and run one bounded scanner topology.
+
+The preferred low-memory topology is a private remote ClamD service on separate capacity. The application adapter must be implemented and tested before approval; it must rely on private connectivity and firewall allowlisting, stream with strict size/time/concurrency limits, fail closed on transport/signature errors, and never log file content. Never expose raw ClamD TCP publicly. Start with one scanner worker on a host with at least 4 GiB RAM, then measure signature-load and scan peak RSS in staging before final sizing.
 
 Production readiness requires proof of:
 

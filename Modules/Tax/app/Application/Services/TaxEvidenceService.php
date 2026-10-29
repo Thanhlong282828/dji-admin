@@ -33,11 +33,12 @@ final readonly class TaxEvidenceService
             'tax_category_id' => $policy['category_id'] ?? null,
         ])->lockForUpdate()->first();
         if ($existing !== null) {
-            if ((int) $existing->accounting_journal_id !== $journalId || (int) $existing->tax_amount_minor !== $taxAmountMinor) {
+            /** @var object{id:int,accounting_journal_id:int,tax_amount_minor:int} $existing */
+            if ($existing->accounting_journal_id !== $journalId || $existing->tax_amount_minor !== $taxAmountMinor) {
                 throw ValidationException::withMessages(['tax_evidence' => 'TAX_SOURCE_ALREADY_POSTED']);
             }
 
-            return (int) $existing->id;
+            return $existing->id;
         }
 
         return (int) $this->db->table('tax_transaction_evidence')->insertGetId([

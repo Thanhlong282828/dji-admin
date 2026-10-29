@@ -17,6 +17,6 @@
     <div class="table-wrap"><table><thead><tr><th>Component</th><th>Rule</th><th>Severity</th><th>Finding</th><th>Count</th><th>Status</th></tr></thead><tbody>
     @foreach($snapshot['findings'] as $finding)<tr><td>{{ $finding['component'] }}</td><td><code>{{ $finding['key'] }}</code></td><td>{{ $finding['severity'] }}</td><td>{{ $finding['description'] }}</td><td>{{ $finding['count'] }}</td><td>{{ $finding['status'] }}</td></tr>@endforeach
     </tbody></table></div>
-    <p><small>Snapshot checksum: <code>{{ $snapshot['checksum'] }}</code></small></p>
+    <p class="erp-break-anywhere"><small>Snapshot checksum: <code>{{ $snapshot['checksum'] }}</code></small></p>
 </section>
 @endsection

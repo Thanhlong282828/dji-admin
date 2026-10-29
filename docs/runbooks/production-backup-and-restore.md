@@ -87,6 +87,16 @@ Before an approved dump:
 
 The dump command must read credentials through a protected configuration channel and must not expose them in process output. Capture stderr separately with redaction. An approved snapshot complements but does not replace a portable logical dump and restore drill.
 
+The canonical prepared implementation is `scripts/operations/backup-database-encrypted.sh`. Its default `--validate-only` mode must remain connection-free. Execute mode requires exact environment/database confirmations, a protected MySQL defaults file and an `age` recipient. It writes only encrypted output plus checksum and a secret-free manifest. It deliberately does not copy off-host; that is a separate approved operation. Never replace this with a password argument, persistent plaintext dump or key stored beside the ciphertext.
+
+The canonical encrypted restore rehearsal is `scripts/operations/restore-encrypted-to-staging.sh`. It refuses non-staging environments and database names not ending in `_staging_restore`. Restore, migration rehearsal and teardown are separate approvals. Staging must use a distinct database host, Redis namespace, queues and outbound side-effect sinks.
+
+Prefer a dedicated backup runner instead of installing dump/encryption packages on a resource-constrained production host. When MySQL listens only on the production loopback interface, use an approved IAP SSH local forward from the runner to `127.0.0.1:3306`. Run a MySQL-version-compatible client on the runner and stream `mysqldump | gzip | age`; plaintext may exist only transiently in encrypted transport and process memory/pipes, never as a persistent file. IAP is not a bulk-transfer service, so record duration and use this pattern only for a bounded dump whose size fits the approved window.
+
+The runner must obtain database credentials through an approved secret custodian into a temporary mode-0600 client option file. Never extract a production `.env` into terminal output, shell history, command arguments, CI logs or reports. Destroy the runner/temporary credential material after checksum and off-host verification according to the approved cleanup step.
+
+An `age` private identity must remain separate from the runner artifact and ciphertext. Keep it in an approved password/secret manager or hardware-backed age plugin under named custody; record only the public recipient fingerprint in an approval manifest. Never store the private identity on the production VM, in Git, beside a backup, in GCS object metadata or in an evidence report. Restore approval includes controlled, temporary key delivery and cleanup.
+
 ## Application file and object-storage procedure
 
 - Inventory local persistent roots separately from source code.
@@ -114,6 +124,18 @@ No production deployment or migration is approved until:
 - post-deployment checks and observation window are approved.
 
 A dirty local tree or dirty production checkout blocks release classification even if a safety backup exists.
+
+## Capacity and transfer preflight
+
+Before capture, record free bytes and inodes on the backup path, current database bytes, memory/swap headroom, expected compression ratio and a conservative temporary-space requirement. Encrypted streaming avoids a plaintext archive but does not remove the need for room for the encrypted artifact and redacted logs. Stop if the protected destination cannot hold at least two estimated compressed dumps plus 20% safety margin.
+
+Off-host transfer must use a new immutable destination object/path. Verify the local ciphertext checksum after capture and the destination checksum or provider integrity metadata after transfer. Do not delete the on-host ciphertext until restore verification succeeds and retention ownership is documented. Never place the decryption identity on the application VM or beside the ciphertext.
+
+For Google Cloud Storage, use a dedicated private bucket with public access prevention and uniform bucket-level access. Give the upload identity bucket-scoped `roles/storage.objectCreator`; give a distinct verification/restore identity bucket-scoped `roles/storage.objectViewer`. Neither the application service account nor the writer needs delete, overwrite, bucket-admin or IAM-admin access. Bucket creation, IAM, retention, lifecycle, upload, verifier download and deletion are independently auditable mutations.
+
+Use unique object names so writer-only access never requires overwrite. Start with an approved but unlocked retention policy; locking Bucket Lock is irreversible and needs separate compliance-owner approval after restore drills. Lifecycle deletion must be older than the retention period, must never delete the latest verified recovery point, and is not an immediate scheduling guarantee. Upload ciphertext and checksum/manifest sidecars, then use the independent viewer to download and compare SHA-256 before classifying the off-host copy as verified.
+
+Every production backup approval must use `docs/templates/production-backup-approval-manifest.yaml` or an equivalent signed change record. Unfilled placeholders or any authorized-mutation flag still set to false means execution remains blocked.
 
 ## Evidence and access audit
 

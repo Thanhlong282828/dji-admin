@@ -53,9 +53,21 @@ class AuthenticationTest extends TestCase
     {
         $user = User::factory()->create();
 
-        $response = $this->actingAs($user)->post('/logout');
+        $response = $this->actingAs($user)
+            ->withSession(['logout_regression_marker' => 'must-be-invalidated'])
+            ->post(route('logout'));
 
         $this->assertGuest();
+        $response->assertSessionMissing('logout_regression_marker');
         $response->assertRedirect('/');
+    }
+
+    public function test_logout_route_does_not_accept_get_requests(): void
+    {
+        $this->actingAs(User::factory()->create())
+            ->get('/logout')
+            ->assertMethodNotAllowed();
+
+        $this->assertAuthenticated();
     }
 }

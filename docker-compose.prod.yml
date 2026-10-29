@@ -25,7 +25,10 @@ services:
         reservations: {cpus: "0.25", memory: 256M}
   nginx:
     ports: !override
-      - "80:8080"
+      # The application origin is reachable only by the host reverse proxy.
+      # Public traffic must terminate at the edge/host proxy; never publish
+      # this container port on every interface.
+      - "127.0.0.1:${APP_ORIGIN_PORT:-8081}:8080"
     deploy:
       resources:
         limits: {cpus: "0.50", memory: 256M}

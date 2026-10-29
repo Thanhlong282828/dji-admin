@@ -28,6 +28,7 @@ final readonly class FxRateSnapshotService
             if (! $canonicalRate instanceof stdClass) {
                 throw ValidationException::withMessages(['snapshot' => 'FX_SNAPSHOT_RATE_NOT_FOUND']);
             }
+            /** @var stdClass&object{id:int,version:int,base_currency:string,quote_currency:string,rate_decimal:string,rate_date:string,rate_type:string,source_reference:string} $canonicalRate */
             $canonical = [
                 'id' => (int) $canonicalRate->id,
                 'version' => (int) $canonicalRate->version,

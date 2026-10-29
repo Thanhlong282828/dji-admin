@@ -17,7 +17,7 @@ final class GceStagingRuntimeIdentityProviderTest extends TestCase
         config()->set('data-quality.staging_restore.metadata_base_url', 'http://metadata.test/computeMetadata/v1');
     }
 
-    public function test_it_reads_every_network_interface_and_external_ip_from_authenticated_metadata(): void
+    public function test_it_accepts_real_gce_empty_external_ip_and_reads_every_network_interface(): void
     {
         Http::fake(function (Request $request) {
             $path = str_replace('http://metadata.test/computeMetadata/v1/', '', $request->url());
@@ -26,8 +26,8 @@ final class GceStagingRuntimeIdentityProviderTest extends TestCase
                 'project/project-id' => $this->metadataResponse('staging-project'),
                 'instance/id' => $this->metadataResponse('123456'),
                 'instance/network-interfaces/?recursive=true&alt=json' => $this->metadataResponse([
-                    ['network' => 'projects/1/global/networks/staging', 'subnetwork' => 'projects/1/regions/asia-southeast1/subnetworks/a', 'accessConfigs' => []],
-                    ['network' => 'projects/1/global/networks/private', 'subnetwork' => 'projects/1/regions/asia-southeast1/subnetworks/b', 'accessConfigs' => [['externalIp' => '203.0.113.10']]],
+                    ['network' => 'projects/1/global/networks/staging', 'subnetwork' => 'projects/1/regions/asia-southeast1/subnetworks/a', 'accessConfigs' => [['externalIp' => '', 'type' => 'ONE_TO_ONE_NAT']]],
+                    ['network' => 'projects/1/global/networks/private', 'subnetwork' => 'projects/1/regions/asia-southeast1/subnetworks/b', 'accessConfigs' => []],
                 ]),
                 default => $this->metadataResponse('', 500),
             };
@@ -38,9 +38,75 @@ final class GceStagingRuntimeIdentityProviderTest extends TestCase
         self::assertSame('staging-project', $identity['project_id']);
         self::assertSame('123456', $identity['instance_id']);
         self::assertCount(2, $identity['networks']);
-        self::assertSame(['203.0.113.10'], $identity['public_ips']);
+        self::assertSame([], $identity['public_ips']);
         Http::assertSent(static fn (Request $request): bool => $request->hasHeader('Metadata-Flavor', 'Google'));
         Http::assertSentCount(3);
+    }
+
+    public function test_it_rejects_a_public_ip_on_a_second_network_interface(): void
+    {
+        Http::fake(function (Request $request) {
+            $path = str_replace('http://metadata.test/computeMetadata/v1/', '', $request->url());
+
+            return $path === 'instance/network-interfaces/?recursive=true&alt=json'
+                ? $this->metadataResponse([
+                    ['network' => 'projects/1/global/networks/staging', 'subnetwork' => 'projects/1/regions/asia-southeast1/subnetworks/a', 'accessConfigs' => []],
+                    ['network' => 'projects/1/global/networks/other', 'subnetwork' => 'projects/1/regions/asia-southeast1/subnetworks/b', 'accessConfigs' => [['externalIp' => '203.0.113.10']]],
+                ])
+                : $this->metadataResponse('valid');
+        });
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('public IP');
+
+        app(GceStagingRuntimeIdentityProvider::class)->identity();
+    }
+
+    /** @return iterable<string,array{mixed}> */
+    public static function malformedExternalIps(): iterable
+    {
+        yield 'null' => [null];
+        yield 'number' => [1234];
+        yield 'array' => [['203.0.113.10']];
+        yield 'object' => [(object) ['address' => '203.0.113.10']];
+        yield 'invalid non-empty string' => ['not-an-ip'];
+    }
+
+    #[DataProvider('malformedExternalIps')]
+    public function test_it_rejects_malformed_external_ip_metadata(mixed $externalIp): void
+    {
+        Http::fake(function (Request $request) use ($externalIp) {
+            $path = str_replace('http://metadata.test/computeMetadata/v1/', '', $request->url());
+
+            return $path === 'instance/network-interfaces/?recursive=true&alt=json'
+                ? $this->metadataResponse([[
+                    'network' => 'projects/1/global/networks/staging',
+                    'subnetwork' => 'projects/1/regions/asia-southeast1/subnetworks/a',
+                    'accessConfigs' => [['externalIp' => $externalIp]],
+                ]])
+                : $this->metadataResponse('valid');
+        });
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('external-IP metadata is malformed');
+
+        app(GceStagingRuntimeIdentityProvider::class)->identity();
+    }
+
+    public function test_it_accepts_metadata_without_access_configs(): void
+    {
+        Http::fake(function (Request $request) {
+            $path = str_replace('http://metadata.test/computeMetadata/v1/', '', $request->url());
+
+            return $path === 'instance/network-interfaces/?recursive=true&alt=json'
+                ? $this->metadataResponse([[
+                    'network' => 'projects/1/global/networks/staging',
+                    'subnetwork' => 'projects/1/regions/asia-southeast1/subnetworks/a',
+                ]])
+                : $this->metadataResponse('valid');
+        });
+
+        $identity = app(GceStagingRuntimeIdentityProvider::class)->identity();
+
+        self::assertSame([], $identity['public_ips']);
     }
 
     /** @return iterable<string,array{int,array<string,string>}> */
@@ -77,6 +143,21 @@ final class GceStagingRuntimeIdentityProviderTest extends TestCase
         app(GceStagingRuntimeIdentityProvider::class)->identity();
     }
 
+    public function test_it_fails_closed_when_network_metadata_is_not_a_list(): void
+    {
+        Http::fake(function (Request $request) {
+            $path = str_replace('http://metadata.test/computeMetadata/v1/', '', $request->url());
+
+            return $path === 'instance/network-interfaces/?recursive=true&alt=json'
+                ? $this->metadataResponse(['network' => 'unexpected-object'])
+                : $this->metadataResponse('valid');
+        });
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('malformed');
+
+        app(GceStagingRuntimeIdentityProvider::class)->identity();
+    }
+
     public function test_it_fails_closed_when_metadata_transport_times_out(): void
     {
         Http::fake(['*' => Http::failedConnection('simulated timeout')]);
@@ -86,7 +167,8 @@ final class GceStagingRuntimeIdentityProviderTest extends TestCase
         app(GceStagingRuntimeIdentityProvider::class)->identity();
     }
 
-    private function metadataResponse(string|array $body, int $status = 200): mixed
+    /** @param array<mixed>|string|null $body */
+    private function metadataResponse(array|string|null $body, int $status = 200): mixed
     {
         return Http::response($body, $status, ['Metadata-Flavor' => 'Google']);
     }

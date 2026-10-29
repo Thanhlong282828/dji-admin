@@ -10,7 +10,13 @@ final class EmployeeManagerHistory extends Model
 
     protected $table = 'employee_manager_history';
 
-    protected $guarded = ['id'];
+    protected $fillable = [
+        'checksum',
+        'company_id',
+        'effective_from',
+        'employee_id',
+        'manager_id',
+    ];
 
     protected function casts(): array
     {

@@ -20,7 +20,20 @@ final class Company extends Model
     /** @use HasFactory<CompanyFactory> */
     use HasFactory, LogsActivity, SoftDeletes;
 
-    protected $guarded = ['id', 'uuid', 'created_at', 'updated_at', 'deleted_at'];
+    protected $fillable = [
+        'code',
+        'country_code',
+        'created_by',
+        'currency',
+        'currency_code',
+        'functional_currency_code',
+        'is_active',
+        'name',
+        'status',
+        'tax_code',
+        'timezone',
+        'updated_by',
+    ];
 
     protected static function booted(): void
     {

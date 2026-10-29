@@ -8,6 +8,7 @@ final readonly class GetFxWorkspaceHandler
 {
     public function __construct(private FxWorkspaceReadService $service) {}
 
+    /** @return array<string, mixed> */
     public function handle(GetFxWorkspaceQuery $query): array
     {
         return match ($query->workspace) {
