@@ -29,6 +29,18 @@ final class ObservabilityFoundationTest extends TestCase
         self::assertSame('queue-worker-down.md', $alerts[0]['runbook']);
     }
 
+    public function test_oldest_queue_job_alert_has_sustained_window_and_recovery_boundary(): void
+    {
+        $definition = ['component' => 'queue', 'signal' => 'queue_oldest_pending_seconds', 'operator' => 'gte', 'threshold' => 300, 'severity' => 'critical', 'runbook' => 'docs/runbooks/queue-backlog-recovery.md', 'window_minutes' => 10];
+        self::assertSame('queue_oldest_pending_seconds', $definition['signal']);
+        self::assertGreaterThanOrEqual(5, $definition['window_minutes']);
+
+        $triggered = (new AlertEvaluator)->evaluate(['queue_oldest_pending_seconds' => 301], ['queue_oldest_job' => $definition]);
+        $recovered = (new AlertEvaluator)->evaluate(['queue_oldest_pending_seconds' => 0], ['queue_oldest_job' => $definition]);
+        self::assertCount(1, $triggered);
+        self::assertSame([], $recovered);
+    }
+
     public function test_sensitive_data_is_redacted_recursively(): void
     {
         $safe = (new SensitiveDataRedactor)->redact([

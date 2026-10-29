@@ -27,6 +27,8 @@ final class RuntimeResourceHardeningTest extends TestCase
         self::assertSame(250, config('horizon.defaults.supervisor-1.maxJobs'));
         self::assertSame(384, config('horizon.defaults.supervisor-1.memory'));
         self::assertSame(330, config('horizon.defaults.supervisor-1.timeout'));
+        self::assertSame(['web', 'auth', 'account.enabled', 'permission:operations.view'], config('horizon.middleware'));
+        self::assertFalse((bool) config('operations.horizon_expected'));
     }
 
     public function test_php_fpm_and_container_logs_recycle_with_explicit_bounds(): void

@@ -5,6 +5,7 @@ namespace App\Support;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Redis;
 use Illuminate\Support\Facades\Schema;
 use Throwable;
 
@@ -21,11 +22,11 @@ final class ReliabilitySnapshotService
 
     public function __construct(private ConnectionInterface $db, private OperationsHealthService $health, private SloCalculator $slo) {}
 
-    /** @return array{readiness:array{status:'ready'|'degraded',checks:array{database:bool,redis:bool,queue:bool},timestamp:string},queue:array{pending:int,failed:int},outboxes:array<string,array{pending:int,failed:int,oldest_pending_seconds:int|null}>,integration:array{failed:int,dead_letters:int},scheduler:array{status:string,age_seconds:int|null},slo:array{window_minutes:int,total:int,failures:int,allowed_failures:int,consumed_percent:float,remaining_percent:float}} */
+    /** @return array{readiness:array{status:'ready'|'degraded',checks:array{database:bool,redis:bool,queue:bool},timestamp:string},queue:array{pending:int,failed:int,oldest_pending_seconds:int|null},outboxes:array<string,array{pending:int,failed:int,oldest_pending_seconds:int|null}>,integration:array{failed:int,dead_letters:int},scheduler:array{status:string,age_seconds:int|null},slo:array{window_minutes:int,total:int,failures:int,allowed_failures:int,consumed_percent:float,remaining_percent:float}} */
     public function snapshot(): array
     {
         $readiness = $this->health->readiness();
-        $queuePending = $this->count('jobs');
+        $queue = $this->queueSnapshot();
         $failedJobs = $this->count('failed_jobs');
         $outboxes = [];
         foreach (self::OUTBOXES as $name => $table) {
@@ -42,7 +43,7 @@ final class ReliabilitySnapshotService
 
         return [
             'readiness' => $readiness,
-            'queue' => ['pending' => $queuePending, 'failed' => $failedJobs],
+            'queue' => ['pending' => $queue['pending'], 'failed' => $failedJobs, 'oldest_pending_seconds' => $queue['oldest_pending_seconds']],
             'outboxes' => $outboxes,
             'integration' => [
                 'failed' => $this->countWhere('integration_outbound_messages', 'status', 'failed'),
@@ -51,6 +52,32 @@ final class ReliabilitySnapshotService
             'scheduler' => ['status' => $age !== null && $age <= $staleSeconds ? 'healthy' : 'stale', 'age_seconds' => $age],
             'slo' => $this->slo->calculate($requestTotal, $requestFailures, $sloTarget, $sloWindow),
         ];
+    }
+
+    /** @return array{pending:int,oldest_pending_seconds:int|null} */
+    private function queueSnapshot(): array
+    {
+        if (config('queue.default') !== 'redis') {
+            return ['pending' => $this->count('jobs'), 'oldest_pending_seconds' => null];
+        }
+        try {
+            $queue = config('queue.connections.redis.queue', 'default');
+            $name = is_string($queue) && $queue !== '' ? $queue : 'default';
+            $key = 'queues:'.$name;
+            $configuredConnection = config('queue.connections.redis.connection', 'default');
+            $connectionName = is_string($configuredConnection) && $configuredConnection !== '' ? $configuredConnection : 'default';
+            $connection = Redis::connection($connectionName);
+            $pending = (int) $connection->llen($key);
+            $payload = $pending > 0 ? $connection->lindex($key, 0) : null;
+            $decoded = is_string($payload) ? json_decode($payload, true) : null;
+            $pushedAt = is_array($decoded) && is_numeric($decoded['pushedAt'] ?? null) ? (int) $decoded['pushedAt'] : null;
+
+            $timestamp = now()->getTimestamp();
+
+            return ['pending' => $pending, 'oldest_pending_seconds' => $pushedAt === null ? null : max(0, $timestamp - $pushedAt)];
+        } catch (Throwable) {
+            return ['pending' => 0, 'oldest_pending_seconds' => null];
+        }
     }
 
     /** @return array{pending:int,failed:int,oldest_pending_seconds:int|null} */
