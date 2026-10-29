@@ -14,6 +14,7 @@ use Illuminate\Support\Str;
 use Modules\Document\Application\Services\DocumentMalwareScannerInterface;
 use Modules\Document\Application\Services\DocumentScanStatus;
 use Tests\TestCase;
+use ZipArchive;
 
 final class EnterpriseDocumentManagementTest extends TestCase
 {
@@ -117,6 +118,34 @@ final class EnterpriseDocumentManagementTest extends TestCase
         Storage::disk('supabase')->assertExists((string) $version->storage_path);
         $this->actingAs($user)->get(route('admin.documents.download', ['version' => $version->id, 'company_id' => $company]))
             ->assertRedirectContains('https://signed.test/download');
+    }
+
+    public function test_supabase_accepts_structurally_valid_docx_and_xlsx_with_private_randomized_keys(): void
+    {
+        Storage::fake('supabase');
+        config()->set('document.storage_disk', 'supabase');
+        config()->set('filesystems.disks.supabase.key', 'test-access-key');
+        config()->set('filesystems.disks.supabase.secret', 'test-secret-key');
+        config()->set('filesystems.disks.supabase.bucket', 'private-documents');
+        config()->set('filesystems.disks.supabase.endpoint', 'https://project-ref.supabase.co/storage/v1/s3');
+        $company = $this->company('DMS-OFFICE');
+        $employee = $this->employee($company, 'DMS-OFFICE-001');
+        $user = $this->actor($company);
+        $base = ['company_id' => $company, 'document_type' => 'IDENTITY_DOCUMENT', 'title' => 'Office evidence', 'classification' => 'RESTRICTED', 'owner_module' => 'Employee', 'subject_type' => 'EMPLOYEE', 'subject_id' => $employee];
+
+        foreach (['docx' => 'word/document.xml', 'xlsx' => 'xl/workbook.xml'] as $extension => $entry) {
+            $this->actingAs($user)->post(route('admin.documents.store'), $base + ['title' => strtoupper($extension).' evidence', 'document' => $this->ooxml($extension, $entry)])->assertRedirect();
+        }
+
+        $versions = DB::table('enterprise_document_versions')->orderBy('id')->get();
+        self::assertCount(2, $versions);
+        self::assertStringEndsWith('.docx', (string) $versions[0]->storage_path);
+        self::assertStringEndsWith('.xlsx', (string) $versions[1]->storage_path);
+        foreach ($versions as $version) {
+            self::assertStringStartsWith("enterprise-documents/{$company}/", (string) $version->storage_path);
+            self::assertStringNotContainsString('evidence.', (string) $version->storage_path);
+            Storage::disk('supabase')->assertExists((string) $version->storage_path);
+        }
     }
 
     public function test_document_endpoints_reject_guests_forged_tenants_and_missing_objects_before_signed_url_generation(): void
@@ -341,5 +370,18 @@ final class EnterpriseDocumentManagementTest extends TestCase
     private function employee(int $company, string $code): int
     {
         return (int) DB::table('employees')->insertGetId(['uuid' => (string) Str::uuid(), 'company_id' => $company, 'employee_code' => $code, 'full_name' => $code, 'join_date' => today(), 'employment_status' => 'active', 'created_at' => now(), 'updated_at' => now()]);
+    }
+
+    private function ooxml(string $extension, string $entry): UploadedFile
+    {
+        $path = tempnam(sys_get_temp_dir(), 'enterprise-ooxml-');
+        self::assertIsString($path);
+        $archive = new ZipArchive;
+        self::assertTrue($archive->open($path, ZipArchive::OVERWRITE) === true);
+        $archive->addFromString('[Content_Types].xml', '<Types/>');
+        $archive->addFromString($entry, '<fixture/>');
+        $archive->close();
+
+        return new UploadedFile($path, 'evidence.'.$extension, null, null, true);
     }
 }

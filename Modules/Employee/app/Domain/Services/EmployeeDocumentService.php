@@ -3,6 +3,7 @@
 namespace Modules\Employee\Domain\Services;
 
 use App\Support\Storage\DocumentStorageTelemetry;
+use App\Support\Storage\DocumentUploadPolicy;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -17,33 +18,19 @@ use Throwable;
 
 final readonly class EmployeeDocumentService
 {
-    /** @var list<string> */
-    private const ALLOWED_MIMES = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
-
-    public function __construct(private MalwareScannerInterface $scanner, private DocumentStorageTelemetry $telemetry) {}
+    public function __construct(private MalwareScannerInterface $scanner, private DocumentStorageTelemetry $telemetry, private DocumentUploadPolicy $uploadPolicy) {}
 
     public function upload(int $companyId, int $employeeId, DocumentClassification $type, string $name, UploadedFile $file, int $actorId): EmployeeDocument
     {
         Employee::query()->where('company_id', $companyId)->findOrFail($employeeId);
-        $temporaryPath = $file->getRealPath();
-        if (! is_string($temporaryPath) || $file->getSize() < 1 || $file->getSize() > 10 * 1024 * 1024) {
-            throw ValidationException::withMessages(['document' => 'Kích thước tài liệu không hợp lệ.']);
-        }
-        $mime = (new \finfo(FILEINFO_MIME_TYPE))->file($temporaryPath);
-        if (! is_string($mime) || ! in_array($mime, self::ALLOWED_MIMES, true)) {
-            throw ValidationException::withMessages(['document' => 'Định dạng tài liệu không được phép.']);
-        }
+        $validated = $this->uploadPolicy->validate($file);
+        $temporaryPath = $validated['path'];
+        $mime = $validated['mime'];
         $checksum = hash_file('sha256', $temporaryPath);
         if (! is_string($checksum)) {
             throw new RuntimeException('Không thể tính checksum tài liệu.');
         }
-        $extension = match ($mime) {
-            'application/pdf' => 'pdf',
-            'image/jpeg' => 'jpg',
-            'image/png' => 'png',
-            'image/webp' => 'webp',
-            default => 'docx',
-        };
+        $extension = $validated['extension'];
         $startedAt = hrtime(true);
         $scanStatus = $this->scanner->scan($temporaryPath);
         $this->telemetry->record('scanner', 'clamav', $companyId, $scanStatus !== DocumentScanStatus::Failed, $this->elapsedMs($startedAt), null, $scanStatus === DocumentScanStatus::Failed ? 503 : null);
@@ -53,9 +40,6 @@ final readonly class EmployeeDocumentService
         abort_if($scanStatus === DocumentScanStatus::Failed, 503, 'Không thể kiểm tra an toàn tài liệu.');
 
         $diskName = $this->configuredDisk();
-        if ($diskName === 'supabase' && ! in_array($mime, ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'], true)) {
-            throw ValidationException::withMessages(['document' => 'Định dạng file không nằm trong MIME allowlist của Supabase Storage.']);
-        }
         $storageKey = 'employees/'.$companyId.'/'.$employeeId.'/documents/'.Str::uuid().'.'.$extension;
         if (Storage::disk($diskName)->exists($storageKey)) {
             throw ValidationException::withMessages(['document' => 'Khóa lưu trữ tài liệu đã tồn tại.']);
