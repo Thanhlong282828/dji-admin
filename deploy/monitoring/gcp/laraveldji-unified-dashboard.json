@@ -1,0 +1,13 @@
+{
+  "displayName": "LaravelDji Production - Unified Operations",
+  "mosaicLayout": {
+    "columns": 12,
+    "tiles": [
+      {"xPos":0,"yPos":0,"width":4,"height":4,"widget":{"title":"VM CPU utilization","xyChart":{"dataSets":[{"timeSeriesQuery":{"timeSeriesFilter":{"filter":"metric.type=\"agent.googleapis.com/cpu/utilization\" resource.type=\"gce_instance\"","aggregation":{"alignmentPeriod":"60s","perSeriesAligner":"ALIGN_MEAN"}}},"plotType":"LINE"}]}}},
+      {"xPos":4,"yPos":0,"width":4,"height":4,"widget":{"title":"VM memory percent used","xyChart":{"dataSets":[{"timeSeriesQuery":{"timeSeriesFilter":{"filter":"metric.type=\"agent.googleapis.com/memory/percent_used\" resource.type=\"gce_instance\"","aggregation":{"alignmentPeriod":"60s","perSeriesAligner":"ALIGN_MEAN"}}},"plotType":"LINE"}]}}},
+      {"xPos":8,"yPos":0,"width":4,"height":4,"widget":{"title":"VM disk percent used","xyChart":{"dataSets":[{"timeSeriesQuery":{"timeSeriesFilter":{"filter":"metric.type=\"agent.googleapis.com/disk/percent_used\" resource.type=\"gce_instance\"","aggregation":{"alignmentPeriod":"60s","perSeriesAligner":"ALIGN_MAX"}}},"plotType":"LINE"}]}}},
+      {"xPos":0,"yPos":4,"width":6,"height":4,"widget":{"title":"Network bytes","xyChart":{"dataSets":[{"timeSeriesQuery":{"timeSeriesFilter":{"filter":"metric.type=\"agent.googleapis.com/interface/traffic\" resource.type=\"gce_instance\"","aggregation":{"alignmentPeriod":"60s","perSeriesAligner":"ALIGN_RATE"}}},"plotType":"LINE"}]}}},
+      {"xPos":6,"yPos":4,"width":6,"height":4,"widget":{"title":"Cloud SQL CPU utilization","xyChart":{"dataSets":[{"timeSeriesQuery":{"timeSeriesFilter":{"filter":"metric.type=\"cloudsql.googleapis.com/database/cpu/utilization\" resource.type=\"cloudsql_database\"","aggregation":{"alignmentPeriod":"60s","perSeriesAligner":"ALIGN_MEAN"}}},"plotType":"LINE"}]}}}
+    ]
+  }
+}

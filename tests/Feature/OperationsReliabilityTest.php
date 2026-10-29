@@ -35,4 +35,18 @@ final class OperationsReliabilityTest extends TestCase
         self::assertSame(0, Artisan::call('operations:heartbeat'));
         self::assertIsString(Cache::get('operations:scheduler:heartbeat'));
     }
+
+    public function test_horizon_dashboard_requires_enabled_account_and_operations_permission(): void
+    {
+        $this->get('/horizon')->assertRedirect('/login');
+        $denied = User::factory()->create(['email_verified_at' => now(), 'access_enabled' => true]);
+        $this->actingAs($denied)->get('/horizon')->assertForbidden();
+
+        $authorized = User::factory()->create(['email_verified_at' => now(), 'access_enabled' => true]);
+        $authorized->givePermissionTo(Permission::findOrCreate('operations.view', 'web'));
+        $this->actingAs($authorized)->get('/horizon')->assertOk();
+
+        $authorized->update(['access_enabled' => false]);
+        $this->actingAs($authorized->fresh())->get('/horizon')->assertForbidden();
+    }
 }
