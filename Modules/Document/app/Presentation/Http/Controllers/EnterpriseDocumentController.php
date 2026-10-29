@@ -48,7 +48,7 @@ final class EnterpriseDocumentController extends Controller
     public function upload(Request $request, int $document): RedirectResponse
     {
         [$user, $company] = $this->actor($request);
-        $request->validate(['document' => ['required', 'file', 'max:10240', 'mimes:pdf,doc,docx,xls,xlsx,csv,txt,jpg,jpeg,png,webp']]);
+        $request->validate(['document' => ['required', 'file', 'max:10240', 'extensions:pdf,doc,docx,xls,xlsx,csv,txt,jpg,jpeg,png,webp']]);
         $file = $request->file('document');
         abort_unless($file instanceof UploadedFile, 422);
         $this->commands->dispatch(new UploadDocumentVersionCommand($company, $document, $file, (int) $user->id));
