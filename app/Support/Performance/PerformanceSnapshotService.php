@@ -9,7 +9,7 @@ final readonly class PerformanceSnapshotService
 {
     public function __construct(private ConnectionInterface $db, private ObservabilitySnapshotService $observability) {}
 
-    /** @return array{schema_version:int,generated_at:string,checksum:string,http:array{total:int,p50_ms:float,p95_ms:float,p99_ms:float},database:array{tables:int,indexes:int,estimated_rows:int},cache:array{strategy:string,scope:string,invalidation:string},exports:array{employee:string,payroll:string,audit:string},queue:array{pending:int,failed:int},findings:list<array{key:string,severity:string,component:string,category:string,description:string,evidence:string,recommendation:string,status:string}>,critical_findings:int} */
+    /** @return array{schema_version:int,generated_at:string,checksum:string,http:array{total:int,p50_ms:float,p95_ms:float,p99_ms:float},database:array{tables:int,indexes:int,estimated_rows:int},cache:array{strategy:string,scope:string,invalidation:string},exports:array{employee:string,payroll:string,audit:string},queue:array{available:bool,pending:int,failed:int},findings:list<array{key:string,severity:string,component:string,category:string,description:string,evidence:string,recommendation:string,status:string}>,critical_findings:int} */
     public function snapshot(): array
     {
         $observability = $this->observability->snapshot();
@@ -22,7 +22,7 @@ final readonly class PerformanceSnapshotService
             'database' => $database,
             'cache' => ['strategy' => 'versioned typed arrays/DTO', 'scope' => 'company + version + normalized filters', 'invalidation' => 'domain event/version bump + bounded TTL'],
             'exports' => ['employee' => 'lazyById(500) with batched eager loading', 'payroll' => 'cursor streaming + formula sanitization', 'audit' => 'cursor streaming + immutable checksum'],
-            'queue' => ['pending' => $observability['reliability']['queue']['pending'], 'failed' => $observability['reliability']['queue']['failed']],
+            'queue' => ['available' => $observability['reliability']['queue']['available'], 'pending' => $observability['reliability']['queue']['pending'], 'failed' => $observability['reliability']['queue']['failed']],
             'findings' => $findings,
             'critical_findings' => count(array_filter($findings, static fn (array $finding): bool => $finding['severity'] === 'critical' && $finding['status'] === 'open')),
         ];

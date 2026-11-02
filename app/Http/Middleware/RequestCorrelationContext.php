@@ -8,6 +8,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\Response;
+use Throwable;
 
 final class RequestCorrelationContext
 {
@@ -32,7 +33,13 @@ final class RequestCorrelationContext
         ]);
 
         $startedAt = hrtime(true);
-        $response = $next($request);
+        try {
+            $response = $next($request);
+        } catch (Throwable $exception) {
+            $this->metrics->recordSafely(500, (hrtime(true) - $startedAt) / 1_000_000);
+
+            throw $exception;
+        }
         $this->metrics->recordSafely($response->getStatusCode(), (hrtime(true) - $startedAt) / 1_000_000);
         $response->headers->set('X-Request-ID', $requestId);
         $revision = config('release.revision');

@@ -4,9 +4,16 @@ namespace Tests\Unit\Operations;
 
 use App\Support\AlertEvaluator;
 use App\Support\HistogramPercentileCalculator;
+use App\Support\HttpMetricsRecorder;
+use App\Support\Monitoring\ApplicationExceptionMetricsRecorder;
 use App\Support\PercentileCalculator;
 use App\Support\SensitiveDataRedactor;
-use PHPUnit\Framework\TestCase;
+use Illuminate\Cache\ArrayStore;
+use Illuminate\Cache\Repository;
+use Illuminate\Log\Logger;
+use Monolog\Handler\NullHandler;
+use Monolog\Logger as MonologLogger;
+use Tests\TestCase;
 
 final class ObservabilityFoundationTest extends TestCase
 {
@@ -29,6 +36,18 @@ final class ObservabilityFoundationTest extends TestCase
         self::assertSame('queue-worker-down.md', $alerts[0]['runbook']);
     }
 
+    public function test_oldest_queue_job_alert_has_sustained_window_and_recovery_boundary(): void
+    {
+        $definition = ['component' => 'queue', 'signal' => 'queue_oldest_pending_seconds', 'operator' => 'gte', 'threshold' => 300, 'severity' => 'critical', 'runbook' => 'docs/runbooks/queue-backlog-recovery.md', 'window_minutes' => 10];
+        self::assertSame('queue_oldest_pending_seconds', $definition['signal']);
+        self::assertGreaterThanOrEqual(5, $definition['window_minutes']);
+
+        $triggered = (new AlertEvaluator)->evaluate(['queue_oldest_pending_seconds' => 301], ['queue_oldest_job' => $definition]);
+        $recovered = (new AlertEvaluator)->evaluate(['queue_oldest_pending_seconds' => 0], ['queue_oldest_job' => $definition]);
+        self::assertCount(1, $triggered);
+        self::assertSame([], $recovered);
+    }
+
     public function test_sensitive_data_is_redacted_recursively(): void
     {
         $safe = (new SensitiveDataRedactor)->redact([
@@ -42,5 +61,26 @@ final class ObservabilityFoundationTest extends TestCase
         self::assertIsArray($nested);
         self::assertSame('[REDACTED]', $nested['salary']);
         self::assertSame('failed', $nested['status']);
+    }
+
+    public function test_http_metric_recorder_counts_unhandled_500_without_remote_io(): void
+    {
+        $cache = new Repository(new ArrayStore);
+        $logger = new Logger(new MonologLogger('test', [new NullHandler]));
+        $metrics = new HttpMetricsRecorder($cache, $logger);
+
+        self::assertTrue($metrics->recordSafely(500, 42.5));
+        self::assertSame(1, $cache->get('operations:http:total'));
+        self::assertSame(1, $cache->get('operations:http:5xx'));
+        self::assertSame(1, $cache->get('operations:http:status:5xx'));
+    }
+
+    public function test_application_exception_recorder_is_bound_and_counts_without_remote_io(): void
+    {
+        self::assertTrue(app()->bound(ApplicationExceptionMetricsRecorder::class));
+
+        $recorder = app(ApplicationExceptionMetricsRecorder::class);
+        self::assertTrue($recorder->recordSafely());
+        self::assertSame(1, cache()->get('operations:application:exceptions'));
     }
 }

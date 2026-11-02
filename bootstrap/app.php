@@ -7,6 +7,7 @@ use App\Http\Middleware\ApplySecurityHeaders;
 use App\Http\Middleware\EnsureAccountAccessEnabled;
 use App\Http\Middleware\RequestCorrelationContext;
 use App\Http\Middleware\SetLocale;
+use App\Support\Monitoring\ApplicationExceptionMetricsRecorder;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -52,6 +53,9 @@ return Application::configure(basePath: dirname(__DIR__))
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->report(function (Throwable $exception): void {
+            if (app()->bound(ApplicationExceptionMetricsRecorder::class)) {
+                app(ApplicationExceptionMetricsRecorder::class)->recordSafely();
+            }
             if (app()->bound(ErrorTrackerInterface::class)) {
                 app(ErrorTrackerInterface::class)->capture($exception, [
                     'environment' => app()->environment(),

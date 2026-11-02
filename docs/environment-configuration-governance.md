@@ -120,7 +120,7 @@ DOCUMENT_RECONCILIATION_BATCH_MAX_SECONDS=240
 
 Ownership and usage:
 
-- `DOCUMENT_STORAGE_DISK` điều khiển Enterprise Document. Local disk tiếp tục hỗ trợ PDF, DOC/DOCX, XLS/XLSX, CSV, TXT và image evidence; khi chọn Supabase, service chỉ cho phép MIME nằm trong bucket allowlist đã xác minh: PDF, JPEG, PNG và WebP.
+- `DOCUMENT_STORAGE_DISK` điều khiển Enterprise Document. Supabase S3 được dành cho tài liệu PDF, DOC/DOCX và XLS/XLSX (cùng image evidence hiện hữu); application phải xác minh chữ ký PDF/OLE hoặc cấu trúc OOXML trước upload. Bucket production chỉ được mở rộng MIME allowlist sau approval hạ tầng riêng; code không được fallback âm thầm sang local khi provider từ chối.
 - `EMPLOYEE_DOCUMENT_STORAGE_DISK` điều khiển hồ sơ nhân viên riêng tư do Employee module sở hữu.
 - `FILESYSTEM_DISK` không cần đổi sang Supabase chỉ để bật hai capability trên; mỗi bounded context chọn disk rõ ràng.
 - Bucket phải private. Database chỉ lưu storage key/driver/checksum/metadata, không lưu URL signed và không lưu credential.
@@ -176,7 +176,7 @@ Chạy focused tests trên đúng testing database. Không dùng việc biến t
 ## 9. Trạng thái hiện tại cần giữ
 
 - Supabase S3 là storage được chọn cho Enterprise Document và hồ sơ nhân viên riêng tư; default filesystem chung vẫn là local.
-- Enterprise Document local hỗ trợ PDF, hợp đồng/evidence, Word, Excel, CSV, text và image; Supabase chỉ hỗ trợ PDF/JPEG/PNG/WebP theo bucket allowlist production hiện tại. Không được nhầm allowlist local với allowlist provider.
+- Enterprise Document local hỗ trợ PDF, hợp đồng/evidence, Word, Excel và image. Supabase S3 là provider đích cho PDF/Word/Excel nhưng production vẫn fail-closed cho tới khi bucket MIME allowlist được xác minh độc lập. CSV/TXT không được đưa lên Supabase bằng document flow này.
 - Hồ sơ nhân viên riêng tư dùng policy/tenant authorization, malware scanning, checksum, private object và signed download.
 - Cloudflare DDoS monitor dùng `CLOUDFLARE_API_TOKEN`; có thể tự bật Under Attack Mode nhưng không tự tắt.
 - Webhook secret tiếp tục thuộc Integration Connection, không dùng global `WEBHOOK_SECRET` khi chưa có canonical consumer.

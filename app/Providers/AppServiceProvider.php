@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Contracts\CloudMonitoringMetricsWriter;
 use App\Contracts\ErrorTrackerInterface;
 use App\Contracts\WorkforceNotificationChannelSenderInterface;
 use App\Models\User;
@@ -22,6 +23,8 @@ use App\Support\Identity\PhoneVerificationProviderInterface;
 use App\Support\Media\CloudflareImagesStorage;
 use App\Support\Media\LocalMediaStorage;
 use App\Support\Media\MediaStorageInterface;
+use App\Support\Monitoring\ApplicationExceptionMetricsRecorder;
+use App\Support\Monitoring\CloudMonitoringMetricsExporter;
 use App\Support\RuntimeConfiguration\RuntimeConfigurationService;
 use App\Support\Secrets\ConfiguredSecretProvider;
 use App\Support\Secrets\SecretProviderInterface;
@@ -73,6 +76,8 @@ class AppServiceProvider extends ServiceProvider
         $this->app->bind(StagingDatabaseIdentityProvider::class, PdoStagingDatabaseIdentityProvider::class);
         $this->app->bind(StagingTrustEvidenceProvider::class, RootOwnedStagingTrustEvidenceProvider::class);
         $this->app->singleton(ErrorTrackerInterface::class, NullErrorTracker::class);
+        $this->app->singleton(ApplicationExceptionMetricsRecorder::class);
+        $this->app->bind(CloudMonitoringMetricsWriter::class, CloudMonitoringMetricsExporter::class);
         $this->app->bind(SecretProviderInterface::class, ConfiguredSecretProvider::class);
         $this->app->bind(PhoneVerificationProviderInterface::class, function (): PhoneVerificationProviderInterface {
             if (config('services.phone_verification.driver') !== 'local') {

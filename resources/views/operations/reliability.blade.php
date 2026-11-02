@@ -8,7 +8,7 @@
  <header class="sre-hero"><span class="sre-kicker">Reliability control plane</span><h1>Enterprise Reliability</h1><p>Safe operational signals only. No credentials, PII, payroll or business payloads are exposed.</p></header>
  <section class="sre-grid">
   <article class="sre-card"><span>System</span><strong class="sre-value">{{ strtoupper($snapshot['readiness']['status']) }}</strong></article>
-  <article class="sre-card"><span>Queue backlog</span><strong class="sre-value">{{ $snapshot['queue']['pending'] }}</strong></article>
+  <article class="sre-card"><span>Queue backlog</span><strong class="sre-value">{{ $snapshot['queue']['available'] ? $snapshot['queue']['pending'] : 'UNAVAILABLE' }}</strong></article>
   <article class="sre-card"><span>Failed jobs</span><strong class="sre-value">{{ $snapshot['queue']['failed'] }}</strong></article>
   <article class="sre-card"><span>Error budget remaining</span><strong class="sre-value">{{ $snapshot['slo']['remaining_percent'] }}%</strong></article>
  </section>

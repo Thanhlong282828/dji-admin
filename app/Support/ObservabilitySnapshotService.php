@@ -3,6 +3,7 @@
 namespace App\Support;
 
 use App\Support\Storage\DocumentStorageTelemetry;
+use Illuminate\Contracts\Cache\Repository;
 
 final class ObservabilitySnapshotService
 {
@@ -13,9 +14,10 @@ final class ObservabilitySnapshotService
         private AlertEvaluator $alerts,
         private CloudflareDdosMonitor $ddosMonitor,
         private DocumentStorageTelemetry $storageTelemetry,
+        private Repository $cache,
     ) {}
 
-    /** @return array{reliability:array{readiness:array{status:'ready'|'degraded',checks:array{database:bool,redis:bool,queue:bool},timestamp:string},queue:array{pending:int,failed:int},outboxes:array<string,array{pending:int,failed:int,oldest_pending_seconds:int|null}>,integration:array{failed:int,dead_letters:int},scheduler:array{status:string,age_seconds:int|null},slo:array{window_minutes:int,total:int,failures:int,allowed_failures:int,consumed_percent:float,remaining_percent:float}},http:array{total:int,status_5xx:int,error_rate_percent:float,average_ms:float,p50_ms:float,p95_ms:float,p99_ms:float},burn_rate:array{short:float,long:float,status:string},ddos:array{status:string,configured:bool,events:int|null,threshold:int,window_minutes:int,checked_at:string|null,under_attack_mode:string},document_storage:array{operations:array<string,array{total:int,success:int,failure:int,duration_ms:int}>,failures:int,scanner_failures:int,cleanup_failures:int,signed_url_failures:int,reconciliation_anomalies:int},production_verification:array{vps_metrics:string,horizon:string,clamav:string,alert_delivery:string},alerts:list<array{name:string,component:string,signal:string,value:float,threshold:float,severity:string,runbook:string,window_minutes:int}>,generated_at:string} */
+    /** @return array{reliability:array{readiness:array{status:'ready'|'degraded',checks:array{database:bool,redis:bool,queue:bool},timestamp:string},queue:array{available:bool,pending:int,failed:int,oldest_pending_seconds:int|null},outboxes:array<string,array{pending:int,failed:int,oldest_pending_seconds:int|null}>,integration:array{failed:int,dead_letters:int},scheduler:array{status:string,age_seconds:int|null},slo:array{window_minutes:int,total:int,failures:int,allowed_failures:int,consumed_percent:float,remaining_percent:float}},http:array{total:int,status_5xx:int,error_rate_percent:float,average_ms:float,p50_ms:float,p95_ms:float,p99_ms:float},exceptions:array{total:int},burn_rate:array{short:float,long:float,status:string},ddos:array{status:string,configured:bool,events:int|null,threshold:int,window_minutes:int,checked_at:string|null,under_attack_mode:string},document_storage:array{operations:array<string,array{total:int,success:int,failure:int,duration_ms:int}>,failures:int,scanner_failures:int,cleanup_failures:int,signed_url_failures:int,reconciliation_anomalies:int},production_verification:array{vps_metrics:string,horizon:string,clamav:string,alert_delivery:string},alerts:list<array{name:string,component:string,signal:string,value:float,threshold:float,severity:string,runbook:string,window_minutes:int}>,generated_at:string} */
     public function snapshot(): array
     {
         $reliability = $this->reliability->snapshot();
@@ -41,7 +43,7 @@ final class ObservabilitySnapshotService
         $signals = [
             'http_5xx_rate_percent' => $http['error_rate_percent'],
             'http_p95_ms' => $http['p95_ms'],
-            'queue_depth' => $reliability['queue']['pending'],
+            'queue_metrics_available' => $reliability['queue']['available'] ? 1 : 0,
             'failed_jobs' => $reliability['queue']['failed'],
             'scheduler_age_seconds' => $reliability['scheduler']['age_seconds'] ?? PHP_INT_MAX,
             'integration_dead_letters' => $reliability['integration']['dead_letters'],
@@ -55,6 +57,12 @@ final class ObservabilitySnapshotService
             'document_storage_signed_url_failures' => $storage['signed_url_failures'],
             'document_storage_reconciliation_anomalies' => $storage['reconciliation_anomalies'],
         ];
+        if ($reliability['queue']['available']) {
+            $signals['queue_depth'] = $reliability['queue']['pending'];
+            if ($reliability['queue']['oldest_pending_seconds'] !== null) {
+                $signals['queue_oldest_pending_seconds'] = $reliability['queue']['oldest_pending_seconds'];
+            }
+        }
         if ($ddos['events'] !== null) {
             $signals['cloudflare_ddos_events'] = $ddos['events'];
         }
@@ -62,6 +70,7 @@ final class ObservabilitySnapshotService
         return [
             'reliability' => $reliability,
             'http' => $http,
+            'exceptions' => ['total' => $this->nonNegativeInt($this->cache->get('operations:application:exceptions', 0))],
             'burn_rate' => ['short' => round($burn, 2), 'long' => round($burn, 2), 'status' => $burn >= 2 ? 'critical' : ($burn >= 1 ? 'warning' : 'healthy')],
             'ddos' => $ddos,
             'document_storage' => $storage,
@@ -74,6 +83,11 @@ final class ObservabilitySnapshotService
             'alerts' => $this->alerts->evaluate($signals, $this->alertDefinitions()),
             'generated_at' => now()->toIso8601String(),
         ];
+    }
+
+    private function nonNegativeInt(mixed $value): int
+    {
+        return is_numeric($value) ? max(0, (int) $value) : 0;
     }
 
     /** @return array<string, array{component:string,signal:string,operator:string,threshold:int|float,severity:string,runbook:string,window_minutes:int}> */
