@@ -3,16 +3,18 @@
 namespace Modules\Document\Application\Services;
 
 use App\Support\Storage\DocumentStorageTelemetry;
+use App\Support\Storage\DocumentUploadPolicy;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use RuntimeException;
 use Throwable;
 
 final readonly class EnterpriseDocumentService
 {
-    public function __construct(private ConnectionInterface $db, private DocumentMalwareScannerInterface $scanner, private DocumentStorageTelemetry $telemetry) {}
+    public function __construct(private ConnectionInterface $db, private DocumentMalwareScannerInterface $scanner, private DocumentStorageTelemetry $telemetry, private DocumentUploadPolicy $uploadPolicy) {}
 
     /** @param array<string,mixed> $data */
     public function create(array $data, UploadedFile $file, int $actorId): int
@@ -165,35 +167,23 @@ final readonly class EnterpriseDocumentService
     /** @return array{DocumentScanStatus, string, string} */
     private function validateUpload(UploadedFile $file, string $diskName, int $companyId): array
     {
-        $extension = strtolower($file->getClientOriginalExtension());
-        $realPath = $file->getRealPath();
-        abort_unless(is_string($realPath), 422, 'Không đọc được file upload.');
-        $mime = (new \finfo(FILEINFO_MIME_TYPE))->file($realPath);
-        $signatures = [
-            'pdf' => ['application/pdf'],
-            'doc' => ['application/msword'],
-            'docx' => ['application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/zip'],
-            'xls' => ['application/vnd.ms-excel'],
-            'xlsx' => ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/zip'],
-            'csv' => ['text/csv', 'text/plain'],
-            'txt' => ['text/plain'],
-            'jpg' => ['image/jpeg'],
-            'jpeg' => ['image/jpeg'],
-            'png' => ['image/png'],
-            'webp' => ['image/webp'],
-        ];
-        abort_unless(is_string($mime) && isset($signatures[$extension]) && in_array($mime, $signatures[$extension], true), 422, 'Loại hoặc chữ ký file không được hỗ trợ.');
-        if ($diskName === 'supabase') {
-            abort_unless(in_array($mime, ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'], true), 422, 'Định dạng file không nằm trong MIME allowlist của Supabase Storage.');
+        try {
+            $validated = $this->uploadPolicy->validate($file, $diskName === 'local');
+        } catch (ValidationException $exception) {
+            $errors = $exception->errors();
+            $messages = is_array($errors['document'] ?? null) ? $errors['document'] : [];
+            abort(422, is_string($messages[0] ?? null) ? $messages[0] : 'Tài liệu không hợp lệ.');
         }
-        abort_if($file->getSize() < 1 || $file->getSize() > 10 * 1024 * 1024, 422, 'Kích thước file không hợp lệ.');
+        $realPath = $validated['path'];
+        $mime = $validated['mime'];
+        $extension = $validated['extension'];
         $startedAt = hrtime(true);
         $scanStatus = $this->scanner->scan($realPath);
         $this->telemetry->record('scanner', 'clamav', $companyId, $scanStatus !== DocumentScanStatus::Failed, $this->elapsedMs($startedAt), null, $scanStatus === DocumentScanStatus::Failed ? 503 : null);
         abort_if($scanStatus === DocumentScanStatus::Infected, 422, 'Tài liệu bị phát hiện có mã độc.');
         abort_if($scanStatus === DocumentScanStatus::Failed, 503, 'Không thể kiểm tra an toàn tài liệu.');
 
-        return [$scanStatus, $mime, $extension === 'jpeg' ? 'jpg' : $extension];
+        return [$scanStatus, $mime, $extension];
     }
 
     private function integer(mixed $value): int

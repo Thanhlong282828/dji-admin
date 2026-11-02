@@ -16,6 +16,10 @@ return [
     'metrics' => [
         'ttl_seconds' => (int) env('OBSERVABILITY_METRICS_TTL_SECONDS', 3600),
     ],
+    'metrics_export' => [
+        'enabled' => (bool) env('OPERATIONS_METRICS_EXPORT_ENABLED', false),
+        'timeout_seconds' => (int) env('OPERATIONS_METRICS_EXPORT_TIMEOUT_SECONDS', 5),
+    ],
     'vps_monitoring' => [
         'enabled' => (bool) env('VPS_MONITORING_ENABLED', false),
         'backend' => env('VPS_MONITORING_BACKEND'),
@@ -39,6 +43,8 @@ return [
         'high_5xx_rate' => ['component' => 'http', 'signal' => 'http_5xx_rate_percent', 'operator' => 'gte', 'threshold' => (float) env('ALERT_HTTP_5XX_PERCENT', 5), 'severity' => 'critical', 'runbook' => 'docs/runbooks/deployment-failure.md', 'window_minutes' => (int) env('ALERT_HTTP_WINDOW_MINUTES', 5)],
         'high_p95_latency' => ['component' => 'http', 'signal' => 'http_p95_ms', 'operator' => 'gte', 'threshold' => (int) env('ALERT_HTTP_P95_MS', 1500), 'severity' => 'warning', 'runbook' => 'docs/runbooks/deployment-failure.md', 'window_minutes' => (int) env('ALERT_HTTP_WINDOW_MINUTES', 5)],
         'queue_backlog' => ['component' => 'queue', 'signal' => 'queue_depth', 'operator' => 'gte', 'threshold' => (int) env('ALERT_QUEUE_DEPTH', 100), 'severity' => 'warning', 'runbook' => 'docs/runbooks/queue-worker-down.md', 'window_minutes' => (int) env('ALERT_QUEUE_WINDOW_MINUTES', 10)],
+        'queue_oldest_job' => ['component' => 'queue', 'signal' => 'queue_oldest_pending_seconds', 'operator' => 'gte', 'threshold' => (int) env('ALERT_QUEUE_OLDEST_SECONDS', 300), 'severity' => 'critical', 'runbook' => 'docs/runbooks/queue-backlog-recovery.md', 'window_minutes' => (int) env('ALERT_QUEUE_WINDOW_MINUTES', 10)],
+        'queue_metrics_unavailable' => ['component' => 'queue', 'signal' => 'queue_metrics_available', 'operator' => 'lte', 'threshold' => 0, 'severity' => 'critical', 'runbook' => 'docs/runbooks/queue-worker-down.md', 'window_minutes' => 1],
         'failed_jobs' => ['component' => 'queue', 'signal' => 'failed_jobs', 'operator' => 'gte', 'threshold' => (int) env('ALERT_FAILED_JOBS', 1), 'severity' => 'critical', 'runbook' => 'docs/runbooks/queue-worker-down.md', 'window_minutes' => (int) env('ALERT_QUEUE_WINDOW_MINUTES', 10)],
         'scheduler_stale' => ['component' => 'scheduler', 'signal' => 'scheduler_age_seconds', 'operator' => 'gte', 'threshold' => (int) env('SCHEDULER_STALE_SECONDS', 180), 'severity' => 'critical', 'runbook' => 'docs/runbooks/scheduler-stale.md', 'window_minutes' => 5],
         'integration_dead_letter' => ['component' => 'integration', 'signal' => 'integration_dead_letters', 'operator' => 'gte', 'threshold' => (int) env('ALERT_INTEGRATION_DEAD_LETTERS', 1), 'severity' => 'warning', 'runbook' => 'docs/runbooks/integration-dead-letter.md', 'window_minutes' => 15],

@@ -1,0 +1,17 @@
+{
+  "descriptors": [
+    {"type":"custom.googleapis.com/laraveldji/http/request_count","metricKind":"GAUGE","valueType":"INT64","unit":"1","displayName":"LaravelDji HTTP requests in local metrics window","description":"Bounded cache-window request count exported once per scheduler interval."},
+    {"type":"custom.googleapis.com/laraveldji/http/5xx_count","metricKind":"GAUGE","valueType":"INT64","unit":"1","displayName":"LaravelDji HTTP 5xx responses in local metrics window","description":"Bounded cache-window 5xx response count."},
+    {"type":"custom.googleapis.com/laraveldji/http/5xx_rate","metricKind":"GAUGE","valueType":"DOUBLE","unit":"1","displayName":"LaravelDji HTTP 5xx ratio","description":"5xx responses divided by total responses in the bounded local metrics window."},
+    {"type":"custom.googleapis.com/laraveldji/http/request_p95_ms","metricKind":"GAUGE","valueType":"DOUBLE","unit":"ms","displayName":"LaravelDji HTTP p95 latency","description":"Histogram-derived p95 request latency in milliseconds."},
+    {"type":"custom.googleapis.com/laraveldji/application/exception_count","metricKind":"GAUGE","valueType":"INT64","unit":"1","displayName":"LaravelDji reported exceptions in local metrics window","description":"Exceptions observed by the Laravel exception reporting boundary in the bounded local metrics window."},
+    {"type":"custom.googleapis.com/laraveldji/application/readiness","metricKind":"GAUGE","valueType":"INT64","unit":"1","displayName":"LaravelDji application readiness","description":"One when database, Redis and queue readiness checks pass; zero otherwise."},
+    {"type":"custom.googleapis.com/laraveldji/queue/available","metricKind":"GAUGE","valueType":"INT64","unit":"1","displayName":"LaravelDji queue metric availability","description":"One when queue depth can be inspected authoritatively; zero when unavailable."},
+    {"type":"custom.googleapis.com/laraveldji/queue/depth","metricKind":"GAUGE","valueType":"INT64","unit":"1","displayName":"LaravelDji queue depth","description":"Pending jobs observed without dequeueing or mutating the queue."},
+    {"type":"custom.googleapis.com/laraveldji/queue/oldest_pending_seconds","metricKind":"GAUGE","valueType":"INT64","unit":"s","displayName":"LaravelDji oldest queued job age","description":"Age in seconds of the oldest pending Redis queue payload when queue metrics are available."},
+    {"type":"custom.googleapis.com/laraveldji/queue/failed_jobs","metricKind":"GAUGE","valueType":"INT64","unit":"1","displayName":"LaravelDji failed jobs","description":"Current failed_jobs table count."},
+    {"type":"custom.googleapis.com/laraveldji/scheduler/available","metricKind":"GAUGE","valueType":"INT64","unit":"1","displayName":"LaravelDji scheduler heartbeat availability","description":"One when a scheduler heartbeat timestamp exists; zero otherwise."},
+    {"type":"custom.googleapis.com/laraveldji/scheduler/heartbeat_age_seconds","metricKind":"GAUGE","valueType":"INT64","unit":"s","displayName":"LaravelDji scheduler heartbeat age","description":"Seconds elapsed since the most recent scheduler heartbeat."},
+    {"type":"custom.googleapis.com/laraveldji/exporter/success","metricKind":"GAUGE","valueType":"INT64","unit":"1","displayName":"LaravelDji metrics exporter success heartbeat","description":"One emitted only after the scheduled exporter reaches the Cloud Monitoring write request."}
+  ]
+}

@@ -27,6 +27,8 @@ final class RuntimeResourceHardeningTest extends TestCase
         self::assertSame(250, config('horizon.defaults.supervisor-1.maxJobs'));
         self::assertSame(384, config('horizon.defaults.supervisor-1.memory'));
         self::assertSame(330, config('horizon.defaults.supervisor-1.timeout'));
+        self::assertSame(['web', 'auth', 'account.enabled', 'permission:operations.view'], config('horizon.middleware'));
+        self::assertFalse((bool) config('operations.horizon_expected'));
     }
 
     public function test_php_fpm_and_container_logs_recycle_with_explicit_bounds(): void
@@ -57,6 +59,20 @@ final class RuntimeResourceHardeningTest extends TestCase
         foreach (['storage/app/private', 'storage/app/public', 'storage/app/recovery', 'activity_log', 'accounting', 'inventory'] as $protected) {
             self::assertStringNotContainsString('delete('.$protected, $consoleRoutes);
         }
+    }
+
+    public function test_application_metrics_export_is_bounded_and_does_not_enable_horizon(): void
+    {
+        $commands = collect($this->app->make(Schedule::class)->events())
+            ->map(static fn ($event): string => (string) $event->command)
+            ->filter(static fn (string $command): bool => str_contains($command, 'operations:export-metrics'))
+            ->values();
+
+        self::assertCount(1, $commands);
+        self::assertFalse((bool) config('operations.metrics_export.enabled'));
+        self::assertFalse((bool) config('operations.horizon_expected'));
+        self::assertStringContainsString('everyMinute()', $this->projectFile('routes/console.php'));
+        self::assertStringContainsString('withoutOverlapping(5)', $this->projectFile('routes/console.php'));
     }
 
     public function test_systemd_templates_use_measured_graceful_bounds_without_hard_memory_kills(): void
@@ -131,6 +147,26 @@ final class RuntimeResourceHardeningTest extends TestCase
         self::assertStringContainsString('everyFiveMinutes()', $provider);
         self::assertStringContainsString('onOneServer()', $provider);
         self::assertStringContainsString('withoutOverlapping(10)', $provider);
+    }
+
+    public function test_production_backup_and_staging_restore_scripts_fail_closed(): void
+    {
+        $backup = $this->projectFile('scripts/operations/backup-database-encrypted.sh');
+        $restore = $this->projectFile('scripts/operations/restore-encrypted-to-staging.sh');
+        $approval = $this->projectFile('docs/templates/production-backup-approval-manifest.yaml');
+
+        foreach (['set -euo pipefail', 'pinned MySQL 8.4', '--single-transaction', '--routines', '--triggers', '--events', '--hex-blob', 'age --recipient', 'EXPECTED_SOURCE_SERVER_UUID', 'non-InnoDB', 'completed=false'] as $guard) {
+            self::assertStringContainsString($guard, $backup);
+        }
+
+        foreach (['APP_ENV" == "staging', '*_staging_restore', 'EXPECTED_STAGING_SERVER_UUID', 'PRODUCTION_SERVER_UUID', 'Restore target must be empty', 'gzip -t', 'Backup manifest checksum mismatch'] as $guard) {
+            self::assertStringContainsString($guard, $restore);
+        }
+
+        self::assertStringContainsString('plaintext_persistence_allowed: false', $approval);
+        self::assertStringContainsString('create_local_encrypted_backup_artifacts: false', $approval);
+        self::assertStringContainsString('upload_new_ciphertext_and_sidecars: false', $approval);
+        self::assertStringContainsString('install_packages_on_production_vps', $approval);
     }
 
     private function projectFile(string $path): string
