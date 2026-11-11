@@ -10,5 +10,6 @@ final class EmployeeDocumentHistory extends Model
 
     protected $table = 'employee_documents_history';
 
-    protected $guarded = ['id'];
+    protected $fillable = [
+    ];
 }

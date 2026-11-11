@@ -11,7 +11,25 @@ use Modules\Onboarding\Domain\Enums\OnboardingStatus;
 /** @property int $id */
 final class OnboardingCase extends Model
 {
-    protected $guarded = ['id'];
+    protected $fillable = [
+        'application_id',
+        'buddy_id',
+        'checklist',
+        'company_id',
+        'created_by',
+        'employee_id',
+        'job_position_id',
+        'offer_id',
+        'organization_unit_id',
+        'owner_user_id',
+        'probation_review_date',
+        'provisioning',
+        'requisition_id',
+        'start_date',
+        'status',
+        'template_code',
+        'version',
+    ];
 
     protected function casts(): array
     {

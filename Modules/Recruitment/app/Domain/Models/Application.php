@@ -17,7 +17,17 @@ use Modules\Recruitment\Domain\Enums\ApplicationStage;
  */
 final class Application extends Model
 {
-    protected $guarded = ['id'];
+    protected $fillable = [
+        'candidate_id',
+        'hired_at',
+        'hired_employee_id',
+        'hiring_reference',
+        'recruitment_requisition_id',
+        'stage',
+        'stage_changed_at',
+        'stage_reason',
+        'version',
+    ];
 
     protected function casts(): array
     {

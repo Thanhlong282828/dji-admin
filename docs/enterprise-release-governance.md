@@ -15,6 +15,20 @@ Phase 3F-21 adds a pre-release API contract gate and sanitized OpenAPI checksum 
 - Read-only `/admin/operations/releases` protected by `auth`, `verified`, `operations.view`.
 - Production-safe health smoke contract using only `/health/live`, `/health/ready` and `/health/metrics-readiness`.
 
+## Permanent bug-fix integration gate
+
+An isolated worktree is a development and verification boundary, not the canonical completion target. Every verified fix must carry an integration record containing the source worktree or commit, exact changed-file manifest, root cause, regression evidence and one of these states: integrated into the primary project, awaiting approval, conflicted or intentionally rejected. A fix that exists only under a temporary path must not be reported as complete.
+
+Before integration, capture the primary project's branch, `HEAD`, status and dirty-file inventory. Preserve all existing changes. Never reset, restore, clean, stash, replace files from another tree or partially apply an interdependent release to avoid a conflict. If a candidate overlaps a dirty file, stop that integration unit and obtain approval for an explicit conflict-resolution plan. GitHub push, PR creation and artifact publication do not update the primary local working tree.
+
+Every bug fix requires executable regression protection at the narrowest meaningful boundary: behavioral PHPUnit/browser/process-race coverage for runtime defects, or a deterministic architecture/configuration/static contract test for tooling defects. Existing assertions and authorization or tenant-denial expectations must not be weakened. Required gates remain PHPStan level 10 over both `app` and `Modules`, Pint, relevant security tests and the domain-specific regression suite; no baseline, `ignoreErrors` or scope exclusion may substitute for a fix.
+
+Browser performance and navigation evidence must come from a fresh isolated application-server process for each authoritative run. An interrupted or timed-out run must terminate that process before retrying so stale single-process requests or session locks cannot be misclassified as an application-query regression. When Reverb is not part of the QA environment, assets must be built with `VITE_REVERB_ENABLED=false`; this is a testing-only presentation setting and must not rewrite production configuration. Browser QA must assert HTTP status, console/page errors and page-level horizontal overflow at the required desktop and mobile viewports; wide tables may scroll only inside their own bounded container.
+
+Root-cause evidence must distinguish source, configuration, tooling and environment failures. Integration must preserve tenant isolation, RBAC/ABAC, policies, explicit Eloquent mass-assignment allowlists, immutable accounting evidence and Finance/Tax calculation contracts. Reintroducing `$guarded = []`, global `Model::unguard()` or silent authorization bypasses is prohibited.
+
+Completion reporting must identify integrated fixes, pending fixes, conflicts, exact files, current gate results and approvals still required. Worktrees containing unintegrated changes remain preserved. Local integration does not authorize commit, push, merge, deployment or any production/cloud/database mutation; each retains its independent approval gate.
+
 Release stages are preflight, backup readiness, immutable build/digest, migration review, maintenance/compatibility decision, candidate migration, application deployment, readiness, read-only smoke, queue/scheduler/observability verification, acceptance and rollback decision window.
 
 Current Docker host design is single-instance. True zero-downtime or canary deployment is **not verified**. A future canary design would select a small traffic percentage, observe production-configured availability/5xx/p95/queue/dependency signals during a bounded window, then promote or roll back. Local/demo thresholds must never drive automatic production rollback.

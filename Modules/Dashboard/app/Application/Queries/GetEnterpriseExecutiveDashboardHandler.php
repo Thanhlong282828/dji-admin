@@ -11,6 +11,6 @@ final readonly class GetEnterpriseExecutiveDashboardHandler
     /** @return array<string,mixed> */
     public function handle(GetEnterpriseExecutiveDashboardQuery $query): array
     {
-        return $this->service->read($query->companyId, $query->actorId, $query->branchId, $query->dateFrom, $query->dateTo);
+        return $this->service->read($query->companyId, $query->actorId, $query->branchId, $query->dateFrom, $query->dateTo, $query->capabilities);
     }
 }

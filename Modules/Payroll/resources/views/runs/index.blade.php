@@ -123,7 +123,7 @@
         {{-- ============================================================
             PAYROLL RUN TABLE
         ============================================================ --}}
-        <section class="overflow-x-auto rounded-xl border border-zinc-800">
+        <section class="table-scroll rounded-xl border border-zinc-800" aria-label="Danh sách Payroll Runs">
             <table class="w-full text-left">
                 <thead>
                     <tr>

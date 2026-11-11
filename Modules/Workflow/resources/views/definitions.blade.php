@@ -7,7 +7,7 @@
 @endsection
 @section('content')
 @include('workflow::partials.styles')
-<section class="wf-panel"><div class="wf-heading"><div><small>VERSIONED BLUEPRINTS</small><h2>Approval definitions</h2></div><span class="wf-status">{{ $vm->definitionCount }} definitions</span></div><div class="wf-table"><table><thead><tr><th>Code</th><th>Name</th><th>Version</th><th>Status</th><th>Action</th></tr></thead><tbody>
+<section class="wf-panel"><div class="wf-heading"><div><small>VERSIONED BLUEPRINTS</small><h2>Approval definitions</h2></div><span class="wf-status">{{ $vm->definitionCount }} definitions</span></div><div class="wf-table" tabindex="0" aria-label="Workflow definitions"><table><thead><tr><th>Code</th><th>Name</th><th>Version</th><th>Status</th><th>Action</th></tr></thead><tbody>
 @forelse($vm->definitions as $row)
 <tr><td>{{ $row['code'] }}</td><td>{{ $row['name'] }}</td><td>v{{ $row['latest_version'] }}</td><td><span class="wf-status">{{ $row['status'] }}</span></td><td>
     @if($row['status']==='draft')

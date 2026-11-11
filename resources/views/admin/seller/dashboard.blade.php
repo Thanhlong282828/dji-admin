@@ -1,22 +1,18 @@
 @extends('layouts.admin')
 @section('title', 'Seller Dashboard')
 @section('content')
-<section class="page-hero panel">
-    <span class="eyebrow">Seller Center</span>
-    <h2>{{ $seller?->display_name ?? 'Chưa có hồ sơ Seller' }}</h2>
-    <p>{{ $companyName }} · Trạng thái Seller, Store, Product, tồn kho, Order và doanh thu recognized thuộc đúng Seller account của Company hiện tại.</p>
-</section>
-<section class="summary-grid">
-    <article class="summary-card"><span>Seller status</span><strong>{{ $seller?->status ?? 'N/A' }}</strong></article>
-    <article class="summary-card"><span>Cửa hàng</span><strong>{{ $stores->count() }}</strong></article>
-    <article class="summary-card"><span>Sản phẩm active</span><strong>{{ $metrics['active_products'] }} / {{ $metrics['products'] }}</strong></article>
-    <article class="summary-card"><span>Sắp hết hàng</span><strong>{{ $metrics['low_stock'] }}</strong></article>
-    <article class="summary-card"><span>Hết hàng</span><strong>{{ $metrics['out_of_stock'] }}</strong></article>
-    <article class="summary-card"><span>Đơn hàng chờ xác nhận</span><strong>{{ $metrics['pending_orders'] }} / {{ $metrics['orders'] }}</strong></article>
-    <article class="summary-card"><span>Order đã thanh toán</span><strong>{{ $metrics['paid_orders'] }}</strong></article>
-    <article class="summary-card"><span>Order đã giao</span><strong>{{ $metrics['fulfilled_orders'] }}</strong></article>
-    <article class="summary-card"><span>Doanh thu Order recognized</span><strong>{{ number_format($metrics['recognized_revenue_minor'], 0, ',', '.') }} ₫</strong></article>
-</section>
+<x-erp.dashboard eyebrow="Seller Center" :title="$seller?->display_name ?? 'Chưa có hồ sơ Seller'" :description="$companyName.' · Dữ liệu Store, Product, tồn kho, Order và doanh thu recognized thuộc Seller account của Company hiện tại.'">
+<x-erp.dashboard-section title="Sales / Orders" description="Chỉ số lấy từ Seller account và các luồng commerce canonical." columns="3">
+    <x-erp.kpi-card label="Seller status" :value="$seller?->status ?? 'N/A'" icon="◈" :state="$seller ? 'ready' : 'empty'" />
+    <x-erp.kpi-card label="Cửa hàng" :value="$stores->count()" icon="⌂" />
+    <x-erp.kpi-card label="Sản phẩm active" :value="$metrics['active_products'].' / '.$metrics['products']" icon="◇" @can('product.view') :href="route('admin.products.index')" action-label="Mở sản phẩm" @endcan />
+    <x-erp.kpi-card label="Sắp hết hàng" :value="$metrics['low_stock']" icon="!" @can('inventory.view') :href="route('admin.seller.inventory')" action-label="Mở tồn kho" @endcan />
+    <x-erp.kpi-card label="Hết hàng" :value="$metrics['out_of_stock']" icon="×" status="Cần bổ sung nguồn hàng" />
+    <x-erp.kpi-card label="Đơn chờ xác nhận" :value="$metrics['pending_orders'].' / '.$metrics['orders']" icon="◷" @can('commerce.store.view') :href="route('admin.seller.orders.index')" action-label="Mở đơn hàng" @endcan />
+    <x-erp.kpi-card label="Order đã thanh toán" :value="$metrics['paid_orders']" icon="✓" />
+    <x-erp.kpi-card label="Order đã giao" :value="$metrics['fulfilled_orders']" icon="→" />
+    <x-erp.kpi-card label="Doanh thu recognized" :value="number_format($metrics['recognized_revenue_minor'], 0, ',', '.')" unit="₫" icon="₫" meta="Nguồn: order đã ghi nhận" />
+</x-erp.dashboard-section>
 @if($seller)
     <div class="button-row">
         <a class="button" href="{{ route('admin.seller.store', ['company_id' => $companyId]) }}">Hồ sơ Store</a>
@@ -27,4 +23,5 @@
 @else
     <div class="notice">Hồ sơ Seller cần được nền tảng khởi tạo/xét duyệt trước khi mở cửa hàng.</div>
 @endif
+</x-erp.dashboard>
 @endsection

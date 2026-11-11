@@ -17,5 +17,6 @@ final class WorkflowInstance extends Model
 {
     protected $table = 'workflow_instances';
 
-    protected $guarded = [];
+    protected $fillable = [
+    ];
 }

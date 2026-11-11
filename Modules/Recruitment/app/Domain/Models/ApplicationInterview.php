@@ -26,7 +26,22 @@ use Modules\Recruitment\Domain\Enums\InterviewType;
  */
 final class ApplicationInterview extends Model
 {
-    protected $guarded = ['id'];
+    protected $fillable = [
+        'application_id',
+        'company_id',
+        'ends_at',
+        'instructions',
+        'interview_type',
+        'location',
+        'meeting_url',
+        'round_number',
+        'scheduled_by',
+        'starts_at',
+        'status',
+        'timezone',
+        'title',
+        'version',
+    ];
 
     protected function casts(): array
     {

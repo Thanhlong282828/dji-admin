@@ -7,7 +7,18 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 final class EmployeeDocument extends Model
 {
-    protected $guarded = ['id'];
+    protected $fillable = [
+        'access_policy',
+        'checksum',
+        'employee_id',
+        'mime_type',
+        'name',
+        'scan_status',
+        'size_bytes',
+        'storage_key',
+        'type',
+        'version',
+    ];
 
     protected $hidden = ['storage_key', 'access_policy'];
 

@@ -29,7 +29,20 @@ final class Candidate extends Model
 {
     use HasUuids, SoftDeletes;
 
-    protected $guarded = ['id', 'uuid'];
+    protected $fillable = [
+        'company_id',
+        'consent',
+        'email',
+        'full_name',
+        'hired_application_id',
+        'hired_at',
+        'hired_employee_id',
+        'phone',
+        'profile',
+        'profile_fingerprint',
+        'source',
+        'status',
+    ];
 
     protected $hidden = ['resume_url', 'resume_storage_key'];
 

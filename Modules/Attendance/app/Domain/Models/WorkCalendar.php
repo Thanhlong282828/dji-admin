@@ -8,7 +8,14 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 /** @property int $id @property int $company_id @property string $timezone */
 final class WorkCalendar extends Model
 {
-    protected $guarded = ['id'];
+    protected $fillable = [
+        'code',
+        'company_id',
+        'effective_from',
+        'name',
+        'timezone',
+        'weekly_work_minutes',
+    ];
 
     /** @return HasMany<WorkCalendarDay, $this> */
     public function days(): HasMany

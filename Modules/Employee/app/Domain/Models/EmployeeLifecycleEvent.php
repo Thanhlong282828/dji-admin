@@ -9,7 +9,18 @@ final class EmployeeLifecycleEvent extends Model
 {
     public $timestamps = false;
 
-    protected $guarded = ['id'];
+    protected $fillable = [
+        'company_id',
+        'correlation_id',
+        'created_by',
+        'effective_at',
+        'employee_id',
+        'event_type',
+        'from_state',
+        'idempotency_key',
+        'payload_checksum',
+        'to_state',
+    ];
 
     protected function casts(): array
     {

@@ -4,7 +4,7 @@
     <nav class="erp-process-flow" aria-label="Quy trình nghiệp vụ" data-process-flow>
         <div class="erp-process-flow__heading">
             <span>Quy trình nghiệp vụ</span>
-            <small>Luồng đến bước hiện tại</small>
+            <small>Đường dẫn nghiệp vụ được cấp quyền</small>
         </div>
         <ol class="erp-process-flow__track">
             @foreach($nodes as $node)

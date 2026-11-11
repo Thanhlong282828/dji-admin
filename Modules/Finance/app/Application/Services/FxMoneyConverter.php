@@ -9,7 +9,10 @@ final class FxMoneyConverter
 {
     public function convertMinor(int $amountMinor, string $baseCurrency, string $quoteCurrency, string $rateDecimal): int
     {
-        if ($amountMinor < 0 || ! preg_match('/^\d+(?:\.\d{1,12})?$/', $rateDecimal) || bccomp($rateDecimal, '0', 12) !== 1) {
+        if ($amountMinor < 0 || ! is_numeric($rateDecimal) || ! preg_match('/^\d+(?:\.\d{1,12})?$/', $rateDecimal)) {
+            throw ValidationException::withMessages(['amount' => 'FX_CONVERSION_INVALID_INPUT']);
+        }
+        if (bccomp($rateDecimal, '0', 12) !== 1) {
             throw ValidationException::withMessages(['amount' => 'FX_CONVERSION_INVALID_INPUT']);
         }
         try {

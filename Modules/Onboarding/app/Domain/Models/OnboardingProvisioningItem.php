@@ -7,7 +7,18 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 final class OnboardingProvisioningItem extends Model
 {
-    protected $guarded = ['id'];
+    protected $fillable = [
+        'code',
+        'company_id',
+        'due_at',
+        'is_required',
+        'metadata',
+        'provider',
+        'provider_status',
+        'status',
+        'title',
+        'type',
+    ];
 
     protected function casts(): array
     {

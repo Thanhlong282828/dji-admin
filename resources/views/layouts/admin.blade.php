@@ -22,6 +22,9 @@
 
                 if (/^[a-z0-9-]{1,80}$/.test(group)) root.dataset.adminNavOpenGroup = group;
                 if (/^\d{1,7}$/.test(scrollTop)) root.dataset.adminNavScrollTop = scrollTop;
+                if (localStorage.getItem('schema.admin.sidebar.collapsed') === 'true') root.dataset.adminSidebarCollapsed = 'true';
+                const scale = localStorage.getItem('schema.admin.ui-scale') ?? '100';
+                if (/^(25|33|50|67|75|80|90|100|110)$/.test(scale)) root.dataset.adminUiScale = scale;
             } catch {
                 // Storage can be unavailable in privacy modes; server state remains authoritative.
             }
@@ -46,6 +49,9 @@
                 <span class="brand-subtitle">CONTROL CENTER</span>
             </span>
         </a>
+        <button class="sidebar-collapse" type="button" aria-label="Thu gọn thanh điều hướng" aria-pressed="false" title="Thu gọn thanh điều hướng" data-sidebar-collapse>
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m14 6-6 6 6 6M20 4v16" /></svg>
+        </button>
         <button class="sidebar-close" type="button" aria-label="Đóng điều hướng chính" data-sidebar-close><span aria-hidden="true">×</span></button>
     </div>
     @php
@@ -62,21 +68,26 @@
         <label for="admin-navigation-search">{{ $useOriginalCopy ? 'Tìm nhanh trong menu' : __('navigation.search') }}</label>
         <input id="admin-navigation-search" type="search" autocomplete="off" placeholder="{{ $useOriginalCopy ? 'Ví dụ: payroll, bảo mật…' : __('navigation.search_placeholder') }}" data-nav-search>
     </div>
-    <nav class="primary-navigation" aria-label="Điều hướng chính" data-primary-navigation>
+    <nav
+        class="primary-navigation"
+        aria-label="Điều hướng chính"
+        data-primary-navigation
+        data-navigation-destination-count="{{ array_sum(array_map(static fn (array $group): int => count($group['items']), $navigationGroups)) }}"
+    >
         @forelse($navigationGroups as $group)
             <section class="nav-group {{ $group['active'] ? 'is-active is-open' : '' }}" data-nav-group="{{ $group['key'] }}" data-route-active="{{ $group['active'] ? 'true' : 'false' }}">
                 <h2>
-                    <button type="button" class="nav-group-toggle" aria-expanded="{{ $group['active'] ? 'true' : 'false' }}" aria-controls="nav-group-{{ $group['key'] }}" data-nav-group-toggle>
+                    <button type="button" class="nav-group-toggle" aria-expanded="{{ $group['active'] ? 'true' : 'false' }}" aria-controls="nav-group-{{ $group['key'] }}" title="{{ $group['label'] }}" data-nav-group-toggle>
                         <span class="nav-group-icon" aria-hidden="true">{{ $group['icon'] }}</span>
-                        <span>{{ ! $useOriginalCopy && trans()->has('navigation.groups.'.$group['key']) ? __('navigation.groups.'.$group['key']) : $group['label'] }}</span>
+                        <span data-nav-text>{{ ! $useOriginalCopy && trans()->has('navigation.groups.'.$group['key']) ? __('navigation.groups.'.$group['key']) : $group['label'] }}</span>
                         <span class="nav-chevron" aria-hidden="true">⌄</span>
                     </button>
                 </h2>
                 <div id="nav-group-{{ $group['key'] }}" class="nav-group-items" @if(!$group['active']) hidden @endif>
                     @foreach($group['items'] as $item)
                         <div class="nav-item-row">
-                            <a class="nav-item {{ $item['active'] ? 'active' : '' }}" href="{{ route($item['route'], $item['parameters']) }}" @if($item['active']) aria-current="page" @endif data-nav-label="{{ Illuminate\Support\Str::lower($group['label'].' '.$item['label']) }}">
-                                <span>{{ ! $useOriginalCopy && trans()->has('navigation.items.'.$item['key']) ? __('navigation.items.'.$item['key']) : $item['label'] }}</span>
+                            <a class="nav-item {{ $item['active'] ? 'active' : '' }}" href="{{ route($item['route'], $item['parameters']) }}" title="{{ $item['label'] }}" @if($item['active']) aria-current="page" @endif data-nav-label="{{ Illuminate\Support\Str::lower($group['label'].' '.$item['label']) }}">
+                                <span data-nav-text>{{ ! $useOriginalCopy && trans()->has('navigation.items.'.$item['key']) ? __('navigation.items.'.$item['key']) : $item['label'] }}</span>
                                 @if($item['key'] === 'notifications')<i data-notification-unread aria-label="Thông báo chưa đọc">—</i>@endif
                             </a>
                             @if($item['process_help'])<a class="nav-item-help-link" href="{{ route($item['route'], [...$item['parameters'], 'process_help' => 'open']) }}" aria-label="Mở giải thích quy trình {{ $item['label'] }}" title="Owner Module · CQRS source · Business meaning · Next step">?</a>@endif
@@ -117,18 +128,79 @@
             delete root.dataset.adminNavInitializing;
         })();
     </script>
-    <div class="sidebar-locale" data-locale-switcher><button type="button" aria-label="{{ $useOriginalCopy ? 'Ngôn ngữ hiển thị' : __('navigation.language') }}" aria-haspopup="true" aria-expanded="false" aria-controls="sidebar-locale-menu" data-locale-toggle><span aria-hidden="true">◎</span><span>{{ $useOriginalCopy ? 'Mặc định' : __('navigation.locales.'.$presentationLocale) }}</span></button><div id="sidebar-locale-menu" role="menu" hidden data-locale-menu>@foreach(['default'=>'◉','vi'=>'🇻🇳','en'=>'🇬🇧','zh_CN'=>'🇨🇳'] as $locale=>$flag)<form method="POST" action="{{ route('locale.update') }}" role="none">@csrf<input type="hidden" name="locale" value="{{ $locale }}"><button role="menuitem" type="submit">{{ $flag }} {{ $locale === 'default' ? 'Mặc định' : __('navigation.locales.'.$locale) }} @if($presentationLocale===$locale)<span aria-hidden="true">✓</span>@endif</button></form>@endforeach</div></div>
-    <div class="user">{{ auth()->user()?->name ?? 'SYSTEM ADMIN' }}<br><small>Enterprise HRM</small></div>
+    <footer class="sidebar-footer">
+        <section class="sidebar-display-tools" aria-labelledby="sidebar-display-title">
+            <div class="sidebar-display-tools__heading">
+                <span id="sidebar-display-title">Hiển thị</span>
+                <output data-ui-scale-output aria-live="polite">100%</output>
+            </div>
+            <div class="sidebar-display-tools__controls" role="group" aria-label="Điều chỉnh tỷ lệ giao diện">
+                <button type="button" aria-label="Thu nhỏ giao diện" title="Thu nhỏ giao diện" data-ui-scale-down>−</button>
+                <button type="button" aria-label="Đặt lại tỷ lệ giao diện về 100 phần trăm" title="Đặt lại 100%" data-ui-scale-reset>100</button>
+                <button type="button" aria-label="Phóng to giao diện" title="Phóng to giao diện" data-ui-scale-up>+</button>
+            </div>
+        </section>
+        <div class="sidebar-locale" data-locale-switcher><button type="button" aria-label="{{ $useOriginalCopy ? 'Ngôn ngữ hiển thị' : __('navigation.language') }}" aria-haspopup="true" aria-expanded="false" aria-controls="sidebar-locale-menu" data-locale-toggle><span aria-hidden="true">◎</span><span>{{ $useOriginalCopy ? 'Mặc định' : __('navigation.locales.'.$presentationLocale) }}</span></button><div id="sidebar-locale-menu" role="menu" hidden data-locale-menu>@foreach(['default'=>'◉','vi'=>'🇻🇳','en'=>'🇬🇧','zh_CN'=>'🇨🇳'] as $locale=>$flag)<form method="POST" action="{{ route('locale.update') }}" role="none">@csrf<input type="hidden" name="locale" value="{{ $locale }}"><button role="menuitem" type="submit">{{ $flag }} {{ $locale === 'default' ? 'Mặc định' : __('navigation.locales.'.$locale) }} @if($presentationLocale===$locale)<span aria-hidden="true">✓</span>@endif</button></form>@endforeach</div></div>
+        @auth
+            <form class="sidebar-logout" method="POST" action="{{ route('logout') }}" x-data="{ submitting: false }" x-on:submit="submitting = true">
+                @csrf
+                <button type="submit" x-bind:disabled="submitting" aria-label="Đăng xuất khỏi hệ thống">
+                    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M10 17l5-5-5-5M15 12H3m9-9h6a3 3 0 013 3v12a3 3 0 01-3 3h-6" /></svg>
+                    <span x-show="! submitting">Đăng xuất</span>
+                    <span x-cloak x-show="submitting" role="status">Đang đăng xuất…</span>
+                </button>
+            </form>
+        @endauth
+        <div class="user" title="{{ auth()->user()?->name ?? 'SYSTEM ADMIN' }}"><span>{{ auth()->user()?->name ?? 'SYSTEM ADMIN' }}</span><br><small>Enterprise ERP</small></div>
+    </footer>
 </aside>
 <main id="main-content" tabindex="-1">
-    <header class="admin-page-header">
-        <div><div class="erp-shell-label"><small>SCHEMA ENTERPRISE PLATFORM</small><span class="erp-context-chip">Company #{{ $navigationCompanyId }}</span></div><h1>@yield('title')</h1></div>
+    @auth
+        @php
+            $accountName = trim((string) $navigationUser?->name) ?: 'Người dùng ERP';
+            $accountInitials = collect(preg_split('/\s+/u', $accountName) ?: [])->filter()->take(2)->map(fn (string $part): string => mb_strtoupper(mb_substr($part, 0, 1)))->join('');
+            $accountRole = $navigationUser?->getRoleNames()->first() ?: 'Tài khoản ERP';
+        @endphp
+        <header class="erp-command-header" data-erp-command-header>
+            <div class="erp-command-header__context"><small>WORKSPACE</small><strong>Company #{{ $navigationCompanyId }}</strong></div>
+            <div class="erp-command-search" data-workspace-search-root>
+                <label class="sr-only" for="erp-workspace-search">Tìm workspace ERP</label>
+                <span aria-hidden="true">⌕</span>
+                <input id="erp-workspace-search" type="search" autocomplete="off" placeholder="Tìm workspace, ví dụ Payroll, Inventory…" aria-controls="erp-workspace-results" aria-expanded="false" data-workspace-search>
+                <div id="erp-workspace-results" class="erp-command-search__results" role="listbox" hidden data-workspace-results>
+                    @foreach($navigationGroups as $group)
+                        @foreach($group['items'] as $item)
+                            <a role="option" href="{{ route($item['route'], $item['parameters']) }}" data-workspace-option data-search-text="{{ Illuminate\Support\Str::lower($group['label'].' '.$item['label']) }}"><small>{{ $group['label'] }}</small><strong>{{ $item['label'] }}</strong></a>
+                        @endforeach
+                    @endforeach
+                    <p data-workspace-empty hidden>Không có workspace phù hợp trong phạm vi quyền hiện tại.</p>
+                </div>
+            </div>
+            <div class="erp-account-menu" data-account-menu>
+                <button class="erp-account-menu__trigger" type="button" aria-haspopup="menu" aria-expanded="false" data-account-menu-toggle>
+                    <span class="erp-account-avatar" aria-hidden="true">{{ $accountInitials ?: '?' }}</span>
+                    <span class="erp-account-menu__identity"><strong>{{ $accountName }}</strong><small>{{ $accountRole }}</small></span>
+                    <span aria-hidden="true">⌄</span>
+                </button>
+                <div class="erp-account-menu__panel" role="menu" hidden data-account-menu-panel>
+                    <header><span class="erp-account-avatar" aria-hidden="true">{{ $accountInitials ?: '?' }}</span><div><strong>{{ $accountName }}</strong><small>{{ $navigationUser?->email }}</small><em>{{ $navigationUser?->access_enabled === false ? 'Tạm khóa' : 'Đang hoạt động' }}</em></div></header>
+                    <a role="menuitem" href="{{ route('profile.edit') }}#profile-information">Thông tin cá nhân <span aria-hidden="true">→</span></a>
+                    <a role="menuitem" href="{{ route('profile.edit') }}#account-settings">Cài đặt tài khoản <span aria-hidden="true">→</span></a>
+                    <form method="POST" action="{{ route('logout') }}" role="none">@csrf<button role="menuitem" type="submit">Đăng xuất <span aria-hidden="true">↗</span></button></form>
+                </div>
+            </div>
+        </header>
+    @endauth
+    @unless(request()->routeIs('dashboard'))
+    <section class="admin-page-toolbar" aria-labelledby="admin-page-title">
+        <div><div class="erp-shell-label"><small>SCHEMA ENTERPRISE PLATFORM</small><span class="erp-context-chip">Company #{{ $navigationCompanyId }}</span></div><h1 id="admin-page-title">@yield('title')</h1></div>
         <div class="header-actions">
             @can('payroll.assignment.view')<button type="button" class="header-icon-button" aria-label="Compensation Reference" title="Compensation Reference" data-compensation-reference-open data-url="{{ route('admin.compensation-reference',['company_id'=>$navigationCompanyId]) }}">$</button>@endcan
             @if($adminHelp !== null)<button type="button" class="header-icon-button" aria-label="Hướng dẫn sử dụng trang này" title="Hướng dẫn sử dụng trang này" data-admin-help-open>?</button>@endif
             @hasSection('header_action') @yield('header_action') @else @can('article.create')<a class="button" href="{{ route('articles.create',['company_id'=>$navigationCompanyId]) }}">+ Tạo bài viết</a>@endcan @endif
         </div>
-    </header>
+    </section>
+    @endunless
     @if($adminHelp !== null)
         @php
             $pageProcessFlow = array_values(array_filter(
@@ -142,12 +214,14 @@
     @if(isset($errors) && $errors->any())<div class="validation-summary" role="alert" aria-live="assertive"><strong>Vui lòng kiểm tra các lỗi sau:</strong><ul>@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul></div>@endif
     @yield('content')
 </main>
-@can('payroll.assignment.view')<dialog class="admin-dialog" data-compensation-reference-dialog aria-labelledby="compensation-reference-title"><div class="dialog-header"><h2 id="compensation-reference-title">Compensation Reference</h2><button type="button" aria-label="Đóng Compensation Reference" data-dialog-close>×</button></div><div data-compensation-reference-body><p>Đang tải…</p></div></dialog>@endcan
+@can('payroll.assignment.view')<dialog class="admin-dialog" data-compensation-reference-dialog role="dialog" aria-modal="true" aria-labelledby="compensation-reference-title"><div class="dialog-header"><h2 id="compensation-reference-title">Compensation Reference</h2><button type="button" aria-label="Đóng Compensation Reference" data-dialog-close>×</button></div><div data-compensation-reference-body><p>Đang tải…</p></div></dialog>@endcan
 @isset($adminHelp)
 
     <dialog
         class="admin-dialog admin-help-dialog"
         data-admin-help-dialog
+        role="dialog"
+        aria-modal="true"
         aria-labelledby="admin-help-title"
     >
         <div class="dialog-header">
@@ -345,7 +419,7 @@
 
         <section>
             <h3>
-                Khi thao tác, dữ liệu thay đổi ở đâu
+                Sau khi lưu thì dữ liệu đi đâu
             </h3>
 
             <ul>

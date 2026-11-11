@@ -62,6 +62,10 @@ final class EnterpriseDocumentManagementTest extends TestCase
         self::assertNotSame((int) $first->id, (int) DB::table('enterprise_documents')->find($document->id)->current_version_id);
 
         $this->actingAs($user)->get(route('admin.documents.download', ['version' => $first->id, 'company_id' => $company]))->assertOk();
+        $this->actingAs($user)
+            ->get(route('admin.documents.show', ['document' => $document->id, 'company_id' => $company]))
+            ->assertOk()
+            ->assertSee('Lịch sử phiên bản bất biến');
         $unauthorized = User::factory()->create(['email_verified_at' => now()]);
         DB::table('company_user_access')->insert(['company_id' => $company, 'user_id' => $unauthorized->id, 'created_at' => now(), 'updated_at' => now()]);
         $this->actingAs($unauthorized)->get(route('admin.documents.download', ['version' => $first->id, 'company_id' => $company]))->assertForbidden();

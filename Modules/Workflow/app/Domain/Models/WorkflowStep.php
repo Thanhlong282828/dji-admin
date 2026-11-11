@@ -21,5 +21,6 @@ final class WorkflowStep extends Model
 {
     protected $table = 'workflow_steps';
 
-    protected $guarded = [];
+    protected $fillable = [
+    ];
 }

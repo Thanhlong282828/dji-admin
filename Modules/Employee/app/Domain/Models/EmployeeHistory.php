@@ -9,7 +9,15 @@ use Modules\Employee\Domain\Enums\EmployeeHistoryEventType;
 
 final class EmployeeHistory extends Model
 {
-    protected $guarded = ['id'];
+    protected $fillable = [
+        'after',
+        'approved_by',
+        'before',
+        'effective_at',
+        'employee_id',
+        'event_type',
+        'reason',
+    ];
 
     protected function casts(): array
     {

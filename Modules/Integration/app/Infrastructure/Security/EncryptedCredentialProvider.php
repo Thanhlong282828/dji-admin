@@ -2,12 +2,12 @@
 
 namespace Modules\Integration\Infrastructure\Security;
 
-use Illuminate\Contracts\Encryption\Encrypter;
+use Illuminate\Contracts\Encryption\StringEncrypter;
 use Modules\Integration\Domain\Contracts\IntegrationCredentialProviderInterface;
 
 final readonly class EncryptedCredentialProvider implements IntegrationCredentialProviderInterface
 {
-    public function __construct(private Encrypter $crypt) {}
+    public function __construct(private StringEncrypter $crypt) {}
 
     public function protect(string $reference): string
     {

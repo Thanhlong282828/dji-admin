@@ -8,11 +8,18 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Modules\Company\Domain\Models\Company;
 use Spatie\Permission\Models\Permission;
+use Spatie\Permission\PermissionRegistrar;
 use Tests\TestCase;
 
 final class FxRevaluationHttpAuthorizationTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
+    }
 
     public function test_workspace_and_lifecycle_routes_enforce_authentication_permissions_and_company_scope(): void
     {

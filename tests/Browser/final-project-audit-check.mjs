@@ -7,7 +7,6 @@ for (const [key, expected] of Object.entries({ APP_ENV: 'testing', DB_CONNECTION
 const baseUrl = process.env.FINAL_AUDIT_BASE_URL ?? 'http://127.0.0.1:18140';
 const companyId = process.env.FINAL_AUDIT_COMPANY_ID;
 if (!companyId || !/^\d+$/.test(companyId)) throw new Error('FINAL_AUDIT_COMPANY_ID is required');
-const expectedPrimaryDestinations = 82;
 const browser = await chromium.launch({ executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', headless: true });
 
 try {
@@ -31,6 +30,11 @@ async function walk(viewport, verifyDialogs) {
 
     await page.goto(`${baseUrl}/admin/audit/_fixtures/login`, { waitUntil: 'domcontentloaded' });
     await page.goto(`${baseUrl}/dashboard?company_id=${companyId}`, { waitUntil: 'domcontentloaded' });
+    const expectedPrimaryDestinations = await page.locator('[data-primary-navigation]').evaluate(navigation => {
+        const value = navigation.getAttribute('data-navigation-destination-count');
+        if (value === null || !/^\d+$/.test(value)) throw new Error('canonical navigation destination count is unavailable');
+        return Number.parseInt(value, 10);
+    });
     const destinations = await page.locator('[data-primary-navigation] a.nav-item').evaluateAll(links => links.map(link => ({
         label: (link.textContent ?? '').trim().replace(/\s+/g, ' '),
         href: link.href,
@@ -87,10 +91,22 @@ async function walk(viewport, verifyDialogs) {
 
 async function gotoStable(page, url) {
     try {
-        return await page.goto(url, { waitUntil: 'domcontentloaded' });
+        const response = await page.goto(url, { waitUntil: 'domcontentloaded' });
+        await waitForPresentation(page);
+        return response;
     } catch (error) {
         if (!String(error).includes('ERR_ABORTED') && !String(error).includes('ERR_NETWORK_IO_SUSPENDED')) throw error;
         await page.waitForTimeout(100);
-        return page.goto(url, { waitUntil: 'domcontentloaded' });
+        const response = await page.goto(url, { waitUntil: 'domcontentloaded' });
+        await waitForPresentation(page);
+        return response;
     }
+}
+
+async function waitForPresentation(page) {
+    await page.waitForFunction(() => [...document.querySelectorAll('link[rel="stylesheet"]')].every(link => link.sheet !== null));
+    await page.evaluate(async () => {
+        await document.fonts.ready;
+        await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    });
 }

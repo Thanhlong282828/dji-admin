@@ -7,7 +7,18 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 final class OnboardingChecklistItem extends Model
 {
-    protected $guarded = ['id'];
+    protected $fillable = [
+        'category',
+        'code',
+        'company_id',
+        'description',
+        'due_at',
+        'is_required',
+        'metadata',
+        'sort_order',
+        'status',
+        'title',
+    ];
 
     protected function casts(): array
     {

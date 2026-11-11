@@ -7,6 +7,7 @@ use App\Support\Erp\ProcessHelpReadService;
 
 final readonly class ProcurementProcessHelpReadService extends ProcessHelpReadService
 {
+    /** @return array<string, mixed> */
     public function read(int $companyId, ?int $branchId, User $actor): array
     {
         $scope = ['company_id' => $companyId, 'branch_id' => $branchId];

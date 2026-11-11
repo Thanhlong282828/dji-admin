@@ -1,29 +1,18 @@
-<x-app-layout>
-    <x-slot name="header">
-        <h2 class="font-semibold text-xl text-gray-800 leading-tight">
-            {{ __('Profile') }}
-        </h2>
-    </x-slot>
+@extends('layouts.admin')
 
-    <div class="py-12">
-        <div class="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
-            <div class="p-4 sm:p-8 bg-white shadow sm:rounded-lg">
-                <div class="max-w-xl">
-                    @include('profile.partials.update-profile-information-form')
-                </div>
-            </div>
+@section('title', 'Tài khoản của tôi')
 
-            <div class="p-4 sm:p-8 bg-white shadow sm:rounded-lg">
-                <div class="max-w-xl">
-                    @include('profile.partials.update-password-form')
-                </div>
-            </div>
-
-            <div class="p-4 sm:p-8 bg-white shadow sm:rounded-lg">
-                <div class="max-w-xl">
-                    @include('profile.partials.delete-user-form')
-                </div>
-            </div>
-        </div>
+@section('content')
+<div class="account-command-center">
+    <section class="account-profile-summary" id="profile-information">
+        @php($initials=collect(preg_split('/\s+/u',trim((string)$user->name))?:[])->filter()->take(2)->map(fn(string $part):string=>mb_strtoupper(mb_substr($part,0,1)))->join(''))
+        <span class="erp-account-avatar erp-account-avatar--large" aria-hidden="true">{{ $initials ?: '?' }}</span>
+        <div><small>AUTHENTICATED PROFILE</small><h2>{{ $user->name }}</h2><p>{{ $user->email }}</p><span class="account-status">{{ $user->access_enabled === false ? 'Tài khoản tạm khóa' : 'Tài khoản đang hoạt động' }}</span></div>
+    </section>
+    <div class="account-settings-grid" id="account-settings">
+        <article class="account-settings-card">@include('profile.partials.update-profile-information-form')</article>
+        <article class="account-settings-card">@include('profile.partials.update-password-form')</article>
+        <article class="account-settings-card account-settings-card--danger">@include('profile.partials.delete-user-form')</article>
     </div>
-</x-app-layout>
+</div>
+@endsection

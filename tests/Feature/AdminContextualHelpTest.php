@@ -27,7 +27,7 @@ final class AdminContextualHelpTest extends TestCase
             ->assertSee('Các chức năng')
             ->assertSee('Cách thao tác')
             ->assertSee('Quy tắc quan trọng')
-            ->assertSee('Khi thao tác, dữ liệu thay đổi ở đâu')
+            ->assertSee('Sau khi lưu thì dữ liệu đi đâu')
             ->assertSee('Dữ liệu sau đó đi tới')
             ->assertSee('Luồng liên kết')
             ->assertSee('aria-current="page"', false)

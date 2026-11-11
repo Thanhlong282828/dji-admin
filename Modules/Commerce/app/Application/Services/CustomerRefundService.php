@@ -64,9 +64,6 @@ final readonly class CustomerRefundService
                 return (int) $existing;
             }
             $first = reset($notes);
-            if (! is_object($first)) {
-                throw ValidationException::withMessages(['allocations' => 'CUSTOMER_REFUND_ALLOCATIONS_REQUIRED']);
-            }
             $branchId = $this->int($first, 'branch_id');
             $customerId = $this->int($first, 'customer_id');
             $currency = $this->value($first, 'currency');

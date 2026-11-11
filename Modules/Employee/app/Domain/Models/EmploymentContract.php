@@ -10,7 +10,18 @@ use Modules\Employee\Domain\Enums\ContractType;
 /** @property int $id */
 final class EmploymentContract extends Model
 {
-    protected $guarded = ['id'];
+    protected $fillable = [
+        'base_salary',
+        'contract_number',
+        'currency',
+        'employee_id',
+        'ends_at',
+        'starts_at',
+        'status',
+        'source_offer_id',
+        'terms',
+        'type',
+    ];
 
     protected $hidden = ['base_salary', 'signed_document_url', 'signed_storage_key'];
 

@@ -9,7 +9,8 @@ final class AttendanceDailyRecord extends Model
 {
     protected $table = 'attendance_records';
 
-    protected $guarded = ['id'];
+    protected $fillable = [
+    ];
 
     protected function casts(): array
     {

@@ -8,11 +8,15 @@ import '../ts/notification-center.ts';
 import '../ts/admin-navigation.ts';
 import '../ts/forecasting.ts';
 import { bootExecutiveDashboards } from './admin/executive-dashboard.js';
+import { bootOverviewDashboard } from './admin/overview-dashboard.js';
+import { bootCommandHeader } from './admin/command-header.js';
 
 window.Alpine = Alpine;
 
 Alpine.start();
 bootExecutiveDashboards();
+bootOverviewDashboard();
+bootCommandHeader();
 
 document.querySelectorAll('[data-password-toggle]').forEach((button) => {
     if (!(button instanceof HTMLButtonElement)) return;

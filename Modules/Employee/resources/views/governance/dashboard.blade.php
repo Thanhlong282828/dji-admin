@@ -1,15 +1,22 @@
 @extends('layouts.admin')
 @section('title','HR Data Governance')
 @section('content')
-<style>.gov-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:14px}.gov-card,.gov-panel{border:1px solid rgba(212,175,55,.28);background:linear-gradient(145deg,#151515,#090909);border-radius:16px;padding:18px}.gov-card strong{display:block;color:#d4af37;font-size:28px}.gov-actions{display:flex;gap:10px;flex-wrap:wrap}.gov-btn{border:1px solid #d4af37;color:#f5d76e;padding:10px 14px;border-radius:10px;background:#17130a}.gov-table{overflow-x:auto}.gov-table table{width:100%;min-width:720px;border-collapse:collapse}.gov-table th,.gov-table td{padding:11px;border-bottom:1px solid #292929;text-align:left}@media(max-width:800px){.gov-grid{grid-template-columns:1fr 1fr}.gov-card:last-child{grid-column:1/-1}}@media(max-width:430px){.gov-grid{grid-template-columns:1fr}.gov-card:last-child{grid-column:auto}}</style>
-<div class="gov-actions"><h2 style="margin-right:auto">HR Data Governance</h2>@can('hr.quality.run')<form method="POST" action="{{ route('admin.hr.governance.runs.store') }}">@csrf<input type="hidden" name="company_id" value="{{ $companyId }}"><input type="hidden" name="idempotency_key" value="quality-{{ $companyId }}-{{ now()->format('YmdHi') }}"><button class="gov-btn">Chạy kiểm tra dữ liệu</button></form>@endcan</div>
-@if(session('success'))<div class="gov-panel">{{ session('success') }}</div>@endif
-<div class="gov-grid">
- <div class="gov-card"><span>Data Quality Score</span><strong>{{ $viewModel->qualityScore }}%</strong></div>
- <div class="gov-card"><span>Open Issues</span><strong>{{ $viewModel->openIssues }}</strong></div>
- <div class="gov-card"><span>Blocking</span><strong>{{ $viewModel->blockingIssues }}</strong></div>
- <div class="gov-card"><span>Consent Status</span><strong>{{ $viewModel->consentCompliance }}%</strong></div>
- <div class="gov-card"><span>Document Compliance</span><strong>{{ $viewModel->documentCompliance }}%</strong></div>
-</div>
-<div class="gov-panel" style="margin-top:18px"><div class="gov-actions"><h2 style="margin-right:auto">Governance workspace</h2><a class="gov-btn" href="{{ route('admin.hr.governance.issues',['company_id'=>$companyId]) }}">Quality issues</a>@can('hr.audit.view')<a class="gov-btn" href="{{ route('admin.hr.governance.audit',['company_id'=>$companyId]) }}">Audit timeline</a>@endcan</div><p>Read model chỉ hiển thị metadata quản trị; không đọc lương, thuế, ngân hàng hoặc storage path.</p></div>
+<x-erp.dashboard eyebrow="HR DATA GOVERNANCE" title="Chất lượng và tuân thủ dữ liệu nhân sự" description="Read model chỉ hiển thị metadata quản trị; không đọc lương, thuế, ngân hàng hoặc storage path.">
+    <x-slot:actions>@can('hr.quality.run')<form method="POST" action="{{ route('admin.hr.governance.runs.store') }}">@csrf<input type="hidden" name="company_id" value="{{ $companyId }}"><input type="hidden" name="idempotency_key" value="quality-{{ $companyId }}-{{ now()->format('YmdHi') }}"><button class="button" type="submit">Chạy kiểm tra dữ liệu</button></form>@endcan</x-slot:actions>
+    @if(session('success'))<div class="notice success" role="status">{{ session('success') }}</div>@endif
+    <x-erp.dashboard-section title="Governance signals" description="Snapshot hiện tại từ HR Data Quality read model.">
+        <section class="erp-kpi-grid" aria-label="Chỉ số quản trị dữ liệu nhân sự">
+            <x-erp.kpi-card label="Data Quality Score" :value="$viewModel->qualityScore.'%'" meta="QUALITY RULES" :href="route('admin.hr.governance.issues',['company_id'=>$companyId])" />
+            <x-erp.kpi-card label="Open Issues" :value="number_format($viewModel->openIssues)" meta="UNRESOLVED ISSUES" :href="route('admin.hr.governance.issues',['company_id'=>$companyId])" />
+            <x-erp.kpi-card label="Blocking" :value="number_format($viewModel->blockingIssues)" meta="BLOCKING ISSUES" :href="route('admin.hr.governance.issues',['company_id'=>$companyId])" />
+            <x-erp.kpi-card label="Consent Status" :value="$viewModel->consentCompliance.'%'" meta="CONSENT GOVERNANCE" />
+            <x-erp.kpi-card label="Document Compliance" :value="$viewModel->documentCompliance.'%'" meta="DOCUMENT GOVERNANCE" />
+        </section>
+    </x-erp.dashboard-section>
+    <x-erp.dashboard-section title="Governance workspace" description="Đi tới evidence và timeline theo đúng quyền truy cập.">
+        <x-erp.widget>
+            <div class="toolbar"><a class="button secondary" href="{{ route('admin.hr.governance.issues',['company_id'=>$companyId]) }}">Quality issues</a>@can('hr.audit.view')<a class="button secondary" href="{{ route('admin.hr.governance.audit',['company_id'=>$companyId]) }}">Audit timeline</a>@endcan</div>
+        </x-erp.widget>
+    </x-erp.dashboard-section>
+</x-erp.dashboard>
 @endsection

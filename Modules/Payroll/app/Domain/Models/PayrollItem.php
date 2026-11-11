@@ -6,7 +6,8 @@ use Illuminate\Database\Eloquent\Model;
 
 final class PayrollItem extends Model
 {
-    protected $guarded = ['id'];
+    protected $fillable = [
+    ];
 
     protected function casts(): array
     {

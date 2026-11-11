@@ -22,7 +22,18 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 final class InterviewEvaluation extends Model
 {
-    protected $guarded = ['id'];
+    protected $fillable = [
+        'application_interview_id',
+        'company_id',
+        'concerns',
+        'interviewer_user_id',
+        'notes',
+        'overall_score',
+        'recommendation',
+        'scorecard',
+        'strengths',
+        'submitted_at',
+    ];
 
     protected function casts(): array
     {

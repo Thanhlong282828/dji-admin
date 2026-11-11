@@ -8,5 +8,6 @@ final class OrganizationUnit extends Model
 {
     protected $table = 'organization_units';
 
-    protected $guarded = [];
+    protected $fillable = [
+    ];
 }

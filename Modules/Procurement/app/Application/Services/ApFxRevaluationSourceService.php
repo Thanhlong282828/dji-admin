@@ -3,6 +3,7 @@
 namespace Modules\Procurement\Application\Services;
 
 use Illuminate\Database\ConnectionInterface;
+use Illuminate\Database\Query\Builder;
 use Illuminate\Validation\ValidationException;
 use Modules\Finance\Application\Services\FxRevaluableSource;
 use Modules\Finance\Application\Services\FxRevaluationSourceProvider;
@@ -27,7 +28,7 @@ final readonly class ApFxRevaluationSourceService implements FxRevaluationSource
             ->whereDate('bill.invoice_date', '<=', $asOfDate)
             ->whereIn('bill.status', ['approved', 'partially_paid', 'paid', 'overdue'])
             ->whereColumn('recognition.transaction_currency', '<>', 'recognition.functional_currency')
-            ->whereExists(fn ($query) => $query->selectRaw('1')->from('vendor_bill_lines as service_line')->whereColumn('service_line.vendor_bill_id', 'bill.id')->whereNotNull('service_line.service_acceptance_line_id'))
+            ->whereExists(fn (Builder $query): Builder => $query->selectRaw('1')->from('vendor_bill_lines as service_line')->whereColumn('service_line.vendor_bill_id', 'bill.id')->whereNotNull('service_line.service_acceptance_line_id'))
             ->orderBy('bill.id')
             ->get(['recognition.*', 'bill.invoice_number', 'bill.invoice_date']);
 

@@ -27,7 +27,8 @@ final readonly class DocumentStorageTenantReconciliationService
         $batchSeconds = max(30, min(300, $batchSeconds));
         $startedAt = hrtime(true);
         $deadline = microtime(true) + $batchSeconds;
-        $cursor = max(0, (int) $this->cache->get(self::CURSOR_KEY, 0));
+        $cachedCursor = $this->cache->get(self::CURSOR_KEY, 0);
+        $cursor = max(0, is_int($cachedCursor) || (is_string($cachedCursor) && ctype_digit($cachedCursor)) ? (int) $cachedCursor : 0);
         $companyIds = $this->activeCompanyIdsAfter($cursor, $companyLimit);
         $wrapped = false;
 
@@ -87,7 +88,7 @@ final readonly class DocumentStorageTenantReconciliationService
     /** @return list<int> */
     private function activeCompanyIdsAfter(int $cursor, int $limit): array
     {
-        return $this->db->table('companies')
+        $ids = $this->db->table('companies')
             ->where('id', '>', $cursor)
             ->where('status', 'active')
             ->where('is_active', true)
@@ -95,7 +96,11 @@ final readonly class DocumentStorageTenantReconciliationService
             ->orderBy('id')
             ->limit($limit)
             ->pluck('id')
-            ->map(static fn (mixed $id): int => (int) $id)
+            ->map(static fn (mixed $id): int => is_int($id) ? $id : (is_string($id) && ctype_digit($id) ? (int) $id : 0))
+            ->filter(static fn (int $id): bool => $id > 0)
+            ->values()
             ->all();
+
+        return array_values($ids);
     }
 }

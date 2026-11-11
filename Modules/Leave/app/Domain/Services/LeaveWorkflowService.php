@@ -104,7 +104,11 @@ final readonly class LeaveWorkflowService
                 $this->ledger($request, 'release', $request->requested_minutes, $actorId);
             }
             $nextVersion = $request->version + 1;
-            $request->update(['status' => $target->value, 'review_comment' => $comment, 'version' => $nextVersion]);
+            $request->setAttribute('status', $target->value);
+            $request->setAttribute('review_comment', $comment);
+            // Optimistic-lock metadata is system-owned and intentionally excluded from mass assignment.
+            $request->setAttribute('version', $nextVersion);
+            $request->save();
             DB::table('leave_request_histories')->insert(['company_id' => $companyId, 'leave_request_id' => $request->id, 'action' => $target->value, 'from_status' => $current->value, 'to_status' => $target->value, 'actor_id' => $actorId, 'comment' => $comment, 'request_version' => $nextVersion, 'created_at' => now()]);
             event(new WorkforceLeaveChanged($companyId, (int) $request->id, (int) $request->employee_id, $target->value, $target->value, $request->version));
 

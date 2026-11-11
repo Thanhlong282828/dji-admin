@@ -1,0 +1,52 @@
+version: 1
+status: DRAFT_NOT_APPROVED
+import_id: "REQUIRED-IMMUTABLE-ID"
+source:
+  environment: local
+  manifest_sha256: "REQUIRED"
+target:
+  environment: production
+  expected_database: schema_admin
+approvals:
+  data_owner: "REQUIRED"
+  security_owner: "REQUIRED_WHEN_PRIVATE_OR_IDENTITY_DATA"
+  change_reference: "REQUIRED"
+tenant_mapping:
+  companies: []
+  branches: []
+  cost_centers: []
+entities:
+  - name: "REPLACE_WITH_CANONICAL_ENTITY"
+    owner_module: "REQUIRED"
+    source_tables: []
+    source_filter: "REQUIRED_BOUNDED_FILTER"
+    natural_keys: []
+    dependency_entities: []
+    conflict_policy: reject
+    id_strategy: deterministic-remap
+    immutable_accounting_or_audit_data: false
+    contains_identity_or_security_data: false
+    contains_demo_or_test_data: false
+    expected_source_rows: 0
+    approved_destination_rows: 0
+    file_manifest: null
+exclusions:
+  - passwords
+  - sessions
+  - tokens
+  - direct_user_permissions
+  - demo_data
+  - test_data
+execution:
+  dry_run_required: true
+  staging_restore_required: true
+  production_overwrite_allowed: false
+  batch_size: 100
+  rollback_scope: import_id_only
+reconciliation:
+  row_counts: true
+  tenant_boundaries: true
+  foreign_keys: true
+  unique_keys: true
+  accounting_totals: true
+  object_checksums: true

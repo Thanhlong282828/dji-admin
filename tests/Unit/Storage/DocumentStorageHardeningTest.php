@@ -95,6 +95,9 @@ final class DocumentStorageHardeningTest extends TestCase
 
     public function test_storage_telemetry_records_safe_metrics_without_sensitive_error_text(): void
     {
+        foreach (['operations:storage:signed_url:supabase:total', 'operations:storage:signed_url:supabase:failure', 'operations:storage:errors:transport_error'] as $key) {
+            Cache::forget($key);
+        }
         $logger = new class extends AbstractLogger
         {
             /** @var list<array{level:mixed,message:string,context:array<string,mixed>}> */
@@ -109,9 +112,9 @@ final class DocumentStorageHardeningTest extends TestCase
         $telemetry = new DocumentStorageTelemetry(app(Repository::class), $logger);
         $telemetry->record('signed_url', 'supabase', 99, false, 12.4, new RuntimeException('secret-object-key signed-url-token'));
 
-        self::assertSame(1, Cache::get('operations:storage:signed_url:supabase:total'));
-        self::assertSame(1, Cache::get('operations:storage:signed_url:supabase:failure'));
-        self::assertSame(1, Cache::get('operations:storage:errors:transport_error'));
+        self::assertSame(1, (int) Cache::get('operations:storage:signed_url:supabase:total'));
+        self::assertSame(1, (int) Cache::get('operations:storage:signed_url:supabase:failure'));
+        self::assertSame(1, (int) Cache::get('operations:storage:errors:transport_error'));
         self::assertCount(1, $logger->entries);
         self::assertSame('warning', $logger->entries[0]['level']);
         self::assertSame('Document storage operation completed.', $logger->entries[0]['message']);

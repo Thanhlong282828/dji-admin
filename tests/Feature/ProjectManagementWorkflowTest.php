@@ -7,6 +7,7 @@ use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Modules\Project\Application\Services\ProjectReadService;
 use Tests\TestCase;
 
 final class ProjectManagementWorkflowTest extends TestCase
@@ -74,6 +75,37 @@ final class ProjectManagementWorkflowTest extends TestCase
         $this->actingAs($actor)->post(route('admin.projects.status', $project), ['company_id' => $company, 'status' => 'ACTIVE'])->assertRedirect();
         $this->actingAs($actor)->post(route('admin.projects.status', $project), ['company_id' => $company, 'status' => 'COMPLETED'])->assertStatus(409);
         self::assertSame('ACTIVE', DB::table('projects')->where('id', $project)->value('status'));
+    }
+
+    public function test_project_overview_read_model_has_a_bounded_query_budget(): void
+    {
+        $company = $this->company('PRJ-PERF');
+        $manager = $this->employee($company, 'PM-PERF');
+        $actor = $this->actor($company, 'performance@project.test');
+        DB::table('projects')->insert([
+            'company_id' => $company,
+            'manager_employee_id' => $manager,
+            'created_by' => $actor->id,
+            'updated_by' => $actor->id,
+            'code' => 'PERF-001',
+            'name' => 'Bounded overview',
+            'project_type' => 'INTERNAL',
+            'priority' => 'NORMAL',
+            'status' => 'ACTIVE',
+            'start_date' => today(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $queries = 0;
+        DB::listen(static function () use (&$queries): void {
+            $queries++;
+        });
+
+        $result = app(ProjectReadService::class)->read($company);
+
+        self::assertCount(1, $result['projects']);
+        self::assertLessThanOrEqual(33, $queries, 'Project Overview query count must remain bounded; investigate N+1 or synchronous work instead of increasing this ceiling.');
     }
 
     public function test_project_creates_idempotent_owner_documents_with_bidirectional_source_trace(): void

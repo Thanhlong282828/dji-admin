@@ -2,5 +2,6 @@ includes:
     - vendor/larastan/larastan/extension.neon
 parameters:
     level: 10
-    paths: [app]
-    excludePaths: [app/Modules]
+    paths:
+        - app
+    tmpDir: storage/framework/cache/phpstan

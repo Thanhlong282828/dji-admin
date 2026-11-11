@@ -8,7 +8,31 @@ use Modules\Payroll\Domain\Enums\SalaryComponentCategory;
 
 final class SalaryComponent extends Model
 {
-    protected $guarded = ['id'];
+    protected $fillable = [
+        'affects_gross',
+        'affects_net',
+        'calculation_type',
+        'category',
+        'code',
+        'company_id',
+        'created_by',
+        'currency_code',
+        'default_percentage_basis_points',
+        'default_value_minor',
+        'description',
+        'display_order',
+        'effective_from',
+        'effective_to',
+        'insurance_status',
+        'is_system',
+        'name',
+        'status',
+        'system_key',
+        'taxable_status',
+        'updated_by',
+        'value_type',
+        'version',
+    ];
 
     protected function casts(): array
     {

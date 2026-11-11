@@ -4,9 +4,12 @@ const closeButton = document.querySelector<HTMLButtonElement>('[data-sidebar-clo
 const overlay = document.querySelector<HTMLElement>('[data-sidebar-overlay]');
 const navigation = document.querySelector<HTMLElement>('[data-primary-navigation]');
 const search = document.querySelector<HTMLInputElement>('[data-nav-search]');
+const collapseButton = document.querySelector<HTMLButtonElement>('[data-sidebar-collapse]');
 
 const openGroupStorageKey = 'schema.admin.navigation.open-groups';
 const scrollStorageKey = 'schema.admin.navigation.scroll-top';
+const collapsedStorageKey = 'schema.admin.sidebar.collapsed';
+const uiScaleStorageKey = 'schema.admin.ui-scale';
 
 if (sidebar && openButton && closeButton && overlay && navigation && navigation.dataset.initialized !== 'true') {
     navigation.dataset.initialized = 'true';
@@ -24,6 +27,28 @@ if (sidebar && openButton && closeButton && overlay && navigation && navigation.
         document.body.classList.toggle('sidebar-drawer-open', open);
         if (open) closeButton.focus();
         else if (restoreFocus) openButton.focus();
+    };
+
+    const setCollapsed = (collapsed: boolean, persist = true): void => {
+        const enabled = collapsed && !mobile();
+        document.documentElement.dataset.adminSidebarCollapsed = enabled ? 'true' : 'false';
+        collapseButton?.setAttribute('aria-pressed', enabled ? 'true' : 'false');
+        collapseButton?.setAttribute('aria-label', enabled ? 'Mở rộng thanh điều hướng' : 'Thu gọn thanh điều hướng');
+        collapseButton?.setAttribute('title', enabled ? 'Mở rộng thanh điều hướng' : 'Thu gọn thanh điều hướng');
+        if (persist) {
+            try {
+                localStorage.setItem(collapsedStorageKey, collapsed ? 'true' : 'false');
+            } catch {
+                // Optional presentation preference only.
+            }
+        }
+    };
+    const readCollapsed = (): boolean => {
+        try {
+            return localStorage.getItem(collapsedStorageKey) === 'true';
+        } catch {
+            return false;
+        }
     };
 
     const setGroup = (group: HTMLElement, expanded: boolean): void => {
@@ -109,6 +134,7 @@ if (sidebar && openButton && closeButton && overlay && navigation && navigation.
     openButton.addEventListener('click', () => setDrawer(true));
     closeButton.addEventListener('click', () => setDrawer(false));
     overlay.addEventListener('click', () => setDrawer(false));
+    collapseButton?.addEventListener('click', () => setCollapsed(document.documentElement.dataset.adminSidebarCollapsed !== 'true'));
 
     sidebar.addEventListener('keydown', event => {
         if (event.key === 'Escape' && sidebar.classList.contains('is-open')) setDrawer(false);
@@ -132,8 +158,10 @@ if (sidebar && openButton && closeButton && overlay && navigation && navigation.
             sidebar.setAttribute('aria-hidden', 'false');
             overlay.hidden = true;
             document.body.classList.remove('sidebar-drawer-open');
+            setCollapsed(readCollapsed());
         } else if (!sidebar.classList.contains('is-open')) {
             sidebar.setAttribute('aria-hidden', 'true');
+            document.documentElement.dataset.adminSidebarCollapsed = 'false';
         }
     });
 
@@ -191,8 +219,34 @@ if (sidebar && openButton && closeButton && overlay && navigation && navigation.
     });
 
     restoreNavigationState();
+    setCollapsed(readCollapsed(), false);
     if (mobile()) setDrawer(false, false);
 }
+
+const scaleSteps = [25, 33, 50, 67, 75, 80, 90, 100, 110] as const;
+const scaleOutput = document.querySelector<HTMLOutputElement>('[data-ui-scale-output]');
+const applyUiScale = (value: number): void => {
+    const scale = scaleSteps.includes(value as (typeof scaleSteps)[number]) ? value : 100;
+    document.documentElement.dataset.adminUiScale = String(scale);
+    if (scaleOutput) scaleOutput.value = `${scale}%`;
+    try {
+        localStorage.setItem(uiScaleStorageKey, String(scale));
+    } catch {
+        // Optional presentation preference only.
+    }
+};
+const currentUiScale = (): number => Number.parseInt(document.documentElement.dataset.adminUiScale ?? '100', 10);
+document.querySelector<HTMLButtonElement>('[data-ui-scale-down]')?.addEventListener('click', () => {
+    const current = currentUiScale();
+    applyUiScale(scaleSteps[Math.max(0, scaleSteps.indexOf(current as (typeof scaleSteps)[number]) - 1)] ?? 25);
+});
+document.querySelector<HTMLButtonElement>('[data-ui-scale-up]')?.addEventListener('click', () => {
+    const current = currentUiScale();
+    const index = scaleSteps.indexOf(current as (typeof scaleSteps)[number]);
+    applyUiScale(scaleSteps[Math.min(scaleSteps.length - 1, index + 1)] ?? 110);
+});
+document.querySelector<HTMLButtonElement>('[data-ui-scale-reset]')?.addEventListener('click', () => applyUiScale(100));
+applyUiScale(currentUiScale());
 
 const wireDialog = (
     triggerSelector: string,

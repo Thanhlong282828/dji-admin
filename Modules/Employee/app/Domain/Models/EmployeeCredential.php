@@ -8,7 +8,14 @@ use Modules\Employee\Domain\Enums\CredentialType;
 
 final class EmployeeCredential extends Model
 {
-    protected $guarded = ['id'];
+    protected $fillable = [
+        'employee_id',
+        'expires_at',
+        'issued_at',
+        'issuer',
+        'name',
+        'type',
+    ];
 
     protected $hidden = ['credential_number', 'document_url', 'document_storage_key'];
 

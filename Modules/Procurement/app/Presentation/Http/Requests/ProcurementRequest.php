@@ -23,7 +23,7 @@ final class ProcurementRequest extends FormRequest
             'target_accounting_period_id' => ['nullable', 'integer', 'min:1'], 'idempotency_key' => ['nullable', 'string', 'max:120'],
             'goods_receipt_line_id' => ['nullable', 'integer', 'min:1'], 'return_number' => ['nullable', 'string', 'max:100'], 'return_date' => ['nullable', 'date'],
             'goods_return_line_id' => ['nullable', 'integer', 'min:1'], 'vendor_bill_receipt_allocation_id' => ['nullable', 'integer', 'min:1'], 'credit_number' => ['nullable', 'string', 'max:100'], 'credit_date' => ['nullable', 'date'],
-            'vendor_refund_receivable_id' => ['nullable', 'integer', 'min:1'], 'financial_account_id' => ['nullable', 'integer', 'min:1'], 'refund_date' => ['nullable', 'date'],
+            'vendor_refund_receivable_id' => ['nullable', 'integer', 'min:1'], 'refund_date' => ['nullable', 'date'],
         ];
     }
 }

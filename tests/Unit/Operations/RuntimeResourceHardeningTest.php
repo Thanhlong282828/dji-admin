@@ -88,6 +88,26 @@ final class RuntimeResourceHardeningTest extends TestCase
         self::assertStringNotContainsString('MemoryMax=', $reverb);
     }
 
+    public function test_production_origin_is_loopback_only_and_reverse_proxy_headers_are_overwritten(): void
+    {
+        $productionCompose = $this->projectFile('docker-compose.prod.yml');
+        $originNginx = $this->projectFile('docker/nginx/default.conf');
+        $edgeProxy = $this->projectFile('deploy/nginx/laraveldji-reverse-proxy.conf.template');
+        $bootstrap = $this->projectFile('bootstrap/app.php');
+
+        self::assertStringContainsString('127.0.0.1:${APP_ORIGIN_PORT:-8081}:8080', $productionCompose);
+        self::assertStringNotContainsString('- "80:8080"', $productionCompose);
+        self::assertStringContainsString('proxy_pass http://127.0.0.1:${APP_ORIGIN_PORT}', $edgeProxy);
+
+        foreach (['Host $host', 'X-Forwarded-Host $host', 'X-Forwarded-Proto https', 'X-Forwarded-Port 443', 'X-Forwarded-For $remote_addr'] as $header) {
+            self::assertStringContainsString('proxy_set_header '.$header, $edgeProxy);
+        }
+
+        self::assertStringContainsString('HTTP_X_FORWARDED_PROTO $safe_forwarded_proto', $originNginx);
+        self::assertStringContainsString('$middleware->trustProxies(', $bootstrap);
+        self::assertStringContainsString("'proxies' => env('TRUSTED_PROXIES'", $this->projectFile('config/trustedproxy.php'));
+    }
+
     public function test_document_storage_runtime_is_packaged_and_preflighted_for_vps(): void
     {
         $dockerfile = $this->projectFile('Dockerfile');
@@ -111,6 +131,26 @@ final class RuntimeResourceHardeningTest extends TestCase
         self::assertStringContainsString('everyFiveMinutes()', $provider);
         self::assertStringContainsString('onOneServer()', $provider);
         self::assertStringContainsString('withoutOverlapping(10)', $provider);
+    }
+
+    public function test_production_backup_and_staging_restore_scripts_fail_closed(): void
+    {
+        $backup = $this->projectFile('scripts/operations/backup-database-encrypted.sh');
+        $restore = $this->projectFile('scripts/operations/restore-encrypted-to-staging.sh');
+        $approval = $this->projectFile('docs/templates/production-backup-approval-manifest.yaml');
+
+        foreach (['set -euo pipefail', 'pinned MySQL 8.4', '--single-transaction', '--routines', '--triggers', '--events', '--hex-blob', 'age --recipient', 'EXPECTED_SOURCE_SERVER_UUID', 'non-InnoDB', 'completed=false'] as $guard) {
+            self::assertStringContainsString($guard, $backup);
+        }
+
+        foreach (['APP_ENV" == "staging', '*_staging_restore', 'EXPECTED_STAGING_SERVER_UUID', 'PRODUCTION_SERVER_UUID', 'Restore target must be empty', 'gzip -t', 'Backup manifest checksum mismatch'] as $guard) {
+            self::assertStringContainsString($guard, $restore);
+        }
+
+        self::assertStringContainsString('plaintext_persistence_allowed: false', $approval);
+        self::assertStringContainsString('create_local_encrypted_backup_artifacts: false', $approval);
+        self::assertStringContainsString('upload_new_ciphertext_and_sidecars: false', $approval);
+        self::assertStringContainsString('install_packages_on_production_vps', $approval);
     }
 
     private function projectFile(string $path): string

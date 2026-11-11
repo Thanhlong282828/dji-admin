@@ -19,5 +19,6 @@ final class WorkflowTask extends Model
 {
     protected $table = 'workflow_tasks';
 
-    protected $guarded = [];
+    protected $fillable = [
+    ];
 }

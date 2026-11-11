@@ -22,6 +22,21 @@ File này áp dụng cho toàn bộ repository. Mọi thay đổi mới hoặc c
 - Luôn giữ đúng tenant/company/branch scope, quyền truy cập, ownership và các điều kiện nghiệp vụ hiện có.
 - Không ghép dữ liệu của các bounded context khác nhau chỉ vì chúng trông giống nhau trên giao diện.
 
+## MANDATORY FIX INTEGRATION & REGRESSION GOVERNANCE
+
+Trước mọi bug fix, worktree integration, release candidate hoặc kết luận hoàn thành, phải đọc đầy đủ:
+
+- `docs/enterprise-release-governance.md`
+
+- Mỗi lỗi phải được xác định root cause và phân biệt rõ source defect, configuration defect, tooling failure và environment failure; không dùng workaround để che triệu chứng.
+- Worktree cô lập được phép dùng để phát triển và kiểm thử, nhưng một fix chỉ tồn tại trong `/private/tmp` không được phân loại `DONE`. Báo cáo cuối phải nêu rõ source worktree/commit, test evidence và trạng thái tích hợp vào project chính.
+- Trước khi tích hợp phải xác minh project chính bằng branch, `HEAD`, `git status` và dirty-file inventory. Không `reset`, `restore`, `clean`, `stash`, checkout file cũ hoặc ghi đè thay đổi tích lũy. Khi có overlap/xung đột phải dừng và xin phê duyệt; không tích hợp một phần của release có các file phụ thuộc đang xung đột.
+- Mỗi bug fix phải có regression test hoặc một executable static/contract gate phù hợp chứng minh lỗi không quay lại. Không xóa test, làm yếu assertion, hạ PHPStan, thêm baseline/`ignoreErrors`, bỏ qua security/tenant checks hoặc đổi expected behavior chỉ để đạt PASS.
+- PHPStan bắt buộc level 10 cho toàn bộ `app` và `Modules`. Không được loại một trong hai scope khỏi CI hoặc cấu hình PHPStan.
+- Việc sửa và tích hợp phải giữ nguyên tenant isolation, RBAC, ABAC, Policy/Gate, mass-assignment allowlist, accounting immutability và Finance/Tax calculations trừ khi có bằng chứng nghiệp vụ cùng kiểm thử được phê duyệt. Cấm đưa lại `$guarded = []` hoặc dùng `Model::unguard()` để né bảo vệ.
+- Push GitHub không đồng nghĩa project chính trên máy đã nhận thay đổi; local integration không đồng nghĩa merge hay production deployment. Commit, push, merge, deploy và mọi mutation GCP/database/DNS/firewall/NAT/Supabase vẫn cần đúng phạm vi phê duyệt riêng.
+- Không tự xóa hoặc archive worktree còn chứa thay đổi chưa tích hợp. Chỉ kết luận hoàn thành khi trạng thái tích hợp, regression, static/security gates và các blocker còn lại được báo cáo trung thực.
+
 ## Truy xuất nguồn dữ liệu và liên kết điều hướng
 
 - Mọi KPI, con số tổng hợp, mã tham chiếu hoặc bản ghi hiển thị phải cho người dùng biết dữ liệu lấy từ đâu.
@@ -53,11 +68,17 @@ File này áp dụng cho toàn bộ repository. Mọi thay đổi mới hoặc c
 ## UI/UX theo tone project
 
 - Giữ ngôn ngữ thiết kế tối–vàng hiện có, typography, spacing, border, trạng thái và interaction nhất quán với các màn hình tốt trong project.
+- Mọi view quản trị phải fluid theo viewport: application shell và vùng nội dung chính dùng toàn bộ chiều rộng khả dụng, `min-width: 0` tại các grid/flex child cần co lại và không đặt `min-width` hoặc `max-width` cố định làm khóa toàn trang. Không được thiết kế view chỉ đúng ở một độ phân giải desktop.
+- Giao diện phải responsive thực sự cho điện thoại 320, 360, 375, 390 và 430 px, tablet 768/1024 px và desktop 1440 px trở lên. Sidebar phải chuyển thành drawer hoặc cơ chế mobile canonical; form, toolbar, card, action và dialog phải tự xếp lại mà không mất chức năng hay thao tác chính.
+- Không được để toàn trang phát sinh horizontal overflow. Table nhiều cột, timeline hoặc nội dung rộng phải cuộn ngang trong container riêng có nhãn/focus phù hợp; không dùng chiều rộng cố định của table để kéo rộng `body`, application shell hoặc main content.
+- Zoom giao diện 90–110% không được làm viewport mobile tràn ngang. Dùng `width: 100%`, `max-width: 100%`, `minmax(0, 1fr)`, `clamp()` và breakpoint theo nội dung khi phù hợp; tránh magic width khiến view bị khóa cứng.
+- View trên màn hình lớn phải được phép giãn theo không gian thật của màn hình. Chỉ giới hạn chiều rộng cho nội dung cần độ dài dòng đọc được và phải có lý do thiết kế rõ ràng; không áp một content max-width toàn cục làm lãng phí viewport của ERP workspace, bảng hoặc dashboard.
 - Ưu tiên tái sử dụng component hiện có cho KPI card, source link, empty state, panel, table, status pill và action thay vì tạo markup/CSS riêng lẻ.
 - Các con số tổng hợp dùng card/grid responsive; không để thành các dòng text rời, dính nhau hoặc nằm ngoài container.
 - Table phải dễ quét, có hierarchy rõ, số tiền/cột số căn chỉnh hợp lý, trạng thái dễ nhận biết và link nguồn có affordance rõ ràng.
 - Với danh sách dài, dùng layout card, ranked list hoặc table phù hợp; tránh trải text thô trên toàn chiều ngang màn hình.
 - Bảo đảm hover, focus, keyboard navigation, độ tương phản, wrapping và responsive trên các kích thước màn hình phổ biến.
+- Thay đổi shared shell, layout, sidebar, table hoặc form chỉ được coi hoàn thành khi đã kiểm tra page-level overflow, bounded table overflow, touch target, keyboard focus và browser console ở viewport desktop/mobile an toàn. Nếu không có browser runtime an toàn phải ghi `NOT_VERIFIED`, không được lấy static CSS làm bằng chứng browser PASS.
 - Không đưa giao diện trắng/raw browser style hoặc component lệch tone vào project.
 
 ## Tiêu chí hoàn thành

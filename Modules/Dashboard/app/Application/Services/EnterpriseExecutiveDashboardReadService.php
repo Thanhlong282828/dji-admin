@@ -11,43 +11,46 @@ final readonly class EnterpriseExecutiveDashboardReadService
 {
     public function __construct(private EnterpriseAnalyticsReadService $analytics, private ProjectReadService $projects, private MaintenanceReadService $maintenance, private ApprovalInboxService $approvals, private ExecutiveFinanceReadService $executiveFinance) {}
 
-    /** @return array<string,mixed> */
-    public function read(int $companyId, int $actorId, ?int $branchId, string $dateFrom, string $dateTo): array
+    /**
+     * @param  list<string>  $capabilities  Empty preserves the dedicated Executive workspace.
+     * @return array<string,mixed>
+     */
+    public function read(int $companyId, int $actorId, ?int $branchId, string $dateFrom, string $dateTo, array $capabilities = []): array
     {
-        $source = $this->analytics->read($companyId, $branchId, $dateFrom, $dateTo);
+        $source = $this->analytics->read($companyId, $branchId, $dateFrom, $dateTo, $capabilities);
         $finance = $this->array($source, 'finance');
         $income = $this->array($finance, 'income');
         $cash = $this->array($finance, 'cash_flow');
         $supply = $this->array($source, 'supply_chain');
         $inventory = $this->array($supply, 'inventory');
         $series = $this->rows($source['series'] ?? null);
-        $project = $this->projects->executiveSummary($companyId);
-        $maintenance = $this->maintenance->executiveSummary($companyId);
+        $project = $this->allows($capabilities, 'project') ? $this->projects->executiveSummary($companyId) : [];
+        $maintenance = $this->allows($capabilities, 'maintenance') ? $this->maintenance->executiveSummary($companyId) : [];
         // The executive card remains a bounded aggregate; granular reversal work is projected by the canonical Approval Inbox.
-        $approvals = $this->approvals->read($companyId, $actorId, false);
-        $phase3 = $this->executiveFinance->read($companyId, $branchId, $dateFrom, $dateTo);
+        $approvals = $this->allows($capabilities, 'approvals') ? $this->approvals->read($companyId, $actorId, false) : ['pending' => []];
+        $phase3 = $this->allows($capabilities, 'finance') ? $this->executiveFinance->read($companyId, $branchId, $dateFrom, $dateTo) : [];
 
         return [
             'filters' => $this->array($source, 'filters'),
             'branches' => $finance['branches'] ?? [],
-            'kpis' => [
-                $this->kpi('Doanh thu', $income['revenue'] ?? 0, 'PASS', 'Posted General Ledger', 'admin.finance.overview', 'payroll.accounting.view'),
-                $this->kpi('Lợi nhuận gộp', $income['gross_profit'] ?? 0, 'PASS', 'Financial Statements', 'admin.finance.financial-statements', 'payroll.accounting.view'),
-                $this->kpi('Kết quả vận hành', $income['profit'] ?? 0, 'PASS', 'Financial Statements', 'admin.finance.financial-statements', 'payroll.accounting.view'),
-                $this->kpi('Dòng tiền thuần', $cash['net_movement'] ?? 0, 'PARTIAL', 'Treasury movements; thiếu opening cash', 'admin.finance.treasury', 'treasury.view'),
-                $this->kpi('Phải thu', $finance['ar_outstanding'] ?? 0, 'PASS', 'Customer Invoice / Allocation', 'admin.sales.index', 'sales.view'),
-                $this->kpi('Phải trả', $finance['ap_outstanding'] ?? 0, 'PASS', 'Vendor Bill / AP Allocation', 'admin.procurement.payables', 'vendor-bill.view'),
-                $this->kpi('Giá trị tồn kho', $inventory['inventory_value_minor'] ?? 0, 'PASS', 'Inventory valuation', 'admin.supply-chain.index', 'inventory.view'),
-                $this->kpi('Chi phí Payroll', $income['payroll'] ?? 0, 'PASS', 'Posted Payroll journal', 'admin.payroll.runs.index', 'payroll.run.view'),
-            ],
+            'kpis' => array_values(array_filter([
+                $this->allows($capabilities, 'finance') ? $this->kpi('Doanh thu', $income['revenue'] ?? 0, 'PASS', 'Posted General Ledger', 'admin.finance.overview', 'payroll.accounting.view') : null,
+                $this->allows($capabilities, 'finance') ? $this->kpi('Lợi nhuận gộp', $income['gross_profit'] ?? 0, 'PASS', 'Financial Statements', 'admin.finance.financial-statements', 'payroll.accounting.view') : null,
+                $this->allows($capabilities, 'finance') ? $this->kpi('Kết quả vận hành', $income['profit'] ?? 0, 'PASS', 'Financial Statements', 'admin.finance.financial-statements', 'payroll.accounting.view') : null,
+                $this->allows($capabilities, 'finance') ? $this->kpi('Dòng tiền thuần', $cash['net_movement'] ?? 0, 'PARTIAL', 'Treasury movements; thiếu opening cash', 'admin.finance.treasury', 'treasury.view') : null,
+                $this->allows($capabilities, 'finance') ? $this->kpi('Phải thu', $finance['ar_outstanding'] ?? 0, 'PASS', 'Customer Invoice / Allocation', 'admin.sales.index', 'sales.view') : null,
+                $this->allows($capabilities, 'finance') ? $this->kpi('Phải trả', $finance['ap_outstanding'] ?? 0, 'PASS', 'Vendor Bill / AP Allocation', 'admin.procurement.payables', 'vendor-bill.view') : null,
+                $this->allows($capabilities, 'inventory') ? $this->kpi('Giá trị tồn kho', $inventory['inventory_value_minor'] ?? 0, 'PASS', 'Inventory valuation', 'admin.supply-chain.index', 'inventory.view') : null,
+                $this->allows($capabilities, 'finance') ? $this->kpi('Chi phí Payroll', $income['payroll'] ?? 0, 'PASS', 'Posted Payroll journal', 'admin.payroll.runs.index', 'payroll.run.view') : null,
+            ])),
             'financial_series' => array_map(fn (array $row): array => ['period' => $this->text($row['month'] ?? null), 'revenue' => $this->integer($row['revenue'] ?? null)], $series),
             'cash_series' => array_map(fn (array $row): array => ['period' => $this->text($row['month'] ?? null), 'inflow' => $this->integer($row['cash_in'] ?? null), 'outflow' => $this->integer($row['cash_out'] ?? null), 'net' => $this->integer($row['cash_in'] ?? null) - $this->integer($row['cash_out'] ?? null)], $series),
             'working_capital' => ['ar' => $this->integer($finance['ar_outstanding'] ?? null), 'ap' => $this->integer($finance['ap_outstanding'] ?? null)],
             'aging' => $this->array($finance, 'aging'),
             'phase3' => $phase3,
             'cost_structure' => ['payroll' => $this->integer($income['payroll'] ?? null), 'operating' => $this->integer($income['operating_expense'] ?? null), 'depreciation' => $this->integer($income['depreciation'] ?? null), 'cogs' => $this->integer($income['cogs'] ?? null)],
-            'people' => $this->array($source, 'people'),
-            'crm' => $this->array($source, 'crm'),
+            'people' => $this->allows($capabilities, 'people') ? $this->array($source, 'people') : [],
+            'crm' => $this->allows($capabilities, 'crm') ? $this->array($source, 'crm') : [],
             'supply_chain' => $supply,
             'panels' => ['project' => $project, 'maintenance' => $maintenance],
             'exceptions' => [
@@ -68,6 +71,12 @@ final readonly class EnterpriseExecutiveDashboardReadService
                 'forecast' => 'AR/AP là nghĩa vụ theo ngày đến hạn, không phải dòng tiền chắc chắn. Không dự báo doanh thu, payroll hay closing cash khi thiếu bằng chứng.',
             ],
         ];
+    }
+
+    /** @param list<string> $capabilities */
+    private function allows(array $capabilities, string $capability): bool
+    {
+        return $capabilities === [] || in_array($capability, $capabilities, true);
     }
 
     /** @return array{label:string,value:int,status:string,source:string,route:string,permission:string} */

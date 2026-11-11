@@ -36,6 +36,7 @@ final readonly class CreditNoteTaxReversalService
             throw ValidationException::withMessages(['tax_evidence' => 'CREDIT_NOTE_TAX_SOURCE_REQUIRED']);
         }
         $original = $source->first();
+        /** @var object{id:int,branch_id:int,currency:string,rate_basis_points:int,tax_category_id:int,tax_amount_minor:int,taxable_amount_minor:int,mapping_snapshot:string,tax_policy_id:int,policy_version:int}|null $original */
         if ($original === null || (int) $original->branch_id !== $branchId || (string) $original->currency !== $currency) {
             throw ValidationException::withMessages(['tax_evidence' => 'CREDIT_NOTE_TAX_SOURCE_SCOPE_INVALID']);
         }
@@ -48,8 +49,10 @@ final readonly class CreditNoteTaxReversalService
             ->join('customer_credit_notes as note', 'note.id', '=', 'evidence.source_id')
             ->where(['evidence.company_id' => $companyId, 'evidence.source_type' => 'customer_credit_note', 'evidence.tax_category_id' => $original->tax_category_id, 'note.customer_invoice_id' => $invoiceId])
             ->where('note.id', '<>', $creditNoteId);
-        if ($taxAmountMinor > max((int) $original->tax_amount_minor - (int) (clone $reversed)->sum('evidence.tax_amount_minor'), 0)
-            || $taxableAmountMinor > max((int) $original->taxable_amount_minor - (int) (clone $reversed)->sum('evidence.taxable_amount_minor'), 0)) {
+        $reversedTax = $this->aggregateMinor((clone $reversed)->sum('evidence.tax_amount_minor'));
+        $reversedTaxable = $this->aggregateMinor((clone $reversed)->sum('evidence.taxable_amount_minor'));
+        if ($taxAmountMinor > max($original->tax_amount_minor - $reversedTax, 0)
+            || $taxableAmountMinor > max($original->taxable_amount_minor - $reversedTaxable, 0)) {
             throw ValidationException::withMessages(['tax_minor' => 'CREDIT_NOTE_TAX_EXCEEDS_ORIGINAL']);
         }
 
@@ -61,9 +64,12 @@ final readonly class CreditNoteTaxReversalService
             || ! is_numeric($mapping['accounting_policy_version'] ?? null)) {
             throw ValidationException::withMessages(['tax_evidence' => 'CREDIT_NOTE_TAX_MAPPING_REQUIRED']);
         }
+        $taxAccountId = $this->requiredNumericInt($mapping['tax_account_id']);
+        $accountingPolicyId = $this->requiredNumericInt($mapping['accounting_policy_id']);
+        $accountingPolicyVersion = $this->requiredNumericInt($mapping['accounting_policy_version']);
         $taxLine = $this->db->table('payroll_accounting_journal_lines')->where([
             'journal_id' => $journalId,
-            'account_id' => (int) $mapping['tax_account_id'],
+            'account_id' => $taxAccountId,
             'debit_minor' => $taxAmountMinor,
             'credit_minor' => 0,
         ])->count();
@@ -76,15 +82,25 @@ final readonly class CreditNoteTaxReversalService
             'policy_id' => (int) $original->tax_policy_id,
             'version' => (int) $original->policy_version,
             'rate_basis_points' => $rate,
-            'tax_account_id' => (int) $mapping['tax_account_id'],
+            'tax_account_id' => $taxAccountId,
             'tax_account_code' => $mapping['tax_account_code'],
-            'accounting_policy_id' => (int) $mapping['accounting_policy_id'],
-            'accounting_policy_version' => (int) $mapping['accounting_policy_version'],
+            'accounting_policy_id' => $accountingPolicyId,
+            'accounting_policy_version' => $accountingPolicyVersion,
         ], [
             'event' => 'vat_reversal',
             'reversal_of_tax_evidence_id' => (int) $original->id,
             'reversal_of_source_type' => 'customer_invoice',
             'reversal_of_source_id' => $invoiceId,
         ]);
+    }
+
+    private function aggregateMinor(mixed $value): int
+    {
+        return is_int($value) || (is_string($value) && ctype_digit($value)) ? (int) $value : 0;
+    }
+
+    private function requiredNumericInt(mixed $value): int
+    {
+        return is_int($value) || (is_string($value) && ctype_digit($value)) ? (int) $value : throw new \LogicException('Validated tax mapping integer is invalid.');
     }
 }

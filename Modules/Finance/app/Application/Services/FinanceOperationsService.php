@@ -364,16 +364,25 @@ final readonly class FinanceOperationsService
         return ['cost_center_id' => $this->nullableRowInt($expense, 'cost_center_id'), 'cost_center_code_snapshot' => $this->nullableRowText($expense, 'cost_center_code_snapshot'), 'cost_center_name_snapshot' => $this->nullableRowText($expense, 'cost_center_name_snapshot')];
     }
 
-    /** @param array{lines:list<array{entry_side:string,line_role:string,account_code:string,requires_cost_center:bool}>} $policy @return list<array<string,mixed>> */
+    /**
+     * @param  array{lines:list<array{entry_side:string,line_role:string,account_code:string,requires_cost_center:bool}>}  $policy
+     * @return list<array{account_code:string,debit:int,credit:int,description:string,cost_center_id?:int|null,cost_center_code_snapshot?:string|null,cost_center_name_snapshot?:string|null}>
+     */
     private function expensePolicyLines(array $policy, int $amount, object $expense, string $description): array
     {
-        return array_map(fn (array $line): array => [
-            'account_code' => $line['account_code'],
-            'debit' => $line['entry_side'] === 'debit' ? $amount : 0,
-            'credit' => $line['entry_side'] === 'credit' ? $amount : 0,
-            'description' => $description.' '.$line['line_role'],
-            ...($line['requires_cost_center'] ? $this->expenseDimension($expense) : []),
-        ], $policy['lines']);
+        return array_map(function (array $line) use ($amount, $expense, $description): array {
+            $postingLine = [
+                'account_code' => $line['account_code'],
+                'debit' => $line['entry_side'] === 'debit' ? $amount : 0,
+                'credit' => $line['entry_side'] === 'credit' ? $amount : 0,
+                'description' => $description.' '.$line['line_role'],
+            ];
+            if ($line['requires_cost_center']) {
+                $postingLine += $this->expenseDimension($expense);
+            }
+
+            return $postingLine;
+        }, $policy['lines']);
     }
 
     private function assetAssignment(int $companyId, int $assetId, string $date): object

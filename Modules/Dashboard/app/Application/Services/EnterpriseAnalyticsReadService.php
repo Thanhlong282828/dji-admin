@@ -12,31 +12,38 @@ final readonly class EnterpriseAnalyticsReadService
 {
     public function __construct(private ConnectionInterface $db, private FinanceOverviewReadService $finance, private SupplyChainOverviewReadService $supplyChain, private CustomerMetricsService $customers, private EnterpriseKpiCatalog $catalog) {}
 
-    /** @return array<string,mixed> */
-    public function read(int $companyId, ?int $branchId, string $dateFrom, string $dateTo): array
+    /**
+     * @param  list<string>  $capabilities  Empty preserves the canonical analytics workspace.
+     * @return array<string,mixed>
+     */
+    public function read(int $companyId, ?int $branchId, string $dateFrom, string $dateTo, array $capabilities = []): array
     {
         $to = CarbonImmutable::parse($dateTo)->endOfMonth();
         $from = CarbonImmutable::parse($dateFrom)->startOfMonth();
         $months = $this->months($from, $to);
-        $this->merge($months, $this->db->table('customer_invoices')->where('company_id', $companyId)->whereIn('status', ['issued', 'partially_paid', 'paid'])->when($branchId, fn (Builder $q): Builder => $q->where('branch_id', $branchId))->whereBetween('invoice_date', [$from->toDateString(), $to->toDateString()])->selectRaw("DATE_FORMAT(invoice_date,'%Y-%m') month, SUM(total_minor) amount")->groupBy('month')->get(), 'erp_sales');
-        foreach (['commerce_order' => 'marketplace', 'branch_pos' => 'pos'] as $source => $key) {
-            $this->merge($months, $this->db->table('branch_management_revenues')->where(['company_id' => $companyId, 'source_type' => $source, 'status' => 'recognized'])->when($branchId, fn (Builder $q): Builder => $q->where('branch_id', $branchId))->whereBetween('recognized_on', [$from->toDateString(), $to->toDateString()])->selectRaw("DATE_FORMAT(recognized_on,'%Y-%m') month, SUM(amount_minor) amount")->groupBy('month')->get(), $key);
+        if ($this->allows($capabilities, 'finance')) {
+            $this->merge($months, $this->db->table('customer_invoices')->where('company_id', $companyId)->whereIn('status', ['issued', 'partially_paid', 'paid'])->when($branchId, fn (Builder $q): Builder => $q->where('branch_id', $branchId))->whereBetween('invoice_date', [$from->toDateString(), $to->toDateString()])->selectRaw("DATE_FORMAT(invoice_date,'%Y-%m') month, SUM(total_minor) amount")->groupBy('month')->get(), 'erp_sales');
+            $this->merge($months, $this->db->table('payroll_runs')->where('company_id', $companyId)->where('status', 'finalized')->whereBetween('period_end', [$from->toDateString(), $to->toDateString()])->selectRaw("DATE_FORMAT(period_end,'%Y-%m') month, SUM(gross_total_minor + employer_contribution_total_minor) amount")->groupBy('month')->get(), 'payroll');
+            $this->merge($months, $this->db->table('finance_expenses')->where('company_id', $companyId)->whereIn('status', ['approved', 'paid'])->when($branchId, fn (Builder $q): Builder => $q->where('branch_id', $branchId))->whereBetween('expense_date', [$from->toDateString(), $to->toDateString()])->selectRaw("DATE_FORMAT(expense_date,'%Y-%m') month, SUM(amount_minor) amount")->groupBy('month')->get(), 'opex');
+            foreach (['in' => 'cash_in', 'out' => 'cash_out'] as $direction => $key) {
+                $this->merge($months, $this->db->table('treasury_transactions')->where(['company_id' => $companyId, 'direction' => $direction, 'status' => 'recorded'])->where('source_type', '<>', 'treasury_internal_transfer_leg')->when($branchId, fn (Builder $q): Builder => $q->where('branch_id', $branchId))->whereBetween('occurred_at', [$from->startOfDay(), $to->endOfDay()])->selectRaw("DATE_FORMAT(occurred_at,'%Y-%m') month, SUM(amount_minor) amount")->groupBy('month')->get(), $key);
+            }
         }
-        $this->merge($months, $this->db->table('payroll_runs')->where('company_id', $companyId)->where('status', 'finalized')->whereBetween('period_end', [$from->toDateString(), $to->toDateString()])->selectRaw("DATE_FORMAT(period_end,'%Y-%m') month, SUM(gross_total_minor + employer_contribution_total_minor) amount")->groupBy('month')->get(), 'payroll');
-        $this->merge($months, $this->db->table('finance_expenses')->where('company_id', $companyId)->whereIn('status', ['approved', 'paid'])->when($branchId, fn (Builder $q): Builder => $q->where('branch_id', $branchId))->whereBetween('expense_date', [$from->toDateString(), $to->toDateString()])->selectRaw("DATE_FORMAT(expense_date,'%Y-%m') month, SUM(amount_minor) amount")->groupBy('month')->get(), 'opex');
-        foreach (['in' => 'cash_in', 'out' => 'cash_out'] as $direction => $key) {
-            $this->merge($months, $this->db->table('treasury_transactions')->where(['company_id' => $companyId, 'direction' => $direction, 'status' => 'recorded'])->where('source_type', '<>', 'treasury_internal_transfer_leg')->when($branchId, fn (Builder $q): Builder => $q->where('branch_id', $branchId))->whereBetween('occurred_at', [$from->startOfDay(), $to->endOfDay()])->selectRaw("DATE_FORMAT(occurred_at,'%Y-%m') month, SUM(amount_minor) amount")->groupBy('month')->get(), $key);
+        if ($this->allows($capabilities, 'commerce')) {
+            foreach (['commerce_order' => 'marketplace', 'branch_pos' => 'pos'] as $source => $key) {
+                $this->merge($months, $this->db->table('branch_management_revenues')->where(['company_id' => $companyId, 'source_type' => $source, 'status' => 'recognized'])->when($branchId, fn (Builder $q): Builder => $q->where('branch_id', $branchId))->whereBetween('recognized_on', [$from->toDateString(), $to->toDateString()])->selectRaw("DATE_FORMAT(recognized_on,'%Y-%m') month, SUM(amount_minor) amount")->groupBy('month')->get(), $key);
+            }
         }
         foreach ($months as &$row) {
             $row['revenue'] = $this->integer($row['erp_sales']) + $this->integer($row['marketplace']) + $this->integer($row['pos']);
         }
         unset($row);
-        $finance = $this->finance->read($companyId, $branchId, $from->toDateString(), $to->toDateString());
-        $scm = $this->supplyChain->read($companyId);
-        $crm = $this->customers->forCompany($companyId);
-        $headcount = $this->db->table('employees')->where('company_id', $companyId)->whereIn('employment_status', ['active', 'probation', 'leave'])->whereNull('deleted_at')->count();
-        $late = $this->db->table('attendance_records')->where('company_id', $companyId)->when($branchId, fn (Builder $q): Builder => $q->where('branch_id', $branchId))->whereBetween('work_date', [$from->toDateString(), $to->toDateString()])->where('late_minutes', '>', 0)->count();
-        $ot = (int) $this->db->table('attendance_records')->where('company_id', $companyId)->when($branchId, fn (Builder $q): Builder => $q->where('branch_id', $branchId))->whereBetween('work_date', [$from->toDateString(), $to->toDateString()])->sum('overtime_minutes');
+        $finance = $this->allows($capabilities, 'finance') ? $this->finance->read($companyId, $branchId, $from->toDateString(), $to->toDateString()) : [];
+        $scm = $this->allows($capabilities, 'inventory') ? $this->supplyChain->read($companyId) : [];
+        $crm = $this->allows($capabilities, 'crm') ? $this->customers->forCompany($companyId) : collect();
+        $headcount = $this->allows($capabilities, 'people') ? $this->db->table('employees')->where('company_id', $companyId)->whereIn('employment_status', ['active', 'probation', 'leave'])->whereNull('deleted_at')->count() : 0;
+        $late = $this->allows($capabilities, 'people') ? $this->db->table('attendance_records')->where('company_id', $companyId)->when($branchId, fn (Builder $q): Builder => $q->where('branch_id', $branchId))->whereBetween('work_date', [$from->toDateString(), $to->toDateString()])->where('late_minutes', '>', 0)->count() : 0;
+        $ot = $this->allows($capabilities, 'people') ? (int) $this->db->table('attendance_records')->where('company_id', $companyId)->when($branchId, fn (Builder $q): Builder => $q->where('branch_id', $branchId))->whereBetween('work_date', [$from->toDateString(), $to->toDateString()])->sum('overtime_minutes') : 0;
         $series = $this->series($months);
         $current = $series[array_key_last($series)] ?? null;
         $previous = count($series) > 1 ? $series[count($series) - 2] : null;
@@ -45,6 +52,12 @@ final readonly class EnterpriseAnalyticsReadService
         $variance = $currentRevenue - $previousRevenue;
 
         return ['filters' => compact('companyId', 'branchId', 'dateFrom', 'dateTo'), 'catalog' => $this->catalog->definitions(), 'series' => $series, 'period' => ['current' => $current, 'previous' => $previous, 'revenue_variance' => $variance, 'revenue_variance_bp' => $previousRevenue === 0 ? null : intdiv($variance * 10_000, $previousRevenue)], 'finance' => $finance, 'supply_chain' => $scm, 'people' => ['active_headcount' => $headcount, 'late_records' => $late, 'overtime_minutes' => $ot], 'crm' => ['customers' => $crm->count(), 'new' => $crm->where('segment', 'NEW')->count(), 'active' => $crm->where('segment', 'ACTIVE')->count(), 'repeat' => $crm->where('segment', 'REPEAT')->count(), 'at_risk' => $crm->where('segment', 'AT_RISK')->count(), 'dormant' => $crm->where('segment', 'DORMANT')->count()], 'quality' => ['status' => 'ON_DEMAND', 'route' => 'admin.operations.data-quality'], 'forecast' => $finance['forecast'] ?? [], 'limitations' => ['inventory_trend' => 'NOT_ENOUGH_EVIDENCE', 'stock_turnover' => 'NOT_ENOUGH_EVIDENCE', 'future_revenue' => 'NOT_ENOUGH_EVIDENCE']];
+    }
+
+    /** @param list<string> $capabilities */
+    private function allows(array $capabilities, string $capability): bool
+    {
+        return $capabilities === [] || in_array($capability, $capabilities, true);
     }
 
     /**

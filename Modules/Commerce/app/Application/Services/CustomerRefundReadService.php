@@ -47,9 +47,9 @@ final readonly class CustomerRefundReadService
             ->join('customer_refunds as refund', 'refund.id', '=', 'allocation.customer_refund_id')
             ->join('customer_credit_notes as note', 'note.id', '=', 'allocation.customer_credit_note_id')
             ->where('refund.company_id', $companyId)->get(['allocation.*', 'refund.reference as refund_reference', 'refund.status as refund_status', 'note.credit_note_number']);
-        $original = (int) $liabilities->sum('customer_credit_liability_minor');
-        $refunded = (int) $liabilities->sum('refunded_minor');
-        $pendingAmount = (int) $liabilities->sum('pending_minor');
+        $original = $this->aggregateMinor($liabilities->sum('customer_credit_liability_minor'));
+        $refunded = $this->aggregateMinor($liabilities->sum('refunded_minor'));
+        $pendingAmount = $this->aggregateMinor($liabilities->sum('pending_minor'));
 
         return [
             'schema_status' => 'READY',
@@ -57,5 +57,10 @@ final readonly class CustomerRefundReadService
             'liabilities' => $liabilities, 'refunds' => $refunds, 'allocations' => $allocations,
             'accounts' => $this->db->table('treasury_financial_accounts')->where(['company_id' => $companyId, 'status' => 'active'])->whereIn('type', ['cash', 'bank'])->orderBy('code')->get(['id', 'branch_id', 'code', 'name', 'currency']),
         ];
+    }
+
+    private function aggregateMinor(mixed $value): int
+    {
+        return is_int($value) || (is_string($value) && ctype_digit($value)) ? (int) $value : 0;
     }
 }
