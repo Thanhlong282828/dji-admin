@@ -122,6 +122,18 @@ Trước khi thêm, đổi tên, xoá hoặc sử dụng bất kỳ biến `.env
 
 Mọi biến môi trường phải được khai báo trong `.env.example` không kèm secret thật, được ánh xạ qua `config/*`, và application/module code chỉ đọc bằng `config()`. Không được dùng `env()` ngoài file cấu hình, không đưa credential server-side vào `VITE_*`, không ghi secret/token vào log, tài liệu, test fixture hoặc commit. Các provider bên ngoài phải fail closed, có timeout, quyền tối thiểu và kiểm chứng database/environment trước mọi thao tác có side effect.
 
+## MANDATORY TECHNOLOGY CAPABILITY INVENTORY GOVERNANCE
+
+Trước mọi yêu cầu kiểm kê công nghệ, đánh giá kiến trúc, lập AI project context, chuẩn bị tích hợp lớn hoặc tuyên bố project có/không có một capability, Codex phải đọc đầy đủ:
+
+- `docs/technology-governance.md`
+
+Không được suy luận technology stack chỉ từ `composer.json`, `package.json` hoặc tên tài liệu. Phải đối chiếu dependency lockfile, source call site, service-provider binding, config/route, migration, test, Docker/process definition, CI/CD và runbook liên quan. Bắt buộc kiểm tra riêng các nhóm: kiến trúc/module/CQRS; authentication/authorization/tenant scope; mật mã và integrity gồm HMAC; API/webhook; queue/realtime/cache; storage/malware scanning; frontend/browser/accessibility; database; observability; backup/restore; container/runtime; CI/CD/release và cloud integration.
+
+Mọi kết luận phải phân loại `IMPLEMENTED_AND_VERIFIED`, `IMPLEMENTED_NOT_RUNTIME_VERIFIED`, `CONFIGURED_OR_SUPPORTED`, `DOCUMENTATION_ONLY`, `BLOCKED` hoặc `NOT_PRESENT`. Dependency hoặc config mặc định không phải bằng chứng đang vận hành; source tồn tại không phải runtime PASS; tài liệu lịch sử không thay thế verification hiện tại. Không được gọi modular monolith là microservices, phone verification là full MFA, framework-supported driver là provider đang hoạt động, hoặc Prometheus/Grafana/Sentry là production-integrated khi thiếu implementation/provisioning/runtime evidence.
+
+HMAC, encryption, password hashing, checksum, digital signature, masking và redaction là các control khác nhau và phải được báo cáo riêng. Thay đổi liên quan cryptography, webhook signature, identity fingerprint, secret/key rotation, encrypted backup hoặc artifact integrity phải tuân thủ `docs/cryptographic-governance.md` và security testing tương ứng; không tự thay thuật toán, canonical payload, key source hoặc comparison semantics chỉ để đạt test.
+
 ## MANDATORY VPS & PRODUCTION DEPLOYMENT GOVERNANCE
 
 Trước mọi yêu cầu liên quan VPS, production host, SSH/IAP, triển khai, rollback, service runtime, production migration, queue worker, scheduler, ClamAV, monitoring hoặc alert delivery, Codex phải đọc đầy đủ:
